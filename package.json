@@ -11,7 +11,9 @@
     "dev:css": "tailwindcss -i ./src/styles/tailwind.css -o ./src/styles/tailwind.build.css --watch",
     "build:sidebars": "node scripts/build-sidebars.js",
     "dev:mobile-home": "vite --config vite.mobile-home.config.js",
-    "build:mobile-home": "npm run build:css && vite build --config vite.mobile-home.config.js"
+    "build:mobile-home": "npm run build:css && vite build --config vite.mobile-home.config.js",
+    "dev:desktop-dashboard": "vite --config vite.desktop-dashboard.config.js",
+    "build:desktop-dashboard": "npm run build:css && vite build --config vite.desktop-dashboard.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

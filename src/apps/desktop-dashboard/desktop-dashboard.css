@@ -1,0 +1,20 @@
+/* desktop-dashboard.css
+   Non-Tailwind CSS: font imports and global scrollbar hiding. Tailwind
+   utility classes used inside DesktopDashboard.tsx are compiled by the
+   project's existing Tailwind v3 pipeline (see tailwind.config.js) into
+   src/styles/tailwind.build.css, which main.tsx imports directly —
+   same pattern as src/apps/mobile-home. */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+html, body, #root {
+  height: 100%;
+}
+
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
