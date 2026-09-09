@@ -1,12 +1,11 @@
-import type { Priority, Topic, TopicStatus } from '../MobileHome';
-import { calcPriority, NEXT_REVIEW_LABELS } from '../MobileHome';
-
 /* ============================================================
    This mirrors tracker.html's data model exactly, on purpose:
    `user_profiles.tracker_data` is a JSON array of these rows,
    ALREADY read/written by tracker.html, timer.html and home.html
-   (see src/features/tracker/tracker-sync.js). We're adding a new
-   reader/writer of the same column, not inventing a new one.
+   (see src/features/tracker/tracker-sync.js). Every React app in
+   src/apps/ that needs real topic/retention data reads and writes
+   the same rows through this file, rather than each app inventing
+   its own copy of the retention math.
 
    IMPORTANT — this is a day-indexed model, not a topic list:
    tracker.html's buildRows() creates exactly one row per calendar
@@ -14,17 +13,41 @@ import { calcPriority, NEXT_REVIEW_LABELS } from '../MobileHome';
    ~line 782), each with an empty `topic` until the user fills it
    in for that day. There is currently no "add another topic for
    today" — one row per day is a real constraint of the existing
-   schema, not something this file invents.
+   schema, not something invented here.
 
-   That matters for how `addTopic` below behaves: it fills in
+   That matters for how `applyAddTopic` behaves: it fills in
    *today's* row rather than pushing a new one, to avoid breaking
    that invariant (things like the 30-day heatmap and
    computeAvgStrengthOnDate in tracker.html assume rows.length
-   matches the day range). If you want "log more than one topic
-   per day" as real mobile-app behavior, the row schema needs a
-   deliberate change (e.g. topics as their own table) — flagging
-   that rather than quietly reinterpreting it here.
+   matches the day range). If a UI collects more than one topic at
+   once (desktop-dashboard's QuickAddUnit does), they're joined into
+   one string for today's row rather than silently dropped — see
+   applyAddTopic's `topics: string[]` parameter.
    ============================================================ */
+
+export type Priority = 'HIGH' | 'MEDIUM' | 'LOW';
+export type TopicStatus = 'NOT DUE YET' | 'DUE TODAY' | 'OVERDUE';
+
+export interface Topic {
+  id: number;
+  name: string;
+  subject: string;
+  retention: number;
+  priority: Priority;
+  status: TopicStatus;
+  nextReview: string;
+  addedAt: number; // timestamp
+}
+
+// index-aligned with doneCount (0..7) — same order as INTERVAL_DAYS below
+export const NEXT_REVIEW_LABELS = [
+  '5 min from now', '+12h review', '+1D review', '+2D review',
+  '+4D review', '+7D review', '+15D review', '+30D review',
+];
+
+export function calcPriority(retention: number): Priority {
+  return retention < 40 ? 'HIGH' : retention < 70 ? 'MEDIUM' : 'LOW';
+}
 
 export interface TrackerRow {
   no: number;
@@ -70,7 +93,7 @@ function statusFor(overdueDays: number, nextDue: Date | null, asOf: Date): Topic
 
 /** Converts one tracker_data row into the Topic shape MobileHome.tsx
  *  renders. Returns null for template rows with no topic filled in
- *  yet (nothing to show on the homepage for those). */
+ *  yet (nothing to show for those). */
 export function rowToTopic(row: TrackerRow, asOf: Date = new Date()): Topic | null {
   if (!row.topic) return null;
   const { strength, overdueDays, nextDue } = computeStrength(row, asOf);
@@ -80,7 +103,7 @@ export function rowToTopic(row: TrackerRow, asOf: Date = new Date()): Topic | nu
     name: row.topic,
     subject: row.subject,
     retention: Math.round(strength),
-    priority: calcPriority(strength) as Priority,
+    priority: calcPriority(strength),
     status: statusFor(overdueDays, nextDue, asOf),
     nextReview: doneCount >= INTERVAL_KEYS.length ? 'Fully reviewed' : NEXT_REVIEW_LABELS[doneCount],
     addedAt: new Date(row.date + 'T00:00:00').getTime(),
@@ -94,10 +117,54 @@ export function rowsToTopics(rows: TrackerRow[], asOf: Date = new Date()): Topic
     .sort((a, b) => b.addedAt - a.addedAt);
 }
 
+// ── desktop-dashboard's ReviewItem shape ──────────────────────────
+// Same underlying data as Topic above, different field names/levels
+// to match DesktopDashboard.tsx's existing ReviewQueue component
+// (urgency has 3 levels — high/medium/low — mapped from retention,
+// same thresholds as calcPriority but inverted naming).
+export interface ReviewItem {
+  key: string; // `${row.no}` — stable id for React keys / dismiss-tracking
+  subject: string;
+  topic: string;
+  retention: number;
+  daysAgo: number;
+  urgency: 'high' | 'medium' | 'low';
+}
+
+function urgencyFor(retention: number): 'high' | 'medium' | 'low' {
+  return retention < 40 ? 'high' : retention < 70 ? 'medium' : 'low';
+}
+
+export function rowToReviewItem(row: TrackerRow, asOf: Date = new Date()): ReviewItem | null {
+  if (!row.topic) return null;
+  const { strength, overdueDays } = computeStrength(row, asOf);
+  const rd = new Date(row.date + 'T00:00:00');
+  const daysAgo = Math.max(0, Math.round((asOf.getTime() - rd.getTime()) / 86400000));
+  return {
+    key: `${row.no}`,
+    subject: row.subject,
+    topic: row.topic,
+    retention: Math.round(strength),
+    daysAgo,
+    urgency: urgencyFor(strength),
+  };
+}
+
+export function rowsToReviewItems(rows: TrackerRow[], asOf: Date = new Date()): ReviewItem[] {
+  return rows
+    .map((r) => rowToReviewItem(r, asOf))
+    .filter((i): i is ReviewItem => i !== null)
+    .sort((a, b) => a.retention - b.retention);
+}
+
 /** Fill in today's row with a new topic/subject. If today's row
- *  already has a topic in it, this overwrites it — see the note at
- *  the top of this file about the one-row-per-day constraint. */
-export function applyAddTopic(rows: TrackerRow[], subject: string, topicName: string): TrackerRow[] {
+ *  already has a topic, this overwrites it — see the note at the
+ *  top of this file about the one-row-per-day constraint.
+ *  `topics` may have more than one entry (desktop-dashboard's
+ *  QuickAddUnit collects several) — they're joined into one string
+ *  since a row only has a single `topic` field. */
+export function applyAddTopic(rows: TrackerRow[], subject: string, topics: string | string[]): TrackerRow[] {
+  const topicName = Array.isArray(topics) ? topics.join(', ') : topics;
   const today = todayStr();
   const idx = rows.findIndex((r) => r.date === today);
   if (idx === -1) {
@@ -116,6 +183,18 @@ export function applyRemoveTopic(rows: TrackerRow[], id: number): TrackerRow[] {
   return rows.map((r) =>
     r.no === id ? { ...r, topic: '', r0: false, r1: false, r2: false, r3: false, r4: false, r5: false, r6: false, r7: false } : r
   );
+}
+
+/** Removes the most recent row whose topic/subject match — used by
+ *  desktop-dashboard's QuickAddUnit "remove by subject" UI, which
+ *  doesn't track a row id, only the subject name. */
+export function applyRemoveTopicBySubject(rows: TrackerRow[], subject: string): TrackerRow[] {
+  const idx = [...rows].reverse().findIndex((r) => r.subject.toLowerCase() === subject.toLowerCase() && r.topic);
+  if (idx === -1) return rows;
+  const realIdx = rows.length - 1 - idx;
+  const next = [...rows];
+  next[realIdx] = { ...next[realIdx], topic: '', r0: false, r1: false, r2: false, r3: false, r4: false, r5: false, r6: false, r7: false };
+  return next;
 }
 
 /** Marks the next not-yet-done interval complete for a row, same

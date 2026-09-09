@@ -3,17 +3,21 @@ import { sb } from '../../_shared/supabaseClient';
 import {
   applyAddTopic,
   applyMarkReviewed,
-  applyRemoveTopic,
-  rowsToTopics,
+  applyRemoveTopicBySubject,
+  rowsToReviewItems,
   type TrackerRow,
-  type Topic,
+  type ReviewItem,
 } from '../../_shared/wynkoTracker';
 
 export type AuthState = 'loading' | 'signed-out' | 'ready';
 
 const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
 
-export function useWynkoTopics() {
+/** Home page data: the review queue (real retention/urgency, same
+ *  math as tracker.html and mobile-home) plus add/remove/mark-reviewed
+ *  actions that write back to the same user_profiles.tracker_data
+ *  column every other page already reads and writes. */
+export function useHomeData() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [rows, setRows] = useState<TrackerRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
@@ -68,9 +72,9 @@ export function useWynkoTopics() {
     };
   }, [loadForSession]);
 
-  // Debounced write-back to Supabase, same 1.5s debounce as
-  // syncTrackerToSupabase in tracker-sync.js so the two don't fight
-  // over save timing if both happen to be open at once.
+  // Same 1.5s debounce as tracker-sync.js / mobile-home's
+  // useWynkoTopics, so the three don't fight over save timing if
+  // more than one happens to be open at once.
   const persist = useCallback((nextRows: TrackerRow[]) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
@@ -98,11 +102,23 @@ export function useWynkoTopics() {
     [persist]
   );
 
-  const addTopic = useCallback((subject: string, topicName: string) => mutate((prev) => applyAddTopic(prev, subject, topicName)), [mutate]);
-  const removeTopic = useCallback((id: number) => mutate((prev) => applyRemoveTopic(prev, id)), [mutate]);
-  const markAsReviewed = useCallback((id: number) => mutate((prev) => applyMarkReviewed(prev, id)), [mutate]);
+  // subject + one-or-more topics (QuickAddUnit collects several at
+  // once) — joined into today's single tracker_data row. See the
+  // one-row-per-day note in _shared/wynkoTracker.ts.
+  const addUnit = useCallback(
+    (subject: string, topics: string[]) => mutate((prev) => applyAddTopic(prev, subject, topics)),
+    [mutate]
+  );
+  const removeUnitBySubject = useCallback(
+    (subject: string) => mutate((prev) => applyRemoveTopicBySubject(prev, subject)),
+    [mutate]
+  );
+  const markAsReviewed = useCallback(
+    (key: string) => mutate((prev) => applyMarkReviewed(prev, Number(key))),
+    [mutate]
+  );
 
-  const topics: Topic[] = rowsToTopics(rows);
+  const reviewItems: ReviewItem[] = rowsToReviewItems(rows);
 
-  return { authState, topics, loading: loadingRows, addTopic, removeTopic, markAsReviewed };
+  return { authState, reviewItems, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
 }

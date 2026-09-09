@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
+import { useHomeData } from './lib/useHomeData'
+import type { ReviewItem } from '../_shared/wynkoTracker'
 
 // ─── Icon System ──────────────────────────────────────────────────────────────
 const IP: Record<string, string[]> = {
@@ -538,30 +540,10 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
 }
 
 // ─── Review Queue ─────────────────────────────────────────────────────────────
-interface ReviewItem { key: string; subject: string; topic: string; retention: number; daysAgo: number; urgency: 'high' | 'medium' | 'low' }
-
-function buildReviewItems(schedule: ScheduleItem[][], todayIdx: number, dismissed: Set<string>): ReviewItem[] {
-  const items: ReviewItem[] = []
-  for (let d = 0; d < todayIdx; d++) {
-    const daysAgo = todayIdx - d
-    for (const s of schedule[d]) {
-      const key = `${d}_${s.id}`
-      if (dismissed.has(key)) continue
-      const retention = Math.max(10, Math.round(100 - daysAgo * 18 + Math.random() * 8))
-      const urgency: 'high' | 'medium' | 'low' = retention < 50 ? 'high' : retention < 75 ? 'medium' : 'low'
-      items.push({ key, subject: s.subject, topic: s.topic || s.subject, retention, daysAgo, urgency })
-    }
-  }
-  return items.sort((a, b) => a.retention - b.retention)
-}
-
-function ReviewQueue({ schedule, todayIdx, dismissed, onDismiss }: {
-  schedule: ScheduleItem[][]
-  todayIdx: number
-  dismissed: Set<string>
+function ReviewQueue({ items, onDismiss }: {
+  items: ReviewItem[]
   onDismiss: (key: string) => void
 }) {
-  const items = buildReviewItems(schedule, todayIdx, dismissed)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const tagCls = {
@@ -4944,7 +4926,12 @@ export default function DesktopDashboard() {
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
   const [schedule, setSchedule] = useState<ScheduleItem[][]>(Array.from({ length: 7 }, () => []))
   const [activeRoom, setActiveRoom] = useState<RoomData | null>(null)
-  const [reviewDismissed, setReviewDismissed] = useState<Set<string>>(new Set())
+
+  // Home's real data — everything else on this page (Focus Lock,
+  // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
+  // Library) still runs on the local mock state above until their
+  // own module pass.
+  const { authState, reviewItems, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -4955,18 +4942,11 @@ export default function DesktopDashboard() {
   function goFocus() { setActiveNav('focus') }
 
   function handleAddUnit(u: StudyUnit) {
-    setSharedUnits(prev => [...prev, u])
-    const item: ScheduleItem = {
-      id: `home_${Date.now()}`, subject: u.subject,
-      topic: u.topics[0] || '', startTime: '', endTime: '',
-      color: subjectColor(u.subject), iconEmoji: subjectEmoji(u.subject),
-    }
-    setSchedule(prev => { const n = [...prev]; n[todayIdx] = [...n[todayIdx], item]; return n })
+    addUnit(u.subject, u.topics)
   }
 
   function handleRemoveUnit(subject: string) {
-    setSharedUnits(prev => prev.filter(u => u.subject !== subject))
-    setSchedule(prev => prev.map(day => day.filter(s => s.subject.toLowerCase() !== subject.toLowerCase())))
+    removeUnitBySubject(subject)
   }
 
   if (activeNav === 'focus') {
@@ -4997,15 +4977,35 @@ export default function DesktopDashboard() {
     return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} />
   }
 
-  const reviewItems = buildReviewItems(schedule, todayIdx, reviewDismissed)
+  // ── Home (the module wired to real data this pass) ──
+  if (authState === 'loading' || (authState === 'ready' && homeLoading)) {
+    return (
+      <div className="flex h-screen items-center justify-center text-slate-500 text-sm" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+        Loading your dashboard…
+      </div>
+    )
+  }
+  if (authState === 'signed-out') {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+        <div className="text-slate-200 text-base font-semibold">Sign in to see your dashboard</div>
+        <div className="text-slate-500 text-sm max-w-xs">Your review queue and study data will show up here once you're signed in.</div>
+        <a href="/login.html" className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Go to sign in</a>
+      </div>
+    )
+  }
+
   const atRisk = reviewItems.filter(i => i.urgency === 'high').length
   const due = reviewItems.filter(i => i.urgency !== 'low').length
   const stable = reviewItems.filter(i => i.urgency === 'low').length
   const topSubject = reviewItems.length > 0 ? `${reviewItems[0].subject.toUpperCase()} · ${reviewItems[0].topic}` : ''
 
-  function dismissReview(key: string) {
-    setReviewDismissed(prev => new Set([...prev, key]))
-  }
+  // Today's already-logged entries, shown as removable chips in
+  // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
+  // rather than tracked as separate local state.
+  const todaysUnits: StudyUnit[] = reviewItems
+    .filter(i => i.daysAgo === 0)
+    .map(i => ({ subject: i.subject, exam: '', topics: [i.topic] }))
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
@@ -5015,10 +5015,10 @@ export default function DesktopDashboard() {
         <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
           <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} topSubject={topSubject} />
           <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
-          <QuickAddUnit added={sharedUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
+          <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
           <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
             <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-              <ReviewQueue schedule={schedule} todayIdx={todayIdx} dismissed={reviewDismissed} onDismiss={dismissReview} />
+              <ReviewQueue items={reviewItems} onDismiss={markAsReviewed} />
             </div>
             <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
               <FocusPanel onGoFocus={goFocus} />

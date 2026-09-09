@@ -1,23 +1,18 @@
 import { useState, useEffect } from "react";
 import { useWynkoTopics } from "./lib/useWynkoTopics";
+import type { Priority, TopicStatus, Topic } from "../_shared/wynkoTracker";
+import { calcPriority, NEXT_REVIEW_LABELS } from "../_shared/wynkoTracker";
+// Priority/TopicStatus/Topic/calcPriority/NEXT_REVIEW_LABELS now live
+// in the shared lib (src/apps/_shared/wynkoTracker.ts) since
+// desktop-dashboard needs the same retention data — re-exported here
+// so nothing importing them from this file needs to change.
+export type { Priority, TopicStatus, Topic };
+export { calcPriority, NEXT_REVIEW_LABELS };
 
 // ─── Types ────────────────────────────────────────────────
-// Exported so lib/wynkoData.ts (the Supabase-backed data hook) can
-// share these instead of redefining them.
+// Screen is this app's own UI navigation state, not tracker data,
+// so it's defined here rather than in the shared lib.
 export type Screen = "home" | "focus" | "rooms" | "library" | "recall" | "more";
-export type Priority = "HIGH" | "MEDIUM" | "LOW";
-export type TopicStatus = "NOT DUE YET" | "DUE TODAY" | "OVERDUE";
-
-export interface Topic {
-  id: number;
-  name: string;
-  subject: string;
-  retention: number;
-  priority: Priority;
-  status: TopicStatus;
-  nextReview: string;
-  addedAt: number; // timestamp
-}
 
 // ─── Subject / Badge Config ───────────────────────────────
 const SUBJECTS = [
@@ -73,9 +68,6 @@ const subjectColorCache: Record<string, { bg: string; text: string }> = {};
 function getSubjectColor(subject: string) {
   return SUBJECT_COLORS[subject] ?? subjectColorCache[subject] ?? { bg: "rgba(124,58,237,0.18)", text: "#a78bfa" };
 }
-
-// Spaced-repetition review intervals label
-export const NEXT_REVIEW_LABELS = ["5 min from now", "+12h review", "+1D review", "+2D review", "+4D review", "+7D review", "+15D review", "+30D review"];
 
 // ─── Daily Focus Curve Config ─────────────────────────────
 // Typical intraday cognitive retention curve [hour (24h), retention %]
@@ -226,9 +218,6 @@ const CARD_BORDER = "#1a1a35";
 // ─── Utility ─────────────────────────────────────────────
 function retentionColor(r: number) {
   return r >= 70 ? "#34d399" : r >= 40 ? "#f59e0b" : "#ef4444";
-}
-export function calcPriority(retention: number): Priority {
-  return retention < 40 ? "HIGH" : retention < 70 ? "MEDIUM" : "LOW";
 }
 
 // ─── Shared Primitives ────────────────────────────────────
