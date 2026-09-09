@@ -4079,7 +4079,7 @@ function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
           {/* Balance pill */}
           <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border"
             style={{ background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }}>
-            <span className="text-lg leading-none">🪙</span>
+            <img src="/wynkoin.png" alt="Wynkoin" className="w-5 h-5 object-contain flex-shrink-0" />
             <span className="text-base font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</span>
             <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
@@ -4109,9 +4109,9 @@ function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
               style={{ background: 'radial-gradient(ellipse at 60% 50%,rgba(245,158,11,0.1),transparent 65%)' }} />
             <div className="relative z-10 flex items-center gap-10">
               {/* Giant coin */}
-              <div className="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center text-5xl"
+              <div className="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center"
                 style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', boxShadow: '0 0 48px rgba(245,158,11,0.5), 0 0 96px rgba(245,158,11,0.2)' }}>
-                🪙
+                <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 object-contain" />
               </div>
               <div>
                 <div className="text-[10px] font-mono tracking-[0.28em] text-amber-500 mb-2">WYNKO VIRTUAL CURRENCY</div>
@@ -4213,7 +4213,7 @@ function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
                           border: balance >= 199 ? 'none' : '1px solid rgba(124,58,237,0.2)',
                           boxShadow: balance >= 199 ? '0 0 20px rgba(124,58,237,0.35)' : 'none',
                         }}>
-                        {spending ? 'Unlocking…' : balance >= 199 ? 'Unlock for 199 🪙' : 'Not enough coins'}
+                        {spending ? 'Unlocking…' : balance >= 199 ? (<>Unlock for 199 <img src="/wynkoin.png" alt="Wynkoin" className="w-4 h-4 object-contain inline-block" style={{ verticalAlign: '-3px' }} /></>) : 'Not enough coins'}
                       </button>
                     ) : (
                       <div className="flex-shrink-0 text-2xl">✅</div>
@@ -4644,7 +4644,7 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
                 ].map(f => (
                   <div key={f.label} className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                      style={{ background: "rgba(124,58,237,0.18)", border: "1px solid rgba(124,58,237,0.35)" }}>{f.icon}</div>
+                      style={{ background: "rgba(124,58,237,0.18)", border: "1px solid rgba(124,58,237,0.35)" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
                     <div>
                       <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#C4B5FD,#67E8F9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
                       <div className="text-[10px] text-slate-500">{f.label}</div>
@@ -4779,7 +4779,7 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
                       { icon: "🪙", title: "Both Get WYNKOINS", desc: "You and your friend each receive WYNKOINS instantly!" },
                     ].map((s, i) => (
                       <div key={i} className="flex-1 p-3.5 rounded-xl border text-center" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
-                        <div className="text-2xl mb-2">{s.icon}</div>
+                        <div className="text-2xl mb-2 flex justify-center">{s.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-7 h-7 object-contain" /> : s.icon}</div>
                         <div className="text-[12px] font-bold text-white mb-1">{s.title}</div>
                         <div className="text-[10px] text-slate-400 leading-relaxed">{s.desc}</div>
                       </div>
