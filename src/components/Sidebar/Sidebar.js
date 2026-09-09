@@ -77,7 +77,7 @@ export function renderSidebar({ active, showFooter = true, showSignOut = true, t
       ${showSignOut ? SIGN_OUT_BTN : ''}
     </div>` : '';
   return `<aside class="sidebar">
-    <a class="sidebar-logo" href="index.html"><img src="wynko-logo.png" alt="WYNKO" class="sidebar-logo-img"></a>
+    <a class="sidebar-logo" href="home.html"><img src="wynko-logo.png" alt="WYNKO" class="sidebar-logo-img"></a>
     <nav class="sidebar-nav">
   ${renderNav(active)}
 </nav>${footer}
