@@ -119,11 +119,9 @@ header{
 .nav{ display:flex; align-items:center; gap:34px; height:66px; }
 .brand{ display:flex; align-items:center; gap:11px; flex-shrink:0; }
 .brand-mark{
-  width:38px; height:38px; border-radius:11px; overflow:hidden;
-  background:#0b0b1c; border:1px solid var(--border-2);
-  box-shadow:0 0 26px -6px var(--glow-v);
+  width:40px; height:40px; display:flex; align-items:center; justify-content:center;
 }
-.brand-mark img{ width:100%; height:100%; object-fit:cover; }
+.brand-mark img{ width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 10px var(--glow-v)); }
 .brand-word{ font-weight:800; font-size:1.18rem; letter-spacing:.14em; }
 .nav-links{ display:flex; align-items:center; gap:26px; margin-left:8px; }
 .nav-links a{ font-size:.9rem; font-weight:500; color:var(--text-2); transition:color .18s; }
@@ -491,7 +489,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <header>
   <div class="wrap nav">
       <a class="brand" href="product.html" aria-label="Wynko home">
-      <span class="brand-mark"><img src="wynko-icon.png" alt="Wynko" /></span>
+      <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
       <span class="brand-word grad-text">WYNKO</span>
     </a>
     <nav class="nav-links">
@@ -1003,7 +1001,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     <div class="foot-grid">
       <div class="foot-brand">
         <a class="brand" href="product.html">
-          <span class="brand-mark"><img src="wynko-icon.png" alt="Wynko" /></span>
+          <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
           <span class="brand-word grad-text">WYNKO</span>
         </a>
         <p>The world's first Study OS which empowers you to learn and earn. Focus. Study. Together.</p>
