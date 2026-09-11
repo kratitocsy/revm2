@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wynko — The World's First Study OS</title>
+<meta name="description" content="Wynko is the world's first Study OS which empowers you to learn and earn — deep-focus sessions, memory-timed revision, live study rooms and an earnings layer that pays you for the hours you actually put in. Run it right here in your browser." />
+<link rel="icon" href="wynko-icon.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://wynko.in/product.html" />
+<meta property="og:title" content="Wynko — The World's First Study OS" />
+<meta property="og:description" content="Focus. Study. Earn. The Study OS that turns your hours into progress — and progress into earnings." />
+<meta property="og:image" content="https://wynko.in/wynko-lockup.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   WYNKO — PRODUCT / STUDY OS
+   Dark instrument panel · Violet-Cyan signal · 8pt grid
+   Layout inspired by the product page of a modern cloud-emulator site.
+   ===================================================================== */
+:root{
+  --ink:#0a0a12;
+  --ink-2:#0e0e18;
+  --surface:rgba(255,255,255,.025);
+  --surface-2:rgba(255,255,255,.045);
+  --surface-3:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);
+  --border-2:rgba(255,255,255,.14);
+  --text:#f4f4f8;
+  --text-2:#b6b6c6;
+  --text-3:#7a7a90;
+  --text-4:#4c4c62;
+
+  --violet:#7c4dff;
+  --violet-2:#a78bfa;
+  --blue:#4a6bff;
+  --cyan:#22d3ee;
+  --mint:#34d399;
+  --amber:#fbbf24;
+  --coral:#fb7185;
+
+  --grad:linear-gradient(118deg,#a78bfa 0%,#6c8cff 46%,#22d3ee 100%);
+  --grad-soft:linear-gradient(120deg,rgba(124,77,255,.16),rgba(34,211,238,.12));
+  --glow-v:rgba(124,77,255,.32);
+  --glow-c:rgba(34,211,238,.28);
+
+  --font:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --maxw:1200px;
+  --r:16px;
+  --r-sm:10px;
+  --r-lg:26px;
+}
+*,*::before,*::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    radial-gradient(1100px 560px at 8% -12%, rgba(124,77,255,.16), transparent 62%),
+    radial-gradient(900px 520px at 96% 2%, rgba(34,211,238,.10), transparent 58%),
+    radial-gradient(1200px 700px at 50% 118%, rgba(74,107,255,.10), transparent 60%);
+}
+body::after{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.026) 1px, transparent 1px);
+  background-size:46px 46px;
+  mask-image:radial-gradient(circle at 50% 0%, rgba(0,0,0,.85), transparent 78%);
+  -webkit-mask-image:radial-gradient(circle at 50% 0%, rgba(0,0,0,.85), transparent 78%);
+}
+main,header,footer{ position:relative; z-index:1; }
+a{ color:inherit; text-decoration:none; }
+img{ max-width:100%; display:block; }
+.mono{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.wrap{ max-width:var(--maxw); margin:0 auto; padding:0 28px; }
+.grad-text{ background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  font-family:var(--font); font-weight:600; font-size:.92rem;
+  padding:12px 22px; border-radius:999px; border:1px solid transparent;
+  cursor:pointer; transition:transform .18s ease, box-shadow .22s ease, background .2s ease, border-color .2s ease;
+  white-space:nowrap;
+}
+.btn:active{ transform:scale(.97); }
+.btn-primary{ background:var(--grad); color:#080810; box-shadow:0 10px 34px -12px var(--glow-v); }
+.btn-primary:hover{ box-shadow:0 14px 44px -10px var(--glow-v), 0 0 0 1px rgba(255,255,255,.12) inset; transform:translateY(-1px); }
+.btn-ghost{ background:rgba(255,255,255,.03); border-color:var(--border-2); color:var(--text); }
+.btn-ghost:hover{ border-color:var(--violet-2); color:#fff; background:rgba(124,77,255,.1); }
+.btn-sm{ padding:8px 16px; font-size:.82rem; }
+.btn-lg{ padding:15px 30px; font-size:1rem; }
+
+/* ---------- nav ---------- */
+header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(10,10,18,.72);
+  backdrop-filter:blur(16px) saturate(140%);
+  border-bottom:1px solid var(--border);
+}
+.nav{ display:flex; align-items:center; gap:34px; height:66px; }
+.brand{ display:flex; align-items:center; gap:11px; flex-shrink:0; }
+.brand-mark{
+  width:38px; height:38px; border-radius:11px; overflow:hidden;
+  background:#0b0b1c; border:1px solid var(--border-2);
+  box-shadow:0 0 26px -6px var(--glow-v);
+}
+.brand-mark img{ width:100%; height:100%; object-fit:cover; }
+.brand-word{ font-weight:800; font-size:1.18rem; letter-spacing:.14em; }
+.nav-links{ display:flex; align-items:center; gap:26px; margin-left:8px; }
+.nav-links a{ font-size:.9rem; font-weight:500; color:var(--text-2); transition:color .18s; }
+.nav-links a:hover{ color:#fff; }
+.nav-links a.active{ color:#fff; }
+.nav-links a.active::after{ content:''; display:block; height:2px; margin-top:3px; border-radius:2px; background:var(--grad); }
+.nav-right{ margin-left:auto; display:flex; align-items:center; gap:18px; }
+.nav-right .login{ font-size:.9rem; font-weight:500; color:var(--text-2); }
+.nav-right .login:hover{ color:#fff; }
+.nav-dot{ width:6px; height:6px; border-radius:50%; background:var(--mint); display:inline-block; margin-right:7px; box-shadow:0 0 10px var(--mint); animation:pulse 2s infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+.nav-toggle{ display:none; background:none; border:0; color:var(--text); font-size:1.5rem; cursor:pointer; }
+
+/* ---------- generic section scaffolding ---------- */
+section{ padding:96px 0; }
+.eyebrow{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.24em; text-transform:uppercase;
+  color:var(--violet-2); display:inline-flex; align-items:center; gap:9px; margin-bottom:20px;
+}
+.eyebrow::before{ content:''; width:22px; height:1px; background:var(--violet-2); opacity:.7; }
+h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; }
+.h-xl{ font-size:clamp(2.4rem,5.4vw,4.1rem); font-weight:800; }
+.h-lg{ font-size:clamp(1.9rem,3.6vw,2.9rem); font-weight:800; }
+.h-md{ font-size:clamp(1.3rem,2.2vw,1.7rem); }
+.lead{ color:var(--text-2); font-size:clamp(1rem,1.5vw,1.15rem); max-width:640px; }
+.muted{ color:var(--text-3); }
+.section-head{ max-width:760px; margin-bottom:56px; }
+.section-head.center{ margin-left:auto; margin-right:auto; text-align:center; }
+.section-head.center .eyebrow{ justify-content:center; }
+.section-head.center .lead{ margin-left:auto; margin-right:auto; }
+.kicker-chip{
+  display:inline-flex; align-items:center; gap:8px; padding:7px 15px; border-radius:999px;
+  border:1px solid var(--border-2); background:rgba(255,255,255,.03);
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--text-2);
+}
+.kicker-chip b{ color:var(--cyan); font-weight:600; }
+
+/* =============================================================
+   PHONE DEVICE / EMULATOR
+   ============================================================= */
+.device{
+  position:relative;
+  width:290px; height:590px;
+  border-radius:46px; padding:11px;
+  background:linear-gradient(160deg,#2a2a3e,#101018 42%,#050509);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.09),
+    0 2px 3px rgba(255,255,255,.14) inset,
+    0 40px 90px -30px rgba(0,0,0,.95),
+    0 0 90px -20px var(--glow-v);
+  flex-shrink:0;
+}
+.device::before{
+  content:''; position:absolute; inset:2px; border-radius:44px; pointer-events:none;
+  background:linear-gradient(150deg, rgba(167,139,250,.22), transparent 34%, transparent 68%, rgba(34,211,238,.18));
+  -webkit-mask:linear-gradient(#000,#000) content-box, linear-gradient(#000,#000);
+  -webkit-mask-composite:xor; mask-composite:exclude; padding:1px; z-index:3;
+}
+.device-screen{
+  position:relative; width:100%; height:100%; border-radius:36px; overflow:hidden;
+  background:radial-gradient(120% 80% at 50% -10%, #17162b, #0a0a14 60%);
+  display:flex; flex-direction:column;
+}
+.island{
+  position:absolute; top:11px; left:50%; transform:translateX(-50%);
+  width:86px; height:24px; border-radius:999px; background:#04040a; z-index:8;
+  border:1px solid rgba(255,255,255,.05);
+}
+.statusbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:15px 22px 6px; font-size:.66rem; font-weight:600; color:#fff; z-index:7;
+}
+.statusbar .icons{ display:flex; gap:5px; align-items:center; opacity:.9; }
+.app{ flex:1; display:flex; flex-direction:column; padding:14px 18px 0; overflow:hidden; position:relative; }
+.app-screen{ display:none; flex:1; flex-direction:column; animation:fade .32s ease; }
+.app-screen.active{ display:flex; }
+@keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+.app-title{ font-size:.72rem; font-weight:600; color:var(--text-3); letter-spacing:.04em; }
+.app-h{ font-size:1.18rem; font-weight:700; margin:2px 0 14px; }
+
+/* focus ring */
+.ring-wrap{ display:flex; justify-content:center; margin:4px 0 6px; }
+.ring{ position:relative; width:182px; height:182px; }
+.ring svg{ width:100%; height:100%; transform:rotate(-90deg); }
+.ring circle{ fill:none; stroke-width:9; stroke-linecap:round; }
+.ring .track{ stroke:rgba(255,255,255,.07); }
+.ring .prog{ stroke:url(#ringGrad); stroke-dasharray:520; stroke-dashoffset:130; transition:stroke-dashoffset .4s linear; }
+.ring-center{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+}
+.ring-time{ font-family:var(--mono); font-size:2.05rem; font-weight:700; letter-spacing:.02em; }
+.ring-label{ font-size:.62rem; text-transform:uppercase; letter-spacing:.18em; color:var(--text-3); margin-top:2px; }
+.ring-earn{ font-family:var(--mono); font-size:.72rem; color:var(--mint); margin-top:6px; }
+
+.chips{ display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.chip{
+  font-size:.62rem; padding:5px 10px; border-radius:999px;
+  border:1px solid var(--border); background:rgba(255,255,255,.03); color:var(--text-2);
+}
+.chip.lock{ color:var(--coral); border-color:rgba(251,113,133,.3); background:rgba(251,113,133,.07); }
+.chip.on{ color:var(--mint); border-color:rgba(52,211,153,.3); background:rgba(52,211,153,.07); }
+
+.start-btn{
+  margin-top:auto; margin-bottom:14px; width:100%; border:0; cursor:pointer;
+  padding:14px; border-radius:14px; font-family:var(--font); font-weight:700; font-size:.9rem;
+  background:var(--grad); color:#080810; transition:filter .2s, transform .15s;
+}
+.start-btn:hover{ filter:brightness(1.08); }
+.start-btn:active{ transform:scale(.98); }
+.start-btn.stop{ background:rgba(251,113,133,.14); color:var(--coral); border:1px solid rgba(251,113,133,.3); }
+
+/* tabbar */
+.tabbar{
+  display:flex; border-top:1px solid var(--border); background:rgba(255,255,255,.02);
+  padding:9px 6px 13px; position:relative; z-index:6;
+}
+.tabbar button{
+  flex:1; background:none; border:0; cursor:pointer; color:var(--text-4);
+  display:flex; flex-direction:column; align-items:center; gap:4px; font-family:var(--font);
+  font-size:.58rem; font-weight:600; letter-spacing:.02em; transition:color .2s;
+}
+.tabbar button svg{ width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.7; }
+.tabbar button.active{ color:var(--violet-2); }
+
+/* balance / earn screen */
+.bal-card{
+  border-radius:18px; padding:16px; border:1px solid rgba(52,211,153,.22);
+  background:linear-gradient(150deg, rgba(52,211,153,.14), rgba(34,211,238,.05) 60%, transparent);
+}
+.bal-label{ font-size:.64rem; letter-spacing:.16em; text-transform:uppercase; color:var(--text-3); }
+.bal-amt{ font-family:var(--mono); font-size:2rem; font-weight:700; margin:2px 0 2px; }
+.bal-sub{ font-size:.68rem; color:var(--mint); }
+.mini-stats{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin:12px 0; }
+.mini{ border:1px solid var(--border); border-radius:13px; padding:11px; background:rgba(255,255,255,.02); }
+.mini b{ display:block; font-family:var(--mono); font-size:1.02rem; font-weight:700; }
+.mini span{ font-size:.6rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.1em; }
+.bars{ display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+.bar-row{ font-size:.66rem; color:var(--text-2); }
+.bar-row .top{ display:flex; justify-content:space-between; margin-bottom:5px; }
+.bar-track{ height:6px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; }
+.bar-fill{ height:100%; border-radius:999px; background:var(--grad); width:0; transition:width .8s cubic-bezier(.2,.8,.2,1); }
+
+/* leaderboard */
+.rank-hero{
+  border-radius:16px; padding:14px; text-align:center; margin-bottom:10px;
+  border:1px solid rgba(251,191,36,.25);
+  background:linear-gradient(160deg,rgba(251,191,36,.13),transparent 70%);
+}
+.rank-hero .big{ font-family:var(--mono); font-size:1.7rem; font-weight:700; color:var(--amber); }
+.rank-hero span{ font-size:.62rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.14em; }
+.lb-row{ display:flex; align-items:center; gap:10px; padding:8px 6px; border-bottom:1px solid var(--border); font-size:.74rem; }
+.lb-row .pos{ font-family:var(--mono); width:20px; color:var(--text-3); }
+.lb-row .av{ width:26px; height:26px; border-radius:50%; background:var(--grad-soft); border:1px solid var(--border-2); display:grid; place-items:center; font-size:.6rem; font-weight:700; }
+.lb-row .nm{ flex:1; color:var(--text-2); }
+.lb-row .pts{ font-family:var(--mono); color:var(--cyan); }
+.lb-row.me{ background:rgba(124,77,255,.09); border-radius:10px; border-bottom-color:transparent; }
+.lb-row.me .nm{ color:#fff; font-weight:600; }
+
+/* rooms */
+.room-tile{
+  display:flex; align-items:center; gap:11px; padding:11px; border-radius:14px; margin-bottom:9px;
+  border:1px solid var(--border); background:rgba(255,255,255,.02);
+}
+.room-ic{ width:36px; height:36px; border-radius:11px; display:grid; place-items:center; background:var(--grad-soft); border:1px solid var(--border-2); font-size:1rem; }
+.room-tile .t{ font-size:.76rem; font-weight:600; }
+.room-tile .s{ font-size:.62rem; color:var(--text-3); }
+.room-live{ margin-left:auto; font-size:.6rem; color:var(--mint); font-family:var(--mono); }
+.avatars{ display:flex; margin-left:auto; }
+.avatars i{ width:20px; height:20px; border-radius:50%; border:2px solid #0b0b16; margin-left:-7px; background:var(--grad-soft); }
+
+/* floating earn badge on device */
+.float-badge{
+  position:absolute; display:flex; align-items:center; gap:9px;
+  padding:10px 14px; border-radius:14px; z-index:12;
+  background:rgba(12,12,22,.86); border:1px solid var(--border-2);
+  backdrop-filter:blur(12px); box-shadow:0 20px 40px -20px #000;
+  animation:floaty 5s ease-in-out infinite;
+}
+@keyframes floaty{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+.float-badge .dot{ width:9px; height:9px; border-radius:50%; background:var(--mint); box-shadow:0 0 12px var(--mint); }
+.float-badge b{ font-family:var(--mono); font-size:.82rem; }
+.float-badge span{ font-size:.62rem; color:var(--text-3); display:block; }
+
+/* emulator toolbar */
+.emu-shell{ position:relative; }
+.emu-bar{
+  display:inline-flex; align-items:center; gap:12px; margin-bottom:18px;
+  padding:8px 12px; border-radius:999px; border:1px solid var(--border);
+  background:rgba(255,255,255,.025); font-family:var(--mono); font-size:.66rem; color:var(--text-3);
+}
+.emu-bar .live{ display:inline-flex; align-items:center; gap:6px; color:var(--mint); }
+.emu-bar .live i{ width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 10px var(--mint); animation:pulse 1.6s infinite; }
+.emu-cam{ display:inline-flex; gap:6px; margin-left:4px; }
+.emu-cam button{ background:rgba(255,255,255,.05); border:1px solid var(--border); color:var(--text-3); border-radius:7px; padding:3px 8px; font-family:var(--mono); font-size:.62rem; cursor:pointer; transition:.2s; }
+.emu-cam button:hover{ color:#fff; border-color:var(--violet-2); }
+
+/* hero device column */
+.hero-device-wrap{ position:relative; display:flex; justify-content:center; }
+.hero-device-wrap .halo{
+  position:absolute; inset:-40px -20px; border-radius:50%;
+  background:radial-gradient(circle at 50% 40%, var(--glow-v), transparent 62%); filter:blur(20px); z-index:0;
+}
+.hero-device-wrap .device{ z-index:2; }
+
+/* ---------- hero ---------- */
+.hero{ padding-top:70px; padding-bottom:80px; }
+.hero-grid{ display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; }
+.hero-cta{ display:flex; gap:14px; flex-wrap:wrap; margin-top:32px; }
+.hero-meta{ display:flex; align-items:center; gap:22px; margin-top:26px; flex-wrap:wrap; }
+.hero-meta .item{ font-size:.8rem; color:var(--text-3); display:flex; align-items:center; gap:8px; }
+.hero-meta .item b{ color:var(--text); font-family:var(--mono); }
+.hero h1{ margin-bottom:22px; }
+
+/* ---------- marquee / built-for ---------- */
+.marquee-sec{ padding:34px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); background:rgba(255,255,255,.012); }
+.marquee-label{ text-align:center; font-family:var(--mono); font-size:.68rem; letter-spacing:.22em; text-transform:uppercase; color:var(--text-4); margin-bottom:20px; }
+.marquee{ overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent); mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent); }
+.marquee-track{ display:flex; gap:16px; width:max-content; animation:scroll 34s linear infinite; }
+.marquee:hover .marquee-track{ animation-play-state:paused; }
+@keyframes scroll{ to{ transform:translateX(-50%); } }
+.tag-pill{ padding:10px 22px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,.02); color:var(--text-2); font-weight:600; font-size:.9rem; white-space:nowrap; }
+
+/* ---------- feature cards ---------- */
+.cards-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+.f-card{
+  border:1px solid var(--border); border-radius:var(--r); padding:0 0 20px; overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
+  transition:transform .25s ease, border-color .25s ease, box-shadow .25s;
+}
+.f-card:hover{ transform:translateY(-5px); border-color:var(--border-2); box-shadow:0 30px 60px -40px var(--glow-v); }
+.f-visual{ height:158px; display:grid; place-items:center; border-bottom:1px solid var(--border); background:radial-gradient(120% 100% at 50% -20%, rgba(124,77,255,.13), transparent 60%); position:relative; overflow:hidden; }
+.f-card .body{ padding:20px 20px 0; }
+.f-card h4{ font-size:1.02rem; margin-bottom:8px; }
+.f-card p{ margin:0; color:var(--text-3); font-size:.86rem; line-height:1.55; }
+.f-num{ position:absolute; top:12px; left:14px; font-family:var(--mono); font-size:.66rem; color:var(--text-4); }
+
+/* mini phone inside card */
+.mini-phone{ width:92px; height:150px; border-radius:16px; border:1px solid rgba(255,255,255,.16); background:linear-gradient(160deg,#1b1a2e,#0b0b15); padding:7px; box-shadow:0 18px 30px -18px #000; position:relative; overflow:hidden; }
+.mini-phone .notch{ width:26px; height:5px; border-radius:999px; background:#04040a; margin:0 auto 7px; }
+.mini-line{ height:5px; border-radius:999px; background:rgba(255,255,255,.14); margin-bottom:5px; }
+.mini-line.s{ width:55%; }
+.mini-line.g{ background:var(--grad); }
+.mini-ring{ width:46px; height:46px; border-radius:50%; border:4px solid rgba(255,255,255,.1); border-top-color:var(--violet-2); margin:8px auto; animation:spin 2.6s linear infinite; }
+@keyframes spin{ to{transform:rotate(360deg)} }
+.mini-block{ height:26px; border-radius:8px; background:rgba(124,77,255,.18); border:1px solid rgba(124,77,255,.3); margin-top:7px; }
+
+/* ---------- smart split ---------- */
+.split{ display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; }
+.smart-list{ display:flex; flex-direction:column; gap:22px; margin-top:30px; }
+.smart-item{ display:flex; gap:16px; }
+.smart-ic{ width:46px; height:46px; flex-shrink:0; border-radius:13px; display:grid; place-items:center; border:1px solid var(--border-2); background:var(--grad-soft); color:var(--violet-2); }
+.smart-ic svg{ width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; }
+.smart-item h4{ font-size:1rem; margin-bottom:5px; }
+.smart-item p{ margin:0; color:var(--text-3); font-size:.87rem; line-height:1.58; }
+.media-panel{
+  position:relative; border-radius:var(--r-lg); padding:34px; overflow:hidden;
+  border:1px solid var(--border); background:
+    radial-gradient(120% 90% at 50% 0%, rgba(124,77,255,.14), transparent 60%),
+    linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.006));
+  display:flex; justify-content:center;
+}
+.media-panel::after{ content:''; position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px); background-size:36px 36px; mask-image:radial-gradient(circle at 50% 40%,#000,transparent 72%); }
+
+/* ---------- flexible ---------- */
+.flex-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:8px; }
+.flex-item{ border:1px solid var(--border); border-radius:var(--r); padding:20px; background:rgba(255,255,255,.02); transition:.25s; }
+.flex-item:hover{ border-color:var(--border-2); background:rgba(124,77,255,.06); transform:translateY(-4px); }
+.flex-item .ic{ color:var(--cyan); margin-bottom:12px; }
+.flex-item .ic svg{ width:24px; height:24px; stroke:currentColor; fill:none; stroke-width:1.8; }
+.flex-item h4{ font-size:.98rem; margin-bottom:6px; }
+.flex-item p{ margin:0; color:var(--text-3); font-size:.84rem; line-height:1.55; }
+
+/* ---------- earn ---------- */
+.earn-panel{
+  border:1px solid var(--border-2); border-radius:var(--r-lg); padding:44px;
+  background:
+    radial-gradient(100% 120% at 100% 0%, rgba(52,211,153,.10), transparent 55%),
+    radial-gradient(90% 120% at 0% 100%, rgba(34,211,238,.10), transparent 55%),
+    linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.008));
+  display:grid; grid-template-columns:1.1fr .9fr; gap:44px; align-items:center;
+}
+.earn-dash{ border:1px solid var(--border); border-radius:18px; overflow:hidden; background:rgba(8,8,16,.6); }
+.dash-top{ display:flex; align-items:center; gap:7px; padding:12px 15px; border-bottom:1px solid var(--border); }
+.dash-top i{ width:10px; height:10px; border-radius:50%; background:var(--surface-3); }
+.dash-body{ padding:18px; }
+.dash-bal{ font-family:var(--mono); font-size:2.2rem; font-weight:700; }
+.dash-row{ display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); font-size:.84rem; }
+.dash-row:last-child{ border-bottom:0; }
+.dash-row .r{ font-family:var(--mono); color:var(--mint); }
+.dash-pill{ font-size:.66rem; padding:3px 9px; border-radius:999px; background:rgba(52,211,153,.12); color:var(--mint); border:1px solid rgba(52,211,153,.25); }
+.xp-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:26px; }
+.xp-grid .xp{ border:1px solid var(--border); border-radius:13px; padding:13px; background:rgba(255,255,255,.02); }
+.xp b{ display:block; font-family:var(--mono); font-size:1.1rem; }
+.xp span{ font-size:.62rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.09em; }
+
+/* ---------- testimonials ---------- */
+.quotes{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.quote{ border:1px solid var(--border); border-radius:var(--r); padding:26px; background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008)); display:flex; flex-direction:column; }
+.quote .stars{ color:var(--amber); letter-spacing:2px; font-size:.8rem; margin-bottom:14px; }
+.quote p{ margin:0 0 22px; font-size:.95rem; color:var(--text-2); line-height:1.65; }
+.quote .who{ display:flex; align-items:center; gap:12px; margin-top:auto; }
+.quote .av{ width:42px; height:42px; border-radius:50%; background:var(--grad-soft); border:1px solid var(--border-2); display:grid; place-items:center; font-weight:700; font-size:.85rem; }
+.quote .who b{ display:block; font-size:.88rem; }
+.quote .who span{ font-size:.74rem; color:var(--text-3); }
+
+/* ---------- final cta ---------- */
+.cta{
+  position:relative; border-radius:var(--r-lg); overflow:hidden;
+  border:1px solid var(--border-2); padding:72px 40px; text-align:center;
+  background:
+    radial-gradient(80% 140% at 50% 0%, rgba(124,77,255,.22), transparent 62%),
+    radial-gradient(70% 120% at 50% 120%, rgba(34,211,238,.16), transparent 60%),
+    #0b0b16;
+}
+.cta h2{ margin-bottom:18px; }
+.cta .lead{ margin:0 auto 32px; }
+.cta-actions{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+.cta-glow{ position:absolute; bottom:-120px; left:50%; transform:translateX(-50%); width:520px; height:260px; background:radial-gradient(circle,var(--glow-v),transparent 65%); filter:blur(30px); }
+
+/* ---------- footer ---------- */
+footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba(255,255,255,.012); }
+.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1fr; gap:34px; }
+.foot-brand .brand{ margin-bottom:16px; }
+.foot-brand p{ color:var(--text-3); font-size:.84rem; max-width:280px; }
+.foot-col h5{ font-size:.72rem; text-transform:uppercase; letter-spacing:.16em; color:var(--text-4); margin:0 0 16px; font-weight:600; }
+.foot-col a{ display:block; color:var(--text-2); font-size:.86rem; margin-bottom:11px; transition:color .18s; }
+.foot-col a:hover{ color:#fff; }
+.foot-bottom{ display:flex; justify-content:space-between; align-items:center; margin-top:48px; padding-top:26px; border-top:1px solid var(--border); color:var(--text-4); font-size:.78rem; flex-wrap:wrap; gap:14px; }
+.foot-bottom .soc{ display:flex; gap:10px; }
+.foot-bottom .soc a{ width:34px; height:34px; border-radius:9px; border:1px solid var(--border); display:grid; place-items:center; color:var(--text-3); }
+.foot-bottom .soc a:hover{ color:#fff; border-color:var(--border-2); }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .7s ease; }
+.reveal.in{ opacity:1; transform:none; }
+
+/* ---------- responsive ---------- */
+@media (max-width:1024px){
+  .hero-grid{ grid-template-columns:1fr; gap:48px; }
+  .hero-device-wrap{ order:-1; }
+  .split{ grid-template-columns:1fr; gap:44px; }
+  .cards-4{ grid-template-columns:repeat(2,1fr); }
+  .quotes{ grid-template-columns:1fr; }
+  .flex-grid{ grid-template-columns:repeat(2,1fr); }
+  .earn-panel{ grid-template-columns:1fr; padding:30px; }
+  .foot-grid{ grid-template-columns:1.4fr 1fr 1fr; }
+}
+@media (max-width:760px){
+  .nav-links{ display:none; }
+  .nav-toggle{ display:block; }
+  .nav-right .login{ display:none; }
+  section{ padding:70px 0; }
+  .cards-4,.flex-grid{ grid-template-columns:1fr; }
+  .xp-grid{ grid-template-columns:1fr; }
+  .foot-grid{ grid-template-columns:1fr 1fr; }
+  .cta{ padding:52px 22px; }
+  .earn-panel{ padding:22px; }
+  .device{ transform:scale(.92); transform-origin:top center; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header>
+  <div class="wrap nav">
+      <a class="brand" href="product.html" aria-label="Wynko home">
+      <span class="brand-mark"><img src="wynko-icon.png" alt="Wynko" /></span>
+      <span class="brand-word grad-text">WYNKO</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#product" class="active">Product</a>
+      <a href="#fast">Features</a>
+      <a href="#earn">Earn</a>
+      <a href="#rooms">Study Rooms</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <div class="nav-right">
+      <a class="login" href="login.html">Log in</a>
+      <a class="btn btn-primary btn-sm" href="#cta">Get early access</a>
+      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display=(getComputedStyle(document.querySelector('.nav-links')).display==='none'?'flex':'none')">&#9776;</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero" id="product">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="kicker-chip"><span class="nav-dot"></span> The Product &middot; <b>Study OS 1.0</b></span>
+      <h1 class="h-xl" style="margin-top:22px;">
+        The world's first <span class="grad-text">Study OS</span> which empowers you to learn and earn.
+      </h1>
+      <p class="lead">
+        Wynko is a self-contained study operating system — deep-focus sessions, memory-timed revision,
+        live study rooms and an earnings layer that pays you for the hours you actually put in.
+        No hardware. No setup. Run it right here in your browser.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="#cta">Get early access &rarr;</a>
+        <a class="btn btn-ghost btn-lg" href="#emulator">Try the live demo</a>
+      </div>
+      <div class="hero-meta">
+        <span class="item"><b id="emLive">0</b> sessions running now</span>
+        <span class="item"><b>184</b> topics decay / hr</span>
+        <span class="item"><b>0</b> hardware required</span>
+      </div>
+    </div>
+
+    <div class="hero-device-wrap" id="emulator">
+      <div class="halo"></div>
+
+      <!-- floating HUD chips around the device -->
+      <div class="float-badge" style="top:8%; left:-4%;">
+        <span class="dot"></span>
+        <div><b>+&#8377;42</b><span>earned this session</span></div>
+      </div>
+      <div class="float-badge" style="bottom:12%; right:-6%; animation-delay:.8s;">
+        <div><b>12 days</b><span>focus streak</span></div>
+      </div>
+
+      <div class="device">
+        <div class="device-screen">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="icons">
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none"><path d="M1 8.5h1.6M4.4 6.5h1.6M7.8 4h1.6M11.2 1.5h1.6" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <svg width="18" height="11" viewBox="0 0 18 11" fill="none"><rect x=".7" y=".7" width="14" height="9.6" rx="2.4" stroke="#fff" stroke-opacity=".6"/><rect x="2.2" y="2.2" width="9.5" height="6.6" rx="1.4" fill="#fff"/><rect x="16" y="3.6" width="1.6" height="3.8" rx=".8" fill="#fff" fill-opacity=".6"/></svg>
+            </span>
+          </div>
+
+          <div class="app">
+            <!-- FOCUS SCREEN -->
+            <div class="app-screen active" data-screen="focus">
+              <div class="app-title">NOW FOCUSING</div>
+              <div class="app-h">Organic Chemistry</div>
+              <div class="ring-wrap">
+                <div class="ring">
+                  <svg viewBox="0 0 182 182">
+                    <defs>
+                      <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#a78bfa"/>
+                        <stop offset=".5" stop-color="#6c8cff"/>
+                        <stop offset="1" stop-color="#22d3ee"/>
+                      </linearGradient>
+                    </defs>
+                    <circle class="track" cx="91" cy="91" r="83"/>
+                    <circle class="prog" cx="91" cy="91" r="83"/>
+                  </svg>
+                  <div class="ring-center">
+                    <div class="ring-time" id="ringTime">25:00</div>
+                    <div class="ring-label">deep focus</div>
+                    <div class="ring-earn" id="ringEarn">+&#8377;0 this session</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chips">
+                <span class="chip lock">&#10005; Instagram</span>
+                <span class="chip lock">&#10005; YouTube</span>
+                <span class="chip on">&#10003; Distraction lock</span>
+              </div>
+              <button class="start-btn" id="startBtn">Start focus session</button>
+            </div>
+
+            <!-- EARN SCREEN -->
+            <div class="app-screen" data-screen="earn">
+              <div class="app-title">WALLET</div>
+              <div class="app-h">Earnings</div>
+              <div class="bal-card">
+                <div class="bal-label">available balance</div>
+                <div class="bal-amt mono">&#8377;2,480</div>
+                <div class="bal-sub">+&#8377;182 today &middot; withdraw anytime</div>
+              </div>
+              <div class="mini-stats">
+                <div class="mini"><b class="mono">41h</b><span>focused</span></div>
+                <div class="mini"><b class="mono">&#8377;68</b><span>avg / hour</span></div>
+              </div>
+              <div class="bars">
+                <div class="bar-row"><div class="top"><span>Mon</span><span class="mono">&#8377;124</span></div><div class="bar-track"><i class="bar-fill" data-w="62%"></i></div></div>
+                <div class="bar-row"><div class="top"><span>Tue</span><span class="mono">&#8377;182</span></div><div class="bar-track"><i class="bar-fill" data-w="88%"></i></div></div>
+                <div class="bar-row"><div class="top"><span>Wed</span><span class="mono">&#8377;96</span></div><div class="bar-track"><i class="bar-fill" data-w="48%"></i></div></div>
+              </div>
+            </div>
+
+            <!-- RANK SCREEN -->
+            <div class="app-screen" data-screen="rank">
+              <div class="app-title">THIS WEEK</div>
+              <div class="app-h">Leaderboard</div>
+              <div class="rank-hero">
+                <span>your rank</span>
+                <div class="big">#4</div>
+                <span>of 12,904 aspirants</span>
+              </div>
+              <div class="lb-row"><span class="pos">1</span><span class="av">AR</span><span class="nm">Aarav</span><span class="pts">8,240</span></div>
+              <div class="lb-row"><span class="pos">2</span><span class="av">SK</span><span class="nm">Sana</span><span class="pts">7,910</span></div>
+              <div class="lb-row"><span class="pos">3</span><span class="av">VT</span><span class="nm">Vedant</span><span class="pts">7,455</span></div>
+              <div class="lb-row me"><span class="pos">4</span><span class="av">YOU</span><span class="nm">You</span><span class="pts">7,120</span></div>
+              <div class="lb-row"><span class="pos">5</span><span class="av">MI</span><span class="nm">Mira</span><span class="pts">6,880</span></div>
+            </div>
+
+            <!-- ROOMS SCREEN -->
+            <div class="app-screen" data-screen="rooms">
+              <div class="app-title">LIVE NOW</div>
+              <div class="app-h">Study Rooms</div>
+              <div class="room-tile">
+                <div class="room-ic">&#9788;</div>
+                <div><div class="t">NEET Droppers</div><div class="s">Silent focus &middot; 50 min</div></div>
+                <span class="room-live">&#9679; 214</span>
+              </div>
+              <div class="room-tile">
+                <div class="room-ic">&#10022;</div>
+                <div><div class="t">JEE Advanced</div><div class="s">Problem solving &middot; 90 min</div></div>
+                <span class="room-live">&#9679; 132</span>
+              </div>
+              <div class="room-tile">
+                <div class="room-ic">&#9733;</div>
+                <div><div class="t">UPSC Mains</div><div class="s">Answer writing &middot; 60 min</div></div>
+                <span class="room-live">&#9679; 87</span>
+              </div>
+              <div class="room-tile">
+                <div class="room-ic">&#9835;</div>
+                <div><div class="t">Lo-fi Library</div><div class="s">Open room &middot; always on</div></div>
+                <span class="room-live">&#9679; 401</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabbar">
+            <button class="active" data-tab="focus">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus
+            </button>
+            <button data-tab="earn">
+              <svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn
+            </button>
+            <button data-tab="rank">
+              <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank
+            </button>
+            <button data-tab="rooms">
+              <svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== BUILT FOR ===================== -->
+<div class="marquee-sec">
+  <div class="wrap">
+    <div class="marquee-label">Built for every serious aspirant</div>
+    <div class="marquee">
+      <div class="marquee-track" id="marqueeTrack">
+        <span class="tag-pill">NEET</span><span class="tag-pill">JEE Main</span><span class="tag-pill">JEE Advanced</span>
+        <span class="tag-pill">UPSC CSE</span><span class="tag-pill">CAT</span><span class="tag-pill">GATE</span>
+        <span class="tag-pill">CUET</span><span class="tag-pill">Board Exams</span><span class="tag-pill">CA / CS</span>
+        <span class="tag-pill">NDA</span><span class="tag-pill">SSC</span><span class="tag-pill">University</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== FAST ===================== -->
+<section id="fast">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Fast</span>
+      <h2 class="h-lg">Open a tab. Start studying in seconds.</h2>
+      <p class="lead">No installs, no provisioning, no phone wall. Wynko runs in the browser you already have and syncs the second you close the lid.</p>
+    </div>
+
+    <div class="cards-4">
+      <div class="f-card reveal">
+        <div class="f-visual">
+          <span class="f-num mono">01</span>
+          <div class="mini-phone">
+            <div class="notch"></div>
+            <div class="mini-line"></div><div class="mini-line s"></div>
+            <div class="mini-ring"></div>
+            <div class="mini-block"></div>
+          </div>
+        </div>
+        <div class="body"><h4>One-tap focus session</h4><p>Pick a subject, hit start, and the world goes quiet. Distraction locks engage automatically.</p></div>
+      </div>
+
+      <div class="f-card reveal">
+        <div class="f-visual">
+          <span class="f-num mono">02</span>
+          <div class="mini-phone">
+            <div class="notch"></div>
+            <div class="mini-line g"></div>
+            <div class="mini-line"></div><div class="mini-line s"></div>
+            <div class="mini-block" style="background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3);"></div>
+            <div class="mini-line s" style="margin-top:8px"></div>
+          </div>
+        </div>
+        <div class="body"><h4>Runs anywhere in a browser</h4><p>Phone, tablet, laptop, lab PC — same session, same data. Nothing to download or update.</p></div>
+      </div>
+
+      <div class="f-card reveal">
+        <div class="f-visual">
+          <span class="f-num mono">03</span>
+          <div class="mini-phone">
+            <div class="notch"></div>
+            <div class="mini-line"></div><div class="mini-line"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px">
+              <div class="mini-block" style="margin:0"></div><div class="mini-block" style="margin:0;background:rgba(52,211,153,.16);border-color:rgba(52,211,153,.3)"></div>
+              <div class="mini-block" style="margin:0;background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3)"></div><div class="mini-block" style="margin:0"></div>
+            </div>
+            <div class="mini-line s" style="margin-top:8px"></div>
+          </div>
+        </div>
+        <div class="body"><h4>Sync across every device</h4><p>Resume a room on your phone that you started on your laptop. Progress never waits for a save.</p></div>
+      </div>
+
+      <div class="f-card reveal">
+        <div class="f-visual">
+          <span class="f-num mono">04</span>
+          <div class="mini-phone">
+            <div class="notch"></div>
+            <div class="mini-line s"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--grad-soft);border:1px solid var(--border-2)"></div>
+              <div style="flex:1"><div class="mini-line g" style="margin-bottom:4px"></div><div class="mini-line s"></div></div>
+            </div>
+            <div class="mini-block" style="margin-top:10px;background:rgba(124,77,255,.12);border-color:rgba(124,77,255,.25)"></div>
+          </div>
+        </div>
+        <div class="body"><h4>Hand a clean room to anyone</h4><p>Invite a friend, a mentor, or an AI coach into a ready session — starting on the right screen.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SMART ===================== -->
+<section id="smart">
+  <div class="wrap split">
+    <div class="reveal">
+      <span class="eyebrow">Smart</span>
+      <h2 class="h-lg">Engineered around how memory actually works.</h2>
+      <p class="lead">Wynko doesn't just track time — it schedules the next revision at the exact minute your brain is about to forget.</p>
+      <div class="smart-list">
+        <div class="smart-item">
+          <div class="smart-ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+          <div><h4>Distraction lock with configurable controls</h4><p>Define which apps and sites can run. Kiosk-style sessions block the feed, the shorts, and the 3 a.m. rabbit holes.</p></div>
+        </div>
+        <div class="smart-item">
+          <div class="smart-ic"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg></div>
+          <div><h4>Auto-scheduled revision</h4><p>Every chapter is re-queued on a forgetting curve — so the right topic comes back at the right time, not when you feel like it.</p></div>
+        </div>
+        <div class="smart-item">
+          <div class="smart-ic"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div>
+          <div><h4>Syllabus intelligence</h4><p>Track chapters, PYQs, mock scores and accuracy in one tree. You always know what's weak before the exam tells you.</p></div>
+        </div>
+        <div class="smart-item">
+          <div class="smart-ic"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 4-6"/></svg></div>
+          <div><h4>Deep analytics</h4><p>Inspect focus, retention and earnings side by side. Every number is derived from what you actually did — never faked.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="media-panel reveal">
+      <div class="device" style="width:262px;height:536px;">
+        <div class="device-screen">
+          <div class="island"></div>
+          <div class="statusbar"><span>9:41</span><span class="icons" style="font-family:var(--mono);font-size:.6rem">WYNKO</span></div>
+          <div class="app">
+            <div class="app-screen active">
+              <div class="app-title">REVISION QUEUE</div>
+              <div class="app-h">Due today</div>
+              <div class="room-tile"><div class="room-ic">&#8635;</div><div><div class="t">Thermodynamics</div><div class="s">recall in 2h &middot; 68% strength</div></div><span class="room-live" style="color:var(--amber)">DUE</span></div>
+              <div class="room-tile"><div class="room-ic">&#8635;</div><div><div class="t">Rotational Motion</div><div class="s">recall in 5h &middot; 54%</div></div><span class="room-live" style="color:var(--amber)">DUE</span></div>
+              <div class="room-tile"><div class="room-ic">&#10003;</div><div><div class="t">Cell Biology</div><div class="s">reviewed &middot; 91% strength</div></div><span class="room-live">&#10003;</span></div>
+              <div class="room-tile"><div class="room-ic">&#8942;</div><div><div class="t">Organic Reactions</div><div class="s">recall tomorrow &middot; 77%</div></div><span class="room-live" style="color:var(--text-3)">SOON</span></div>
+              <div class="bars" style="margin-top:12px">
+                <div class="bar-row"><div class="top"><span>Retention strength</span><span class="mono">78%</span></div><div class="bar-track"><i class="bar-fill" data-w="78%"></i></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <button class="active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus</button>
+            <button><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn</button>
+            <button><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank</button>
+            <button><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FLEXIBLE ===================== -->
+<section id="flexible">
+  <div class="wrap">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Flexible</span>
+      <h2 class="h-lg">Build your Study OS around your life.</h2>
+      <p class="lead">Every part of Wynko is composable. Wire it into your calendar, your group, and your habits — and automate the parts that used to take willpower.</p>
+    </div>
+    <div class="flex-grid">
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg></div>
+        <h4>Automatic study plans</h4>
+        <p>Drop in your exam date and syllabus — Wynko lays out the weeks and adapts when you fall behind.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
+        <h4>Connect every subject</h4>
+        <p>Group chapters, notes, PYQs and mocks so nothing lives in five different apps.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 11a3 3 0 1 0-1.5-5.6"/></svg></div>
+        <h4>Share study rooms</h4>
+        <p>Open a room to a friend, a cohort, or the whole platform. Presence does what motivation can't.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2.5V6M16 2.5V6"/></svg></div>
+        <h4>Calendar-aware sessions</h4>
+        <p>Sync your timetable and Wynko books focus blocks into the gaps you actually have.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></svg></div>
+        <h4>Automate revision</h4>
+        <p>Set the rules once. Recall prompts, streaks and payouts run themselves in the background.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h4>Embed anywhere</h4>
+        <p>A public focus timer, a cohort leaderboard — drop Wynko widgets into your own pages.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== EARN ===================== -->
+<section id="earn">
+  <div class="wrap">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Earn</span>
+      <h2 class="h-lg">Point your effort at a system that pays.</h2>
+      <p class="lead">The Wynko earnings layer rewards verified focused hours, completed revisions and unbroken streaks. Study stops being a cost — it starts compounding.</p>
+    </div>
+
+    <div class="earn-panel reveal">
+      <div>
+        <div class="xp-grid" style="margin-top:0">
+          <div class="xp"><b class="mono">&#8377;68</b><span>avg / focus hr</span></div>
+          <div class="xp"><b class="mono">3.2&#215;</b><span>streak multiplier</span></div>
+          <div class="xp"><b class="mono">&#8377;0</b><span>to get started</span></div>
+        </div>
+        <div class="smart-list" style="margin-top:30px">
+          <div class="smart-item">
+            <div class="smart-ic" style="color:var(--mint)"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 1-5 3 2 2.8 5 3.5 5 1.6 5 3.6-2.2 3.4-5 3.4-5-1.2-5-3.3"/></svg></div>
+            <div><h4>Verified focused minutes</h4><p>Earnings accrue only from sessions the system can verify — locks enforced, time actually logged.</p></div>
+          </div>
+          <div class="smart-item">
+            <div class="smart-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></svg></div>
+            <div><h4>Streaks and recall bonuses</h4><p>Keep the chain alive and complete revision on time to multiply everything you've banked.</p></div>
+          </div>
+          <div class="smart-item">
+            <div class="smart-ic" style="color:var(--violet-2)"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19M16 14h2"/></svg></div>
+            <div><h4>Withdraw anytime</h4><p>Move earnings out to your wallet whenever you like. Transparent ledger, no fine print.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="earn-dash">
+        <div class="dash-top"><i style="background:#fb7185"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span style="margin-left:8px;font-family:var(--mono);font-size:.68rem;color:var(--text-3)">wynko / earnings</span></div>
+        <div class="dash-body">
+          <div class="bal-label">TOTAL EARNED</div>
+          <div class="dash-bal grad-text">&#8377;18,940</div>
+          <div style="font-size:.78rem;color:var(--mint);margin-bottom:14px">+&#8377;2,140 this month</div>
+          <div class="dash-row"><span>Focus payouts</span><span class="r">&#8377;12,480</span></div>
+          <div class="dash-row"><span>Recall bonuses</span><span class="r">&#8377;3,260</span></div>
+          <div class="dash-row"><span>Streak multiplier</span><span class="r">&#8377;3,200</span></div>
+          <div class="dash-row"><span>Next payout</span><span class="dash-pill">in 2 days</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ROOMS / SOCIAL ===================== -->
+<section id="rooms">
+  <div class="wrap split">
+    <div class="media-panel reveal" style="order:2">
+      <div class="device" style="width:262px;height:536px;">
+        <div class="device-screen">
+          <div class="island"></div>
+          <div class="statusbar"><span>9:41</span><span class="icons" style="font-family:var(--mono);font-size:.6rem">ROOM</span></div>
+          <div class="app">
+            <div class="app-screen active">
+              <div class="app-title">FOCUS TOGETHER</div>
+              <div class="app-h">NEET Droppers</div>
+              <div class="mini-stats">
+                <div class="mini"><b class="mono">50:00</b><span>session</span></div>
+                <div class="mini"><b class="mono">214</b><span>studying</span></div>
+              </div>
+              <div class="lb-row"><span class="av">AR</span><span class="nm">Aarav</span><span class="pts">focusing</span></div>
+              <div class="lb-row"><span class="av">SK</span><span class="nm">Sana</span><span class="pts">focusing</span></div>
+              <div class="lb-row me"><span class="av">YOU</span><span class="nm">You</span><span class="pts">focusing</span></div>
+              <div class="lb-row"><span class="av">MI</span><span class="nm">Mira</span><span class="pts">focusing</span></div>
+              <div class="chips" style="margin-top:12px"><span class="chip on">&#10003; camera optional</span><span class="chip">silent mode</span></div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus</button>
+            <button><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn</button>
+            <button><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank</button>
+            <button class="active"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="reveal">
+      <span class="eyebrow">Together</span>
+      <h2 class="h-lg">Study like someone's watching. Because someone is.</h2>
+      <p class="lead">Willpower is a terrible scheduler. Presence is a great one. Wynko rooms put real people — and a live timer — in the same virtual room, so showing up stops being optional.</p>
+      <div class="hero-cta" style="margin-top:28px">
+        <a class="btn btn-primary" href="#cta">Join a founding room &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== TESTIMONIALS ===================== -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Early access</span>
+      <h2 class="h-lg">Aspirants are already on the list.</h2>
+    </div>
+    <div class="quotes">
+      <div class="quote reveal">
+        <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>"I used to study in guilt and scroll in secret. Wynko's room timer made me honest — and the earnings made it weirdly addictive."</p>
+        <div class="who"><span class="av">AR</span><div><b>Aarav M.</b><span>NEET 2027 aspirant</span></div></div>
+      </div>
+      <div class="quote reveal">
+        <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>"The revision queue is the first thing that's ever beaten my forgetting curve. It literally brings back the chapter before I lose it."</p>
+        <div class="who"><span class="av">SK</span><div><b>Sana K.</b><span>JEE Advanced, dropper</span></div></div>
+      </div>
+      <div class="quote reveal">
+        <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>"Earning while studying sounded like a gimmick until my first payout hit. My focus hours now have a price, and I treat them like one."</p>
+        <div class="who"><span class="av">VT</span><div><b>Vedant T.</b><span>UPSC CSE aspirant</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CTA ===================== -->
+<section id="cta" style="padding-top:0">
+  <div class="wrap">
+    <div class="cta reveal">
+      <div class="cta-glow"></div>
+      <span class="eyebrow" style="justify-content:center">Founding cohort</span>
+      <h2 class="h-xl">Set your study, and your <span class="grad-text">earnings</span>, up for success.</h2>
+      <p class="lead">Wynko is opening to a limited founding cohort. Get in early, lock founder status, and be there on day one of the Study OS.</p>
+      <div class="cta-actions">
+        <a class="btn btn-primary btn-lg" href="waitlist.html#joinForm">Get early access &rarr;</a>
+        <a class="btn btn-ghost btn-lg" href="login.html">Log in</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="product.html">
+          <span class="brand-mark"><img src="wynko-icon.png" alt="Wynko" /></span>
+          <span class="brand-word grad-text">WYNKO</span>
+        </a>
+        <p>The world's first Study OS which empowers you to learn and earn. Focus. Study. Together.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Product</h5>
+        <a href="#product">Overview</a>
+        <a href="#fast">Features</a>
+        <a href="#earn">Earnings</a>
+        <a href="#rooms">Study Rooms</a>
+      </div>
+      <div class="foot-col">
+        <h5>Exams</h5>
+        <a href="#">NEET</a>
+        <a href="#">JEE</a>
+        <a href="#">UPSC</a>
+        <a href="#">CAT &amp; GATE</a>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <a href="marketing.html">About</a>
+        <a href="partners.html">Partners</a>
+        <a href="product-tour.html">Product tour</a>
+        <a href="privacy.html">Privacy</a>
+      </div>
+      <div class="foot-col">
+        <h5>Get started</h5>
+        <a href="login.html">Log in</a>
+        <a href="onboarding.html">Onboarding</a>
+        <a href="downloads/">Downloads</a>
+        <a href="docs/">Docs</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>&copy; 2026 Wynko. Built for people who show up.</span>
+      <div class="soc">
+        <a href="#" aria-label="X"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.2L1 2h7l4.9 6.4L18.9 2Zm-1.2 18h1.9L7.4 3.9H5.3L17.7 20Z"/></svg></a>
+        <a href="#" aria-label="LinkedIn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5A2.5 2.5 0 1 1 5 8.5a2.5 2.5 0 0 1-.02-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.4 8.65 22 10.9 22 14.3V21h-4v-5.9c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.52-2.25 3.1V21H9V9Z"/></svg></a>
+        <a href="#" aria-label="Instagram"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ================= emulator ================= */
+(function(){
+  const screenEls = document.querySelectorAll('#emulator .app-screen');
+  const tabs = document.querySelectorAll('#emulator .tabbar button');
+  tabs.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tabs.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.dataset.tab;
+      screenEls.forEach(s=>s.classList.toggle('active', s.dataset.screen===target));
+      if(target==='earn') animateBars();
+    });
+  });
+
+  /* live focus timer */
+  const ringTime = document.getElementById('ringTime');
+  const ringEarn = document.getElementById('ringEarn');
+  const ringProg = document.querySelector('#emulator .ring .prog');
+  const startBtn = document.getElementById('startBtn');
+  const TOTAL = 25*60;
+  let remaining = TOTAL, running = false, timer = null;
+
+  function fmt(s){ const m=Math.floor(s/60), x=s%60; return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
+  function render(){
+    if(ringTime) ringTime.textContent = fmt(remaining);
+    const done = TOTAL - remaining;
+    if(ringProg) ringProg.style.strokeDashoffset = String(520 - 520*(done/TOTAL));
+    if(ringEarn) ringEarn.textContent = '+₹'+Math.round(done/60*68)+' this session';
+  }
+  function stop(){
+    running=false; clearInterval(timer);
+    if(startBtn){ startBtn.textContent='Start focus session'; startBtn.classList.remove('stop'); }
+  }
+  function start(){
+    running=true;
+    if(startBtn){ startBtn.textContent='End session'; startBtn.classList.add('stop'); }
+    timer=setInterval(()=>{
+      if(remaining>0){ remaining--; render(); }
+      else { stop(); if(ringEarn) ringEarn.textContent='Session complete'; }
+    },1000);
+  }
+  if(startBtn){
+    startBtn.addEventListener('click', ()=>{ running?stop():start(); });
+  }
+  render();
+
+  /* bars animate when shown */
+  function animateBars(){
+    document.querySelectorAll('#emulator .bar-fill').forEach(el=>{
+      el.style.width='0'; requestAnimationFrame(()=>{ el.style.width = el.dataset.w; });
+    });
+  }
+  setTimeout(animateBars, 400);
+  const earnTab = document.querySelector('#emulator .tabbar button[data-tab="earn"]');
+  if(earnTab) earnTab.addEventListener('click', animateBars);
+
+  /* live session counter in hero */
+  const emLive = document.getElementById('emLive');
+  if(emLive){
+    let n = 3847;
+    setInterval(()=>{ n += Math.floor(Math.random()*7)-2; emLive.textContent = n.toLocaleString('en-IN'); }, 1800);
+    emLive.textContent = n.toLocaleString('en-IN');
+  }
+})();
+
+/* ================= marquee duplicate ================= */
+(function(){
+  const track = document.getElementById('marqueeTrack');
+  if(track){ track.innerHTML += track.innerHTML; }
+})();
+
+/* ================= reveal on scroll ================= */
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold:.12 });
+  els.forEach((el,i)=>{ el.style.transitionDelay = (i%4*70)+'ms'; io.observe(el); });
+})();
+
+/* ================= animate static bars on scroll ================= */
+(function(){
+  const bars = document.querySelectorAll('.media-panel .bar-fill');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.style.width = e.target.dataset.w; io.unobserve(e.target); } });
+  }, { threshold:.4 });
+  bars.forEach(b=>io.observe(b));
+})();
+</script>
+</body>
+</html>
