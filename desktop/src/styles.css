@@ -154,6 +154,12 @@ button {
   border-color: transparent;
 }
 
+.study-status-text {
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin: -0.6em 0 0.6em;
+}
+
 .field-label {
   display: block;
   font-size: 0.8em;

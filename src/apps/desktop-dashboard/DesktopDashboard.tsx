@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import { useHomeData } from './lib/useHomeData'
+import { useFocusSession } from '../_shared/useFocusSession'
 import type { ReviewItem } from '../_shared/wynkoTracker'
 
 // ─── Icon System ──────────────────────────────────────────────────────────────
@@ -811,28 +812,48 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
   const [inputS, setInputS] = useState(0)
   const [totalSecs, setTotalSecs] = useState(25 * 60)
   const [remaining, setRemaining] = useState(25 * 60)
-  const [running, setRunning] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
-  const [activeSubject, setActiveSubject] = useState(0)
-  const [subjectTimes, setSubjectTimes] = useState<number[]>([])
+  const [activeSubjectIdx, setActiveSubjectIdx] = useState(0)
   const [quickActive, setQuickActive] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Real backend wiring: study_sessions (rpc_start/stop_study_session,
+  // same RPCs timer.html uses), today's real per-subject totals, and a
+  // read-only relay of whatever block-preset enforcement is already
+  // active (never starts one from here - see useFocusSession's header
+  // comment). This replaces the page's previous local-only useState/
+  // setInterval clock, which reset on refresh and never left the browser tab.
+  const {
+    loading: sessionLoading,
+    running,
+    activeSubject: remoteActiveSubject,
+    subjectTotals,
+    enforcementActive,
+    start: startRemoteSession,
+    stop: stopRemoteSession,
+    switchSubject: switchRemoteSubject,
+  } = useFocusSession()
 
   const subjects = units.length > 0
     ? [...new Set(units.map(u => u.subject))]
     : ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English']
 
+  // Keep the local subject-picker index in sync with whatever subject
+  // is actually live server-side (e.g. a session reconciled on mount
+  // from another page/device), so this page can't silently disagree
+  // with what RevMGrid/leaderboards see as "current subject".
   useEffect(() => {
-    setSubjectTimes(new Array(subjects.length).fill(0))
-  }, [subjects.length])
+    if (!remoteActiveSubject) return
+    const idx = subjects.indexOf(remoteActiveSubject)
+    if (idx >= 0) setActiveSubjectIdx(idx)
+  }, [remoteActiveSubject, subjects])
 
   useEffect(() => {
     if (running) {
       timerRef.current = setInterval(() => {
         setRemaining(prev => {
-          if (prev <= 1) { setRunning(false); return 0 }
-          setSubjectTimes(st => { const n = [...st]; n[activeSubject] = (n[activeSubject] || 0) + 1; return n })
+          if (prev <= 1) { stopRemoteSession(); return 0 }
           return prev - 1
         })
       }, 1000)
@@ -840,32 +861,46 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
       if (timerRef.current) clearInterval(timerRef.current)
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [running, activeSubject])
+  }, [running, stopRemoteSession])
 
   const PRESETS = [25, 50, 75, 100]
 
   function setQuickTime(mins: number, idx: number) {
     const s = mins * 60
-    setTotalSecs(s); setRemaining(s); setRunning(false)
+    setTotalSecs(s); setRemaining(s)
     setInputH(0); setInputM(mins); setInputS(0); setQuickActive(idx)
   }
 
   function applyCustom() {
     const s = inputH * 3600 + inputM * 60 + inputS
-    if (s > 0) { setTotalSecs(s); setRemaining(s); setRunning(false) }
+    if (s > 0) { setTotalSecs(s); setRemaining(s) }
     setShowCustom(false); setQuickActive(-1)
   }
 
-  function handleReset() { setRunning(false); setRemaining(totalSecs) }
+  function handleReset() { stopRemoteSession(); setRemaining(totalSecs) }
+
+  function handleToggleRun() {
+    if (running) {
+      stopRemoteSession() // "pause" = stop the study_sessions row, same as timer.html's own pause button
+    } else {
+      startRemoteSession(subjects[activeSubjectIdx] || 'General')
+    }
+  }
+
+  function handleSelectSubject(idx: number) {
+    setActiveSubjectIdx(idx)
+    if (running) switchRemoteSubject(subjects[idx])
+  }
 
   const h = Math.floor(remaining / 3600)
   const m = Math.floor((remaining % 3600) / 60)
   const s = remaining % 60
   const f2 = (n: number) => String(n).padStart(2, '0')
   const timeStr = h > 0 ? `${f2(h)}:${f2(m)}:${f2(s)}` : `${f2(m)}:${f2(s)}`
-  const maxSubjSecs = Math.max(...subjectTimes, 1)
-  const curSubjName = subjects[activeSubject] || 'Physics'
-  const curSubjColor = SUBJ_COLORS[activeSubject % SUBJ_COLORS.length]
+  const subjectSecsList = subjects.map(subj => subjectTotals[subj] || 0)
+  const maxSubjSecs = Math.max(...subjectSecsList, 1)
+  const curSubjName = subjects[activeSubjectIdx] || 'Physics'
+  const curSubjColor = SUBJ_COLORS[activeSubjectIdx % SUBJ_COLORS.length]
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
@@ -891,7 +926,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
                 <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
             </button>
-            <button onClick={() => setRunning(r => !r)}
+            <button onClick={handleToggleRun}
               className="px-12 py-3.5 rounded-full text-white font-semibold text-lg flex items-center gap-3 transition-all hover:opacity-90"
               style={{ background: 'linear-gradient(135deg, #7C3AED, #4F46E5)', boxShadow: '0 0 50px rgba(124,58,237,0.45)', fontFamily: 'Poppins, sans-serif' }}>
               {running
@@ -916,8 +951,14 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
           </button>
           <div className="flex-1">
             <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>FOCUS LOCK</div>
-            <div className="text-sm font-semibold text-slate-200" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {running ? '● Session running' : remaining < totalSecs ? '⏸ Paused' : 'Ready to focus'}
+            <div className="text-sm font-semibold text-slate-200 flex items-center gap-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {sessionLoading ? 'Syncing…' : running ? '● Session running' : remaining < totalSecs ? '⏸ Paused' : 'Ready to focus'}
+              {enforcementActive && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full border" title="Reusing the active block preset from Blocks/Timer"
+                  style={{ color: '#67E8F9', background: 'rgba(6,182,212,0.1)', borderColor: 'rgba(6,182,212,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
+                  🔒 Blocking active
+                </span>
+              )}
             </div>
           </div>
           <button onClick={() => setFullscreen(true)}
@@ -951,7 +992,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
                   <span className="text-[10px] text-slate-500">Reset</span>
                 </div>
 
-                <button onClick={() => setRunning(r => !r)}
+                <button onClick={handleToggleRun}
                   className="flex-1 py-3 rounded-full text-white font-semibold text-base flex items-center justify-center gap-2.5 transition-all hover:opacity-90 active:scale-[0.97]"
                   style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)', boxShadow: '0 0 32px rgba(124,58,237,0.4)', fontFamily: 'Poppins, sans-serif' }}>
                   {running
@@ -985,13 +1026,13 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
 
                 <div className="space-y-2 flex-1 overflow-y-auto">
                   {subjects.map((subj, i) => {
-                    const secs = subjectTimes[i] || 0
+                    const secs = subjectSecsList[i] || 0
                     const mins = Math.floor(secs / 60)
-                    const isActive = activeSubject === i
+                    const isActive = activeSubjectIdx === i
                     const color = SUBJ_COLORS[i % SUBJ_COLORS.length]
                     const pct = secs / maxSubjSecs
                     return (
-                      <button key={subj} onClick={() => setActiveSubject(i)}
+                      <button key={subj} onClick={() => handleSelectSubject(i)}
                         className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all"
                         style={{ background: isActive ? 'rgba(124,58,237,0.12)' : 'rgba(14,21,40,0.5)', borderColor: isActive ? 'rgba(124,58,237,0.45)' : 'rgba(124,58,237,0.12)' }}>
                         <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-[11px]"

@@ -31,6 +31,36 @@ function setStatusText(text) {
   invoke("set_tray_status", { text: `RevM2 - ${text}` }).catch(() => {});
 }
 
+// Renders the `study` half of session-status's response - what's
+// actually being studied right now (subject + elapsed), separately
+// from the `session` half above which is block-preset enforcement.
+// A person can have one without the other (see session-status's own
+// header comment), so this never assumes `study.running` follows
+// `session.active`.
+function fmtElapsed(totalSecs) {
+  const t = Math.max(0, Math.floor(totalSecs));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60).toString().padStart(2, "0");
+  const s = (t % 60).toString().padStart(2, "0");
+  return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+}
+function setStudyStatusText(study) {
+  const el = document.getElementById("study-status-text");
+  if (!el) return;
+  if (!study) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "block";
+  if (study.running) {
+    el.textContent = `📚 Studying ${study.subject || "General"} — ${fmtElapsed(study.elapsedSeconds)} this session · ${fmtElapsed(study.todaySeconds)} today`;
+  } else if (study.todaySeconds > 0) {
+    el.textContent = `No session running · ${fmtElapsed(study.todaySeconds)} studied today`;
+  } else {
+    el.textContent = "No session running today";
+  }
+}
+
 async function poll() {
   const token = await getToken();
   const connectForm = document.getElementById("connect-form");
@@ -38,6 +68,7 @@ async function poll() {
 
   if (!token) {
     setStatusText("Not connected");
+    setStudyStatusText(null);
     connectForm.style.display = "flex";
     disconnectBtn.style.display = "none";
     invoke("set_session_active", { active: false }).catch(() => {});
@@ -51,12 +82,15 @@ async function poll() {
 
   if (result.status === 401) {
     setStatusText("Token expired - reconnect");
+    setStudyStatusText(null);
     await setToken("");
     invoke("set_session_active", { active: false }).catch(() => {});
     return;
   }
   if (!result.ok) {
     setStatusText("Offline - retrying...");
+    // leave study-status-text as-is too - same "don't wipe real state
+    // just because a poll failed" rule set_session_active follows below
     return; // leave session_active as-is - don't disable enforcement just because a poll failed
   }
 
@@ -72,6 +106,8 @@ async function poll() {
   } else {
     setStatusText("No active session");
   }
+
+  setStudyStatusText(result.data?.study || null);
 }
 
 // --- Blocked apps panel ----------------------------------------------------
