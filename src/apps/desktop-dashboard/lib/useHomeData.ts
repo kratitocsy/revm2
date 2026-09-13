@@ -17,6 +17,44 @@ export interface ProfileInfo {
   exam: string | null; // e.g. "JEE 2026" - same cfg.exam value onboarding.html writes
 }
 
+// {date: {subject: seconds}} - same shape/column tracker.html and
+// timer.html already read as `slog` via shared.js's
+// pullTrackerFromSupabase(). Keeping the same shape here (rather
+// than inventing a new one) means Home's streak/today-total agree
+// with what tracker.html shows for the same account.
+export type StudyLog = Record<string, Record<string, number>>;
+
+export interface TodayFocus {
+  goalMinutes: number; // user_profiles.daily_focus_goal_minutes
+  doneMinutes: number; // sum of today's study_log entry, in minutes
+  bySubject: { subject: string; minutes: number }[]; // today's entry, one row per subject actually logged
+  streakDays: number; // consecutive days (today backward) with any study_log total > 0
+}
+
+function dateKeyUTC(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
+// Same algorithm as tracker.html's renderAnalytics() streak block:
+// walk backward from today one day at a time, stop at the first day
+// with a zero total. Duplicated here rather than shared because
+// tracker.html is a plain script (not a module this can import).
+function computeStreak(slog: StudyLog): number {
+  let streak = 0;
+  const d = new Date();
+  while (true) {
+    const key = dateKeyUTC(d);
+    const total = Object.values(slog[key] || {}).reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
 const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
 
 /** Home page data: the review queue (real retention/urgency, same
@@ -32,11 +70,21 @@ const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
  *  nothing here should assume it's unused. So: prefer display_name
  *  (what new signups get), fall back to full_name so existing users
  *  with only the old column set still see their real name instead of
- *  the placeholder. */
+ *  the placeholder.
+ *
+ *  Also carries todayFocus (goal/done minutes, per-subject today
+ *  breakdown, streak) for the "Today's Focus" gauge card - all
+ *  derived from study_log + daily_focus_goal_minutes, the same two
+ *  columns tracker.html's streak math and migration 0061's own
+ *  comment ("shown as a progress bar on the Home page Today's Focus
+ *  card") already point at. Nothing wrote this card's data before
+ *  this pass - it was fully hardcoded (fixed 1h15m/2h30m, a fixed
+ *  3-item session list, fixed "7-day streak"). */
 export function useHomeData() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [rows, setRows] = useState<TrackerRow[]>([]);
   const [profile, setProfile] = useState<ProfileInfo>({ displayName: null, avatarUrl: null, exam: null });
+  const [todayFocus, setTodayFocus] = useState<TodayFocus>({ goalMinutes: 180, doneMinutes: 0, bySubject: [], streakDays: 0 });
   const [loadingRows, setLoadingRows] = useState(true);
   const userIdRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,7 +93,7 @@ export function useHomeData() {
     setLoadingRows(true);
     const { data, error } = await sb
       .from('user_profiles')
-      .select('tracker_data, display_name, full_name, avatar_url, exam')
+      .select('tracker_data, study_log, daily_focus_goal_minutes, display_name, full_name, avatar_url, exam')
       .eq('id', userId)
       .single();
     if (!error && data?.tracker_data) {
@@ -58,6 +106,22 @@ export function useHomeData() {
       avatarUrl: data?.avatar_url ?? null,
       exam: data?.exam ?? null,
     });
+
+    const slog: StudyLog = (data?.study_log as StudyLog) || {};
+    const todayKey = dateKeyUTC(new Date());
+    const todayEntry = slog[todayKey] || {};
+    const bySubject = Object.entries(todayEntry)
+      .map(([subject, secs]) => ({ subject, minutes: Math.round(secs / 60) }))
+      .filter((s) => s.minutes > 0)
+      .sort((a, b) => b.minutes - a.minutes);
+    const doneMinutes = bySubject.reduce((sum, s) => sum + s.minutes, 0);
+    setTodayFocus({
+      goalMinutes: data?.daily_focus_goal_minutes ?? 180,
+      doneMinutes,
+      bySubject,
+      streakDays: computeStreak(slog),
+    });
+
     setLoadingRows(false);
   }, []);
 
@@ -82,6 +146,7 @@ export function useHomeData() {
         setAuthState('signed-out');
         setRows([]);
         setProfile({ displayName: null, avatarUrl: null, exam: null });
+        setTodayFocus({ goalMinutes: 180, doneMinutes: 0, bySubject: [], streakDays: 0 });
         return;
       }
       userIdRef.current = session.user.id;
@@ -143,5 +208,5 @@ export function useHomeData() {
 
   const reviewItems: ReviewItem[] = rowsToReviewItems(rows);
 
-  return { authState, reviewItems, profile, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
+  return { authState, reviewItems, profile, todayFocus, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
 }

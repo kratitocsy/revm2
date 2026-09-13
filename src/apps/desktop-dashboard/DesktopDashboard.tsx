@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
-import { useHomeData } from './lib/useHomeData'
+import { useHomeData, type TodayFocus } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
 import type { ReviewItem } from '../_shared/wynkoTracker'
 
@@ -670,20 +670,37 @@ function ReviewQueue({ items, onDismiss }: {
 }
 
 // ─── Focus Panel ──────────────────────────────────────────────────────────────
-function FocusPanel({ onGoFocus }: { onGoFocus: () => void }) {
-  const sessions = [{ name: 'Mathematics', dur: '45 min', done: true }, { name: 'Physics Review', dur: '30 min', done: true }, { name: 'Chemistry Focus', dur: '75 min', done: false }]
-  const pct = 75 / 150
+// sessions/gauge/streak were fully hardcoded before this pass (fixed
+// "1h 15m of 2h 30m", a fixed 3-item Mathematics/Physics/Chemistry
+// list, fixed "7-day streak"). Now driven by todayFocus from
+// useHomeData: goal + done minutes from daily_focus_goal_minutes +
+// today's study_log entry, per-subject rows from that same entry
+// (real subjects actually logged today, not a fixed planned list -
+// there's no "planned session" concept in the data, only what was
+// actually studied), and streak computed the same way tracker.html's
+// renderAnalytics() does from study_log.
+function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFocus?: TodayFocus }) {
+  const goalMinutes = todayFocus?.goalMinutes ?? 150
+  const doneMinutes = todayFocus?.doneMinutes ?? 0
+  const bySubject = todayFocus?.bySubject ?? []
+  const streakDays = todayFocus?.streakDays ?? 0
+  const pct = goalMinutes > 0 ? Math.min(1, doneMinutes / goalMinutes) : 0
   const arcLen = Math.PI * 56
+  const fmtHM = (mins: number) => {
+    const h = Math.floor(mins / 60), m = Math.round(mins % 60)
+    return h > 0 ? `${h}h ${m}m` : `${m}m`
+  }
+  const goalLabel = goalMinutes >= 60 ? `${(goalMinutes / 60).toFixed(goalMinutes % 60 === 0 ? 0 : 1)}h` : `${goalMinutes}m`
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <div>
           <div className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Focus</div>
-          <div className="text-[11px] text-slate-500 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>2h 30m planned</div>
+          <div className="text-[11px] text-slate-500 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>{fmtHM(goalMinutes)} planned</div>
         </div>
         <div className="flex items-center gap-1.5 text-amber-400">
           <Ico n="fire" cls="w-3.5 h-3.5" />
-          <span className="text-xs font-semibold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>7-day streak</span>
+          <span className="text-xs font-semibold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{streakDays}-day streak</span>
         </div>
       </div>
       <div className="flex justify-center mb-3">
@@ -700,20 +717,22 @@ function FocusPanel({ onGoFocus }: { onGoFocus: () => void }) {
             const x2 = 75 + 47 * Math.cos(angle), y2 = 80 - 47 * Math.sin(angle)
             return <line key={t} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(124,58,237,0.25)" strokeWidth="1.5" />
           })}
-          <text x="75" y="60" textAnchor="middle" fontSize="15" fontWeight="600" fill="#E2E8F0" fontFamily="JetBrains Mono, monospace">1h 15m</text>
-          <text x="75" y="75" textAnchor="middle" fontSize="8.5" fill="rgba(148,163,184,0.5)" fontFamily="JetBrains Mono, monospace">of 2h 30m</text>
+          <text x="75" y="60" textAnchor="middle" fontSize="15" fontWeight="600" fill="#E2E8F0" fontFamily="JetBrains Mono, monospace">{fmtHM(doneMinutes)}</text>
+          <text x="75" y="75" textAnchor="middle" fontSize="8.5" fill="rgba(148,163,184,0.5)" fontFamily="JetBrains Mono, monospace">of {fmtHM(goalMinutes)}</text>
           <text x="16" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">0</text>
-          <text x="134" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">2.5h</text>
+          <text x="134" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{goalLabel}</text>
         </svg>
       </div>
       <div className="space-y-1.5 flex-1">
-        {sessions.map((s, i) => (
-          <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-lg"
-            style={{ background: s.done ? 'rgba(124,58,237,0.06)' : 'rgba(14,21,40,0.5)', border: '1px solid ' + (s.done ? 'rgba(124,58,237,0.18)' : 'rgba(124,58,237,0.1)') }}>
-            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.done ? 'bg-violet-400' : 'bg-slate-600'}`} />
-            <span className="text-[11px] flex-1 text-slate-300" style={{ fontFamily: 'Poppins, sans-serif' }}>{s.name}</span>
-            <span className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{s.dur}</span>
-            {s.done ? <Ico n="check" cls="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /> : <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex-shrink-0" />}
+        {bySubject.length === 0 ? (
+          <div className="text-[11px] text-slate-600 text-center py-4" style={{ fontFamily: 'Poppins, sans-serif' }}>Nothing logged yet today</div>
+        ) : bySubject.map((s) => (
+          <div key={s.subject} className="flex items-center gap-2.5 px-3 py-2 rounded-lg"
+            style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.18)' }}>
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-violet-400" />
+            <span className="text-[11px] flex-1 text-slate-300" style={{ fontFamily: 'Poppins, sans-serif' }}>{s.subject}</span>
+            <span className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{s.minutes} min</span>
+            <Ico n="check" cls="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
           </div>
         ))}
       </div>
@@ -4993,7 +5012,7 @@ export default function DesktopDashboard() {
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
-  const { authState, reviewItems, profile, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  const { authState, reviewItems, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -5083,7 +5102,7 @@ export default function DesktopDashboard() {
               <ReviewQueue items={reviewItems} onDismiss={markAsReviewed} />
             </div>
             <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-              <FocusPanel onGoFocus={goFocus} />
+              <FocusPanel onGoFocus={goFocus} todayFocus={todayFocus} />
             </div>
           </div>
           <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
