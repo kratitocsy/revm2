@@ -515,11 +515,12 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     <div>
       <span class="kicker-chip"><span class="nav-dot"></span> The Product &middot; <b>Study OS 1.0</b></span>
       <h1 class="h-xl" style="margin-top:22px;">
-        The world's first <span class="grad-text">Study OS</span> which empowers you to learn and earn.
+        The world's first <span class="grad-text">Study OS</span> that plans, locks in and keeps you studying — not alone.
       </h1>
       <p class="lead">
-        Wynko is a self-contained study operating system — deep-focus sessions, memory-timed revision,
-        live study rooms and an earnings layer that pays you for the hours you actually put in.
+        Wynko is a self-contained study operating system — it auto-schedules your revision on a forgetting curve,
+        locks out distractions for the length of a session with no early exit, and puts you in live study rooms
+        with people actually studying right now. Verified focus hours also earn rewards.
         No hardware. No setup. Run it right here in your browser.
       </p>
       <div class="hero-cta">
@@ -539,7 +540,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <!-- floating HUD chips around the device -->
       <div class="float-badge" style="top:8%; left:-4%;">
         <span class="dot"></span>
-        <div><b>+&#8377;42</b><span>earned this session</span></div>
+        <div><b>No early exit</b><span>lock is unbypassable</span></div>
       </div>
       <div class="float-badge" style="bottom:12%; right:-6%; animation-delay:.8s;">
         <div><b>12 days</b><span>focus streak</span></div>
@@ -577,7 +578,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
                   <div class="ring-center">
                     <div class="ring-time" id="ringTime">25:00</div>
                     <div class="ring-label">deep focus</div>
-                    <div class="ring-earn" id="ringEarn">+&#8377;0 this session</div>
+                    <div class="ring-earn" id="ringEarn">locked in &middot; next revision auto-scheduled</div>
                   </div>
                 </div>
               </div>
@@ -864,45 +865,59 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   <div class="wrap">
     <div class="section-head center reveal">
       <span class="eyebrow">Earn</span>
-      <h2 class="h-lg">Point your effort at a system that pays.</h2>
-      <p class="lead">The Wynko earnings layer rewards verified focused hours, completed revisions and unbroken streaks. Study stops being a cost — it starts compounding.</p>
+      <h2 class="h-lg">Bring people into Wynko. Share in what your community builds.</h2>
+      <p class="lead">Every aspirant gets a WynkoHead invite link. Anyone who joins through it becomes part of your community — and you earn a real revenue share when they buy in, plus a cut when someone <em>they</em> bring in registers as a WynkoHead themselves. It's not a payout for studying. It's a share of what you helped grow.</p>
     </div>
 
     <div class="earn-panel reveal">
       <div>
         <div class="xp-grid" style="margin-top:0">
-          <div class="xp"><b class="mono">&#8377;68</b><span>avg / focus hr</span></div>
-          <div class="xp"><b class="mono">3.2&#215;</b><span>streak multiplier</span></div>
-          <div class="xp"><b class="mono">&#8377;0</b><span>to get started</span></div>
+          <div class="xp"><b class="mono">50%</b><span>of your community's purchases</span></div>
+          <div class="xp"><b class="mono">10%</b><span>from sub-WynkoHeads you bring in</span></div>
+          <div class="xp"><b class="mono">&#8377;0</b><span>to get your invite link</span></div>
         </div>
         <div class="smart-list" style="margin-top:30px">
           <div class="smart-item">
-            <div class="smart-ic" style="color:var(--mint)"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 1-5 3 2 2.8 5 3.5 5 1.6 5 3.6-2.2 3.4-5 3.4-5-1.2-5-3.3"/></svg></div>
-            <div><h4>Verified focused minutes</h4><p>Earnings accrue only from sessions the system can verify — locks enforced, time actually logged.</p></div>
+            <div class="smart-ic" style="color:var(--mint)"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 11a3 3 0 1 0-1.5-5.6"/></svg></div>
+            <div><h4>Your own invite link</h4><p>Share it however you like. Everyone who joins through it is added to your WynkoHead community, visibly, in your dashboard.</p></div>
           </div>
           <div class="smart-item">
             <div class="smart-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></svg></div>
-            <div><h4>Streaks and recall bonuses</h4><p>Keep the chain alive and complete revision on time to multiply everything you've banked.</p></div>
+            <div><h4>Revenue share, not a task reward</h4><p>You earn a share of what your community actually spends inside Wynko — not a rate for hours you log yourself.</p></div>
           </div>
           <div class="smart-item">
-            <div class="smart-ic" style="color:var(--violet-2)"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19M16 14h2"/></svg></div>
-            <div><h4>Withdraw anytime</h4><p>Move earnings out to your wallet whenever you like. Transparent ledger, no fine print.</p></div>
+            <div class="smart-ic" style="color:var(--violet-2)"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div>
+            <div><h4>Compounds through sub-WynkoHeads</h4><p>If someone you brought in starts their own community, you keep earning a share of theirs too.</p></div>
           </div>
         </div>
       </div>
 
       <div class="earn-dash">
-        <div class="dash-top"><i style="background:#fb7185"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span style="margin-left:8px;font-family:var(--mono);font-size:.68rem;color:var(--text-3)">wynko / earnings</span></div>
+        <div class="dash-top"><i style="background:#fb7185"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span style="margin-left:8px;font-family:var(--mono);font-size:.68rem;color:var(--text-3)">wynko / wynkohead</span></div>
         <div class="dash-body">
-          <div class="bal-label">TOTAL EARNED</div>
-          <div class="dash-bal grad-text">&#8377;18,940</div>
-          <div style="font-size:.78rem;color:var(--mint);margin-bottom:14px">+&#8377;2,140 this month</div>
-          <div class="dash-row"><span>Focus payouts</span><span class="r">&#8377;12,480</span></div>
-          <div class="dash-row"><span>Recall bonuses</span><span class="r">&#8377;3,260</span></div>
-          <div class="dash-row"><span>Streak multiplier</span><span class="r">&#8377;3,200</span></div>
-          <div class="dash-row"><span>Next payout</span><span class="dash-pill">in 2 days</span></div>
+          <div class="bal-label">YOUR COMMUNITY</div>
+          <div class="dash-bal grad-text">142 members</div>
+          <div style="font-size:.78rem;color:var(--mint);margin-bottom:14px">+9 this month</div>
+          <div class="dash-row"><span>Community revenue share</span><span class="r">&#8377;2,400</span></div>
+          <div class="dash-row"><span>Sub-WynkoHead share</span><span class="r">&#8377;440</span></div>
+          <div class="dash-row"><span>Pending confirmation</span><span class="r">&#8377;440</span></div>
+          <div class="dash-row"><span>Available to withdraw</span><span class="dash-pill">&#8377;2,400</span></div>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMMUNITY SCREENSHOT ===================== -->
+<section id="community-shot">
+  <div class="wrap">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Study Together</span>
+      <h2 class="h-lg">Not a leaderboard screenshot. This is what your people actually see.</h2>
+      <p class="lead">A real screen from Wynko's virtual study library — floors, quiet zones, solo pods, and rooms other aspirants are sitting in right now.</p>
+    </div>
+    <div class="reveal" style="max-width:920px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid var(--border-2);box-shadow:0 30px 80px rgba(0,0,0,.35)">
+      <img src="assets/Screenshot_2026_0908_032315-Bfe6oYGo.png" alt="Wynko virtual study library — quiet zone, study table, solo pods, discussion corner and break zone" style="width:100%;display:block" />
     </div>
   </div>
 </section>
@@ -1074,7 +1089,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     if(ringTime) ringTime.textContent = fmt(remaining);
     const done = TOTAL - remaining;
     if(ringProg) ringProg.style.strokeDashoffset = String(520 - 520*(done/TOTAL));
-    if(ringEarn) ringEarn.textContent = '+₹'+Math.round(done/60*68)+' this session';
+    if(ringEarn) ringEarn.textContent = 'locked in \u00b7 '+fmt(remaining)+' left, no early exit';
   }
   function stop(){
     running=false; clearInterval(timer);
