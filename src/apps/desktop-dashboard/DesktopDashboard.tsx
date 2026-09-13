@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
-import { useHomeData, type TodayFocus } from './lib/useHomeData'
+import { useHomeData, type TodayFocus, type ProfileInfo } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
 import type { ReviewItem } from '../_shared/wynkoTracker'
 
@@ -306,6 +306,25 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold cursor-pointer" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>{initials}</div>
       )}
     </header>
+  )
+}
+
+// ─── Header Avatar ──────────────────────────────────────────────────────────────
+// Small reusable version of Header's own avatar block, for the ~10 other
+// pages (Focus Lock, Study Rooms, Schedules, Battleground, Settings,
+// Wynkoins, Earn) whose header just shows this same circle in the corner.
+// Before this it was a literal "JS" div on every one of them - real only
+// on Home, a hardcoded placeholder everywhere else. profile is still
+// optional (undefined while signed out / still loading), same fallback
+// Sidebar/Header already use.
+function HeaderAvatar({ profile }: { profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
+  const name = profile?.displayName || 'Jatin Sinsinwar'
+  const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
+  if (profile?.avatarUrl) {
+    return <img src={profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+  }
+  return (
+    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg,#7C3AED,#06B6D4)' }}>{initials}</div>
   )
 }
 
@@ -846,15 +865,44 @@ function LibraryPreview({ onNavigate }: { onNavigate: (id: string) => void }) {
 const SUBJ_COLORS = ['#3B82F6', '#8B5CF6', '#14B8A6', '#22C55E', '#F59E0B', '#EC4899', '#F97316', '#6366F1']
 
 // ─── Focus Lock Page ──────────────────────────────────────────────────────────
-function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: (id: string) => void }) {
+// Persists a paused Focus Lock countdown across in-app navigation and full
+// page reloads. There's no server-side "paused" concept — pausing here
+// (same as timer.html) just stops the study_sessions row entirely — so a
+// paused countdown has nowhere to live except the client. Before this,
+// that meant plain useState, which reset to 25:00 the moment this page
+// unmounted (e.g. navigating to Home and back), even though nothing was
+// actually running server-side to reconcile against. A live/running
+// session already re-seeds correctly from real elapsed time (see the
+// effect below keyed on `running`/`remoteStartedAt`) — this only covers
+// the paused-with-time-left case that reconciliation can't see.
+const FL_PAUSE_KEY = 'wynko_focus_lock_paused_v1'
+interface FocusLockPausedSnapshot { totalSecs: number; remaining: number; subjectIdx: number }
+function loadFocusLockPausedSnapshot(): FocusLockPausedSnapshot | null {
+  try {
+    const raw = localStorage.getItem(FL_PAUSE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (typeof parsed?.totalSecs === 'number' && typeof parsed?.remaining === 'number') return parsed
+  } catch { /* corrupt/inaccessible storage - just start fresh */ }
+  return null
+}
+function saveFocusLockPausedSnapshot(snap: FocusLockPausedSnapshot) {
+  try { localStorage.setItem(FL_PAUSE_KEY, JSON.stringify(snap)) } catch { /* best-effort */ }
+}
+function clearFocusLockPausedSnapshot() {
+  try { localStorage.removeItem(FL_PAUSE_KEY) } catch { /* best-effort */ }
+}
+
+function FocusLockPage({ units, onNavigate, profile }: { units: StudyUnit[]; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+  const [pausedSnapshot] = useState(loadFocusLockPausedSnapshot)
   const [inputH, setInputH] = useState(0)
   const [inputM, setInputM] = useState(25)
   const [inputS, setInputS] = useState(0)
-  const [totalSecs, setTotalSecs] = useState(25 * 60)
-  const [remaining, setRemaining] = useState(25 * 60)
+  const [totalSecs, setTotalSecs] = useState(pausedSnapshot?.totalSecs ?? 25 * 60)
+  const [remaining, setRemaining] = useState(pausedSnapshot?.remaining ?? 25 * 60)
   const [fullscreen, setFullscreen] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
-  const [activeSubjectIdx, setActiveSubjectIdx] = useState(0)
+  const [activeSubjectIdx, setActiveSubjectIdx] = useState(pausedSnapshot?.subjectIdx ?? 0)
   const [quickActive, setQuickActive] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -905,6 +953,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
       const next = Math.max(0, totalSecs - elapsed)
       return next !== prev ? next : prev
     })
+    clearFocusLockPausedSnapshot() // a live remote session takes priority over any stale paused snapshot
     // deliberately excludes totalSecs/remaining - this should only
     // re-seed when the remote session identity changes (found
     // running, or a new started_at from a fresh start), not on every
@@ -916,7 +965,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
     if (running) {
       timerRef.current = setInterval(() => {
         setRemaining(prev => {
-          if (prev <= 1) { stopRemoteSession(); return 0 }
+          if (prev <= 1) { stopRemoteSession(); clearFocusLockPausedSnapshot(); return 0 }
           return prev - 1
         })
       }, 1000)
@@ -932,20 +981,27 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
     const s = mins * 60
     setTotalSecs(s); setRemaining(s)
     setInputH(0); setInputM(mins); setInputS(0); setQuickActive(idx)
+    clearFocusLockPausedSnapshot()
   }
 
   function applyCustom() {
     const s = inputH * 3600 + inputM * 60 + inputS
     if (s > 0) { setTotalSecs(s); setRemaining(s) }
     setShowCustom(false); setQuickActive(-1)
+    clearFocusLockPausedSnapshot()
   }
 
-  function handleReset() { stopRemoteSession(); setRemaining(totalSecs) }
+  function handleReset() { stopRemoteSession(); clearFocusLockPausedSnapshot(); setRemaining(totalSecs) }
 
   function handleToggleRun() {
     if (running) {
+      // Pausing has nowhere server-side to live (see the module comment
+      // above) - snapshot the countdown locally so navigating away and
+      // back, or a page refresh, doesn't silently lose it.
+      saveFocusLockPausedSnapshot({ totalSecs, remaining, subjectIdx: activeSubjectIdx })
       stopRemoteSession() // "pause" = stop the study_sessions row, same as timer.html's own pause button
     } else {
+      clearFocusLockPausedSnapshot()
       startRemoteSession(subjects[activeSubjectIdx] || 'General')
     }
   }
@@ -1002,7 +1058,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
         </div>
       )}
 
-      <Sidebar active="focus" setActive={onNavigate} />
+      <Sidebar active="focus" setActive={onNavigate} profile={profile} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -1029,7 +1085,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
             style={{ color: '#A78BFA', background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.22)', fontFamily: 'Poppins, sans-serif' }}>
             <Ico n="expand" cls="w-3.5 h-3.5" /> Fullscreen
           </button>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <main className="flex-1 overflow-y-auto flex flex-col gap-4 p-5">
@@ -1467,9 +1523,10 @@ function BotCard({ bot, canKick, onKick }: { bot: BotParticipant; canKick?: bool
 }
 
 // ─── Study Rooms List Page ─────────────────────────────────────────────────────
-function StudyRoomsPage({ onNavigate, onEnterRoom }: {
+function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   onNavigate: (id: string) => void
   onEnterRoom: (room: RoomData) => void
+  profile?: ProfileInfo
 }) {
   const [tab, setTab] = useState<RoomTab>('all')
   const [subjectFilter, setSubjectFilter] = useState('All Subjects')
@@ -1550,7 +1607,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom }: {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}
       onClick={() => setOpenMenuId(null)}>
-      <Sidebar active="studyrooms" setActive={onNavigate} />
+      <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
           style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
@@ -1562,7 +1619,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom }: {
             <div className="text-sm font-semibold text-slate-200">Find your people. Focus better.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5">
@@ -1895,8 +1952,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom }: {
 }
 
 // ─── Room Interior Page ────────────────────────────────────────────────────────
-function RoomInteriorPage({ room, onBack, onNavigate }: {
-  room: RoomData; onBack: () => void; onNavigate: (id: string) => void
+function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
+  room: RoomData; onBack: () => void; onNavigate: (id: string) => void; profile?: ProfileInfo
 }) {
   const bots = getRoomBots(room)
   const [focusRunning, setFocusRunning] = useState(false)
@@ -1956,8 +2013,10 @@ function RoomInteriorPage({ room, onBack, onNavigate }: {
     setChatInput('')
   }
 
+  const selfName = profile?.displayName || 'Jatin Sinsinwar'
+  const selfInitials = selfName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
   const userCard: BotParticipant = {
-    id: 'user', name: 'You (Jatin)', initials: 'JS', subject,
+    id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials, subject,
     studyTimeSecs: userStudyTime,
     isStudying: focusRunning || userStudyTime > 0,
     cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
@@ -1968,7 +2027,7 @@ function RoomInteriorPage({ room, onBack, onNavigate }: {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#060914', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active="studyrooms" setActive={onNavigate} />
+      <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0"
@@ -1987,8 +2046,7 @@ function RoomInteriorPage({ room, onBack, onNavigate }: {
             <Ico n="rooms" cls="w-4 h-4" />
             <span className="text-slate-300 font-mono text-sm">{studyingCount} studying</span>
           </div>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg,#7C3AED,#06B6D4)' }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <main className="flex-1 overflow-y-auto flex flex-col">
@@ -2286,12 +2344,13 @@ const WEBSITE_SUGGESTIONS = [
 
 const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#22D3EE', '#34D399', '#F59E0B', '#F87171', '#EC4899']
 
-function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits }: {
+function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile }: {
   onNavigate: (id: string) => void
   schedule: ScheduleItem[][]
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
   sharedUnits: StudyUnit[]
   setSharedUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
+  profile?: ProfileInfo
 }) {
   const weekDates = getWeekDates()
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
@@ -2414,7 +2473,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active="schedules" setActive={onNavigate} />
+      <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
           style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
@@ -2426,7 +2485,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: 'linear-gradient(135deg,#7C3AED,#06B6D4)' }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -3114,7 +3173,7 @@ const LEADERBOARD_DATA = [
   { rank: 3, name: 'Nain', wins: 8, streak: 5, color: '#3B82F6', variant: 3 },
 ]
 
-function BattlegroundPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type BattlePhase = 'idle' | 'invite-sent' | 'accepted' | 'active' | 'finished'
 
   interface PendingInvite { id: string; name: string; color: string; variant: number; msg: string }
@@ -3212,7 +3271,7 @@ function BattlegroundPage({ onNavigate }: { onNavigate: (id: string) => void }) 
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active="battleground" setActive={onNavigate} />
+      <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
           style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
@@ -3229,7 +3288,7 @@ function BattlegroundPage({ onNavigate }: { onNavigate: (id: string) => void }) 
               <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: '#7C3AED' }}>{pendingInvites.length}</div>
             )}
           </div>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: 'linear-gradient(135deg,#7C3AED,#06B6D4)' }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -3651,16 +3710,21 @@ function BattlegroundPage({ onNavigate }: { onNavigate: (id: string) => void }) 
 
 // ─── Settings Page ─────────────────────────────────────────────────────────────
 
-function SettingsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type SettingsTab = 'profile' | 'account' | 'notifications' | 'privacy' | 'study' | 'about'
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [saved, setSaved] = useState(false)
 
   // Profile state
+  // displayName/avatar seed from the real signed-in account (same
+  // profile useHomeData already loads for Home/Sidebar); the rest of
+  // this form (username, bio, gender, age, course, school, phone,
+  // email, dailyGoal) is still local-only mock state - a real Settings
+  // read/write pass is a separate, larger module than this name fix.
   const [avatarColor, setAvatarColor] = useState('#7C3AED')
   const [avatarEmoji, setAvatarEmoji] = useState('🎓')
-  const [displayName, setDisplayName] = useState('Jatin Sinsinwar')
+  const [displayName, setDisplayName] = useState(profile?.displayName || 'Jatin Sinsinwar')
   const [username, setUsername] = useState('jatin_sinsinwar')
   const [bio, setBio] = useState('Aspiring engineer. JEE 2026.')
   const [gender, setGender] = useState('Male')
@@ -3682,6 +3746,15 @@ function SettingsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
   const [allowBattleInvites, setAllowBattleInvites] = useState(true)
   const [soundEffects, setSoundEffects] = useState(true)
   const [focusMode, setFocusMode] = useState(false)
+
+  // profile arrives asynchronously (a fresh sign-in navigating straight
+  // to Settings can beat useHomeData's fetch) - resync once it lands,
+  // but only if the person hasn't already typed something of their own
+  // in this field this session.
+  const [displayNameTouched, setDisplayNameTouched] = useState(false)
+  useEffect(() => {
+    if (!displayNameTouched && profile?.displayName) setDisplayName(profile.displayName)
+  }, [profile?.displayName, displayNameTouched])
 
   function saveProfile() {
     setSaved(true)
@@ -3766,7 +3839,7 @@ function SettingsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active="settings" setActive={onNavigate} />
+      <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
           style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
@@ -3783,8 +3856,7 @@ function SettingsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
               ✓ Changes saved
             </div>
           )}
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold"
-            style={{ background: `linear-gradient(135deg,${avatarColor},#06B6D4)` }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <div className="flex flex-1 overflow-hidden">
@@ -3854,7 +3926,7 @@ function SettingsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
                 </div>
 
                 <SectionCard title="PERSONAL INFORMATION">
-                  <FieldInput label="DISPLAY NAME" value={displayName} onChange={setDisplayName} placeholder="Your full name" />
+                  <FieldInput label="DISPLAY NAME" value={displayName} onChange={v => { setDisplayName(v); setDisplayNameTouched(true) }} placeholder="Your full name" />
                   <FieldInput label="USERNAME" value={username} onChange={setUsername} placeholder="@username" />
                   <FieldInput label="BIO" value={bio} onChange={setBio} placeholder="Tell others about yourself..." />
                   <SelectInput label="GENDER" value={gender} onChange={setGender} options={['Male', 'Female', 'Non-binary', 'Prefer not to say']} />
@@ -4106,7 +4178,7 @@ function SettingsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 // ─── WYNKOINS Page ─────────────────────────────────────────────────────────────
 
-function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   const [balance, setBalance] = useState(150)
   const [adsFree, setAdsFree] = useState(false)
   const [adsFreeExpiry, setAdsFreeExpiry] = useState<string | null>(null)
@@ -4167,7 +4239,7 @@ function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active="wynkoins" setActive={onNavigate} />
+      <Sidebar active="wynkoins" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Header */}
@@ -4187,8 +4259,7 @@ function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
             <span className="text-base font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</span>
             <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold"
-            style={{ background: 'linear-gradient(135deg,#7C3AED,#06B6D4)' }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         {/* Toast */}
@@ -4425,7 +4496,7 @@ function WynkoinsPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 // ─── Earn with Wynko Page ──────────────────────────────────────────────────────
 
-function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type EarnTab = "wynkohead" | "invite"
   const [tab, setTab] = useState<EarnTab>("wynkohead")
   const [isWynkoHead, setIsWynkoHead] = useState(false)
@@ -4486,7 +4557,7 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 
     return (
       <div className="flex h-screen overflow-hidden" style={{ background: "#06080F", fontFamily: "Poppins, sans-serif" }}>
-        <Sidebar active="earn" setActive={onNavigate} />
+        <Sidebar active="earn" setActive={onNavigate} profile={profile} />
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
             style={{ background: "rgba(6,8,15,0.95)", borderColor: "rgba(124,58,237,0.15)" }}>
@@ -4502,7 +4573,7 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
               <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
               <span className="text-[10px] text-amber-500">WYNKOINS</span>
             </div>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: "linear-gradient(135deg,#7C3AED,#06B6D4)" }}>JS</div>
+            <HeaderAvatar profile={profile} />
           </header>
 
           <main className="flex-1 overflow-y-auto px-6 py-5">
@@ -4713,7 +4784,7 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
   // ── Main Earn Page ──
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "#06080F", fontFamily: "Poppins, sans-serif" }}>
-      <Sidebar active="earn" setActive={onNavigate} />
+      <Sidebar active="earn" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
           style={{ background: "rgba(6,8,15,0.95)", borderColor: "rgba(124,58,237,0.15)" }}>
@@ -4729,7 +4800,7 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
             <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
             <span className="text-[10px] text-amber-500">WYNKOINS</span>
           </div>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold" style={{ background: "linear-gradient(135deg,#7C3AED,#06B6D4)" }}>JS</div>
+          <HeaderAvatar profile={profile} />
         </header>
 
         <main className="flex-1 overflow-y-auto">
@@ -4967,10 +5038,10 @@ function EarnPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 // ─── 3D Library Page ───────────────────────────────────────────────────────────
 // ─── 3D Library Page ───────────────────────────────────────────────────────────
 
-function LibraryPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active="3dlibrary" setActive={onNavigate} />
+      <Sidebar active="3dlibrary" setActive={onNavigate} profile={profile} />
       {/* Full-screen image fill */}
       <div className="flex-1 relative overflow-hidden">
         <img
@@ -5054,31 +5125,31 @@ export default function DesktopDashboard() {
   }
 
   if (activeNav === 'focus') {
-    return <FocusLockPage units={sharedUnits} onNavigate={handleNav} />
+    return <FocusLockPage units={sharedUnits} onNavigate={handleNav} profile={profile} />
   }
   if (activeNav === 'schedules') {
-    return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} />
+    return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
   }
   if (activeNav === 'battleground') {
-    return <BattlegroundPage onNavigate={handleNav} />
+    return <BattlegroundPage onNavigate={handleNav} profile={profile} />
   }
   if (activeNav === '3dlibrary') {
-    return <LibraryPage onNavigate={handleNav} />
+    return <LibraryPage onNavigate={handleNav} profile={profile} />
   }
   if (activeNav === 'wynkoins') {
-    return <WynkoinsPage onNavigate={handleNav} />
+    return <WynkoinsPage onNavigate={handleNav} profile={profile} />
   }
   if (activeNav === 'earn') {
-    return <EarnPage onNavigate={handleNav} />
+    return <EarnPage onNavigate={handleNav} profile={profile} />
   }
   if (activeNav === 'settings') {
-    return <SettingsPage onNavigate={handleNav} />
+    return <SettingsPage onNavigate={handleNav} profile={profile} />
   }
   if (activeNav === 'studyrooms') {
     if (activeRoom) {
-      return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} />
+      return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} />
     }
-    return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} />
+    return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile} />
   }
 
   // ── Home (the module wired to real data this pass) ──
