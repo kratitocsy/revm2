@@ -11,15 +11,32 @@ import {
 
 export type AuthState = 'loading' | 'signed-out' | 'ready';
 
+export interface ProfileInfo {
+  displayName: string | null;
+  avatarUrl: string | null;
+  exam: string | null; // e.g. "JEE 2026" - same cfg.exam value onboarding.html writes
+}
+
 const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
 
 /** Home page data: the review queue (real retention/urgency, same
  *  math as tracker.html and mobile-home) plus add/remove/mark-reviewed
  *  actions that write back to the same user_profiles.tracker_data
- *  column every other page already reads and writes. */
+ *  column every other page already reads and writes. Also carries
+ *  display_name/avatar_url/exam so Sidebar/Header can show the real
+ *  signed-in person instead of the design's placeholder "Jatin
+ *  Sinsinwar / JEE 2026". onboarding.html's finish() only ever writes
+ *  display_name, but full_name is a separate, older column that's
+ *  actually populated on MORE rows in production (23/36 vs 19/36 as
+ *  of this pass) - some earlier flow or manual entry set it and
+ *  nothing here should assume it's unused. So: prefer display_name
+ *  (what new signups get), fall back to full_name so existing users
+ *  with only the old column set still see their real name instead of
+ *  the placeholder. */
 export function useHomeData() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [rows, setRows] = useState<TrackerRow[]>([]);
+  const [profile, setProfile] = useState<ProfileInfo>({ displayName: null, avatarUrl: null, exam: null });
   const [loadingRows, setLoadingRows] = useState(true);
   const userIdRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,7 +45,7 @@ export function useHomeData() {
     setLoadingRows(true);
     const { data, error } = await sb
       .from('user_profiles')
-      .select('tracker_data')
+      .select('tracker_data, display_name, full_name, avatar_url, exam')
       .eq('id', userId)
       .single();
     if (!error && data?.tracker_data) {
@@ -36,6 +53,11 @@ export function useHomeData() {
     } else {
       setRows([]);
     }
+    setProfile({
+      displayName: data?.display_name ?? data?.full_name ?? null,
+      avatarUrl: data?.avatar_url ?? null,
+      exam: data?.exam ?? null,
+    });
     setLoadingRows(false);
   }, []);
 
@@ -59,6 +81,7 @@ export function useHomeData() {
         userIdRef.current = null;
         setAuthState('signed-out');
         setRows([]);
+        setProfile({ displayName: null, avatarUrl: null, exam: null });
         return;
       }
       userIdRef.current = session.user.id;
@@ -120,5 +143,5 @@ export function useHomeData() {
 
   const reviewItems: ReviewItem[] = rowsToReviewItems(rows);
 
-  return { authState, reviewItems, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
+  return { authState, reviewItems, profile, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
 }
