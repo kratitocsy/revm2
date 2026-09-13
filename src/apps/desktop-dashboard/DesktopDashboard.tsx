@@ -216,7 +216,14 @@ const NAV = [
 ]
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar({ active, setActive }: { active: string; setActive: (id: string) => void }) {
+// profile is optional - the 10 other call sites below (Schedules,
+// Study Rooms, Battleground, etc.) haven't had their own real-data
+// pass yet, so they render without it and fall back to the same
+// placeholder identity the design shipped with, same as before.
+function Sidebar({ active, setActive, profile }: { active: string; setActive: (id: string) => void; profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
+  const name = profile?.displayName || 'Jatin Sinsinwar'
+  const exam = profile?.exam || 'JEE 2026'
+  const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full"
       style={{ background: '#090B18', borderColor: 'rgba(124,58,237,0.18)' }}>
@@ -252,10 +259,14 @@ function Sidebar({ active, setActive }: { active: string; setActive: (id: string
       </nav>
       <div className="border-t p-4" style={{ borderColor: 'rgba(124,58,237,0.14)' }}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>JS</div>
+          {profile?.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>{initials}</div>
+          )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-slate-200 font-medium truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>Jatin Sinsinwar</div>
-            <div className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>JEE 2026</div>
+            <div className="text-sm text-slate-200 font-medium truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{name}</div>
+            <div className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{exam}</div>
           </div>
           <button className="text-slate-600 hover:text-slate-300 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
         </div>
@@ -265,13 +276,19 @@ function Sidebar({ active, setActive }: { active: string; setActive: (id: string
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header() {
+function Header({ profile }: { profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } } = {}) {
+  // Same real-date computation TodayHero already uses below on this
+  // page (new Date(), not a placeholder) - this was the one spot on
+  // Home still showing the design's literal "Mon, 1 Sep 2026" string.
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  const name = profile?.displayName || 'Jatin Sinsinwar'
+  const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
   return (
     <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 backdrop-blur-sm"
       style={{ background: 'rgba(8,10,18,0.9)', borderColor: 'rgba(124,58,237,0.15)' }}>
       <div className="flex-1">
         <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Home / Today</div>
-        <div className="text-sm font-semibold text-slate-200" style={{ fontFamily: 'Poppins, sans-serif' }}>Mon, 1 Sep 2026</div>
+        <div className="text-sm font-semibold text-slate-200" style={{ fontFamily: 'Poppins, sans-serif' }}>{todayLabel}</div>
       </div>
       <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 text-sm w-52 border"
         style={{ background: 'rgba(14,21,40,0.8)', borderColor: 'rgba(124,58,237,0.2)' }}>
@@ -283,7 +300,11 @@ function Header() {
         <Ico n="bell" cls="w-5 h-5" />
         <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" style={{ boxShadow: '0 0 6px rgba(139,92,246,0.8)' }} />
       </button>
-      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold cursor-pointer" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>JS</div>
+      {profile?.avatarUrl ? (
+        <img src={profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover cursor-pointer" />
+      ) : (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold cursor-pointer" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>{initials}</div>
+      )}
     </header>
   )
 }
@@ -4972,7 +4993,7 @@ export default function DesktopDashboard() {
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
-  const { authState, reviewItems, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  const { authState, reviewItems, profile, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -5050,9 +5071,9 @@ export default function DesktopDashboard() {
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active={activeNav} setActive={handleNav} />
+      <Sidebar active={activeNav} setActive={handleNav} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header profile={profile} />
         <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
           <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} topSubject={topSubject} />
           <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
