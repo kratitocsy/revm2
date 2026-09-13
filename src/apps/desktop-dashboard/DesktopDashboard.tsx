@@ -868,6 +868,7 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
     loading: sessionLoading,
     running,
     activeSubject: remoteActiveSubject,
+    startedAt: remoteStartedAt,
     subjectTotals,
     enforcementActive,
     start: startRemoteSession,
@@ -888,6 +889,28 @@ function FocusLockPage({ units, onNavigate }: { units: StudyUnit[]; onNavigate: 
     const idx = subjects.indexOf(remoteActiveSubject)
     if (idx >= 0) setActiveSubjectIdx(idx)
   }, [remoteActiveSubject, subjects])
+
+  // Seed the countdown from real elapsed time whenever a session is
+  // (re)found running server-side - on first mount, and again if the
+  // person navigates away (e.g. to Home) and back, which remounts
+  // this page and would otherwise reset `remaining` to its initial
+  // 25:00 useState value even though the real session underneath was
+  // never touched. totalSecs stays whatever the countdown length was
+  // set to (quick-select/custom) rather than being re-derived, since
+  // the backend only tracks elapsed time, not a target duration.
+  useEffect(() => {
+    if (!running || !remoteStartedAt) return
+    const elapsed = Math.max(0, Math.floor((Date.now() - new Date(remoteStartedAt).getTime()) / 1000))
+    setRemaining(prev => {
+      const next = Math.max(0, totalSecs - elapsed)
+      return next !== prev ? next : prev
+    })
+    // deliberately excludes totalSecs/remaining - this should only
+    // re-seed when the remote session identity changes (found
+    // running, or a new started_at from a fresh start), not on every
+    // local tick this same effect's interval below produces
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, remoteStartedAt])
 
   useEffect(() => {
     if (running) {

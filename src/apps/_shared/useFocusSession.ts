@@ -53,6 +53,7 @@ export function useFocusSession() {
   const [remoteSessionId, setRemoteSessionId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<string | null>(null);
   const [subjectTotals, setSubjectTotals] = useState<SubjectTotals>({});
   const [enforcementActive, setEnforcementActive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -92,6 +93,12 @@ export function useFocusSession() {
   // session was started from timer.html, blocks.html, or another
   // device, this page opens straight into "running" for it instead
   // of showing "Ready to focus" and silently racing a second one.
+  // Also exposes startedAt so the page can seed its countdown from
+  // real elapsed time on mount (previously this only synced
+  // activeSubject - the countdown itself stayed a bare local
+  // useState seeded to 25:00, so navigating away and back reset the
+  // on-screen timer to 25:00 even though the real session underneath
+  // it was untouched and still running).
   const reconcile = useCallback(
     async (uid: string) => {
       const { data } = await sb
@@ -104,9 +111,11 @@ export function useFocusSession() {
       if (active) {
         setRemoteSessionId(active.id);
         setActiveSubject(active.subject);
+        setStartedAt(active.started_at);
         setRunning(true);
       } else {
         setRemoteSessionId(null);
+        setStartedAt(null);
         setRunning(false);
       }
     },
@@ -219,6 +228,7 @@ export function useFocusSession() {
         if (error) throw error;
         setRemoteSessionId(data.id);
         setActiveSubject(data.subject);
+        setStartedAt(data.started_at ?? new Date().toISOString());
         setRunning(true);
         // reflects immediately into set_session_active via the existing
         // poller on its next tick - matches timer.html's own latency
@@ -228,11 +238,52 @@ export function useFocusSession() {
         // up on RevMGrid/leaderboards for this session.
         console.warn('Focus Lock: remote session sync unavailable, timer still runs locally:', e);
         setRemoteSessionId(null);
+        setStartedAt(new Date().toISOString());
         setRunning(true);
       }
     },
     [userId]
   );
+
+  // Closing a study_sessions row here previously left study_log (the
+  // {date:{subject:seconds}} column Home's Today's Focus card and
+  // tracker.html's streak both read) completely untouched - only
+  // timer.html's own logSession() ever wrote it, as a second, separate
+  // call alongside its own stopRemoteSession(). This page never had
+  // that second call, so Focus Lock time here was invisible on Home
+  // and didn't count toward the streak even though the
+  // study_sessions row (and RevMGrid/leaderboards, which read that
+  // table directly) was perfectly correct the whole time.
+  //
+  // Mirrors logSession()'s shape exactly: elapsed seconds keyed by
+  // today's date and the session's subject, merged into (not
+  // replacing) the existing study_log, plus total_study_seconds kept
+  // in sync the same way syncTrackerToSupabase does.
+  const logToStudyLog = useCallback(async (uid: string, subject: string | null, elapsedSeconds: number) => {
+    if (elapsedSeconds < 1) return; // guard a stray 0-length start/stop, same as logSession()
+    const sub = subject || 'General';
+    const todayKey = new Date().toISOString().split('T')[0];
+    try {
+      const { data } = await sb.from('user_profiles').select('study_log, total_study_seconds').eq('id', uid).single();
+      const slog = (data?.study_log as Record<string, Record<string, number>>) || {};
+      const day = { ...(slog[todayKey] || {}) };
+      day[sub] = (day[sub] || 0) + elapsedSeconds;
+      const nextSlog = { ...slog, [todayKey]: day };
+      await sb
+        .from('user_profiles')
+        .update({
+          study_log: nextSlog,
+          total_study_seconds: (data?.total_study_seconds || 0) + elapsedSeconds,
+          last_active_at: new Date().toISOString(),
+        })
+        .eq('id', uid);
+    } catch (e) {
+      // study_log sync must never block ending the session - the
+      // study_sessions row (already closed by this point) stays the
+      // source of truth for RevMGrid/leaderboards either way.
+      console.warn('Focus Lock: study_log sync failed', e);
+    }
+  }, []);
 
   const stop = useCallback(async () => {
     if (remoteSessionId) {
@@ -241,14 +292,19 @@ export function useFocusSession() {
       } catch (e) {
         console.warn('Focus Lock: stop remote session failed', e);
       }
+      if (userId && startedAt) {
+        const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
+        await logToStudyLog(userId, activeSubject, elapsedSeconds);
+      }
     }
     setRemoteSessionId(null);
+    setStartedAt(null);
     setRunning(false);
     if (userId) {
       refreshSubjectTotals(userId);
       pollEnforcement(userId); // re-check real enforcement status, same note as timer.html's stopRemoteSession
     }
-  }, [remoteSessionId, userId, refreshSubjectTotals, pollEnforcement]);
+  }, [remoteSessionId, userId, startedAt, activeSubject, logToStudyLog, refreshSubjectTotals, pollEnforcement]);
 
   // Switching subjects mid-session = stop the current row, start a
   // new one under the new subject. study_sessions has no "current
@@ -271,6 +327,7 @@ export function useFocusSession() {
     loading,
     running,
     activeSubject,
+    startedAt,
     subjectTotals,
     enforcementActive,
     start,
