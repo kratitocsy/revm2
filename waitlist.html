@@ -1346,7 +1346,7 @@ document.addEventListener('visibilitychange', () => {
 joinForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   joinError.textContent = '';
-  const email = document.getElementById('emailInput').value.trim();
+  const email = document.getElementById('emailInput').value.trim().toLowerCase();
   if (!email) { joinError.textContent = 'Please enter your email.'; return; }
 
   const ALLOWLISTED_EMAILS = ['kiarase2288@gmail.com', 'jatinsinsinwar18@gmail.com'];
@@ -1367,10 +1367,12 @@ joinForm.addEventListener('submit', async (e) => {
       return;
     }
     saveMyEmail(email);
-    const status = await getStatus(email);
+    let status = await getStatus(email);
+    if (!status) { await new Promise(r => setTimeout(r, 900)); status = await getStatus(email); }
+    if (!status) { await new Promise(r => setTimeout(r, 1800)); status = await getStatus(email); }
     await refreshTotalCount();
     if (status) { renderConfirmation(status, email); startStatusPolling(email); }
-    else joinError.textContent = "You're signed up, but we couldn't load your queue position — refresh to see it.";
+    else { joinError.textContent = "You're signed up — loading your queue position…"; setTimeout(() => retryStatus(email), 3000); }
   } catch(err) {
     console.error(err);
     joinError.textContent = "Something went wrong — please try again.";
@@ -1379,6 +1381,12 @@ joinForm.addEventListener('submit', async (e) => {
     joinBtn.textContent = 'Notify me →';
   }
 });
+
+async function retryStatus(email){
+  const status = await getStatus(email);
+  if (status) { joinError.textContent = ''; renderConfirmation(status, email); startStatusPolling(email); }
+  else setTimeout(() => retryStatus(email), 5000);
+}
 
 /* ============ live decay counter ============
    Honest framing: this models the stated 184/hr Ebbinghaus decay rate against

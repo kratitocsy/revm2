@@ -1255,7 +1255,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   }
 
   function fmtNum(n){ return Number(n||0).toLocaleString('en-IN'); }
-  function saveMyEmail(email){ try { localStorage.setItem('wynko_waitlist_email', email); } catch(e){} }
+  function saveMyEmail(email){ try { localStorage.setItem('wynko_waitlist_email', email.toLowerCase()); } catch(e){} }
   function loadMyEmail(){ try { return localStorage.getItem('wynko_waitlist_email'); } catch(e){ return null; } }
 
   const countEl = document.getElementById('ctaCount');
@@ -1345,6 +1345,12 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     };
   }
 
+  async function retryStatus(email){
+    const status = await getStatus(email);
+    if (status) { renderConfirmation(status, email); startStatusPolling(email); }
+    else setTimeout(() => retryStatus(email), 5000);
+  }
+
   let statusPollTimer = null;
   function startStatusPolling(email){
     stopStatusPolling();
@@ -1369,7 +1375,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       e.preventDefault();
       joinMsg.textContent = '';
       const emailInput = document.getElementById('ctaEmailInput');
-      const email = emailInput.value.trim();
+      const email = emailInput.value.trim().toLowerCase();
       if (!email) { joinMsg.style.color = 'var(--coral)'; joinMsg.textContent = 'Please enter your email.'; return; }
 
       joinBtn.disabled = true; joinBtn.textContent = 'Joining…';
@@ -1378,11 +1384,13 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       if (!result.ok) { joinMsg.style.color = 'var(--coral)'; joinMsg.textContent = 'Something went wrong — please try again.'; return; }
 
       saveMyEmail(email);
-      const status = await getStatus(email);
+      let status = await getStatus(email);
+      if (!status) { await new Promise(r => setTimeout(r, 900)); status = await getStatus(email); }
+      if (!status) { await new Promise(r => setTimeout(r, 1800)); status = await getStatus(email); }
       const total = await getTotalCount();
       renderCount(total);
       if (status) { renderConfirmation(status, email); startStatusPolling(email); }
-      else { joinMsg.style.color = 'var(--text-3)'; joinMsg.textContent = "You're signed up, but we couldn't load your queue position — refresh to see it."; }
+      else { joinMsg.style.color = 'var(--text-3)'; joinMsg.textContent = "You're signed up — loading your queue position…"; setTimeout(() => retryStatus(email), 3000); }
     });
   }
 
