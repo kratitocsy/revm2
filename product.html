@@ -999,11 +999,29 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   <div class="wrap">
     <div class="cta reveal">
       <div class="cta-glow"></div>
-      <span class="eyebrow" style="justify-content:center">Founding cohort</span>
+      <span class="eyebrow" style="justify-content:center">Founding cohort &middot; Top 50 only</span>
       <h2 class="h-xl">Set your study, and your <span class="grad-text">earnings</span>, up for success.</h2>
-      <p class="lead">Wynko is opening to a limited founding cohort. Get in early, lock founder status, and be there on day one of the Study OS.</p>
+      <p class="lead">Wynko is opening to a limited founding cohort. Rank <b>#1&ndash;50</b> at launch locks in Premium for life, a verification tag, direct connect to the founding team, and early access to WynkoHead &mdash; permanently.</p>
+
+      <form id="ctaJoinForm" autocomplete="off" style="max-width:460px;margin:0 auto 14px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+        <input type="email" id="ctaEmailInput" placeholder="you@example.com" aria-label="Email" required
+          style="flex:1;min-width:220px;padding:14px 18px;border-radius:999px;border:1px solid var(--border-2);background:rgba(255,255,255,.04);color:var(--text);font:inherit;font-size:.92rem;outline:none;" />
+        <button type="submit" class="btn btn-primary btn-lg" id="ctaJoinBtn">Get early access &rarr;</button>
+      </form>
+      <p id="ctaJoinMsg" style="min-height:20px;font-size:.82rem;color:var(--text-3);margin:0 0 20px;"></p>
+
+      <div style="max-width:460px;margin:0 auto 26px;">
+        <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text-3);margin-bottom:8px;">
+          <span>Aspirants registered with their email</span>
+          <span class="mono" id="ctaCount" style="color:var(--amber);font-weight:600;">&mdash; / 50</span>
+        </div>
+        <div style="height:8px;border-radius:999px;background:var(--ink-2);border:1px solid var(--border);overflow:hidden;">
+          <div id="ctaBarFill" style="height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--amber),var(--coral));transition:width .6s ease;"></div>
+        </div>
+      </div>
+
       <div class="cta-actions">
-        <a class="btn btn-primary btn-lg" href="waitlist.html#joinForm">Get early access &rarr;</a>
+        <a class="btn btn-ghost btn-lg" href="waitlist.html">See full founding cohort details &amp; your referral link &rarr;</a>
         <a class="btn btn-ghost btn-lg" href="login.html">Log in</a>
       </div>
     </div>
@@ -1151,6 +1169,82 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     entries.forEach(e=>{ if(e.isIntersecting){ e.target.style.width = e.target.dataset.w; io.unobserve(e.target); } });
   }, { threshold:.4 });
   bars.forEach(b=>io.observe(b));
+})();
+</script>
+
+<!-- ================= join waitlist (same signup + live count as waitlist.html) ================= -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  const SUPABASE_URL = 'https://dhzjtjekbvxxsauzhadl.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_9xK5LeyVdu2d4bVE1aFlNg_ef435Jkr';
+
+  async function sb(path, body){
+    return fetch(SUPABASE_URL + path, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  async function getTotalCount(){
+    try {
+      const res = await sb('/rest/v1/rpc/get_waitlist_count');
+      if (!res.ok) return null;
+      const data = await res.json();
+      return typeof data === 'number' ? data : (Array.isArray(data) ? data[0] : null);
+    } catch(e){ console.error(e); return null; }
+  }
+
+  async function insertSignup(email){
+    try {
+      const res = await sb('/rest/v1/waitlist_signups', { email, source: 'product_page' });
+      if (res.status === 201 || res.status === 204) return { ok:true };
+      if (res.status === 409) return { ok:true, existed:true };
+      return { ok:false, error: await res.text() };
+    } catch(e){ return { ok:false, error:String(e) }; }
+  }
+
+  function fmtNum(n){ return Number(n||0).toLocaleString('en-IN'); }
+
+  const countEl = document.getElementById('ctaCount');
+  const fillEl = document.getElementById('ctaBarFill');
+  function renderCount(total){
+    if (total === null || !countEl || !fillEl) return;
+    const pct = Math.min(100, (total / 50) * 100);
+    fillEl.style.width = pct + '%';
+    countEl.textContent = total >= 50 ? fmtNum(total) + ' — Top 50 full' : fmtNum(total) + ' / 50';
+  }
+  getTotalCount().then(renderCount);
+
+  const form = document.getElementById('ctaJoinForm');
+  const emailInput = document.getElementById('ctaEmailInput');
+  const btn = document.getElementById('ctaJoinBtn');
+  const msg = document.getElementById('ctaJoinMsg');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+      if (!email) { msg.textContent = 'Please enter your email.'; msg.style.color = 'var(--coral)'; return; }
+      btn.disabled = true; btn.textContent = 'Joining…';
+      const result = await insertSignup(email);
+      btn.disabled = false; btn.textContent = 'Get early access →';
+      if (!result.ok) { msg.textContent = 'Something went wrong — please try again.'; msg.style.color = 'var(--coral)'; return; }
+      try { localStorage.setItem('wynko_waitlist_email', email); } catch(e){}
+      form.style.display = 'none';
+      msg.style.color = 'var(--mint)';
+      msg.innerHTML = result.existed
+        ? "You're already on the list — see your rank &amp; referral link on the <a href=\"waitlist.html\" style=\"color:inherit;text-decoration:underline;\">founding cohort page</a>."
+        : "You're on the list. See your exact rank &amp; grab your referral link on the <a href=\"waitlist.html\" style=\"color:inherit;text-decoration:underline;\">founding cohort page</a>.";
+      const total = await getTotalCount();
+      renderCount(total);
+    });
+  }
 })();
 </script>
 </body>

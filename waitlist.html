@@ -713,7 +713,7 @@
       <span class="section-num">— · The Founding 50</span>
     </div>
     <h2>50 seats. Not 50,000.</h2>
-    <p class="lead">Most waitlists promise vague "early access." This one has a number on it — whoever holds <b>rank #1–50</b> the moment Wynko opens its doors keeps the three things below, for good. Seat #51 gets none of them, no matter how they ask afterward.</p>
+    <p class="lead">Most waitlists promise vague "early access." This one has a number on it — whoever holds <b>rank #1–50</b> the moment Wynko opens its doors keeps the four things below, for good. Seat #51 gets none of them, no matter how they ask afterward.</p>
 
     <div class="grid-2 f200-grid">
       <div class="card f200-card">
@@ -731,11 +731,16 @@
         <h3>A verification tag, for life</h3>
         <p>Permanent, on your profile, from launch day onward — can't be earned later, bought, or granted after the doors open.</p>
       </div>
+      <div class="card f200-card">
+        <div class="f200-icon">👑</div>
+        <h3>Early access to WynkoHead</h3>
+        <p>First in line for the WynkoHead revenue-sharing program — get your invite link and start building your community before it opens to everyone else.</p>
+      </div>
     </div>
 
     <div class="f200-meter card">
       <div class="f200-meter-top">
-        <span>Aspirants on the list right now</span>
+        <span>Aspirants registered with their email right now</span>
         <span class="mono" id="f200Claimed">— / 50</span>
       </div>
       <div class="f200-bar"><div class="f200-bar-fill" id="f200BarFill"></div></div>
@@ -792,7 +797,7 @@
 
         <div class="reward-banner">
           <span>🏆</span>
-          <span>Rank <b>#1–50</b> at launch locks in <b>Premium free for life</b>, a <b>direct line to the founding team</b>, and a <b>verification tag</b> — permanently.</span>
+          <span>Rank <b>#1–50</b> at launch locks in <b>Premium free for life</b>, a <b>direct line to the founding team</b>, a <b>verification tag</b>, and <b>early access to WynkoHead</b> — permanently.</span>
         </div>
 
         <div class="queue-card">
@@ -826,7 +831,7 @@
             </svg>
           </div>
           <p class="gauge-caption" id="meterCaption">Every friend who joins with your link flattens your wait curve.</p>
-          <div class="guarantee-badge" id="guaranteeBadge">✓ Inside the Top 50 — Premium for life, founding-team access &amp; your verification tag are locked in.</div>
+          <div class="guarantee-badge" id="guaranteeBadge">✓ Inside the Top 50 — Premium for life, founding-team access, your verification tag &amp; WynkoHead early access are locked in.</div>
         </div>
 
         <label style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; text-align:center;">Your invite link</label>
@@ -1263,7 +1268,7 @@ function renderConfirmation(status, email, opts){
   lastKnownInZone = inZone;
 
   document.getElementById('rankSub').textContent = inZone
-    ? "You're inside the Top 50 right now — Premium for life, founding-team access, and your verification tag are locked in."
+    ? "You're inside the Top 50 right now — Premium for life, founding-team access, your verification tag, and WynkoHead early access are locked in."
     : "Refer friends to move up — every referral flattens your wait curve.";
 
   document.getElementById('referralMilestoneNote').textContent = inZone
@@ -1278,7 +1283,7 @@ function renderConfirmation(status, email, opts){
   gauge.style.strokeDashoffset = String(GAUGE_LEN * (1 - pct / 100));
 
   document.getElementById('meterCaption').textContent = inZone
-    ? 'Premium for life, founding-team access & your verification tag — unlocked. Thank you for bringing your squad.'
+    ? 'Premium for life, founding-team access, your verification tag & WynkoHead early access — unlocked. Thank you for bringing your squad.'
     : toGo + ' more referral' + (toGo === 1 ? '' : 's') + ' moves you into the Top 50 zone, based on where the cutoff sits right now.';
   document.getElementById('guaranteeBadge').style.display = inZone ? 'flex' : 'none';
 
