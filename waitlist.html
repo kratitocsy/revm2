@@ -634,7 +634,7 @@
     <div class="header-actions">
       <a href="product.html" class="login-link">Product</a>
       <a href="login.html" class="login-link">Log In</a>
-      <div class="header-meta"><span class="hide-sm">Founding cohort · </span><b id="headerSeatNote">Top 200 get founder access</b></div>
+      <div class="header-meta"><span class="hide-sm">Founding cohort · </span><b id="headerSeatNote">Top 50 get founder access</b></div>
     </div>
   </div>
 </header>
@@ -710,10 +710,10 @@
   <section class="founding200">
     <div class="section-head">
       <p class="eyebrow">Exclusive · A hard cap, not a marketing number</p>
-      <span class="section-num">— · The Founding 200</span>
+      <span class="section-num">— · The Founding 50</span>
     </div>
-    <h2>200 seats. Not 200,000.</h2>
-    <p class="lead">Most waitlists promise vague "early access." This one has a number on it — whoever holds <b>rank #1–200</b> the moment Wynko opens its doors keeps the three things below, for good. Seat #201 gets none of them, no matter how they ask afterward.</p>
+    <h2>50 seats. Not 50,000.</h2>
+    <p class="lead">Most waitlists promise vague "early access." This one has a number on it — whoever holds <b>rank #1–50</b> the moment Wynko opens its doors keeps the three things below, for good. Seat #51 gets none of them, no matter how they ask afterward.</p>
 
     <div class="grid-2 f200-grid">
       <div class="card f200-card">
@@ -736,7 +736,7 @@
     <div class="f200-meter card">
       <div class="f200-meter-top">
         <span>Aspirants on the list right now</span>
-        <span class="mono" id="f200Claimed">— / 200</span>
+        <span class="mono" id="f200Claimed">— / 50</span>
       </div>
       <div class="f200-bar"><div class="f200-bar-fill" id="f200BarFill"></div></div>
       <p class="f200-note" id="f200Note">Pulled from the same live queue count above — not a fake progress bar.</p>
@@ -792,7 +792,7 @@
 
         <div class="reward-banner">
           <span>🏆</span>
-          <span>Rank <b>#1–200</b> at launch locks in <b>Premium free for 1 year</b>, a <b>direct line to the founder</b>, and a <b>verified Founding badge</b> — permanently.</span>
+          <span>Rank <b>#1–50</b> at launch locks in <b>Premium free for 1 year</b>, a <b>direct line to the founder</b>, and a <b>verified Founding badge</b> — permanently.</span>
         </div>
 
         <div class="queue-card">
@@ -826,7 +826,7 @@
             </svg>
           </div>
           <p class="gauge-caption" id="meterCaption">Every friend who joins with your link flattens your wait curve.</p>
-          <div class="guarantee-badge" id="guaranteeBadge">✓ Inside the Top 200 — Premium, founder access &amp; your Founding badge are locked in.</div>
+          <div class="guarantee-badge" id="guaranteeBadge">✓ Inside the Top 50 — Premium, founder access &amp; your Founding badge are locked in.</div>
         </div>
 
         <label style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; text-align:center;">Your invite link</label>
@@ -1091,21 +1091,50 @@ async function getTotalCount(){
 }
 
 async function insertSignup(email, referredBy){
-  const body = { email, source: 'coming_soon' };
-  if (referredBy) body.referred_by = referredBy;
   try {
-    const res = await sb('/rest/v1/waitlist_signups', body);
-    if (res.status === 201 || res.status === 204) return { ok:true };
-    if (res.status === 409) return { ok:true, existed:true }; // already on the list
-    const text = await res.text();
-    return { ok:false, error:text };
+    const res = await sb('/rest/v1/rpc/submit_waitlist_signup', { p_email: email, p_referred_by: referredBy || null });
+    if (!res.ok) {
+      const text = await res.text();
+      return { ok:false, error:text };
+    }
+    const data = await res.json();
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || !row.status_token) return { ok:false, error:'empty response' };
+    saveMyToken(row.status_token);
+    return { ok:true, existed: !!row.already_joined, status: row };
   } catch(e){ return { ok:false, error:String(e) }; }
+}
+
+/* submit_waitlist_signup is idempotent (matches on email, returns the
+   existing row + its status_token if you've already joined), so it also
+   doubles as the "resolve my status_token from my email" call for
+   returning visitors / anyone whose localStorage only has an email saved
+   from before status_token existed. */
+async function resolveStatusViaEmail(email){
+  try {
+    const res = await sb('/rest/v1/rpc/submit_waitlist_signup', { p_email: email, p_referred_by: null });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || !row.status_token) return null;
+    saveMyToken(row.status_token);
+    return row;
+  } catch(e){ console.error(e); return null; }
 }
 
 async function getStatus(email){
   try {
-    const res = await sb('/rest/v1/rpc/get_waitlist_status', { p_email: email });
-    if (!res.ok) return null;
+    const token = loadMyToken();
+    if (!token) return await resolveStatusViaEmail(email);
+    const res = await sb('/rest/v1/rpc/get_waitlist_status', { p_status_token: token });
+    if (!res.ok) {
+      // stale/invalid cached token (e.g. carried over from a previous,
+      // unrelated signup) - drop it and re-resolve from email instead of
+      // failing forever on every subsequent check.
+      try { localStorage.removeItem('wynko_waitlist_token'); } catch(e){}
+      memoryFallback.token = null;
+      return await resolveStatusViaEmail(email);
+    }
     const data = await res.json();
     return Array.isArray(data) ? data[0] : data;
   } catch(e){ console.error(e); return null; }
@@ -1121,6 +1150,14 @@ function saveMyEmail(email){
 function loadMyEmail(){
   try { return localStorage.getItem('wynko_waitlist_email') || memoryFallback.email || null; }
   catch(e){ return memoryFallback.email || null; }
+}
+function saveMyToken(token){
+  try { localStorage.setItem('wynko_waitlist_token', token); }
+  catch(e){ memoryFallback.token = token; }
+}
+function loadMyToken(){
+  try { return localStorage.getItem('wynko_waitlist_token') || memoryFallback.token || null; }
+  catch(e){ return memoryFallback.token || null; }
 }
 
 function fmtNum(n){ return Number(n||0).toLocaleString('en-IN'); }
@@ -1184,7 +1221,8 @@ async function refreshTotalCount(){
 }
 
 /* live, honest scarcity — no fabricated numbers, just the real queue count
-   plotted against the real 200-seat cap */
+   plotted against the real 50-seat cap (matches get_waitlist_status'
+   actual rnk <= 50 cutoff server-side) */
 function updateFounding200(total){
   const claimedEl = document.getElementById('f200Claimed');
   const fill = document.getElementById('f200BarFill');
@@ -1192,18 +1230,18 @@ function updateFounding200(total){
   const headerNote = document.getElementById('headerSeatNote');
   if (!claimedEl || !fill) return;
 
-  const pct = Math.min(100, (total / 200) * 100);
+  const pct = Math.min(100, (total / 50) * 100);
   fill.style.width = pct + '%';
 
-  if (total >= 200) {
-    claimedEl.textContent = fmtNum(total) + ' on the list — Top 200 line is full';
-    note.textContent = 'The Top 200 rank is already spoken for. From here, referring friends is the only way to move inside it.';
-    if (headerNote) headerNote.textContent = 'Top 200 is full — refer to get in';
+  if (total >= 50) {
+    claimedEl.textContent = fmtNum(total) + ' on the list — Top 50 line is full';
+    note.textContent = 'The Top 50 rank is already spoken for. From here, referring friends is the only way to move inside it.';
+    if (headerNote) headerNote.textContent = 'Top 50 is full — refer to get in';
   } else {
-    const left = 200 - total;
-    claimedEl.textContent = fmtNum(total) + ' / 200';
-    note.textContent = fmtNum(left) + ' seat' + (left === 1 ? '' : 's') + ' left before the Top 200 line fills, based on the live count above.';
-    if (headerNote) headerNote.textContent = fmtNum(left) + ' of 200 founder seats left';
+    const left = 50 - total;
+    claimedEl.textContent = fmtNum(total) + ' / 50';
+    note.textContent = fmtNum(left) + ' seat' + (left === 1 ? '' : 's') + ' left before the Top 50 line fills, based on the live count above.';
+    if (headerNote) headerNote.textContent = fmtNum(left) + ' of 50 founder seats left';
   }
 }
 
@@ -1254,7 +1292,7 @@ function renderConfirmation(status, email, opts){
     rankEl.classList.remove('pushed'); void rankEl.offsetWidth; rankEl.classList.add('pushed');
     const jump = prevRank - rank;
     if (!prevInZone && inZone) {
-      showRankPushToast("Someone joined with your link — you're in the Top 200 now.");
+      showRankPushToast("Someone joined with your link — you're in the Top 50 now.");
     } else {
       showRankPushToast('Someone joined with your link — you moved up ' + jump + (jump === 1 ? ' spot' : ' spots') + ' to #' + fmtNum(rank) + '.');
     }
@@ -1263,12 +1301,12 @@ function renderConfirmation(status, email, opts){
   lastKnownInZone = inZone;
 
   document.getElementById('rankSub').textContent = inZone
-    ? "You're inside the Top 200 right now — Premium, founder access, and your Founding badge are locked in."
+    ? "You're inside the Top 50 right now — Premium, founder access, and your Founding badge are locked in."
     : "Refer friends to move up — every referral flattens your wait curve.";
 
   document.getElementById('referralMilestoneNote').textContent = inZone
-    ? '✓ Top 200 zone'
-    : toGo + ' referral' + (toGo === 1 ? '' : 's') + ' from Top 200';
+    ? '✓ Top 50 zone'
+    : toGo + ' referral' + (toGo === 1 ? '' : 's') + ' from Top 50';
 
   document.getElementById('referralCountLabel').textContent = refCount + (refCount === 1 ? ' referral' : ' referrals');
 
@@ -1279,7 +1317,7 @@ function renderConfirmation(status, email, opts){
 
   document.getElementById('meterCaption').textContent = inZone
     ? 'Premium, founder access & your badge — unlocked. Thank you for bringing your squad.'
-    : toGo + ' more referral' + (toGo === 1 ? '' : 's') + ' moves you into the Top 200 zone, based on where the cutoff sits right now.';
+    : toGo + ' more referral' + (toGo === 1 ? '' : 's') + ' moves you into the Top 50 zone, based on where the cutoff sits right now.';
   document.getElementById('guaranteeBadge').style.display = inZone ? 'flex' : 'none';
 
   const link = window.location.origin + window.location.pathname + '?ref=' + status.referral_code;
@@ -1362,9 +1400,10 @@ joinForm.addEventListener('submit', async (e) => {
       return;
     }
     saveMyEmail(email);
-    const status = await getStatus(email);
     await refreshTotalCount();
-    if (status) { renderConfirmation(status, email); startStatusPolling(email); }
+    // submit_waitlist_signup already returns the full status row (it's the
+    // same query get_waitlist_status runs) - no need for a second round-trip.
+    if (result.status) { renderConfirmation(result.status, email); startStatusPolling(email); }
     else joinError.textContent = "You're signed up, but we couldn't load your queue position — refresh to see it.";
   } catch(err) {
     console.error(err);

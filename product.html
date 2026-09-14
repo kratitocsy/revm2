@@ -440,6 +440,16 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .cta .lead{ margin:0 auto 32px; }
 .cta-actions{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
 .cta-glow{ position:absolute; bottom:-120px; left:50%; transform:translateX(-50%); width:520px; height:260px; background:radial-gradient(circle,var(--glow-v),transparent 65%); filter:blur(30px); }
+.cta-join-row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; max-width:520px; margin:0 auto; position:relative; z-index:1; }
+.cta-join-input{ flex:1; min-width:220px; padding:14px 20px; border-radius:999px; border:1px solid transparent; background:#f4f4f8; color:#0a0a12; font-size:.95rem; font-family:inherit; }
+.cta-join-input::placeholder{ color:#7a7a90; }
+.cta-join-input:focus{ outline:2px solid var(--violet-2); outline-offset:2px; }
+.cta-join-error{ min-height:1.2em; margin:12px 0 0; font-size:.85rem; color:var(--coral); position:relative; z-index:1; }
+.cta-join-meter{ max-width:420px; margin:18px auto 0; position:relative; z-index:1; }
+.cta-join-meter-top{ display:flex; justify-content:space-between; gap:10px; font-size:.8rem; color:var(--text-3); margin-bottom:8px; flex-wrap:wrap; }
+.cta-join-meter-top span:last-child{ color:var(--amber); font-weight:600; }
+.cta-join-bar{ height:6px; border-radius:999px; background:var(--surface-3); border:1px solid var(--border); overflow:hidden; }
+.cta-join-bar-fill{ height:100%; width:0%; border-radius:999px; background:linear-gradient(90deg,var(--amber),var(--coral)); transition:width .6s ease; }
 
 /* ---------- footer ---------- */
 footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba(255,255,255,.012); }
@@ -984,10 +994,24 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="cta-glow"></div>
       <span class="eyebrow" style="justify-content:center">Founding cohort</span>
       <h2 class="h-xl">Set your study, and your <span class="grad-text">earnings</span>, up for success.</h2>
-      <p class="lead">Wynko is opening to a limited founding cohort. Get in early, lock founder status, and be there on day one of the Study OS.</p>
-      <div class="cta-actions">
-        <a class="btn btn-primary btn-lg" href="waitlist.html#joinForm">Get early access &rarr;</a>
-        <a class="btn btn-ghost btn-lg" href="login.html">Log in</a>
+      <p class="lead">Wynko is opening to a limited founding cohort. Rank <b style="color:var(--text)">#1&ndash;50</b> at launch locks in Premium for life, a verification tag, direct connect to the founding team, and early access to WynkoHead &mdash; permanently.</p>
+
+      <form id="ctaJoinForm" class="cta-join-row" autocomplete="off">
+        <input type="email" id="ctaEmailInput" class="cta-join-input" placeholder="you@example.com" aria-label="Email" required />
+        <button type="submit" class="btn btn-primary btn-lg" id="ctaJoinBtn">Get early access &rarr;</button>
+      </form>
+      <p class="cta-join-error" id="ctaJoinError"></p>
+
+      <div class="cta-join-meter">
+        <div class="cta-join-meter-top">
+          <span>Aspirants registered with their email</span>
+          <span class="mono" id="ctaJoinCount">&mdash; / 50</span>
+        </div>
+        <div class="cta-join-bar"><div class="cta-join-bar-fill" id="ctaJoinBarFill"></div></div>
+      </div>
+
+      <div class="cta-actions" style="margin-top:18px">
+        <a class="btn btn-ghost btn-lg" href="login.html">Already on the list? Log in</a>
       </div>
     </div>
   </div>
@@ -1047,6 +1071,114 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 </footer>
 
 <script>
+/* ================= founding-cohort join (embedded waitlist) =================
+   Same backend as waitlist.html — submit_waitlist_signup / get_waitlist_count,
+   real Top-50 cutoff, no fabricated numbers. Kept intentionally lightweight
+   here (no referral gauge/live polling): on success we hand off to
+   waitlist.html, which reads the same localStorage email/token this saves
+   and renders the full confirmation + referral experience immediately. */
+(function(){
+  const SUPABASE_URL = 'https://dhzjtjekbvxxsauzhadl.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_9xK5LeyVdu2d4bVE1aFlNg_ef435Jkr';
+
+  async function sb(path, body){
+    return fetch(SUPABASE_URL + path, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  const memoryFallback = {};
+  function saveMyEmail(email){ try { localStorage.setItem('wynko_waitlist_email', email); } catch(e){ memoryFallback.email = email; } }
+  function saveMyToken(token){ try { localStorage.setItem('wynko_waitlist_token', token); } catch(e){ memoryFallback.token = token; } }
+
+  async function getTotalCount(){
+    try {
+      const res = await sb('/rest/v1/rpc/get_waitlist_count');
+      if (!res.ok) return null;
+      const data = await res.json();
+      return typeof data === 'number' ? data : (Array.isArray(data) ? data[0] : null);
+    } catch(e){ return null; }
+  }
+
+  async function refreshJoinMeter(){
+    const countEl = document.getElementById('ctaJoinCount');
+    const fillEl = document.getElementById('ctaJoinBarFill');
+    if (!countEl || !fillEl) return;
+    const total = await getTotalCount();
+    if (total === null) return;
+    countEl.textContent = Math.min(total, 50) + ' / 50';
+    fillEl.style.width = Math.min(100, (total / 50) * 100) + '%';
+  }
+
+  async function insertSignup(email, referredBy){
+    try {
+      const res = await sb('/rest/v1/rpc/submit_waitlist_signup', { p_email: email, p_referred_by: referredBy || null });
+      if (!res.ok) {
+        const text = await res.text();
+        return { ok:false, error:text };
+      }
+      const data = await res.json();
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || !row.status_token) return { ok:false, error:'empty response' };
+      saveMyToken(row.status_token);
+      return { ok:true, status: row };
+    } catch(e){ return { ok:false, error:String(e) }; }
+  }
+
+  const form = document.getElementById('ctaJoinForm');
+  const emailInput = document.getElementById('ctaEmailInput');
+  const joinBtn = document.getElementById('ctaJoinBtn');
+  const joinError = document.getElementById('ctaJoinError');
+  if (!form) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const referredByCode = params.get('ref');
+
+  const ALLOWLISTED_EMAILS = ['kiarase2288@gmail.com', 'jatinsinsinwar18@gmail.com'];
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    joinError.textContent = '';
+    const email = emailInput.value.trim();
+    if (!email) { joinError.textContent = 'Please enter your email.'; return; }
+
+    if (ALLOWLISTED_EMAILS.includes(email.toLowerCase())) {
+      window.location.href = 'login.html?email=' + encodeURIComponent(email);
+      return;
+    }
+
+    joinBtn.disabled = true;
+    joinBtn.textContent = 'Joining…';
+    try {
+      const result = await insertSignup(email, referredByCode);
+      if (!result.ok) {
+        joinError.textContent = 'Something went wrong — please try again.';
+        return;
+      }
+      saveMyEmail(email);
+      // Full confirmation (rank, referral link, live polling) lives on
+      // waitlist.html — it'll pick up the email/token this just saved and
+      // render it immediately, no second signup needed.
+      window.location.href = 'waitlist.html';
+    } catch(err) {
+      console.error(err);
+      joinError.textContent = 'Something went wrong — please try again.';
+    } finally {
+      joinBtn.disabled = false;
+      joinBtn.textContent = 'Get early access →';
+    }
+  });
+
+  refreshJoinMeter();
+})();
+
 /* ================= emulator ================= */
 (function(){
   const screenEls = document.querySelectorAll('#emulator .app-screen');
