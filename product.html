@@ -246,6 +246,111 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .tabbar button svg{ width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.7; }
 .tabbar button.active{ color:var(--violet-2); }
 
+/* =============================================================
+   HOME DASHBOARD (replaces the old focus/earn/rank/rooms demo)
+   ============================================================= */
+.wk-home{
+  --wk-purple:#a78bfa;
+  --wk-purple-dim:#7c5cfc;
+  --wk-teal:#00d4c8;
+  --wk-teal-dim:#00b4a0;
+  --wk-orange:#f97316;
+  --wk-card:#0e1628;
+  --wk-card-border:rgba(100,120,255,.12);
+  flex:1; display:flex; flex-direction:column; min-height:0;
+}
+.wk-header{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:6px 0 6px; font-family:var(--font); font-weight:700; font-size:.82rem;
+  color:var(--text); letter-spacing:-.2px; flex-shrink:0;
+}
+.wk-scroll{
+  flex:1; overflow-y:auto; padding:4px 4px 10px; display:flex; flex-direction:column; gap:9px;
+  scrollbar-width:none;
+}
+.wk-scroll::-webkit-scrollbar{ width:0; background:transparent; }
+.wk-card{ background:var(--wk-card); border:1px solid var(--wk-card-border); border-radius:14px; }
+.wk-cta{ padding:11px; border-color:rgba(124,92,252,.25); }
+.wk-cta-btn{
+  width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
+  padding:11px; border-radius:11px; border:0; cursor:pointer; color:#fff; font-weight:700;
+  font-size:.68rem; letter-spacing:.08em; font-family:var(--font);
+  background:linear-gradient(135deg,var(--wk-purple-dim),var(--wk-teal));
+  box-shadow:0 0 16px rgba(124,92,252,.22); transition:transform .15s;
+}
+.wk-cta-btn:active{ transform:scale(.98); }
+.wk-cta-sub{ text-align:center; margin-top:7px; font-size:.64rem; color:var(--text-3); }
+
+.wk-continue{ padding:11px; display:flex; align-items:center; gap:9px; }
+.wk-continue-icon{
+  flex-shrink:0; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  background:rgba(0,180,160,.12); border:1px solid rgba(0,212,200,.2);
+}
+.wk-continue-icon svg{ width:18px; height:18px; }
+.wk-continue-body{ flex:1; min-width:0; }
+.wk-eyebrow{ font-size:.54rem; font-weight:600; letter-spacing:.13em; color:var(--text-3); font-family:var(--mono); margin-bottom:2px; }
+.wk-continue-title{ font-weight:600; font-size:.78rem; color:var(--text); line-height:1.2; }
+.wk-continue-sub{ font-size:.62rem; color:var(--text-2); margin-top:2px; }
+.wk-continue-btn{
+  flex-shrink:0; display:flex; align-items:center; gap:2px; padding:6px 9px; border-radius:8px;
+  font-size:.62rem; font-weight:500; color:var(--text); border:1px solid rgba(100,120,255,.25);
+  background:rgba(100,120,255,.08); font-family:var(--font); cursor:pointer;
+}
+
+.wk-label{ font-size:.54rem; font-weight:600; letter-spacing:.13em; color:var(--text-3); font-family:var(--mono); margin:2px 0 6px 2px; }
+
+.wk-quick{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.wk-quick button{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:11px 4px; cursor:pointer; transition:transform .15s; }
+.wk-quick button:active{ transform:scale(.95); }
+.wk-quick svg{ width:18px; height:18px; }
+.wk-quick span{ font-size:.6rem; font-weight:500; color:var(--text); font-family:var(--font); text-align:center; }
+
+.wk-together{ padding:11px; border-color:rgba(0,212,200,.18); }
+.wk-together-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.wk-together-live{ display:flex; align-items:center; gap:5px; }
+.wk-live-dot{ width:6px; height:6px; border-radius:999px; background:var(--wk-teal); box-shadow:0 0 6px var(--wk-teal); flex-shrink:0; }
+.wk-together-live span{ font-size:.66rem; font-weight:500; color:var(--text); }
+.wk-avatars{ display:flex; align-items:center; }
+.wk-avatar{
+  width:22px; height:22px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+  font-size:.54rem; font-weight:700; color:#fff; border:2px solid #080d1a; margin-left:-8px;
+}
+.wk-avatar:first-child{ margin-left:0; }
+.wk-avatar.more{ background:#1a2540; color:var(--text-2); font-weight:600; }
+.wk-together-actions{ display:flex; gap:7px; }
+.wk-btn-primary{
+  flex:1; padding:8px; border-radius:9px; border:0; cursor:pointer; font-size:.66rem; font-weight:600;
+  color:#fff; font-family:var(--font); background:linear-gradient(135deg,var(--wk-purple-dim),var(--wk-teal));
+  transition:transform .15s;
+}
+.wk-btn-primary:active{ transform:scale(.96); }
+.wk-btn-ghost{
+  flex:1; padding:8px; border-radius:9px; cursor:pointer; font-size:.66rem; font-weight:500; color:var(--text);
+  font-family:var(--font); border:1px solid rgba(100,120,255,.2); background:rgba(100,120,255,.06);
+  transition:transform .15s;
+}
+.wk-btn-ghost:active{ transform:scale(.96); }
+
+.wk-week{ display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+.wk-week-item{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:7px 2px; background:#0e1628; }
+.wk-week-icon{ font-size:.76rem; margin-bottom:1px; }
+.wk-week-val{ font-size:.62rem; font-weight:700; color:var(--text); font-family:var(--font); text-align:center; }
+.wk-week-label{ font-size:.53rem; color:var(--text-2); }
+
+.wk-review-top{ display:flex; align-items:center; justify-content:space-between; margin:0 2px 3px; }
+.wk-review-badge{ width:15px; height:15px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:.54rem; font-weight:700; color:#fff; background:var(--wk-orange); flex-shrink:0; }
+.wk-review-sub{ font-size:.64rem; color:var(--text-2); margin:0 2px 7px; }
+.wk-review-item{ display:flex; align-items:center; gap:7px; padding:8px 11px; margin-bottom:6px; border-radius:11px; }
+.wk-review-item.urgent{ border-left:3px solid var(--wk-orange); }
+.wk-review-item.normal{ border-left:3px solid var(--wk-purple-dim); }
+.wk-review-item svg{ flex-shrink:0; }
+.wk-review-body{ flex:1; }
+.wk-review-title{ font-weight:600; font-size:.68rem; color:var(--text); }
+.wk-review-subject{ font-size:.58rem; color:var(--text-2); margin-top:1px; }
+.wk-review-tag{ font-size:.54rem; font-weight:600; padding:3px 7px; border-radius:999px; font-family:var(--mono); flex-shrink:0; white-space:nowrap; }
+.wk-review-tag.urgent{ background:rgba(249,115,22,.15); color:var(--wk-orange); border:1px solid rgba(249,115,22,.3); }
+.wk-review-tag.normal{ background:rgba(124,92,252,.12); color:var(--wk-purple); border:1px solid rgba(124,92,252,.25); }
+
 /* balance / earn screen */
 .bal-card{
   border-radius:18px; padding:16px; border:1px solid rgba(52,211,153,.22);
@@ -559,114 +664,139 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
             </span>
           </div>
 
-          <div class="app">
-            <!-- FOCUS SCREEN -->
-            <div class="app-screen active" data-screen="focus">
-              <div class="app-title">NOW FOCUSING</div>
-              <div class="app-h">Organic Chemistry</div>
-              <div class="ring-wrap">
-                <div class="ring">
-                  <svg viewBox="0 0 182 182">
-                    <defs>
-                      <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stop-color="#a78bfa"/>
-                        <stop offset=".5" stop-color="#6c8cff"/>
-                        <stop offset="1" stop-color="#22d3ee"/>
-                      </linearGradient>
-                    </defs>
-                    <circle class="track" cx="91" cy="91" r="83"/>
-                    <circle class="prog" cx="91" cy="91" r="83"/>
+          <div class="wk-home">
+            <div class="wk-header">
+              <img src="wynko-logo.png" alt="Wynko" width="20" height="20" style="border-radius:4px" />
+              <span>Wynko</span>
+            </div>
+
+            <div class="wk-scroll">
+              <!-- START FOCUS CTA -->
+              <div class="wk-card wk-cta">
+                <button class="wk-cta-btn">
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2.5l9 4.5-9 4.5V2.5z"/></svg>
+                  START FOCUS
+                </button>
+                <p class="wk-cta-sub">View today's plan &rarr;</p>
+              </div>
+
+              <!-- Continue Studying -->
+              <div class="wk-card wk-continue">
+                <div class="wk-continue-icon">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="8" height="8" rx="2" fill="rgba(0,212,200,0.3)"/>
+                    <rect x="13" y="3" width="8" height="8" rx="2" fill="rgba(124,92,252,0.3)"/>
+                    <rect x="3" y="13" width="8" height="8" rx="2" fill="rgba(124,92,252,0.3)"/>
+                    <rect x="13" y="13" width="8" height="8" rx="2" fill="rgba(0,212,200,0.15)"/>
                   </svg>
-                  <div class="ring-center">
-                    <div class="ring-time" id="ringTime">25:00</div>
-                    <div class="ring-label">deep focus</div>
-                    <div class="ring-earn" id="ringEarn">locked in &middot; next revision auto-scheduled</div>
-                  </div>
+                </div>
+                <div class="wk-continue-body">
+                  <div class="wk-eyebrow">CONTINUE STUDYING</div>
+                  <div class="wk-continue-title">Cell Cycle</div>
+                  <div class="wk-continue-sub">Biology &middot; Last studied 18 min ago</div>
+                </div>
+                <button class="wk-continue-btn">Continue
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+
+              <!-- Quick Start -->
+              <div>
+                <div class="wk-label">QUICK START</div>
+                <div class="wk-quick">
+                  <button style="background:rgba(124,92,252,0.1);border:1px solid rgba(124,92,252,0.2);border-radius:14px;">
+                    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#a78bfa" stroke-width="1.5"/><path d="M12 7v5l3 3" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Focus</span>
+                  </button>
+                  <button style="background:rgba(0,212,200,0.08);border:1px solid rgba(0,212,200,0.18);border-radius:14px;">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3M16 14c2.67 0 8 1.34 8 4v1h-8" stroke="#00d4c8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="8" r="3" stroke="#00d4c8" stroke-width="1.5"/><path d="M9 14c-4 0-8 1.34-8 4v1h16v-1c0-2.66-4-4-8-4z" stroke="#00d4c8" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Study Room</span>
+                  </button>
+                  <button style="background:rgba(0,180,120,0.08);border:1px solid rgba(0,180,120,0.18);border-radius:14px;">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M4 4h7a4 4 0 014 4v13a3 3 0 00-3-3H4V4z" stroke="#00b4a0" stroke-width="1.5" stroke-linejoin="round"/><path d="M20 4h-7a4 4 0 00-4 4v13a3 3 0 013-3h8V4z" stroke="#00b4a0" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    <span>Library</span>
+                  </button>
                 </div>
               </div>
-              <div class="chips">
-                <span class="chip lock">&#10005; Instagram</span>
-                <span class="chip lock">&#10005; YouTube</span>
-                <span class="chip on">&#10003; Distraction lock</span>
-              </div>
-              <button class="start-btn" id="startBtn">Start focus session</button>
-            </div>
 
-            <!-- EARN SCREEN -->
-            <div class="app-screen" data-screen="earn">
-              <div class="app-title">WALLET</div>
-              <div class="app-h">Earnings</div>
-              <div class="bal-card">
-                <div class="bal-label">available balance</div>
-                <div class="bal-amt mono">&#8377;2,480</div>
-                <div class="bal-sub">+&#8377;182 today &middot; withdraw anytime</div>
+              <!-- Study Together -->
+              <div class="wk-card wk-together">
+                <div class="wk-together-top">
+                  <div>
+                    <div class="wk-label" style="margin:0 0 5px 0;">STUDY TOGETHER</div>
+                    <div class="wk-together-live">
+                      <span class="wk-live-dot"></span>
+                      <span>12 students studying now</span>
+                    </div>
+                  </div>
+                  <div class="wk-avatars">
+                    <div class="wk-avatar" style="background:#7c5cfc;">S</div>
+                    <div class="wk-avatar" style="background:#00d4c8;">M</div>
+                    <div class="wk-avatar" style="background:#f97316;">R</div>
+                    <div class="wk-avatar" style="background:#06b6d4;">K</div>
+                    <div class="wk-avatar more">+8</div>
+                  </div>
+                </div>
+                <div class="wk-together-actions">
+                  <button class="wk-btn-primary">Join Room</button>
+                  <button class="wk-btn-ghost">Library</button>
+                </div>
               </div>
-              <div class="mini-stats">
-                <div class="mini"><b class="mono">41h</b><span>focused</span></div>
-                <div class="mini"><b class="mono">&#8377;68</b><span>avg / hour</span></div>
-              </div>
-              <div class="bars">
-                <div class="bar-row"><div class="top"><span>Mon</span><span class="mono">&#8377;124</span></div><div class="bar-track"><i class="bar-fill" data-w="62%"></i></div></div>
-                <div class="bar-row"><div class="top"><span>Tue</span><span class="mono">&#8377;182</span></div><div class="bar-track"><i class="bar-fill" data-w="88%"></i></div></div>
-                <div class="bar-row"><div class="top"><span>Wed</span><span class="mono">&#8377;96</span></div><div class="bar-track"><i class="bar-fill" data-w="48%"></i></div></div>
-              </div>
-            </div>
 
-            <!-- RANK SCREEN -->
-            <div class="app-screen" data-screen="rank">
-              <div class="app-title">THIS WEEK</div>
-              <div class="app-h">Leaderboard</div>
-              <div class="rank-hero">
-                <span>your rank</span>
-                <div class="big">#4</div>
-                <span>of 12,904 aspirants</span>
+              <!-- This Week -->
+              <div>
+                <div class="wk-label">THIS WEEK</div>
+                <div class="wk-week">
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#9201;</span><span class="wk-week-val">2h 40m</span><span class="wk-week-label">Focused</span></div>
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#128203;</span><span class="wk-week-val">18</span><span class="wk-week-label">Reviews</span></div>
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#127919;</span><span class="wk-week-val">7</span><span class="wk-week-label">Sessions</span></div>
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#128293;</span><span class="wk-week-val">4 days</span><span class="wk-week-label">Streak</span></div>
+                </div>
               </div>
-              <div class="lb-row"><span class="pos">1</span><span class="av">AR</span><span class="nm">Aarav</span><span class="pts">8,240</span></div>
-              <div class="lb-row"><span class="pos">2</span><span class="av">SK</span><span class="nm">Sana</span><span class="pts">7,910</span></div>
-              <div class="lb-row"><span class="pos">3</span><span class="av">VT</span><span class="nm">Vedant</span><span class="pts">7,455</span></div>
-              <div class="lb-row me"><span class="pos">4</span><span class="av">YOU</span><span class="nm">You</span><span class="pts">7,120</span></div>
-              <div class="lb-row"><span class="pos">5</span><span class="av">MI</span><span class="nm">Mira</span><span class="pts">6,880</span></div>
-            </div>
 
-            <!-- ROOMS SCREEN -->
-            <div class="app-screen" data-screen="rooms">
-              <div class="app-title">LIVE NOW</div>
-              <div class="app-h">Study Rooms</div>
-              <div class="room-tile">
-                <div class="room-ic">&#9788;</div>
-                <div><div class="t">NEET Droppers</div><div class="s">Silent focus &middot; 50 min</div></div>
-                <span class="room-live">&#9679; 214</span>
-              </div>
-              <div class="room-tile">
-                <div class="room-ic">&#10022;</div>
-                <div><div class="t">JEE Advanced</div><div class="s">Problem solving &middot; 90 min</div></div>
-                <span class="room-live">&#9679; 132</span>
-              </div>
-              <div class="room-tile">
-                <div class="room-ic">&#9733;</div>
-                <div><div class="t">UPSC Mains</div><div class="s">Answer writing &middot; 60 min</div></div>
-                <span class="room-live">&#9679; 87</span>
-              </div>
-              <div class="room-tile">
-                <div class="room-ic">&#9835;</div>
-                <div><div class="t">Lo-fi Library</div><div class="s">Open room &middot; always on</div></div>
-                <span class="room-live">&#9679; 401</span>
+              <!-- Review Queue -->
+              <div>
+                <div class="wk-review-top">
+                  <div class="wk-label" style="margin:0;">REVIEW QUEUE</div>
+                  <span class="wk-review-badge">2</span>
+                </div>
+                <p class="wk-review-sub">2 topics ready for revision</p>
+
+                <div class="wk-card wk-review-item urgent">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" fill="rgba(124,92,252,0.15)" stroke="rgba(124,92,252,0.3)" stroke-width="1.2"/><path d="M6 7h8M6 10h5M6 13h6" stroke="#a78bfa" stroke-width="1.2" stroke-linecap="round"/></svg>
+                  <div class="wk-review-body">
+                    <div class="wk-review-title">Cell Cycle</div>
+                    <div class="wk-review-subject">Biology</div>
+                  </div>
+                  <span class="wk-review-tag urgent">Due today</span>
+                </div>
+                <div class="wk-card wk-review-item normal">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" fill="rgba(124,92,252,0.15)" stroke="rgba(124,92,252,0.3)" stroke-width="1.2"/><path d="M6 7h8M6 10h5M6 13h6" stroke="#a78bfa" stroke-width="1.2" stroke-linecap="round"/></svg>
+                  <div class="wk-review-body">
+                    <div class="wk-review-title">Organic Reactions</div>
+                    <div class="wk-review-subject">Chemistry</div>
+                  </div>
+                  <span class="wk-review-tag normal">Due tomorrow</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="tabbar">
-            <button class="active" data-tab="focus">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus
+          <div class="tabbar" id="wkTabbar">
+            <button class="active" data-wktab="home">
+              <svg viewBox="0 0 22 22"><path d="M3 9.5L11 3l8 6.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linejoin="round"/><path d="M8 20v-7h6v7" stroke-linejoin="round"/></svg>Home
             </button>
-            <button data-tab="earn">
-              <svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn
+            <button data-wktab="focus">
+              <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="8"/><circle cx="11" cy="11" r="4"/></svg>Focus
             </button>
-            <button data-tab="rank">
-              <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank
+            <button data-wktab="rooms">
+              <svg viewBox="0 0 22 22"><path d="M7 8a4 4 0 118 0 4 4 0 01-8 0z"/><path d="M3 19c0-3.314 3.582-6 8-6s8 2.686 8 6" stroke-linecap="round"/></svg>Rooms
             </button>
-            <button data-tab="rooms">
-              <svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms
+            <button data-wktab="recall">
+              <svg viewBox="0 0 22 22"><path d="M4 11a7 7 0 107-7" stroke-linecap="round"/><path d="M4 5v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg>Recall
+            </button>
+            <button data-wktab="more">
+              <svg viewBox="0 0 22 22"><circle cx="6" cy="11" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor" stroke="none"/><circle cx="16" cy="11" r="1.5" fill="currentColor" stroke="none"/></svg>More
             </button>
           </div>
         </div>
@@ -1115,61 +1245,16 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 </footer>
 
 <script>
-/* ================= emulator ================= */
+/* ================= home dashboard ================= */
 (function(){
-  const screenEls = document.querySelectorAll('#emulator .app-screen');
-  const tabs = document.querySelectorAll('#emulator .tabbar button');
-  tabs.forEach(btn=>{
+  /* bottom tab highlight (single home screen, so tabs just swap active state) */
+  const wkTabs = document.querySelectorAll('#wkTabbar button');
+  wkTabs.forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      tabs.forEach(b=>b.classList.remove('active'));
+      wkTabs.forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      const target = btn.dataset.tab;
-      screenEls.forEach(s=>s.classList.toggle('active', s.dataset.screen===target));
-      if(target==='earn') animateBars();
     });
   });
-
-  /* live focus timer */
-  const ringTime = document.getElementById('ringTime');
-  const ringEarn = document.getElementById('ringEarn');
-  const ringProg = document.querySelector('#emulator .ring .prog');
-  const startBtn = document.getElementById('startBtn');
-  const TOTAL = 25*60;
-  let remaining = TOTAL, running = false, timer = null;
-
-  function fmt(s){ const m=Math.floor(s/60), x=s%60; return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
-  function render(){
-    if(ringTime) ringTime.textContent = fmt(remaining);
-    const done = TOTAL - remaining;
-    if(ringProg) ringProg.style.strokeDashoffset = String(520 - 520*(done/TOTAL));
-    if(ringEarn) ringEarn.textContent = 'locked in \u00b7 '+fmt(remaining)+' left, no early exit';
-  }
-  function stop(){
-    running=false; clearInterval(timer);
-    if(startBtn){ startBtn.textContent='Start focus session'; startBtn.classList.remove('stop'); }
-  }
-  function start(){
-    running=true;
-    if(startBtn){ startBtn.textContent='End session'; startBtn.classList.add('stop'); }
-    timer=setInterval(()=>{
-      if(remaining>0){ remaining--; render(); }
-      else { stop(); if(ringEarn) ringEarn.textContent='Session complete'; }
-    },1000);
-  }
-  if(startBtn){
-    startBtn.addEventListener('click', ()=>{ running?stop():start(); });
-  }
-  render();
-
-  /* bars animate when shown */
-  function animateBars(){
-    document.querySelectorAll('#emulator .bar-fill').forEach(el=>{
-      el.style.width='0'; requestAnimationFrame(()=>{ el.style.width = el.dataset.w; });
-    });
-  }
-  setTimeout(animateBars, 400);
-  const earnTab = document.querySelector('#emulator .tabbar button[data-tab="earn"]');
-  if(earnTab) earnTab.addEventListener('click', animateBars);
 
   /* live session counter in hero */
   const emLive = document.getElementById('emLive');
