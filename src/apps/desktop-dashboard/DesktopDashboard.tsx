@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import { useHomeData, type TodayFocus, type ProfileInfo } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
-import type { ReviewItem } from '../_shared/wynkoTracker'
+import type { ReviewItem, RecallCurveData } from '../_shared/wynkoTracker'
 
 // ─── Icon System ──────────────────────────────────────────────────────────────
 const IP: Record<string, string[]> = {
@@ -43,11 +43,38 @@ function Ico({ n, cls = 'w-4 h-4' }: { n: keyof typeof IP; cls?: string }) {
 interface StudyUnit { subject: string; exam: string; topics: string[] }
 
 // ─── Recall Curve SVG ─────────────────────────────────────────────────────────
-function RecallCurve() {
-  const solid = 'M 0,0 C 8,21 17,48 25,63 C 34,78 43,92 51,90 C 60,89 63,57 76,54 C 89,51 110,73 127,72 C 144,71 156,48 177,47 C 198,46 224,66 253,65 C 283,64 316,41 354,40 C 392,39 456,54 481,58 C 507,62 503,64 507,65'
-  const projected = 'M 507,65 C 530,67 580,84 607,86 C 650,90 720,108 760,112'
-  const area = solid + ' L 507,180 L 0,180 Z'
-  const reviewPts = [{ x: 76, y: 54, label: 'R1' }, { x: 177, y: 47, label: 'R2' }, { x: 354, y: 40, label: 'R3' }]
+// Same visual design as before (gradients, glow filters, grid, TODAY marker,
+// review dots, dashed projection) but every coordinate now comes from
+// buildRecallCurve()'s real Ebbinghaus math (row.date + r0..r7 checkpoints),
+// not a hand-drawn path. Shape flexes with whatever the data actually is.
+function RecallCurve({ data }: { data: RecallCurveData | null }) {
+  const W = 760, H = 180
+
+  if (!data || data.points.length < 2) {
+    return (
+      <svg viewBox="0 0 760 200" className="w-full h-full">
+        <text x="380" y="100" textAnchor="middle" fontSize="10" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">
+          No review history yet — add a topic to see its recall curve
+        </text>
+      </svg>
+    )
+  }
+
+  const { points, projected, reviewMarkers, todayDay, todayRetention, maxDay } = data
+  const x = (day: number) => (day / maxDay) * W
+  const y = (pct: number) => (1 - pct / 100) * H
+  const toPath = (pts: { day: number; retention: number }[]) =>
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.day).toFixed(1)},${y(p.retention).toFixed(1)}`).join(' ')
+  const solid = toPath(points)
+  const projectedPath = toPath(projected)
+  const area = `${solid} L ${x(points[points.length - 1].day).toFixed(1)},${H} L ${x(points[0].day).toFixed(1)},${H} Z`
+
+  const dayStep = Math.max(1, Math.round(maxDay / 6))
+  const dayTicks: number[] = []
+  for (let d = 0; d <= maxDay; d += dayStep) dayTicks.push(d)
+
+  const midProjected = projected[Math.floor(projected.length * 0.55)] ?? projected[projected.length - 1]
+
   return (
     <svg viewBox="0 0 760 200" className="w-full h-full" preserveAspectRatio="none">
       <defs>
@@ -56,19 +83,24 @@ function RecallCurve() {
         <filter id="rcGlow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         <filter id="dotGlow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>
-      {[0, 25, 50, 75, 100].map(pct => { const y = (1 - pct / 100) * 180; return (<g key={pct}><line x1="0" y1={y} x2="760" y2={y} stroke="rgba(99,102,241,0.07)" strokeWidth="1" /><text x="6" y={y - 3} fontSize="8" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">{pct}%</text></g>) })}
-      {[0, 5, 10, 15, 20, 25, 30].map(day => { const x = day * 760 / 30; return (<g key={day}><line x1={x} y1="0" x2={x} y2="182" stroke="rgba(99,102,241,0.06)" strokeWidth="1" /><text x={x} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">d{day}</text></g>) })}
+      {[0, 25, 50, 75, 100].map(pct => { const gy = y(pct); return (<g key={pct}><line x1="0" y1={gy} x2={W} y2={gy} stroke="rgba(99,102,241,0.07)" strokeWidth="1" /><text x="6" y={gy - 3} fontSize="8" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">{pct}%</text></g>) })}
+      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(99,102,241,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">d{day}</text></g>) })}
       <path d={area} fill="url(#rcArea)" />
       <path d={solid} fill="none" stroke="url(#rcLine)" strokeWidth="2.5" filter="url(#rcGlow)" />
-      <path d={projected} fill="none" stroke="#F59E0B" strokeWidth="1.75" strokeDasharray="5,4" opacity="0.7" />
-      {reviewPts.map(({ x, y, label }) => (<g key={label}><circle cx={x} cy={y} r="4" fill="#22D3EE" opacity="0.85" filter="url(#dotGlow)" /><text x={x} y={y - 9} fontSize="7.5" fill="rgba(34,211,238,0.65)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{label}</text></g>))}
-      <line x1="507" y1="0" x2="507" y2="182" stroke="rgba(34,211,238,0.18)" strokeWidth="1" strokeDasharray="3,3" />
-      <text x="513" y="11" fontSize="8" fill="rgba(34,211,238,0.7)" fontFamily="JetBrains Mono, monospace">TODAY</text>
-      <circle cx="507" cy="65" r="8" fill="#22D3EE" opacity="0.12" filter="url(#dotGlow)" />
-      <circle cx="507" cy="65" r="4.5" fill="#22D3EE" filter="url(#dotGlow)" />
-      <circle cx="507" cy="65" r="2" fill="white" />
-      <text x="500" y="57" fontSize="9" fill="rgba(34,211,238,0.9)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">64%</text>
-      <text x="640" y="76" fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="JetBrains Mono, monospace">projected decay</text>
+      <path d={projectedPath} fill="none" stroke="#F59E0B" strokeWidth="1.75" strokeDasharray="5,4" opacity="0.7" />
+      {reviewMarkers.map(({ day, retention, label }) => (
+        <g key={label}>
+          <circle cx={x(day)} cy={y(retention)} r="4" fill="#22D3EE" opacity="0.85" filter="url(#dotGlow)" />
+          <text x={x(day)} y={y(retention) - 9} fontSize="7.5" fill="rgba(34,211,238,0.65)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{label}</text>
+        </g>
+      ))}
+      <line x1={x(todayDay)} y1="0" x2={x(todayDay)} y2={H + 2} stroke="rgba(34,211,238,0.18)" strokeWidth="1" strokeDasharray="3,3" />
+      <text x={x(todayDay) + 6} y="11" fontSize="8" fill="rgba(34,211,238,0.7)" fontFamily="JetBrains Mono, monospace">TODAY</text>
+      <circle cx={x(todayDay)} cy={y(todayRetention)} r="8" fill="#22D3EE" opacity="0.12" filter="url(#dotGlow)" />
+      <circle cx={x(todayDay)} cy={y(todayRetention)} r="4.5" fill="#22D3EE" filter="url(#dotGlow)" />
+      <circle cx={x(todayDay)} cy={y(todayRetention)} r="2" fill="white" />
+      <text x={x(todayDay) - 7} y={y(todayRetention) - 8} fontSize="9" fill="rgba(34,211,238,0.9)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">{todayRetention}%</text>
+      {midProjected && <text x={x(midProjected.day)} y={y(midProjected.retention) + 15} fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="JetBrains Mono, monospace">projected decay</text>}
     </svg>
   )
 }
@@ -329,7 +361,7 @@ function HeaderAvatar({ profile }: { profile?: { displayName: string | null; ava
 }
 
 // ─── Today Hero ───────────────────────────────────────────────────────────────
-function TodayHero({ onGoFocus, atRisk, due, stable, topSubject }: { onGoFocus: () => void; atRisk: number; due: number; stable: number; topSubject: string }) {
+function TodayHero({ onGoFocus, atRisk, due, stable, topSubject, curveData }: { onGoFocus: () => void; atRisk: number; due: number; stable: number; topSubject: string; curveData: RecallCurveData | null }) {
   const today = new Date()
   const dateLabel = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
   return (
@@ -376,7 +408,7 @@ function TodayHero({ onGoFocus, atRisk, due, stable, topSubject }: { onGoFocus: 
               <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-cyan-400 opacity-80" />review</div>
             </div>
           </div>
-          <div className="flex-1" style={{ minHeight: '170px' }}><RecallCurve /></div>
+          <div className="flex-1" style={{ minHeight: '170px' }}><RecallCurve data={curveData} /></div>
         </div>
       </div>
     </div>
@@ -5106,7 +5138,7 @@ export default function DesktopDashboard() {
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
-  const { authState, reviewItems, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  const { authState, reviewItems, recallCurve, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -5188,7 +5220,7 @@ export default function DesktopDashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header profile={profile} />
         <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
-          <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} topSubject={topSubject} />
+          <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} topSubject={topSubject} curveData={recallCurve} />
           <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
           <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
           <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>

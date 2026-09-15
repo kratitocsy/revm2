@@ -157,6 +157,87 @@ export function rowsToReviewItems(rows: TrackerRow[], asOf: Date = new Date()): 
     .sort((a, b) => a.retention - b.retention);
 }
 
+// ── Recall curve (desktop-dashboard's "Memory at Risk" chart) ─────
+// Generalizes computeStrength() above from "strength as of now" to
+// "strength as of any day offset from row.date", using the exact
+// same baseline/decay math (same doneCount→baseline steps, same
+// exp(-overdueDays/6) decay constant). No synthetic/random shape —
+// every point is derived from row.date + r0..r7, the same fields
+// tracker.html's own table renders.
+export interface RecallCurvePoint {
+  day: number; // days since row.date
+  retention: number; // 0-100
+}
+export interface RecallCurveMarker extends RecallCurvePoint {
+  label: string; // 'R1', 'R2', ...
+}
+export interface RecallCurveData {
+  subject: string;
+  topic: string;
+  points: RecallCurvePoint[]; // actual curve, day 0 → today
+  projected: RecallCurvePoint[]; // dashed curve, today → maxDay (no further reviews assumed)
+  reviewMarkers: RecallCurveMarker[]; // completed review checkpoints that already happened
+  todayDay: number;
+  todayRetention: number;
+  maxDay: number; // axis upper bound (days since row.date)
+}
+
+/** Same formula as computeStrength(), but parameterized on an
+ *  arbitrary day offset instead of only "now" - lets the curve be
+ *  reconstructed for every day in the topic's life, not just today. */
+function strengthAtDay(row: TrackerRow, day: number): number {
+  const doneCount = INTERVAL_KEYS.filter((k, i) => row[k] && INTERVAL_DAYS[i] <= day).length;
+  const baseline = (doneCount / INTERVAL_KEYS.length) * 100;
+  if (doneCount >= INTERVAL_KEYS.length) return 100;
+  const nextDueDay = INTERVAL_DAYS[doneCount];
+  const overdueDays = Math.max(0, day - nextDueDay);
+  return overdueDays > 0 ? baseline * Math.exp(-overdueDays / 6) : baseline;
+}
+
+/** Builds the full recall-curve dataset for one row: the actual
+ *  history from day 0 (row.date) to today, a projected-decay tail
+ *  assuming no further review happens, and markers for each review
+ *  checkpoint the user actually completed. `item` supplies the
+ *  already-rounded today retention so the curve's "today" dot
+ *  matches the number shown elsewhere on the page exactly. */
+export function buildRecallCurve(row: TrackerRow, item: ReviewItem, asOf: Date = new Date()): RecallCurveData | null {
+  if (!row.topic) return null;
+  const rowDate = new Date(row.date + 'T00:00:00');
+  const todayDay = Math.max(0, (asOf.getTime() - rowDate.getTime()) / 86400000);
+  const maxDay = Math.max(INTERVAL_DAYS[INTERVAL_DAYS.length - 1], Math.ceil(todayDay) + 15);
+
+  const points: RecallCurvePoint[] = [];
+  const stepsBack = Math.max(1, Math.ceil(todayDay));
+  const backStep = todayDay / (stepsBack * 4); // 4 samples per day for a smooth curve
+  for (let d = 0; d < todayDay; d += Math.max(backStep, 0.1)) {
+    points.push({ day: d, retention: strengthAtDay(row, d) });
+  }
+  points.push({ day: todayDay, retention: item.retention });
+
+  const projected: RecallCurvePoint[] = [{ day: todayDay, retention: item.retention }];
+  const fwdSpan = maxDay - todayDay;
+  const fwdStep = Math.max(fwdSpan / 20, 0.5);
+  for (let d = todayDay + fwdStep; d <= maxDay; d += fwdStep) {
+    projected.push({ day: d, retention: strengthAtDay(row, d) });
+  }
+
+  const reviewMarkers: RecallCurveMarker[] = INTERVAL_KEYS
+    .map((k, i) => ({ done: row[k], day: INTERVAL_DAYS[i], idx: i }))
+    .filter((m) => m.done && m.idx > 0 && m.day <= todayDay)
+    .map((m, order) => ({ day: m.day, retention: strengthAtDay(row, m.day), label: `R${order + 1}` }));
+
+  return {
+    subject: row.subject,
+    topic: row.topic,
+    points,
+    projected,
+    reviewMarkers,
+    todayDay,
+    todayRetention: item.retention,
+    maxDay,
+  };
+}
+
 /** Fill in today's row with a new topic/subject. If today's row
  *  already has a topic, this overwrites it — see the note at the
  *  top of this file about the one-row-per-day constraint.

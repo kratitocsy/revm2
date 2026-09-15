@@ -5,8 +5,10 @@ import {
   applyMarkReviewed,
   applyRemoveTopicBySubject,
   rowsToReviewItems,
+  buildRecallCurve,
   type TrackerRow,
   type ReviewItem,
+  type RecallCurveData,
 } from '../../_shared/wynkoTracker';
 
 export type AuthState = 'loading' | 'signed-out' | 'ready';
@@ -208,5 +210,12 @@ export function useHomeData() {
 
   const reviewItems: ReviewItem[] = rowsToReviewItems(rows);
 
-  return { authState, reviewItems, profile, todayFocus, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
+  // Recall curve for the "Memory at Risk" chart tracks whichever
+  // topic is currently driving TodayHero's headline (reviewItems[0]
+  // — lowest retention, same row `topSubject` text already names).
+  const topItem = reviewItems[0];
+  const topRow = topItem ? rows.find((r) => `${r.no}` === topItem.key) : undefined;
+  const recallCurve: RecallCurveData | null = topRow && topItem ? buildRecallCurve(topRow, topItem) : null;
+
+  return { authState, reviewItems, recallCurve, profile, todayFocus, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
 }
