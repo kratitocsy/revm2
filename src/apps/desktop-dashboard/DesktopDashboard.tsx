@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import { useHomeData, type TodayFocus, type ProfileInfo } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
-import type { ReviewItem, RecallCurveData } from '../_shared/wynkoTracker'
+import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 
 // ─── Icon System ──────────────────────────────────────────────────────────────
 const IP: Record<string, string[]> = {
@@ -43,14 +43,18 @@ function Ico({ n, cls = 'w-4 h-4' }: { n: keyof typeof IP; cls?: string }) {
 interface StudyUnit { subject: string; exam: string; topics: string[] }
 
 // ─── Recall Curve SVG ─────────────────────────────────────────────────────────
-// Same visual design as before (gradients, glow filters, grid, TODAY marker,
-// review dots, dashed projection) but every coordinate now comes from
-// buildRecallCurve()'s real Ebbinghaus math (row.date + r0..r7 checkpoints),
-// not a hand-drawn path. Shape flexes with whatever the data actually is.
-function RecallCurve({ data }: { data: RecallCurveData | null }) {
+// Same visual design as before (gradients, glow filter, grid, TODAY marker,
+// review dots, dashed projection) but now draws one line per active topic
+// (buildMultiRecallCurve — real Ebbinghaus math per topic, shared "days
+// relative to today" axis) instead of a single hardcoded path. The
+// most-at-risk topic keeps the original purple→cyan glow treatment;
+// other topics get their own color and a name+% label at today's dot.
+const SERIES_COLORS = ['#F472B6', '#FBBF24', '#34D399', '#818CF8', '#FB923C']
+
+function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
   const W = 760, H = 180
 
-  if (!data || data.points.length < 2) {
+  if (!data || data.series.length === 0) {
     return (
       <svg viewBox="0 0 760 200" className="w-full h-full">
         <text x="380" y="100" textAnchor="middle" fontSize="10" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">
@@ -60,20 +64,21 @@ function RecallCurve({ data }: { data: RecallCurveData | null }) {
     )
   }
 
-  const { points, projected, reviewMarkers, todayDay, todayRetention, maxDay } = data
-  const x = (day: number) => (day / maxDay) * W
+  const { series, minDay, maxDay } = data
+  const x = (day: number) => ((day - minDay) / (maxDay - minDay)) * W
   const y = (pct: number) => (1 - pct / 100) * H
   const toPath = (pts: { day: number; retention: number }[]) =>
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.day).toFixed(1)},${y(p.retention).toFixed(1)}`).join(' ')
-  const solid = toPath(points)
-  const projectedPath = toPath(projected)
-  const area = `${solid} L ${x(points[points.length - 1].day).toFixed(1)},${H} L ${x(points[0].day).toFixed(1)},${H} Z`
 
-  const dayStep = Math.max(1, Math.round(maxDay / 6))
+  const primary = series[0]
+  const primarySolid = toPath(primary.points)
+  const primaryProjected = toPath(primary.projected)
+  const primaryArea = `${primarySolid} L ${x(0).toFixed(1)},${H} L ${x(primary.points[0].day).toFixed(1)},${H} Z`
+
+  const tickSpan = maxDay - minDay
+  const tickStep = Math.max(1, Math.round(tickSpan / 6))
   const dayTicks: number[] = []
-  for (let d = 0; d <= maxDay; d += dayStep) dayTicks.push(d)
-
-  const midProjected = projected[Math.floor(projected.length * 0.55)] ?? projected[projected.length - 1]
+  for (let d = Math.ceil(minDay / tickStep) * tickStep; d <= maxDay; d += tickStep) dayTicks.push(d)
 
   return (
     <svg viewBox="0 0 760 200" className="w-full h-full" preserveAspectRatio="none">
@@ -84,23 +89,40 @@ function RecallCurve({ data }: { data: RecallCurveData | null }) {
         <filter id="dotGlow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>
       {[0, 25, 50, 75, 100].map(pct => { const gy = y(pct); return (<g key={pct}><line x1="0" y1={gy} x2={W} y2={gy} stroke="rgba(99,102,241,0.07)" strokeWidth="1" /><text x="6" y={gy - 3} fontSize="8" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">{pct}%</text></g>) })}
-      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(99,102,241,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">d{day}</text></g>) })}
-      <path d={area} fill="url(#rcArea)" />
-      <path d={solid} fill="none" stroke="url(#rcLine)" strokeWidth="2.5" filter="url(#rcGlow)" />
-      <path d={projectedPath} fill="none" stroke="#F59E0B" strokeWidth="1.75" strokeDasharray="5,4" opacity="0.7" />
-      {reviewMarkers.map(({ day, retention, label }) => (
+      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(99,102,241,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{day === 0 ? 'd0' : day > 0 ? `+${day}d` : `${day}d`}</text></g>) })}
+
+      {/* Primary (most-at-risk) line: original glow treatment + area fill + R1/R2/R3 labels */}
+      <path d={primaryArea} fill="url(#rcArea)" />
+      <path d={primarySolid} fill="none" stroke="url(#rcLine)" strokeWidth="2.5" filter="url(#rcGlow)" />
+      <path d={primaryProjected} fill="none" stroke="#F59E0B" strokeWidth="1.75" strokeDasharray="5,4" opacity="0.7" />
+      {primary.reviewMarkers.map(({ day, retention, label }) => (
         <g key={label}>
           <circle cx={x(day)} cy={y(retention)} r="4" fill="#22D3EE" opacity="0.85" filter="url(#dotGlow)" />
           <text x={x(day)} y={y(retention) - 9} fontSize="7.5" fill="rgba(34,211,238,0.65)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{label}</text>
         </g>
       ))}
-      <line x1={x(todayDay)} y1="0" x2={x(todayDay)} y2={H + 2} stroke="rgba(34,211,238,0.18)" strokeWidth="1" strokeDasharray="3,3" />
-      <text x={x(todayDay) + 6} y="11" fontSize="8" fill="rgba(34,211,238,0.7)" fontFamily="JetBrains Mono, monospace">TODAY</text>
-      <circle cx={x(todayDay)} cy={y(todayRetention)} r="8" fill="#22D3EE" opacity="0.12" filter="url(#dotGlow)" />
-      <circle cx={x(todayDay)} cy={y(todayRetention)} r="4.5" fill="#22D3EE" filter="url(#dotGlow)" />
-      <circle cx={x(todayDay)} cy={y(todayRetention)} r="2" fill="white" />
-      <text x={x(todayDay) - 7} y={y(todayRetention) - 8} fontSize="9" fill="rgba(34,211,238,0.9)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">{todayRetention}%</text>
-      {midProjected && <text x={x(midProjected.day)} y={y(midProjected.retention) + 15} fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="JetBrains Mono, monospace">projected decay</text>}
+
+      {/* Secondary lines: own color, thinner, no glow, dot + name/% label at today */}
+      {series.slice(1).map((s, i) => {
+        const color = SERIES_COLORS[i % SERIES_COLORS.length]
+        return (
+          <g key={s.key}>
+            <path d={toPath(s.points)} fill="none" stroke={color} strokeWidth="1.75" opacity="0.85" />
+            <path d={toPath(s.projected)} fill="none" stroke={color} strokeWidth="1.25" strokeDasharray="4,4" opacity="0.4" />
+            {s.reviewMarkers.map((m) => (<circle key={m.day} cx={x(m.day)} cy={y(m.retention)} r="2.5" fill={color} opacity="0.7" />))}
+            <circle cx={x(0)} cy={y(s.todayRetention)} r="3" fill={color} />
+            <text x={x(0) + 6} y={y(s.todayRetention) + 3} fontSize="7.5" fill={color} fillOpacity="0.9" fontFamily="JetBrains Mono, monospace">{s.topic} {Math.round(s.todayRetention)}%</text>
+          </g>
+        )
+      })}
+
+      <line x1={x(0)} y1="0" x2={x(0)} y2={H + 2} stroke="rgba(34,211,238,0.18)" strokeWidth="1" strokeDasharray="3,3" />
+      <text x={x(0) + 6} y="11" fontSize="8" fill="rgba(34,211,238,0.7)" fontFamily="JetBrains Mono, monospace">TODAY</text>
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="8" fill="#22D3EE" opacity="0.12" filter="url(#dotGlow)" />
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="4.5" fill="#22D3EE" filter="url(#dotGlow)" />
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="2" fill="white" />
+      <text x={x(0) - 7} y={y(primary.todayRetention) - 8} fontSize="9" fill="rgba(34,211,238,0.9)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">{primary.topic} {Math.round(primary.todayRetention)}%</text>
+      <text x={x(maxDay * 0.6)} y={y(primary.projected[Math.floor(primary.projected.length * 0.6)]?.retention ?? 0) + 15} fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="JetBrains Mono, monospace">projected decay</text>
     </svg>
   )
 }
@@ -361,7 +383,7 @@ function HeaderAvatar({ profile }: { profile?: { displayName: string | null; ava
 }
 
 // ─── Today Hero ───────────────────────────────────────────────────────────────
-function TodayHero({ onGoFocus, atRisk, due, stable, topSubject, curveData }: { onGoFocus: () => void; atRisk: number; due: number; stable: number; topSubject: string; curveData: RecallCurveData | null }) {
+function TodayHero({ onGoFocus, atRisk, due, stable, curveData }: { onGoFocus: () => void; atRisk: number; due: number; stable: number; curveData: MultiRecallCurveData | null }) {
   const today = new Date()
   const dateLabel = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
   return (
@@ -400,7 +422,7 @@ function TodayHero({ onGoFocus, atRisk, due, stable, topSubject, curveData }: { 
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[9px] font-mono text-slate-500 tracking-wide uppercase">
-              RECALL CURVE{topSubject ? ` — ${topSubject}` : ''}
+              RECALL CURVE{curveData && curveData.series.length === 1 ? ` — ${curveData.series[0].subject.toUpperCase()} · ${curveData.series[0].topic}` : curveData && curveData.series.length > 1 ? ` — ${curveData.series.length} TOPICS` : ''}
             </div>
             <div className="flex items-center gap-3 text-[9px] font-mono text-slate-500">
               <div className="flex items-center gap-1.5"><div className="w-4 h-[2px] rounded" style={{ background: 'linear-gradient(90deg,#7C3AED,#22D3EE)' }} />actual</div>
@@ -5138,7 +5160,7 @@ export default function DesktopDashboard() {
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
-  const { authState, reviewItems, recallCurve, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  const { authState, reviewItems, recallCurves, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -5205,7 +5227,6 @@ export default function DesktopDashboard() {
   const atRisk = reviewItems.filter(i => i.urgency === 'high').length
   const due = reviewItems.filter(i => i.urgency !== 'low').length
   const stable = reviewItems.filter(i => i.urgency === 'low').length
-  const topSubject = reviewItems.length > 0 ? `${reviewItems[0].subject.toUpperCase()} · ${reviewItems[0].topic}` : ''
 
   // Today's already-logged entries, shown as removable chips in
   // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
@@ -5220,7 +5241,7 @@ export default function DesktopDashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header profile={profile} />
         <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
-          <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} topSubject={topSubject} curveData={recallCurve} />
+          <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} curveData={recallCurves} />
           <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
           <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
           <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>

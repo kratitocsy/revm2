@@ -5,10 +5,10 @@ import {
   applyMarkReviewed,
   applyRemoveTopicBySubject,
   rowsToReviewItems,
-  buildRecallCurve,
+  buildMultiRecallCurve,
   type TrackerRow,
   type ReviewItem,
-  type RecallCurveData,
+  type MultiRecallCurveData,
 } from '../../_shared/wynkoTracker';
 
 export type AuthState = 'loading' | 'signed-out' | 'ready';
@@ -210,12 +210,10 @@ export function useHomeData() {
 
   const reviewItems: ReviewItem[] = rowsToReviewItems(rows);
 
-  // Recall curve for the "Memory at Risk" chart tracks whichever
-  // topic is currently driving TodayHero's headline (reviewItems[0]
-  // — lowest retention, same row `topSubject` text already names).
-  const topItem = reviewItems[0];
-  const topRow = topItem ? rows.find((r) => `${r.no}` === topItem.key) : undefined;
-  const recallCurve: RecallCurveData | null = topRow && topItem ? buildRecallCurve(topRow, topItem) : null;
+  // Recall curve for the "Memory at Risk" chart now plots every
+  // active topic as its own line (most-at-risk first), instead of
+  // locking to a single topic — see buildMultiRecallCurve.
+  const recallCurves: MultiRecallCurveData | null = buildMultiRecallCurve(rows, reviewItems);
 
-  return { authState, reviewItems, recallCurve, profile, todayFocus, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
+  return { authState, reviewItems, recallCurves, profile, todayFocus, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
 }

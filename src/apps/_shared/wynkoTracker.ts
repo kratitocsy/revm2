@@ -182,70 +182,97 @@ export function rowsToReviewItems(rows: TrackerRow[], asOf: Date = new Date()): 
 // ── Recall curve (desktop-dashboard's "Memory at Risk" chart) ─────
 // Generalizes computeStrength() above from "strength as of now" to
 // "strength as of any day offset from row.date", using the exact
-// same baseline/decay math (same doneCount→baseline steps, same
-// exp(-overdueDays/6) decay constant). No synthetic/random shape —
+// same continuous-decay-with-reset math. No synthetic/random shape —
 // every point is derived from row.date + r0..r7, the same fields
 // tracker.html's own table renders.
+//
+// Multi-topic: every active topic gets its own line, sharing one
+// x-axis measured in days relative to *today* (negative = in the
+// past, 0 = today, positive = projected future) so topics added on
+// different days still line up under a single TODAY marker.
 export interface RecallCurvePoint {
-  day: number; // days since row.date
+  day: number; // days relative to today (negative = past, 0 = today)
   retention: number; // 0-100
 }
 export interface RecallCurveMarker extends RecallCurvePoint {
   label: string; // 'R1', 'R2', ...
 }
-export interface RecallCurveData {
+export interface RecallSeries {
+  key: string; // matches ReviewItem.key
   subject: string;
   topic: string;
-  points: RecallCurvePoint[]; // actual curve, day 0 → today
-  projected: RecallCurvePoint[]; // dashed curve, today → maxDay (no further reviews assumed)
+  points: RecallCurvePoint[]; // actual curve, from when the topic was added → today
+  projected: RecallCurvePoint[]; // dashed curve, today → shared horizon
   reviewMarkers: RecallCurveMarker[]; // completed review checkpoints that already happened
-  todayDay: number;
   todayRetention: number;
-  maxDay: number; // axis upper bound (days since row.date)
+}
+export interface MultiRecallCurveData {
+  series: RecallSeries[]; // most-at-risk (lowest retention) first
+  minDay: number; // leftmost x (days ago) across all series
+  maxDay: number; // shared projection horizon (days ahead of today)
 }
 
-/** Builds the full recall-curve dataset for one row: the actual
- *  history from day 0 (row.date) to today, a projected-decay tail
- *  assuming no further review happens, and markers for each review
- *  checkpoint the user actually completed. `item` supplies the
- *  already-rounded today retention so the curve's "today" dot
- *  matches the number shown elsewhere on the page exactly. */
-export function buildRecallCurve(row: TrackerRow, item: ReviewItem, asOf: Date = new Date()): RecallCurveData | null {
-  if (!row.topic) return null;
+const PROJECTION_HORIZON_DAYS = 15;
+const MIN_AXIS_LOOKBACK_DAYS = 6; // keep some left margin even for brand-new topics
+
+/** One topic's line for the multi-series chart. `addedDaysAgo` is
+ *  how long ago (in days) the topic was added — the topic's own
+ *  points run from -addedDaysAgo (its row.date) to 0 (today), then
+ *  project forward to `horizonDays`. */
+function buildRecallSeries(row: TrackerRow, item: ReviewItem, asOf: Date, horizonDays: number): RecallSeries {
   const rowDate = new Date(row.date + 'T00:00:00');
-  const todayDay = Math.max(0, (asOf.getTime() - rowDate.getTime()) / 86400000);
-  const maxDay = Math.max(INTERVAL_DAYS[INTERVAL_DAYS.length - 1], Math.ceil(todayDay) + 15);
+  const addedDaysAgo = Math.max(0, (asOf.getTime() - rowDate.getTime()) / 86400000);
 
   const points: RecallCurvePoint[] = [];
-  const stepsBack = Math.max(1, Math.ceil(todayDay));
-  const backStep = todayDay / (stepsBack * 4); // 4 samples per day for a smooth curve
-  for (let d = 0; d < todayDay; d += Math.max(backStep, 0.1)) {
-    points.push({ day: d, retention: strengthAtDay(row, d) });
+  const stepsBack = Math.max(1, Math.ceil(addedDaysAgo));
+  const backStep = addedDaysAgo / (stepsBack * 4); // 4 samples per day for a smooth curve
+  for (let d = 0; d < addedDaysAgo; d += Math.max(backStep, 0.1)) {
+    points.push({ day: d - addedDaysAgo, retention: strengthAtDay(row, d) });
   }
-  points.push({ day: todayDay, retention: item.retention });
+  points.push({ day: 0, retention: item.retention });
 
-  const projected: RecallCurvePoint[] = [{ day: todayDay, retention: item.retention }];
-  const fwdSpan = maxDay - todayDay;
-  const fwdStep = Math.max(fwdSpan / 20, 0.5);
-  for (let d = todayDay + fwdStep; d <= maxDay; d += fwdStep) {
-    projected.push({ day: d, retention: strengthAtDay(row, d) });
+  const projected: RecallCurvePoint[] = [{ day: 0, retention: item.retention }];
+  const fwdStep = Math.max(horizonDays / 20, 0.5);
+  for (let d = fwdStep; d <= horizonDays; d += fwdStep) {
+    projected.push({ day: d, retention: strengthAtDay(row, addedDaysAgo + d) });
   }
 
   const reviewMarkers: RecallCurveMarker[] = INTERVAL_KEYS
     .map((k, i) => ({ done: row[k], day: INTERVAL_DAYS[i], idx: i }))
-    .filter((m) => m.done && m.idx > 0 && m.day <= todayDay)
-    .map((m, order) => ({ day: m.day, retention: strengthAtDay(row, m.day), label: `R${order + 1}` }));
+    .filter((m) => m.done && m.idx > 0 && m.day <= addedDaysAgo)
+    .map((m, order) => ({ day: m.day - addedDaysAgo, retention: strengthAtDay(row, m.day), label: `R${order + 1}` }));
 
   return {
+    key: item.key,
     subject: row.subject,
     topic: row.topic,
     points,
     projected,
     reviewMarkers,
-    todayDay,
     todayRetention: item.retention,
-    maxDay,
   };
+}
+
+/** Builds one line per active topic (capped at `maxSeries`, most-at-risk
+ *  first) sharing a single "days relative to today" axis. */
+export function buildMultiRecallCurve(
+  rows: TrackerRow[],
+  reviewItems: ReviewItem[],
+  asOf: Date = new Date(),
+  maxSeries: number = 6
+): MultiRecallCurveData | null {
+  if (reviewItems.length === 0) return null;
+  const picked = reviewItems.slice(0, maxSeries);
+  const series = picked
+    .map((item) => {
+      const row = rows.find((r) => `${r.no}` === item.key);
+      return row ? buildRecallSeries(row, item, asOf, PROJECTION_HORIZON_DAYS) : null;
+    })
+    .filter((s): s is RecallSeries => s !== null);
+  if (series.length === 0) return null;
+
+  const minDay = -Math.max(MIN_AXIS_LOOKBACK_DAYS, ...series.map((s) => -(s.points[0]?.day ?? 0)));
+  return { series, minDay, maxDay: PROJECTION_HORIZON_DAYS };
 }
 
 /** Fill in today's row with a new topic/subject. If today's row
