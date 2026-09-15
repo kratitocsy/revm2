@@ -1633,22 +1633,31 @@ function renderHeatmap(){
 
 /* ── ANALYTICS ── */
 /* ── MEMORY STRENGTH (Ebbinghaus-style estimate) ──────────── */
-/* Equal-weight baseline per completed interval (100/8 each). If the *next*
-   undone interval's due date has passed, strength decays exponentially
-   with days overdue — same shape as the forgetting curve, tau≈6 days.
-   This is an approximation for motivation/visibility, not a clinical
-   measurement of someone's actual memory. */
+/* strength(t) = 100 * exp(-(t - lastReset)/TAU), TAU=6 days — same
+   continuous-decay-with-reset model as renderForgettingCurve() below.
+   Day 0 (when the topic was added) is always an implicit reset: adding
+   a topic means you just studied it, so retention starts at 100%
+   regardless of whether the r0 checkbox has been ticked yet. Each
+   interval actually checked off resets the curve to 100 again; if an
+   interval's due date passes unchecked, decay continues uninterrupted
+   through it. This is an approximation for motivation/visibility, not
+   a clinical measurement of someone's actual memory. */
 function computeTopicStrength(row, asOf){
   if(!row.topic) return null;
   const rd=new Date(row.date+'T00:00:00');
   if(rd>asOf) return null;
   const doneCount=INTERVALS.filter(iv=>row[iv.key]).length;
-  const baseline=doneCount/INTERVALS.length*100;
   if(doneCount>=INTERVALS.length) return {strength:100,overdueDays:0,topic:row.topic,subject:row.subject};
   const nextIv=INTERVALS[doneCount];
   const nextDue=new Date(rd.getTime()+nextIv.days*86400000);
   const overdueDays=Math.max(0,(asOf-nextDue)/86400000);
-  const strength=overdueDays>0?baseline*Math.exp(-overdueDays/6):baseline;
+  const daysElapsed=(asOf-rd)/86400000;
+  let lastReset=0;
+  for(const iv of INTERVALS){
+    if(iv.days>daysElapsed) break;
+    if(row[iv.key]) lastReset=iv.days;
+  }
+  const strength=100*Math.exp(-(daysElapsed-lastReset)/6);
   return {strength,overdueDays,topic:row.topic,subject:row.subject};
 }
 function computeAvgStrengthOnDate(asOf){

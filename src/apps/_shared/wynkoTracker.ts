@@ -69,17 +69,39 @@ function todayStr(): string {
   return d.toISOString().split('T')[0];
 }
 
+const TAU = 6; // decay constant in days — same constant timer.html's
+// renderForgettingCurve already uses for its illustrative per-topic chart.
+
+/** Walks the schedule from day 0 up to `day`, resetting the curve to
+ *  100 at each checkpoint that was actually completed by that point,
+ *  decaying continuously (100*exp(-(day-lastReset)/TAU)) otherwise.
+ *  Day 0 is always an implicit reset — adding a topic means you just
+ *  studied it, so retention starts at 100% regardless of whether the
+ *  r0 checkbox itself has been ticked yet. Mirrors the day-by-day walk
+ *  timer.html's renderForgettingCurve does, evaluated at one point
+ *  instead of sampled across a range. */
+function strengthAtDay(row: TrackerRow, day: number): number {
+  const doneCount = INTERVAL_KEYS.filter((k) => row[k]).length;
+  if (doneCount >= INTERVAL_KEYS.length) return 100; // fully reviewed — treated as mastered
+  let lastReset = 0;
+  for (let i = 0; i < INTERVAL_KEYS.length; i++) {
+    if (INTERVAL_DAYS[i] > day) break;
+    if (row[INTERVAL_KEYS[i]]) lastReset = INTERVAL_DAYS[i];
+  }
+  return 100 * Math.exp(-(day - lastReset) / TAU);
+}
+
 /** Ebbinghaus-style strength estimate — ported verbatim from
  *  tracker.html's computeTopicStrength() so retention numbers match
  *  what the rest of the app already shows for the same row. */
 function computeStrength(row: TrackerRow, asOf: Date): { strength: number; overdueDays: number; nextDue: Date | null } {
   const doneCount = INTERVAL_KEYS.filter((k) => row[k]).length;
-  const baseline = (doneCount / INTERVAL_KEYS.length) * 100;
   if (doneCount >= INTERVAL_KEYS.length) return { strength: 100, overdueDays: 0, nextDue: null };
   const rd = new Date(row.date + 'T00:00:00');
+  const daysElapsed = (asOf.getTime() - rd.getTime()) / 86400000;
   const nextDue = new Date(rd.getTime() + INTERVAL_DAYS[doneCount] * 86400000);
   const overdueDays = Math.max(0, (asOf.getTime() - nextDue.getTime()) / 86400000);
-  const strength = overdueDays > 0 ? baseline * Math.exp(-overdueDays / 6) : baseline;
+  const strength = strengthAtDay(row, daysElapsed);
   return { strength, overdueDays, nextDue };
 }
 
@@ -180,18 +202,6 @@ export interface RecallCurveData {
   todayDay: number;
   todayRetention: number;
   maxDay: number; // axis upper bound (days since row.date)
-}
-
-/** Same formula as computeStrength(), but parameterized on an
- *  arbitrary day offset instead of only "now" - lets the curve be
- *  reconstructed for every day in the topic's life, not just today. */
-function strengthAtDay(row: TrackerRow, day: number): number {
-  const doneCount = INTERVAL_KEYS.filter((k, i) => row[k] && INTERVAL_DAYS[i] <= day).length;
-  const baseline = (doneCount / INTERVAL_KEYS.length) * 100;
-  if (doneCount >= INTERVAL_KEYS.length) return 100;
-  const nextDueDay = INTERVAL_DAYS[doneCount];
-  const overdueDays = Math.max(0, day - nextDueDay);
-  return overdueDays > 0 ? baseline * Math.exp(-overdueDays / 6) : baseline;
 }
 
 /** Builds the full recall-curve dataset for one row: the actual
