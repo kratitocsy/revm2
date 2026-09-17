@@ -472,6 +472,7 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .mini-ring{ width:46px; height:46px; border-radius:50%; border:4px solid rgba(255,255,255,.1); border-top-color:var(--violet-2); margin:8px auto; animation:spin 2.6s linear infinite; }
 @keyframes spin{ to{transform:rotate(360deg)} }
 .mini-block{ height:26px; border-radius:8px; background:rgba(124,77,255,.18); border:1px solid rgba(124,77,255,.3); margin-top:7px; }
+.f-visual-img{ height:100%; width:auto; max-width:100%; object-fit:contain; display:block; }
 
 /* ---------- smart split ---------- */
 .split{ display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; }
@@ -533,16 +534,9 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .quote .who span{ font-size:.74rem; color:var(--text-3); }
 
 /* ---------- founders ---------- */
-.founders{ overflow:hidden; cursor:grab; }
-.founders:active{ cursor:grabbing; }
-@media (min-width:769px){
-  .founders{
-    -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
-    mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
-  }
-}
+.founders{ overflow:hidden; }
 .founders-track{ display:flex; will-change:transform; }
-.founder-tile{ flex:0 0 33.3333%; padding:0 10px; box-sizing:border-box; }
+.founder-tile{ box-sizing:border-box; padding:0 10px; }
 .founder-card{
   height:100%; border:1px solid var(--border); border-radius:var(--r); padding:30px 26px;
   background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
@@ -555,6 +549,7 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
   border:1px solid var(--border-2); display:grid; place-items:center; color:var(--text-3);
 }
 .founder-photo svg{ width:32px; height:32px; stroke:currentColor; fill:none; stroke-width:1.6; }
+.founder-photo img{ width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; }
 .founder-card h4{ font-size:1rem; margin-bottom:4px; }
 .founder-card .role{
   font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
@@ -567,8 +562,18 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
   cursor:pointer; transition:.25s;
 }
 .founders-dots button.active{ background:var(--violet-2); width:20px; border-radius:4px; }
+
+/* Desktop / tablet — 2 cards per slide, exactly 2 slides */
+@media (min-width:769px){
+  .founder-tile{ flex:0 0 50%; }
+}
+
+/* Mobile — 1 card at a time, next card peeking faded at the right edge */
 @media (max-width:768px){
-  .founder-tile{ flex:0 0 100%; }
+  .founders{ cursor:grab; }
+  .founders:active{ cursor:grabbing; }
+  .founder-tile{ flex:0 0 84%; opacity:.4; transition:opacity .45s ease; }
+  .founder-tile.is-active{ opacity:1; }
 }
 
 /* ---------- faq ---------- */
@@ -607,7 +612,7 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 
 /* ---------- footer ---------- */
 footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba(255,255,255,.012); }
-.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1fr; gap:34px; }
+.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:34px; }
 .foot-brand .brand{ margin-bottom:16px; }
 .foot-brand p{ color:var(--text-3); font-size:.84rem; max-width:280px; }
 .foot-col h5{ font-size:.72rem; text-transform:uppercase; letter-spacing:.16em; color:var(--text-4); margin:0 0 16px; font-weight:600; }
@@ -631,7 +636,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .quotes{ grid-template-columns:1fr; }
   .flex-grid{ grid-template-columns:repeat(2,1fr); }
   .earn-panel{ grid-template-columns:1fr; padding:30px; }
-  .foot-grid{ grid-template-columns:1.4fr 1fr 1fr; }
+  .foot-grid{ grid-template-columns:1fr 1fr; }
 }
 @media (max-width:760px){
   .nav-links{ display:none; }
@@ -935,12 +940,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">01</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line"></div><div class="mini-line s"></div>
-            <div class="mini-ring"></div>
-            <div class="mini-block"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-01-plan.png" alt="Plan your exam — syllabus, goals and schedule" />
         </div>
         <div class="body"><h4>Plan</h4><p>Set your exam, syllabus, and study goals.</p></div>
       </div>
@@ -948,13 +948,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">02</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line g"></div>
-            <div class="mini-line"></div><div class="mini-line s"></div>
-            <div class="mini-block" style="background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3);"></div>
-            <div class="mini-line s" style="margin-top:8px"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-02-focus.png" alt="Focus session — distractions blocked" />
         </div>
         <div class="body"><h4>Focus</h4><p>Start a session and eliminate distractions.</p></div>
       </div>
@@ -962,15 +956,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">03</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line"></div><div class="mini-line"></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px">
-              <div class="mini-block" style="margin:0"></div><div class="mini-block" style="margin:0;background:rgba(52,211,153,.16);border-color:rgba(52,211,153,.3)"></div>
-              <div class="mini-block" style="margin:0;background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3)"></div><div class="mini-block" style="margin:0"></div>
-            </div>
-            <div class="mini-line s" style="margin-top:8px"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-03-revise.png" alt="Revision due — spaced repetition, automatically" />
         </div>
         <div class="body"><h4>Revise</h4><p>Wynko brings topics back when they're due.</p></div>
       </div>
@@ -978,15 +964,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">04</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line s"></div>
-            <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
-              <div style="width:22px;height:22px;border-radius:50%;background:var(--grad-soft);border:1px solid var(--border-2)"></div>
-              <div style="flex:1"><div class="mini-line g" style="margin-bottom:4px"></div><div class="mini-line s"></div></div>
-            </div>
-            <div class="mini-block" style="margin-top:10px;background:rgba(124,77,255,.12);border-color:rgba(124,77,255,.25)"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-04-improve.png" alt="Your progress — consistency over intensity" />
         </div>
         <div class="body"><h4>Improve</h4><p>Track your consistency and see how you're progressing.</p></div>
       </div>
@@ -1003,7 +981,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <p class="lead">Step into a shared 2D study space, choose your spot, and study alongside others — without losing your focus.</p>
     </div>
     <div class="reveal" style="max-width:920px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid var(--border-2);box-shadow:0 30px 80px rgba(0,0,0,.35)">
-      <img src="assets/Screenshot_2026_0908_032315-Bfe6oYGo.png" alt="Wynko virtual study library — quiet zone, study table, solo pods, discussion corner and break zone" style="width:100%;display:block" />
+      <img src="assets/wynko-study-library-v2.png" alt="Wynko virtual study library — quiet zone, study table, solo pods, discussion corner and break zone" style="width:100%;display:block" />
     </div>
   </div>
 </section>
@@ -1036,12 +1014,12 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="quote reveal">
         <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
         <p>"I used to study in guilt and scroll in secret. Wynko's room timer made me honest — and the earnings made it weirdly addictive."</p>
-        <div class="who"><span class="av">AR</span><div><b>Aarav M.</b><span>NEET 2027 aspirant</span></div></div>
+        <div class="who"><span class="av">AR</span><div><b>Abhinav M.</b><span>NEET 2027 aspirant</span></div></div>
       </div>
       <div class="quote reveal">
         <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
         <p>"The revision queue is the first thing that's ever beaten my forgetting curve. It literally brings back the chapter before I lose it."</p>
-        <div class="who"><span class="av">SK</span><div><b>Sana K.</b><span>JEE Advanced, dropper</span></div></div>
+        <div class="who"><span class="av">SK</span><div><b>Megha J.</b><span>JEE Advanced, dropper</span></div></div>
       </div>
       <div class="quote reveal">
         <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
@@ -1075,39 +1053,32 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
           <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
           <span class="brand-word grad-text">WYNKO</span>
         </a>
-        <p>The world's first Study OS which empowers you to focus, grow and earn. Focus. Study. Together.</p>
+        <p>A Study OS designed to help you focus, learn, and grow. Focus. Study. Together.</p>
       </div>
       <div class="foot-col">
         <h5>Product</h5>
         <a href="#product">Overview</a>
-        <a href="#fast">Features</a>
-        <a href="#earn">Earnings</a>
-        <a href="#community-shot">Study Rooms</a>
-      </div>
-      <div class="foot-col">
-        <h5>Exams</h5>
-        <a href="#">NEET</a>
-        <a href="#">JEE</a>
-        <a href="#">UPSC</a>
-        <a href="#">CAT &amp; GATE</a>
+        <a href="#flexible">Features</a>
+        <a href="#fast">Your Day</a>
+        <a href="#community-shot">Study Together</a>
       </div>
       <div class="foot-col">
         <h5>Company</h5>
         <a href="marketing.html">About</a>
-        <a href="partners.html">Partners</a>
-        <a href="product-tour.html">Product tour</a>
+        <a href="#earn">Team &amp; Partners</a>
+        <a href="#faq">FAQ</a>
         <a href="privacy.html">Privacy</a>
       </div>
       <div class="foot-col">
         <h5>Get started</h5>
-        <a href="login.html">Log in</a>
-        <a href="onboarding.html">Onboarding</a>
-        <a href="downloads/">Downloads</a>
-        <a href="docs/">Docs</a>
+        <a href="waitlist.html">Sign Up / Login</a>
+        <a href="downloads/">Download Desktop App</a>
+        <a href="#">Mobile App</a>
+        <a href="mailto:revisionnm2@gmail.com">Contact Us</a>
       </div>
     </div>
     <div class="foot-bottom">
-      <span>&copy; 2026 Wynko. Built for people who show up.</span>
+      <span>&copy; 2026 Wynko. All rights reserved. &nbsp;&middot;&nbsp; <a href="privacy.html">Privacy Policy</a> &middot; <a href="#">Terms of Service</a></span>
       <div class="soc">
         <a href="#" aria-label="X"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.2L1 2h7l4.9 6.4L18.9 2Zm-1.2 18h1.9L7.4 3.9H5.3L17.7 20Z"/></svg></a>
         <a href="#" aria-label="LinkedIn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5A2.5 2.5 0 1 1 5 8.5a2.5 2.5 0 0 1-.02-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.4 8.65 22 10.9 22 14.3V21h-4v-5.9c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.52-2.25 3.1V21H9V9Z"/></svg></a>
@@ -1195,9 +1166,10 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 /* ================= founders carousel ================= */
 (function(){
   const FOUNDERS = [
-    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students." },
-    { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally." },
-    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning." }
+    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg" },
+    { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally.", photo:"founder-jatin.jpg" },
+    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg" },
+    { name:"Ismat Makwana", role:"Cybersecurity Expert", desc:"Helps strengthen Wynko\u2019s security and privacy, focusing on protecting the platform, its users, and the data behind a trusted study experience.", photo:"founder-ismat.jpg" }
   ];
 
   const track = document.getElementById('foundersTrack');
@@ -1205,120 +1177,162 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   const viewport = document.getElementById('foundersCarousel');
   if(!track || !dotsWrap || !viewport) return;
 
-  const N = FOUNDERS.length;
-  const REPEAT = 3;
   const photoIcon = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5S20 16 20 20"/></svg>';
 
   function tileHTML(f){
+    const media = f.photo
+      ? '<img src="' + f.photo + '" alt="' + f.name + '" loading="lazy" />'
+      : photoIcon;
     return '<div class="founder-tile"><div class="founder-card">' +
-      '<div class="founder-photo">' + photoIcon + '</div>' +
+      '<div class="founder-photo">' + media + '</div>' +
       '<h4>' + f.name + '</h4>' +
       '<div class="role">' + f.role + '</div>' +
       '<p>' + f.desc + '</p>' +
       '</div></div>';
   }
 
-  let list = [];
-  for(let i=0;i<REPEAT;i++) list = list.concat(FOUNDERS);
-  track.innerHTML = list.map(tileHTML).join('');
-
-  dotsWrap.innerHTML = FOUNDERS.map((_,i)=>'<button data-i="'+i+'" aria-label="Go to founder '+(i+1)+'"></button>').join('');
-  const dots = Array.from(dotsWrap.children);
-
-  let index = N;
-  let tileWidth = 0;
+  const mq = window.matchMedia('(min-width: 769px)');
   let autoplayTimer = null;
-  let isPointerDown = false;
-  let dragStartX = 0;
-  let dragCurrentX = 0;
+  let cleanupFns = [];
 
-  function computeTileWidth(){
-    const tile = track.children[0];
-    tileWidth = tile ? tile.getBoundingClientRect().width : 0;
-  }
-
-  function setTransform(withTransition){
-    track.style.transition = withTransition ? 'transform .6s cubic-bezier(.22,.61,.36,1)' : 'none';
-    track.style.transform = 'translateX(' + (-(index * tileWidth)) + 'px)';
-  }
-
-  function updateDots(){
-    const real = ((index % N) + N) % N;
-    dots.forEach((d,i)=> d.classList.toggle('active', i===real));
-  }
-
-  function goTo(newIndex, withTransition){
-    index = newIndex;
-    setTransform(withTransition !== false);
-    updateDots();
-  }
-
-  function next(){ goTo(index+1); }
-
-  track.addEventListener('transitionend', ()=>{
-    if(index >= N*2){ index -= N; setTransform(false); }
-    else if(index < N){ index += N; setTransform(false); }
-  });
-
-  function startAutoplay(){
-    stopAutoplay();
-    autoplayTimer = setInterval(next, 3800);
-  }
   function stopAutoplay(){ if(autoplayTimer){ clearInterval(autoplayTimer); autoplayTimer = null; } }
 
-  computeTileWidth();
-  goTo(N, false);
-  startAutoplay();
+  function addCleanup(el, evt, fn, opts){
+    el.addEventListener(evt, fn, opts);
+    cleanupFns.push(()=> el.removeEventListener(evt, fn, opts));
+  }
 
-  window.addEventListener('resize', ()=>{
-    computeTileWidth();
-    setTransform(false);
-  });
-
-  viewport.addEventListener('mouseenter', stopAutoplay);
-  viewport.addEventListener('mouseleave', startAutoplay);
-
-  dots.forEach(dot=>{
-    dot.addEventListener('click', ()=>{
-      const target = parseInt(dot.dataset.i, 10);
-      const real = ((index % N) + N) % N;
-      const diff = target - real;
-      stopAutoplay();
-      goTo(index + diff);
-      setTimeout(startAutoplay, 2500);
-    });
-  });
-
-  function onPointerDown(e){
-    isPointerDown = true;
-    dragStartX = (e.touches ? e.touches[0].clientX : e.clientX);
-    dragCurrentX = dragStartX;
+  function teardown(){
     stopAutoplay();
+    cleanupFns.forEach(fn=>fn());
+    cleanupFns = [];
     track.style.transition = 'none';
-  }
-  function onPointerMove(e){
-    if(!isPointerDown) return;
-    dragCurrentX = (e.touches ? e.touches[0].clientX : e.clientX);
-    const delta = dragCurrentX - dragStartX;
-    track.style.transform = 'translateX(' + (-(index*tileWidth) + delta) + 'px)';
-  }
-  function onPointerUp(){
-    if(!isPointerDown) return;
-    isPointerDown = false;
-    const delta = dragCurrentX - dragStartX;
-    const threshold = tileWidth * 0.18;
-    if(delta > threshold) goTo(index-1);
-    else if(delta < -threshold) goTo(index+1);
-    else goTo(index);
-    setTimeout(startAutoplay, 2500);
+    track.style.transform = 'none';
   }
 
-  viewport.addEventListener('touchstart', onPointerDown, {passive:true});
-  viewport.addEventListener('touchmove', onPointerMove, {passive:true});
-  viewport.addEventListener('touchend', onPointerUp);
-  viewport.addEventListener('mousedown', onPointerDown);
-  window.addEventListener('mousemove', onPointerMove);
-  window.addEventListener('mouseup', onPointerUp);
+  /* ---- Desktop / tablet: 2 cards per slide, exactly 2 slides ---- */
+  function setupDesktop(){
+    track.innerHTML = FOUNDERS.map(tileHTML).join('');
+    dotsWrap.innerHTML = ['1','2'].map((_,i)=>'<button data-i="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>').join('');
+    const dots = Array.from(dotsWrap.children);
+
+    let page = 0;
+    let viewW = 0;
+
+    function computeWidth(){ viewW = viewport.getBoundingClientRect().width; }
+
+    function render(withTransition){
+      track.style.transition = withTransition !== false ? 'transform .6s cubic-bezier(.22,.61,.36,1)' : 'none';
+      track.style.transform = 'translateX(' + (-(page * viewW)) + 'px)';
+      dots.forEach((d,i)=> d.classList.toggle('active', i===page));
+    }
+
+    function goTo(p){ page = ((p % 2) + 2) % 2; render(true); }
+    function next(){ goTo(page+1); }
+    function start(){ stopAutoplay(); autoplayTimer = setInterval(next, 4500); }
+
+    computeWidth();
+    render(false);
+    start();
+
+    addCleanup(window, 'resize', ()=>{ computeWidth(); render(false); });
+    addCleanup(viewport, 'mouseenter', stopAutoplay);
+    addCleanup(viewport, 'mouseleave', start);
+
+    dots.forEach(dot=>{
+      addCleanup(dot, 'click', ()=>{
+        stopAutoplay();
+        goTo(parseInt(dot.dataset.i, 10));
+        setTimeout(start, 2500);
+      });
+    });
+
+    let isDown = false, startX = 0, curX = 0;
+    const onDown = (e)=>{ isDown = true; startX = (e.touches?e.touches[0].clientX:e.clientX); curX = startX; stopAutoplay(); track.style.transition = 'none'; };
+    const onMove = (e)=>{ if(!isDown) return; curX = (e.touches?e.touches[0].clientX:e.clientX); const delta = curX - startX; track.style.transform = 'translateX(' + (-(page*viewW) + delta) + 'px)'; };
+    const onUp = ()=>{ if(!isDown) return; isDown = false; const delta = curX - startX; const threshold = viewW * 0.15; if(delta > threshold) goTo(page-1); else if(delta < -threshold) goTo(page+1); else render(true); setTimeout(start, 2500); };
+
+    addCleanup(viewport, 'touchstart', onDown, {passive:true});
+    addCleanup(viewport, 'touchmove', onMove, {passive:true});
+    addCleanup(viewport, 'touchend', onUp);
+    addCleanup(viewport, 'mousedown', onDown);
+    addCleanup(window, 'mousemove', onMove);
+    addCleanup(window, 'mouseup', onUp);
+  }
+
+  /* ---- Mobile: 1 card at a time, next card peeking faded on the right, seamless loop ---- */
+  function setupMobile(){
+    const N = FOUNDERS.length;
+    const REPEAT = 3;
+    let list = [];
+    for(let i=0;i<REPEAT;i++) list = list.concat(FOUNDERS);
+    track.innerHTML = list.map(tileHTML).join('');
+    const tiles = Array.from(track.children);
+
+    dotsWrap.innerHTML = FOUNDERS.map((_,i)=>'<button data-i="'+i+'" aria-label="Go to founder '+(i+1)+'"></button>').join('');
+    const dots = Array.from(dotsWrap.children);
+
+    let index = N;
+    let tileWidth = 0;
+
+    function computeTileWidth(){
+      const tile = track.children[0];
+      tileWidth = tile ? tile.getBoundingClientRect().width : 0;
+    }
+
+    function render(withTransition){
+      track.style.transition = withTransition !== false ? 'transform .6s cubic-bezier(.22,.61,.36,1)' : 'none';
+      track.style.transform = 'translateX(' + (-(index * tileWidth)) + 'px)';
+      tiles.forEach((t,i)=> t.classList.toggle('is-active', i===index));
+      const real = ((index % N) + N) % N;
+      dots.forEach((d,i)=> d.classList.toggle('active', i===real));
+    }
+
+    function goTo(i){ index = i; render(true); }
+    function next(){ goTo(index+1); }
+    function start(){ stopAutoplay(); autoplayTimer = setInterval(next, 4200); }
+
+    addCleanup(track, 'transitionend', ()=>{
+      if(index >= N*2){ index -= N; render(false); }
+      else if(index < N){ index += N; render(false); }
+    });
+
+    computeTileWidth();
+    render(false);
+    start();
+
+    addCleanup(window, 'resize', ()=>{ computeTileWidth(); render(false); });
+
+    dots.forEach(dot=>{
+      addCleanup(dot, 'click', ()=>{
+        stopAutoplay();
+        const target = parseInt(dot.dataset.i, 10);
+        const real = ((index % N) + N) % N;
+        goTo(index + (target - real));
+        setTimeout(start, 2500);
+      });
+    });
+
+    let isDown = false, startX = 0, curX = 0;
+    const onDown = (e)=>{ isDown = true; startX = (e.touches?e.touches[0].clientX:e.clientX); curX = startX; stopAutoplay(); track.style.transition = 'none'; };
+    const onMove = (e)=>{ if(!isDown) return; curX = (e.touches?e.touches[0].clientX:e.clientX); const delta = curX - startX; track.style.transform = 'translateX(' + (-(index*tileWidth) + delta) + 'px)'; };
+    const onUp = ()=>{ if(!isDown) return; isDown = false; const delta = curX - startX; const threshold = tileWidth * 0.18; if(delta > threshold) goTo(index-1); else if(delta < -threshold) goTo(index+1); else render(true); setTimeout(start, 2500); };
+
+    addCleanup(viewport, 'touchstart', onDown, {passive:true});
+    addCleanup(viewport, 'touchmove', onMove, {passive:true});
+    addCleanup(viewport, 'touchend', onUp);
+    addCleanup(viewport, 'mousedown', onDown);
+    addCleanup(window, 'mousemove', onMove);
+    addCleanup(window, 'mouseup', onUp);
+  }
+
+  function init(){
+    teardown();
+    if(mq.matches){ setupDesktop(); } else { setupMobile(); }
+  }
+
+  init();
+  mq.addEventListener('change', init);
 })();
 
 /* ================= reveal on scroll ================= */
