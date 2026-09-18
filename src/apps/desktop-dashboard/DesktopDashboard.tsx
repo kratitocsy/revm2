@@ -1,8 +1,32 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
+import avatar7 from './imports/avatar-7.png'
+import avatar8 from './imports/avatar-8.png'
+import avatar9 from './imports/avatar-9.png'
+import avatar10 from './imports/avatar-10.png'
+import avatar11 from './imports/avatar-11.png'
+import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
+
+// ─── Avatar picker ──────────────────────────────────────────────────────────────
+// A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
+// illustrated presets is only the default/fallback identity, picked in
+// Settings > Profile. Context (rather than threading yet another prop
+// through every page) because nearly every page's header needs it, and
+// App Root already seeds it from the real profile once that loads.
+const AVATAR_OPTIONS = [avatar7, avatar8, avatar9, avatar10, avatar11, avatar12]
+const UserAvatarCtx = createContext<{ avatar: string; setAvatar: (a: string) => void }>({ avatar: avatar7, setAvatar: () => {} })
+function UserAvatar({ size = 32, className = '' }: { size?: number; className?: string }) {
+  const { avatar } = useContext(UserAvatarCtx)
+  return (
+    <div className={`rounded-full overflow-hidden flex-shrink-0 ${className}`}
+      style={{ width: size, height: size, border: '1.5px solid rgba(124,77,255,0.45)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
+      <img src={avatar} alt="You" className="w-full h-full object-cover" />
+    </div>
+  )
+}
 
 // ─── Icon System ──────────────────────────────────────────────────────────────
 const IP: Record<string, string[]> = {
@@ -277,7 +301,6 @@ const NAV = [
 function Sidebar({ active, setActive, profile }: { active: string; setActive: (id: string) => void; profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
-  const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full"
       style={{ background: '#090B18', borderColor: 'rgba(124,58,237,0.18)' }}>
@@ -313,11 +336,7 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
       </nav>
       <div className="border-t p-4" style={{ borderColor: 'rgba(124,58,237,0.14)' }}>
         <div className="flex items-center gap-2.5">
-          {profile?.avatarUrl ? (
-            <img src={profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-          ) : (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>{initials}</div>
-          )}
+          <UserAvatar size={32} />
           <div className="flex-1 min-w-0">
             <div className="text-sm text-slate-200 font-medium truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{name}</div>
             <div className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{exam}</div>
@@ -335,8 +354,6 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
   // page (new Date(), not a placeholder) - this was the one spot on
   // Home still showing the design's literal "Mon, 1 Sep 2026" string.
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
-  const name = profile?.displayName || 'Jatin Sinsinwar'
-  const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
   return (
     <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 backdrop-blur-sm"
       style={{ background: 'rgba(8,10,18,0.9)', borderColor: 'rgba(124,58,237,0.15)' }}>
@@ -354,31 +371,8 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
         <Ico n="bell" cls="w-5 h-5" />
         <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" style={{ boxShadow: '0 0 6px rgba(139,92,246,0.8)' }} />
       </button>
-      {profile?.avatarUrl ? (
-        <img src={profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover cursor-pointer" />
-      ) : (
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold cursor-pointer" style={{ background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>{initials}</div>
-      )}
+      <UserAvatar size={32} className="cursor-pointer" />
     </header>
-  )
-}
-
-// ─── Header Avatar ──────────────────────────────────────────────────────────────
-// Small reusable version of Header's own avatar block, for the ~10 other
-// pages (Focus Lock, Study Rooms, Schedules, Battleground, Settings,
-// Wynkoins, Earn) whose header just shows this same circle in the corner.
-// Before this it was a literal "JS" div on every one of them - real only
-// on Home, a hardcoded placeholder everywhere else. profile is still
-// optional (undefined while signed out / still loading), same fallback
-// Sidebar/Header already use.
-function HeaderAvatar({ profile }: { profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
-  const name = profile?.displayName || 'Jatin Sinsinwar'
-  const initials = name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
-  if (profile?.avatarUrl) {
-    return <img src={profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-  }
-  return (
-    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg,#7C3AED,#06B6D4)' }}>{initials}</div>
   )
 }
 
@@ -947,7 +941,72 @@ function clearFocusLockPausedSnapshot() {
   try { localStorage.removeItem(FL_PAUSE_KEY) } catch { /* best-effort */ }
 }
 
-function FocusLockPage({ units, onNavigate, profile }: { units: StudyUnit[]; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+// ─── Tasks Panel ──────────────────────────────────────────────────────────────
+// Replaces Focus Lock's old "Subject Timer" list (per-subject accumulated
+// time) with a checklist built from quick-added topics + today's schedule
+// - matches the latest Figma export. Purely local/ephemeral (checked state
+// isn't persisted anywhere), same as the export itself.
+function TasksPanel({ taskList }: { taskList: { id: string; label: string; sub: string }[] }) {
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+  const toggle = (id: string) => setChecked(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const done = checked.size
+  const total = taskList.length
+  return (
+    <div className="w-72 flex-shrink-0">
+      <div className="rounded-2xl border h-full flex flex-col p-4"
+        style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Ico n="check" cls="w-4 h-4 text-violet-400" />
+            <span className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Tasks</span>
+          </div>
+          {total > 0 && (
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border"
+              style={{ color: done === total ? '#19D3A2' : '#A78BFA', background: done === total ? 'rgba(25,211,162,0.08)' : 'rgba(124,58,237,0.08)', borderColor: done === total ? 'rgba(25,211,162,0.25)' : 'rgba(124,58,237,0.22)' }}>
+              {done}/{total} done
+            </span>
+          )}
+        </div>
+        {total > 0 && (
+          <div className="h-1 rounded-full mb-3 overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${(done / total) * 100}%`, background: 'linear-gradient(90deg, #7C3AED, #22D3EE)' }} />
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto space-y-1.5">
+          {total === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-10 text-center">
+              <div className="text-2xl mb-2">📋</div>
+              <div className="text-xs text-slate-500">No tasks yet.<br />Quick Add topics on the home page<br />or add items to your schedule.</div>
+            </div>
+          ) : taskList.map(task => {
+            const isDone = checked.has(task.id)
+            return (
+              <button key={task.id} onClick={() => toggle(task.id)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all hover:border-violet-400/30"
+                style={{ background: isDone ? 'rgba(25,211,162,0.05)' : 'rgba(14,21,40,0.5)', borderColor: isDone ? 'rgba(25,211,162,0.2)' : 'rgba(124,58,237,0.12)' }}>
+                <div className="rounded-md border flex items-center justify-center flex-shrink-0 transition-all"
+                  style={{ width: 18, height: 18, borderColor: isDone ? '#19D3A2' : '#4E5E84', background: isDone ? '#19D3A2' : 'transparent' }}>
+                  {isDone && <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round"><path d="M2 6l3 3 5-5" /></svg>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-medium truncate transition-all" style={{ color: isDone ? '#4E5E84' : '#C7D2FE', textDecoration: isDone ? 'line-through' : 'none' }}>{task.label}</div>
+                  <div className="text-[10px] truncate text-[#4E5E84]">{task.sub}</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   const [pausedSnapshot] = useState(loadFocusLockPausedSnapshot)
   const [inputH, setInputH] = useState(0)
   const [inputM, setInputM] = useState(25)
@@ -1070,8 +1129,6 @@ function FocusLockPage({ units, onNavigate, profile }: { units: StudyUnit[]; onN
   const s = remaining % 60
   const f2 = (n: number) => String(n).padStart(2, '0')
   const timeStr = h > 0 ? `${f2(h)}:${f2(m)}:${f2(s)}` : `${f2(m)}:${f2(s)}`
-  const subjectSecsList = subjects.map(subj => subjectTotals[subj] || 0)
-  const maxSubjSecs = Math.max(...subjectSecsList, 1)
   const curSubjName = subjects[activeSubjectIdx] || 'Physics'
   const curSubjColor = SUBJ_COLORS[activeSubjectIdx % SUBJ_COLORS.length]
 
@@ -1139,7 +1196,7 @@ function FocusLockPage({ units, onNavigate, profile }: { units: StudyUnit[]; onN
             style={{ color: '#A78BFA', background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.22)', fontFamily: 'Poppins, sans-serif' }}>
             <Ico n="expand" cls="w-3.5 h-3.5" /> Fullscreen
           </button>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto flex flex-col gap-4 p-5">
@@ -1184,56 +1241,23 @@ function FocusLockPage({ units, onNavigate, profile }: { units: StudyUnit[]; onN
               </div>
             </div>
 
-            {/* ── RIGHT: Subject Timer ── */}
-            <div className="w-72 flex-shrink-0">
-              <div className="rounded-2xl border h-full flex flex-col p-4"
-                style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Ico n="target" cls="w-4 h-4 text-violet-400" />
-                    <span className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Subject Timer</span>
-                  </div>
-                  <button className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border transition-colors hover:border-violet-400/40"
-                    style={{ color: '#A78BFA', background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.22)', fontFamily: 'Poppins, sans-serif' }}>+ Add</button>
-                </div>
-
-                <div className="space-y-2 flex-1 overflow-y-auto">
-                  {subjects.map((subj, i) => {
-                    const secs = subjectSecsList[i] || 0
-                    const mins = Math.floor(secs / 60)
-                    const isActive = activeSubjectIdx === i
-                    const color = SUBJ_COLORS[i % SUBJ_COLORS.length]
-                    const pct = secs / maxSubjSecs
-                    return (
-                      <button key={subj} onClick={() => handleSelectSubject(i)}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all"
-                        style={{ background: isActive ? 'rgba(124,58,237,0.12)' : 'rgba(14,21,40,0.5)', borderColor: isActive ? 'rgba(124,58,237,0.45)' : 'rgba(124,58,237,0.12)' }}>
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-[11px]"
-                          style={{ background: `${color}1A`, border: `1px solid ${color}44`, color }}>
-                          {subj.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-sm font-medium text-slate-200 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{subj}</span>
-                            <span className="text-[10px] text-slate-400 ml-2 flex-shrink-0" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{mins} min</span>
-                          </div>
-                          <div className="h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct * 100}%`, background: `linear-gradient(90deg, ${color}, ${color}bb)` }} />
-                          </div>
-                        </div>
-                        <Ico n="chevR" cls="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <button className="mt-3 w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors hover:border-violet-400/30"
-                  style={{ background: 'rgba(14,21,40,0.4)', borderColor: 'rgba(124,58,237,0.12)', color: '#94A3B8', fontFamily: 'Poppins, sans-serif' }}>
-                  <div className="flex items-center gap-2"><Ico n="progress" cls="w-4 h-4" />View all subjects</div>
-                  <Ico n="chevR" cls="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+            {/* ── RIGHT: Tasks ── */}
+            {(() => {
+              // Flatten quick-added units + today's schedule into a
+              // checklist. Same de-dup key (subject::label) as the design.
+              const taskList: { id: string; label: string; sub: string }[] = []
+              const seen = new Set<string>()
+              const addTask = (id: string, label: string, sub: string) => {
+                const key = `${sub}::${label}`
+                if (!seen.has(key)) { seen.add(key); taskList.push({ id, label, sub }) }
+              }
+              units.forEach((u, ui) => {
+                u.topics.forEach((t, ti) => addTask(`u${ui}_${ti}`, t, u.subject))
+              })
+              const todaySchedule = schedule[todayIdx] || []
+              todaySchedule.forEach((s, si) => addTask(`s${si}`, s.topic || s.subject, s.subject))
+              return <TasksPanel taskList={taskList} />
+            })()}
           </div>
 
           {/* ── BOTTOM: Quick Select ── */}
@@ -1673,7 +1697,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             <div className="text-sm font-semibold text-slate-200">Find your people. Focus better.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5">
@@ -2100,7 +2124,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
             <Ico n="rooms" cls="w-4 h-4" />
             <span className="text-slate-300 font-mono text-sm">{studyingCount} studying</span>
           </div>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto flex flex-col">
@@ -2539,7 +2563,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -3342,7 +3366,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: '#7C3AED' }}>{pendingInvites.length}</div>
             )}
           </div>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -3776,8 +3800,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   // this form (username, bio, gender, age, course, school, phone,
   // email, dailyGoal) is still local-only mock state - a real Settings
   // read/write pass is a separate, larger module than this name fix.
-  const [avatarColor, setAvatarColor] = useState('#7C3AED')
-  const [avatarEmoji, setAvatarEmoji] = useState('🎓')
+  const { avatar: selectedAvatar, setAvatar: setSelectedAvatar } = useContext(UserAvatarCtx)
   const [displayName, setDisplayName] = useState(profile?.displayName || 'Jatin Sinsinwar')
   const [username, setUsername] = useState('jatin_sinsinwar')
   const [bio, setBio] = useState('Aspiring engineer. JEE 2026.')
@@ -3814,9 +3837,6 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     setSaved(true)
     setTimeout(() => setSaved(false), 2200)
   }
-
-  const AVATAR_COLORS = ['#7C3AED', '#06B6D4', '#EC4899', '#34D399', '#F59E0B', '#3B82F6', '#A855F7', '#F87171']
-  const AVATAR_EMOJIS = ['🎓', '⚡', '🔥', '🎯', '💡', '🚀', '📚', '🏆']
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'profile', label: 'Profile', icon: '👤' },
@@ -3910,7 +3930,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               ✓ Changes saved
             </div>
           )}
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <div className="flex flex-1 overflow-hidden">
@@ -3952,27 +3972,19 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
                   <div className="flex items-center gap-6">
                     {/* Big avatar preview */}
-                    <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                      style={{ background: `linear-gradient(135deg,${avatarColor}40,${avatarColor}20)`, border: `2px solid ${avatarColor}60`, boxShadow: `0 0 24px ${avatarColor}30` }}>
-                      {avatarEmoji}
+                    <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
+                      style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
+                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1">
-                      <div className="text-[11px] text-slate-500 mb-2">Choose emoji</div>
-                      <div className="flex gap-2 flex-wrap mb-3">
-                        {AVATAR_EMOJIS.map(e => (
-                          <button key={e} onClick={() => setAvatarEmoji(e)}
-                            className="w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all hover:scale-110 border"
-                            style={{ background: avatarEmoji === e ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', borderColor: avatarEmoji === e ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
-                            {e}
+                      <div className="text-[11px] text-slate-500 mb-3">Choose avatar</div>
+                      <div className="grid grid-cols-6 gap-2">
+                        {AVATAR_OPTIONS.map((av, i) => (
+                          <button key={i} onClick={() => setSelectedAvatar(av)}
+                            className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
+                            style={{ borderColor: selectedAvatar === av ? '#8B5CFF' : 'transparent', boxShadow: selectedAvatar === av ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
+                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-cover bg-[rgba(26,40,69,0.4)]" />
                           </button>
-                        ))}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mb-2">Choose color</div>
-                      <div className="flex gap-2">
-                        {AVATAR_COLORS.map(c => (
-                          <button key={c} onClick={() => setAvatarColor(c)}
-                            className="w-7 h-7 rounded-full border-2 transition-all hover:scale-110"
-                            style={{ background: c, borderColor: avatarColor === c ? '#fff' : 'transparent' }} />
                         ))}
                       </div>
                     </div>
@@ -4313,7 +4325,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <span className="text-base font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</span>
             <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         {/* Toast */}
@@ -4627,7 +4639,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
               <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
               <span className="text-[10px] text-amber-500">WYNKOINS</span>
             </div>
-            <HeaderAvatar profile={profile} />
+            <UserAvatar size={32} />
           </header>
 
           <main className="flex-1 overflow-y-auto px-6 py-5">
@@ -4854,7 +4866,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
             <span className="text-[10px] text-amber-500">WYNKOINS</span>
           </div>
-          <HeaderAvatar profile={profile} />
+          <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto">
@@ -5155,12 +5167,22 @@ export default function DesktopDashboard() {
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
   const [schedule, setSchedule] = useState<ScheduleItem[][]>(Array.from({ length: 7 }, () => []))
   const [activeRoom, setActiveRoom] = useState<RoomData | null>(null)
+  const [userAvatar, setUserAvatar] = useState<string>(avatar7)
+  const [avatarTouched, setAvatarTouched] = useState(false)
 
   // Home's real data — everything else on this page (Focus Lock,
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
   const { authState, reviewItems, recallCurves, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+
+  // A real uploaded photo wins over the 6 illustrated presets, same
+  // "resync until touched" pattern as Settings' displayName field -
+  // once someone picks a preset in Settings this session, that choice
+  // sticks even if profile re-fetches.
+  useEffect(() => {
+    if (!avatarTouched && profile?.avatarUrl) setUserAvatar(profile.avatarUrl)
+  }, [profile?.avatarUrl, avatarTouched])
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -5178,92 +5200,102 @@ export default function DesktopDashboard() {
     removeUnitBySubject(subject)
   }
 
-  if (activeNav === 'focus') {
-    return <FocusLockPage units={sharedUnits} onNavigate={handleNav} profile={profile} />
-  }
-  if (activeNav === 'schedules') {
-    return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
-  }
-  if (activeNav === 'battleground') {
-    return <BattlegroundPage onNavigate={handleNav} profile={profile} />
-  }
-  if (activeNav === '3dlibrary') {
-    return <LibraryPage onNavigate={handleNav} profile={profile} />
-  }
-  if (activeNav === 'wynkoins') {
-    return <WynkoinsPage onNavigate={handleNav} profile={profile} />
-  }
-  if (activeNav === 'earn') {
-    return <EarnPage onNavigate={handleNav} profile={profile} />
-  }
-  if (activeNav === 'settings') {
-    return <SettingsPage onNavigate={handleNav} profile={profile} />
-  }
-  if (activeNav === 'studyrooms') {
-    if (activeRoom) {
-      return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} />
+  function setUserAvatarTouched(a: string) { setAvatarTouched(true); setUserAvatar(a) }
+
+  function renderPage() {
+    if (activeNav === 'focus') {
+      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} />
     }
-    return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile} />
-  }
+    if (activeNav === 'schedules') {
+      return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
+    }
+    if (activeNav === 'battleground') {
+      return <BattlegroundPage onNavigate={handleNav} profile={profile} />
+    }
+    if (activeNav === '3dlibrary') {
+      return <LibraryPage onNavigate={handleNav} profile={profile} />
+    }
+    if (activeNav === 'wynkoins') {
+      return <WynkoinsPage onNavigate={handleNav} profile={profile} />
+    }
+    if (activeNav === 'earn') {
+      return <EarnPage onNavigate={handleNav} profile={profile} />
+    }
+    if (activeNav === 'settings') {
+      return <SettingsPage onNavigate={handleNav} profile={profile} />
+    }
+    if (activeNav === 'studyrooms') {
+      if (activeRoom) {
+        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} />
+      }
+      return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile} />
+    }
 
-  // ── Home (the module wired to real data this pass) ──
-  if (authState === 'loading' || (authState === 'ready' && homeLoading)) {
+    // ── Home (the module wired to real data this pass) ──
+    if (authState === 'loading' || (authState === 'ready' && homeLoading)) {
+      return (
+        <div className="flex h-screen items-center justify-center text-slate-500 text-sm" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+          Loading your dashboard…
+        </div>
+      )
+    }
+    if (authState === 'signed-out') {
+      return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+          <div className="text-slate-200 text-base font-semibold">Sign in to see your dashboard</div>
+          <div className="text-slate-500 text-sm max-w-xs">Your review queue and study data will show up here once you're signed in.</div>
+          <a href="/login.html" className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Go to sign in</a>
+        </div>
+      )
+    }
+
+    const atRisk = reviewItems.filter(i => i.urgency === 'high').length
+    const due = reviewItems.filter(i => i.urgency !== 'low').length
+    const stable = reviewItems.filter(i => i.urgency === 'low').length
+
+    // Today's already-logged entries, shown as removable chips in
+    // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
+    // rather than tracked as separate local state.
+    const todaysUnits: StudyUnit[] = reviewItems
+      .filter(i => i.daysAgo === 0)
+      .map(i => ({ subject: i.subject, exam: '', topics: [i.topic] }))
+
     return (
-      <div className="flex h-screen items-center justify-center text-slate-500 text-sm" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
-        Loading your dashboard…
+      <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+        <Sidebar active={activeNav} setActive={handleNav} profile={profile} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header profile={profile} />
+          <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
+            <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} curveData={recallCurves} />
+            <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
+            <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
+            <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
+              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                <ReviewQueue items={reviewItems} onDismiss={markAsReviewed} />
+              </div>
+              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                <FocusPanel onGoFocus={goFocus} todayFocus={todayFocus} />
+              </div>
+            </div>
+            <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
+              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                <StudyRooms onNavigate={handleNav} />
+              </div>
+              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                <LibraryPreview onNavigate={handleNav} />
+              </div>
+            </div>
+            <div className="h-4" />
+          </main>
+        </div>
       </div>
     )
   }
-  if (authState === 'signed-out') {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
-        <div className="text-slate-200 text-base font-semibold">Sign in to see your dashboard</div>
-        <div className="text-slate-500 text-sm max-w-xs">Your review queue and study data will show up here once you're signed in.</div>
-        <a href="/login.html" className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Go to sign in</a>
-      </div>
-    )
-  }
-
-  const atRisk = reviewItems.filter(i => i.urgency === 'high').length
-  const due = reviewItems.filter(i => i.urgency !== 'low').length
-  const stable = reviewItems.filter(i => i.urgency === 'low').length
-
-  // Today's already-logged entries, shown as removable chips in
-  // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
-  // rather than tracked as separate local state.
-  const todaysUnits: StudyUnit[] = reviewItems
-    .filter(i => i.daysAgo === 0)
-    .map(i => ({ subject: i.subject, exam: '', topics: [i.topic] }))
 
   return (
-    <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
-      <Sidebar active={activeNav} setActive={handleNav} profile={profile} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header profile={profile} />
-        <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
-          <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} curveData={recallCurves} />
-          <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
-          <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
-          <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
-            <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-              <ReviewQueue items={reviewItems} onDismiss={markAsReviewed} />
-            </div>
-            <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-              <FocusPanel onGoFocus={goFocus} todayFocus={todayFocus} />
-            </div>
-          </div>
-          <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
-            <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-              <StudyRooms onNavigate={handleNav} />
-            </div>
-            <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-              <LibraryPreview onNavigate={handleNav} />
-            </div>
-          </div>
-          <div className="h-4" />
-        </main>
-      </div>
-    </div>
+    <UserAvatarCtx.Provider value={{ avatar: userAvatar, setAvatar: setUserAvatarTouched }}>
+      {renderPage()}
+    </UserAvatarCtx.Provider>
   )
 }
 
