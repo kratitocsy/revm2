@@ -1,4 +1,7 @@
 {
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:css && npm run build:shared && npm run build:sidebars && npm run build:mobile-home && npm run build:desktop-dashboard",
+  "outputDirectory": ".",
   "redirects": [
     { "source": "/index.html", "destination": "/", "permanent": true }
   ],

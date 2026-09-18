@@ -1,0 +1,7 @@
+# node_modules is now created by installCommand ("npm ci") ahead of the
+# build step added in vercel.json. Since outputDirectory is the project
+# root, anything not excluded here would be served as a public static
+# file. Without this, node_modules would suddenly become publicly
+# servable on wynko.in — it never was before because Vercel never ran
+# an install step.
+node_modules
