@@ -961,23 +961,23 @@ function TasksPanel({ taskList }: { taskList: { id: string; label: string; sub: 
   return (
     <div className="w-72 flex-shrink-0">
       <div className="rounded-2xl border h-full flex flex-col p-4"
-        style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+        style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Ico n="check" cls="w-4 h-4 text-violet-400" />
-            <span className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Tasks</span>
+            <span className="text-sm font-semibold text-slate-100">Tasks</span>
           </div>
           {total > 0 && (
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border"
-              style={{ color: done === total ? '#19D3A2' : '#A78BFA', background: done === total ? 'rgba(25,211,162,0.08)' : 'rgba(124,58,237,0.08)', borderColor: done === total ? 'rgba(25,211,162,0.25)' : 'rgba(124,58,237,0.22)' }}>
+              style={{ color: done === total ? '#19D3A2' : '#9B6CFF', background: done === total ? 'rgba(25,211,162,0.08)' : 'rgba(124,77,255,0.08)', borderColor: done === total ? 'rgba(25,211,162,0.25)' : '#1E3060' }}>
               {done}/{total} done
             </span>
           )}
         </div>
         {total > 0 && (
-          <div className="h-1 rounded-full mb-3 overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <div className="h-1 rounded-full mb-3 overflow-hidden bg-[#1A2845]">
             <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${(done / total) * 100}%`, background: 'linear-gradient(90deg, #7C3AED, #22D3EE)' }} />
+              style={{ width: `${(done / total) * 100}%`, background: 'linear-gradient(90deg, #7C4DFF, #19B5E6)' }} />
           </div>
         )}
         <div className="flex-1 overflow-y-auto space-y-1.5">
@@ -990,8 +990,8 @@ function TasksPanel({ taskList }: { taskList: { id: string; label: string; sub: 
             const isDone = checked.has(task.id)
             return (
               <button key={task.id} onClick={() => toggle(task.id)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all hover:border-violet-400/30"
-                style={{ background: isDone ? 'rgba(25,211,162,0.05)' : 'rgba(14,21,40,0.5)', borderColor: isDone ? 'rgba(25,211,162,0.2)' : 'rgba(124,58,237,0.12)' }}>
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all hover:border-violet-500/30"
+                style={{ background: isDone ? 'rgba(25,211,162,0.05)' : 'rgba(26,40,69,0.35)', borderColor: isDone ? 'rgba(25,211,162,0.2)' : 'rgba(26,40,69,0.55)' }}>
                 <div className="rounded-md border flex items-center justify-center flex-shrink-0 transition-all"
                   style={{ width: 18, height: 18, borderColor: isDone ? '#19D3A2' : '#4E5E84', background: isDone ? '#19D3A2' : 'transparent' }}>
                   {isDone && <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round"><path d="M2 6l3 3 5-5" /></svg>}
