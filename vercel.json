@@ -1,5 +1,14 @@
 {
-  "redirects": [],
+  "redirects": [
+    { "source": "/product.html", "destination": "/", "permanent": true },
+    { "source": "/index.html", "destination": "/", "permanent": true },
+    { "source": "/landing.html", "destination": "/", "permanent": true },
+    { "source": "/marketing.html", "destination": "/about", "permanent": true },
+    { "source": "/login.html", "destination": "/login", "permanent": true },
+    { "source": "/waitlist.html", "destination": "/waitlist", "permanent": true },
+    { "source": "/privacy.html", "destination": "/privacy", "permanent": true },
+    { "source": "/terms.html", "destination": "/terms", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/product.html" },
     { "source": "/product", "destination": "/product.html" },
