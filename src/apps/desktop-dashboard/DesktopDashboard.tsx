@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import aiAssistantImg from './imports/ai-assistant.png'
+import trophyBronze from './imports/trophy-bronze.png'
+import trophySilver from './imports/trophy-silver.png'
+import trophyGold from './imports/trophy-gold.png'
+import trophyDiamond from './imports/trophy-diamond.png'
 import wynkoLogo from './imports/wynko-logo.png'
 import avatar7 from './imports/avatar-7.png'
 import avatar8 from './imports/avatar-8.png'
@@ -2358,7 +2362,7 @@ function BattleAnimeAvatar({ color, size = 56, initials = '??' }: { color: strin
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-        <circle cx="28" cy="28" r="27" stroke={color} strokeWidth="2" fill="#0A0D1E" />
+        <circle cx="28" cy="28" r="27" stroke={color} strokeWidth="2" fill="#0B1530" />
         <circle cx="28" cy="28" r="26" stroke={color} strokeWidth="0.5" opacity="0.3" />
         {/* Glow */}
         <circle cx="28" cy="28" r="24" fill={`${color}08`} />
@@ -3282,25 +3286,25 @@ function BattleAvatar({ color, variant = 0, size = 56, ringColor, glow = false }
 }
 
 const TROPHY_TIERS = [
-  { label: 'First Battle', sub: '1 win', tier: 'Bronze', emoji: '🏆', color: '#CD7F32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
-  { label: '5 Wins', sub: '5 battles', tier: 'Silver', emoji: '🏆', color: '#C0C0C0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
-  { label: '10 Wins', sub: '10 battles', tier: 'Gold', emoji: '🏆', color: '#FFD700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.4)' },
-  { label: '20 Wins', sub: '20 battles', tier: 'Diamond', emoji: '💎', color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
+  { label: 'First Battle', sub: '1 battle', tier: 'Bronze', img: trophyBronze, color: '#CD7F32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
+  { label: '10 Battles', sub: '10 battles', tier: 'Silver', img: trophySilver, color: '#C0C0C0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
+  { label: '30 Battles', sub: '30 battles', tier: 'Gold', img: trophyGold, color: '#FFD700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.4)' },
+  { label: '60 Battles', sub: '60 battles', tier: 'Diamond', img: trophyDiamond, color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
 ]
 
 const BATTLE_BOTS = [
   { name: 'Aryan', color: '#F59E0B', variant: 1 },
   { name: 'Meera', color: '#A855F7', variant: 2 },
-  { name: 'Arjun', color: '#22D3EE', variant: 1 },
-  { name: 'Dev', color: '#06B6D4', variant: 3 },
+  { name: 'Arjun', color: '#19B5E6', variant: 1 },
+  { name: 'Dev', color: '#19B5E6', variant: 3 },
   { name: 'Riya', color: '#EC4899', variant: 0 },
   { name: 'Nain', color: '#3B82F6', variant: 3 },
 ]
 
 const RECENT_BATTLES_DATA = [
-  { leftName: 'You', leftColor: '#7C3AED', leftVariant: 0, leftWon: true, rightName: 'Nain', rightColor: '#3B82F6', rightVariant: 3, time: '2h ago', pts: '+15' },
-  { leftName: 'Meera', leftColor: '#A855F7', leftVariant: 2, leftWon: true, rightName: 'Arjun', rightColor: '#22D3EE', rightVariant: 1, time: '5h ago', pts: '+12' },
-  { leftName: 'Dev', leftColor: '#06B6D4', leftVariant: 3, leftWon: true, rightName: 'Riya', rightColor: '#EC4899', rightVariant: 0, time: '1d ago', pts: '+10' },
+  { leftName: 'You', leftColor: '#7C4DFF', leftVariant: 0, leftWon: true, rightName: 'Nain', rightColor: '#3B82F6', rightVariant: 3, time: '2h ago', pts: '+15' },
+  { leftName: 'Meera', leftColor: '#A855F7', leftVariant: 2, leftWon: true, rightName: 'Arjun', rightColor: '#19B5E6', rightVariant: 1, time: '5h ago', pts: '+12' },
+  { leftName: 'Dev', leftColor: '#19B5E6', leftVariant: 3, leftWon: true, rightName: 'Riya', rightColor: '#EC4899', rightVariant: 0, time: '1d ago', pts: '+10' },
 ]
 
 const LEADERBOARD_DATA = [
@@ -3321,6 +3325,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
   const [myStudySecs, setMyStudySecs] = useState(0)
   const [oppStudySecs, setOppStudySecs] = useState(0)
   const [winner, setWinner] = useState<'you' | 'opponent' | null>(null)
+  const [userWins, setUserWins] = useState(0)
+  const [recentBattles, setRecentBattles] = useState<{ oppName: string; oppColor: string; oppVariant: number; won: boolean; time: string; pts: string }[]>([])
   const [showFullLeaderboard, setShowFullLeaderboard] = useState(false)
   const [showAllTrophies, setShowAllTrophies] = useState(false)
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([
@@ -3360,7 +3366,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     const name = inviteInput.trim()
     if (!name) return
     const bot = BATTLE_BOTS.find(b => b.name.toLowerCase() === name.toLowerCase()) ||
-      { name, color: '#7C3AED', variant: 0 }
+      { name, color: '#7C4DFF', variant: 0 }
     setOpponent(bot)
     setPhase('invite-sent')
     setInviteInput('')
@@ -3383,9 +3389,18 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     setPhase('active')
   }
 
+  function recordBattle(won: boolean) {
+    if (!opponent) return
+    const now = new Date()
+    const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`
+    setRecentBattles(prev => [{ oppName: opponent.name, oppColor: opponent.color, oppVariant: opponent.variant, won, time: timeStr, pts: won ? '+15' : '+5' }, ...prev.slice(0, 9)])
+    if (won) setUserWins(w => w + 1)
+  }
+
   function endMyTimer() {
     setPhase('finished')
     setWinner('opponent')
+    recordBattle(false)
   }
 
   function cancelInvite() {
@@ -3398,30 +3413,27 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     setBattleSecs(0); setMyStudySecs(0); setOppStudySecs(0)
   }
 
-  const TROPHY_TIERS = [
-    { label: 'First Battle', sub: '1 win', tier: 'Bronze', emoji: '🏆', color: '#CD7F32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
-    { label: '5 Wins', sub: '5 battles', tier: 'Silver', emoji: '🏆', color: '#C0C0C0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
-    { label: '10 Wins', sub: '10 battles', tier: 'Gold', emoji: '🏆', color: '#FFD700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.4)' },
-    { label: '20 Wins', sub: '20 battles', tier: 'Diamond', emoji: '💎', color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
-  ]
+  // Trophies earned by user based on battle count
+  const BATTLE_MILESTONES = [1, 10, 30, 60]
+  const earnedTrophies = TROPHY_TIERS.filter((_, i) => userWins >= BATTLE_MILESTONES[i])
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>BATTLEGROUND</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >BATTLEGROUND</div>
             <div className="text-sm font-semibold text-slate-200">Challenge. Compete. Win.</div>
           </div>
           <div className="relative p-2 text-slate-400">
             <Ico n="bell" cls="w-5 h-5" />
             {pendingInvites.length > 0 && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: '#7C3AED' }}>{pendingInvites.length}</div>
+              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]" >{pendingInvites.length}</div>
             )}
           </div>
           <UserAvatar size={32} />
@@ -3431,7 +3443,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           {/* Page title */}
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg,rgba(124,58,237,0.35),rgba(99,102,241,0.25))', border: '1px solid rgba(124,58,237,0.5)', boxShadow: '0 0 20px rgba(124,58,237,0.25)' }}>
+              style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>
               ⚔️
             </div>
             <div>
@@ -3442,15 +3454,15 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
           {/* ── Invitations Inbox ── */}
           {pendingInvites.length > 0 && (
-            <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.35)' }}>
+            <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
               <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
                 <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
                 <div className="text-sm font-bold text-white">Battle Invitations</div>
-                <div className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(124,58,237,0.2)', color: '#C4B5FD' }}>{pendingInvites.length} pending</div>
+                <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]" >{pendingInvites.length} pending</div>
               </div>
               <div className="px-4 pb-4 space-y-2">
                 {pendingInvites.map(inv => (
-                  <div key={inv.id} className="flex items-center gap-3 p-3.5 rounded-xl border" style={{ background: 'rgba(124,58,237,0.06)', borderColor: 'rgba(124,58,237,0.25)' }}>
+                  <div key={inv.id} className="flex items-center gap-3 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[#1A2845]" >
                     <BattleAvatar color={inv.color} variant={inv.variant} size={40} glow />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-bold text-white">{inv.name}</span>
@@ -3458,11 +3470,11 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <button onClick={() => rejectInvite(inv.id)}
-                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border text-slate-400 hover:text-slate-200 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Reject</button>
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                        >Reject</button>
                       <button onClick={() => acceptInvite(inv)}
                         className="px-3 py-1.5 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-90"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 12px rgba(124,58,237,0.35)' }}>Accept ⚔️</button>
+                        style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>Accept ⚔️</button>
                     </div>
                   </div>
                 ))}
@@ -3472,19 +3484,19 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
           {/* ── Active Battle Card ── */}
           <div className="rounded-2xl border overflow-hidden relative"
-            style={{ background: 'linear-gradient(160deg,#080B1A,#12083A,#080E28)', borderColor: 'rgba(124,58,237,0.5)', boxShadow: '0 0 40px rgba(124,58,237,0.15)' }}>
+            style={{ background: 'linear-gradient(160deg,#080B1A,#12083A,#080E28)', borderColor: '#4A3A88', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
             <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at 20% 50%,rgba(34,211,238,0.07),transparent 55%), radial-gradient(ellipse at 80% 50%,rgba(236,72,153,0.07),transparent 55%)' }} />
+              style={{ background: 'radial-gradient(ellipse at 20% 50%,rgba(25,181,230,0.07),transparent 55%), radial-gradient(ellipse at 80% 50%,rgba(236,72,153,0.07),transparent 55%)' }} />
 
             {/* Badge row */}
             <div className="flex items-center justify-between px-5 pt-4 pb-2 relative z-10">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-                style={{ background: phase === 'active' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)', border: `1px solid ${phase === 'active' ? 'rgba(239,68,68,0.35)' : 'rgba(124,58,237,0.3)'}`, color: phase === 'active' ? '#FCA5A5' : '#C4B5FD' }}>
+                style={{ background: phase === 'active' ? 'rgba(239,68,68,0.15)' : 'rgba(26,40,69,0.55)', border: `1px solid ${phase === 'active' ? 'rgba(239,68,68,0.35)' : '#1E3060'}`, color: phase === 'active' ? '#FCA5A5' : '#C4AAFF' }}>
                 {phase === 'active' ? '🔥 Battle Live' : phase === 'finished' ? '🏁 Battle Ended' : '⚔️ Battle Arena'}
               </div>
               {phase === 'active' && (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-                  style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', color: '#34D399' }}>
+                  style={{ background: 'rgba(25,211,162,0.10)', border: '1px solid rgba(25,211,162,0.30)', color: '#19D3A2' }}>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
                   Live Now
                 </div>
@@ -3494,16 +3506,16 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             {/* Finished overlay */}
             {phase === 'finished' && winner && (
               <div className="relative z-10 mx-5 mb-3 p-5 rounded-2xl border text-center"
-                style={{ background: winner === 'you' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)', borderColor: winner === 'you' ? 'rgba(52,211,153,0.4)' : 'rgba(239,68,68,0.4)' }}>
+                style={{ background: winner === 'you' ? 'rgba(25,211,162,0.10)' : 'rgba(239,68,68,0.1)', borderColor: winner === 'you' ? 'rgba(25,211,162,0.40)' : 'rgba(239,68,68,0.4)' }}>
                 <div className="text-3xl mb-1">{winner === 'you' ? '🏆' : '💔'}</div>
                 <div className="text-lg font-bold text-white">{winner === 'you' ? 'You Won!' : `${opponent?.name} Won!`}</div>
                 <div className="text-sm text-slate-400 mt-0.5">
                   {winner === 'you' ? `${opponent?.name} ended their session first.` : 'You ended your session first.'}
                 </div>
-                <div className="text-[11px] font-mono mt-2" style={{ color: '#A78BFA' }}>Battle time: {fmt(battleSecs)}</div>
+                <div className="text-[11px] font-mono mt-2 text-[#9B6CFF]" >Battle time: {fmt(battleSecs)}</div>
                 <button onClick={resetBattle}
-                  className="mt-3 px-6 py-2 rounded-full text-sm font-bold text-white transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>New Battle</button>
+                  className="mt-3 px-6 py-2 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 bg-[#7C4DFF]"
+                  >New Battle</button>
               </div>
             )}
 
@@ -3511,11 +3523,23 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             <div className="flex items-center gap-3 px-5 py-4 relative z-10">
               {/* You */}
               <div className="flex-1 flex flex-col items-center gap-2">
-                <BattleAvatar color="#7C3AED" variant={0} size={68} ringColor="#22D3EE" glow />
+                <div className="relative">
+                  <BattleAvatar color="#7C4DFF" variant={0} size={68} ringColor="#19B5E6" glow />
+                  {earnedTrophies.length > 0 && (
+                    <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+                      {earnedTrophies.slice(-2).map((t, i) => (
+                        <div key={i} className="w-6 h-6 rounded-full overflow-hidden border" style={{ borderColor: '#0B1530', filter: `drop-shadow(0 0 4px ${t.color}80)` }}>
+                          <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="text-center">
                   <div className="flex items-center gap-1.5 justify-center">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     <span className="text-base font-bold text-white">You</span>
+                    {userWins > 0 && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(124,77,255,0.15)', color: '#9B6CFF', border: '1px solid rgba(124,77,255,0.3)' }}>{userWins}W</span>}
                   </div>
                   {phase === 'active' || phase === 'finished' ? (
                     <div className="text-[11px] font-mono text-violet-300 mt-0.5">{fmt(myStudySecs)} studied</div>
@@ -3524,26 +3548,33 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   )}
                 </div>
                 {phase === 'active' && (
-                  <button onClick={endMyTimer}
-                    className="px-4 py-2 rounded-full text-[11px] font-bold transition-all hover:opacity-90 active:scale-95"
-                    style={{ background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.5)', color: '#FCA5A5', boxShadow: '0 0 12px rgba(239,68,68,0.2)' }}>
-                    🛑 End Timer
-                  </button>
+                  <div className="flex flex-col gap-1.5 items-center">
+                    <button onClick={() => { setPhase('finished'); setWinner('you'); recordBattle(true) }}
+                      className="px-4 py-2 rounded-full text-[11px] font-bold transition-all hover:opacity-90 active:scale-95"
+                      style={{ background: 'rgba(25,211,162,0.15)', border: '1px solid rgba(25,211,162,0.4)', color: '#19D3A2', boxShadow: '0 0 10px rgba(25,211,162,0.15)' }}>
+                      🏆 Declare Win
+                    </button>
+                    <button onClick={endMyTimer}
+                      className="px-4 py-1.5 rounded-full text-[10px] font-bold transition-all hover:opacity-90 active:scale-95"
+                      style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#FCA5A5' }}>
+                      🛑 End Timer
+                    </button>
+                  </div>
                 )}
               </div>
 
               {/* Center — VS + invite */}
               <div className="flex flex-col items-center gap-3 flex-shrink-0">
                 <div className="text-4xl font-black"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', background: 'linear-gradient(135deg,#7C3AED,#EC4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 0 12px rgba(124,58,237,0.5))' }}>
+                  style={{ background: 'linear-gradient(135deg,#7C4DFF,#EC4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 0 12px #4A3A88)' }}>
                   VS
                 </div>
 
                 {/* Battle timer */}
                 {(phase === 'active' || phase === 'finished') && (
-                  <div className="px-4 py-2 rounded-xl text-center" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                  <div className="px-4 py-2 rounded-xl text-center" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>
                     <div className="text-[9px] text-slate-500 font-mono mb-0.5">BATTLE TIME</div>
-                    <div className="text-base font-black text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmt(battleSecs)}</div>
+                    <div className="text-base font-black text-white" >{fmt(battleSecs)}</div>
                   </div>
                 )}
 
@@ -3552,12 +3583,12 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   <div className="flex flex-col items-center gap-2 w-48">
                     <div className="text-[10px] text-slate-500 font-mono">INVITE A USER</div>
                     <input value={inviteInput} onChange={e => setInviteInput(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 text-center focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.35)' }} placeholder="Enter username..."
+                      className="w-full px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 text-center focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                       placeholder="Enter username..."
                       onKeyDown={e => e.key === 'Enter' && sendInvite()} />
                     <button onClick={sendInvite} disabled={!inviteInput.trim()}
                       className="w-full py-2 rounded-xl text-[11px] font-bold text-white transition-all hover:opacity-90 disabled:opacity-40"
-                      style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 14px rgba(124,58,237,0.35)' }}>
+                      style={{ background: '#7C4DFF', boxShadow: '0 0 14px #1E3060' }}>
                       Send Invite ⚔️
                     </button>
                   </div>
@@ -3580,7 +3611,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                     <div className="text-[11px] text-emerald-400 font-semibold">✓ {opponent?.name} accepted!</div>
                     <button onClick={startBattle}
                       className="px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
-                      style={{ background: 'linear-gradient(135deg,#7C3AED,#EC4899)', boxShadow: '0 0 20px rgba(124,58,237,0.5)' }}>
+                      style={{ background: 'linear-gradient(135deg,#7C4DFF,#EC4899)', boxShadow: '0 0 20px #4A3A88' }}>
                       ▶ Start Battle
                     </button>
                   </div>
@@ -3604,8 +3635,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                       )}
                     </div>
                     {phase === 'active' && (
-                      <div className="px-4 py-2 rounded-full text-[11px] font-bold border"
-                        style={{ background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.25)', color: '#34D399' }}>
+                      <div className="px-4 py-2 rounded-full text-[11px] font-bold border bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.25)] text-[#19D3A2]"
+                        >
                         ⏱ Studying...
                       </div>
                     )}
@@ -3613,7 +3644,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-[68px] h-[68px] rounded-full border-2 flex items-center justify-center"
-                      style={{ borderColor: 'rgba(124,58,237,0.3)', borderStyle: 'dashed', background: 'rgba(124,58,237,0.05)' }}>
+                      style={{ borderColor: '#1E3060', borderStyle: 'dashed', background: 'rgba(124,77,255,0.08)' }}>
                       <svg viewBox="0 0 24 24" className="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M20 8v6M23 11h-6" /><circle cx="9" cy="7" r="4" /></svg>
                     </div>
                     <div className="text-[11px] text-slate-600 text-center">No opponent yet</div>
@@ -3624,41 +3655,41 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
             {/* Bottom stats */}
             {(phase === 'active' || phase === 'finished') && (
-              <div className="flex items-center mx-4 mb-4 rounded-xl border overflow-hidden relative z-10"
-                style={{ borderColor: 'rgba(124,58,237,0.2)', background: 'rgba(10,13,30,0.7)' }}>
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>
+              <div className="flex items-center mx-4 mb-4 rounded-xl border overflow-hidden relative z-10 border-[#1A2845] bg-[#0B1530]"
+                >
+                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r border-[#1A2845]" >
                   <span className="text-lg">⏱️</span>
                   <div>
                     <div className="text-[10px] text-slate-500">Battle Time</div>
-                    <div className="text-sm font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmt(battleSecs)}</div>
+                    <div className="text-sm font-bold text-white" >{fmt(battleSecs)}</div>
                   </div>
                 </div>
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>
+                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r border-[#1A2845]" >
                   <span className="text-lg">🔥</span>
                   <div>
                     <div className="text-[10px] text-slate-500">Your Study Time</div>
-                    <div className="text-sm font-bold text-violet-300" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmt(myStudySecs)}</div>
+                    <div className="text-sm font-bold text-violet-300" >{fmt(myStudySecs)}</div>
                   </div>
                 </div>
                 <div className="flex-1 flex items-center gap-2.5 px-4 py-3">
                   <span className="text-lg">⚡</span>
                   <div>
                     <div className="text-[10px] text-slate-500">{opponent?.name || "Opp"}'s Study Time</div>
-                    <div className="text-sm font-bold" style={{ fontFamily: 'JetBrains Mono, monospace', color: opponent?.color || '#22D3EE' }}>{fmt(oppStudySecs)}</div>
+                    <div className="text-sm font-bold" style={{ color: opponent?.color || '#19B5E6' }}>{fmt(oppStudySecs)}</div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ── Trophies & Rewards ── */}
-          <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          {/* ── Trophies ── */}
+          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(255,215,0,0.12)', border: '1px solid rgba(255,215,0,0.3)' }}>🏆</div>
                 <div>
-                  <div className="text-base font-bold text-white">Trophies & Rewards</div>
-                  <div className="text-[11px] text-violet-400 mt-0.5">Study more. Earn trophies. Unlock exclusive rewards.</div>
+                  <div className="text-base font-bold text-white">Trophies</div>
+                  <div className="text-[11px] text-violet-400 mt-0.5">Study more. Earn trophies.</div>
                 </div>
               </div>
               <button onClick={() => setShowAllTrophies(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
@@ -3669,61 +3700,57 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               {TROPHY_TIERS.map(t => (
                 <div key={t.tier} className="flex-1 flex flex-col items-center p-3.5 rounded-2xl border text-center"
                   style={{ background: t.bg, borderColor: t.border, boxShadow: `0 0 16px ${t.color}20` }}>
-                  <span className="text-2xl mb-1.5" style={{ filter: `drop-shadow(0 0 8px ${t.color}80)` }}>{t.emoji}</span>
+                  <div className="w-12 h-12 mb-1.5 rounded-xl overflow-hidden" style={{ filter: `drop-shadow(0 0 8px ${t.color}60)` }}>
+                    <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+                  </div>
                   <div className="text-xs font-bold text-white">{t.label}</div>
                   <div className="text-[10px] text-slate-400 mb-2">({t.sub})</div>
                   <div className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
                     style={{ background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}44` }}>{t.tier}</div>
                 </div>
               ))}
-              <div className="flex flex-col items-start justify-between p-4 rounded-2xl border min-w-[130px]"
-                style={{ background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.3)' }}>
-                <div className="text-xs font-semibold text-slate-200 leading-snug mb-3">Win battles &<br />get exclusive<br />rewards</div>
-                <div className="flex items-center gap-1.5 w-full">
-                  {['👑','👕','🎭'].map((e, i) => (
-                    <div key={i} className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
-                      style={{ background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.25)' }}>{e}</div>
-                  ))}
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center ml-auto" style={{ background: 'rgba(124,58,237,0.15)' }}>
-                    <Ico n="chevR" cls="w-3.5 h-3.5 text-violet-400" />
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
           {/* ── Recent Battles ── */}
-          <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
             <div className="flex items-center justify-between px-5 py-4">
               <div className="text-base font-bold text-white">Recent Battles</div>
-              <button className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-                See All <Ico n="chevR" cls="w-3 h-3" />
-              </button>
             </div>
             <div className="px-4 pb-4 space-y-2">
-              {RECENT_BATTLES_DATA.map((b, i) => (
-                <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl border"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.15)' }}>
+              {recentBattles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="text-3xl mb-2">⚔️</div>
+                  <div className="text-sm font-semibold text-slate-400 mb-1">No battles yet</div>
+                  <div className="text-xs text-slate-600">Challenge someone to your first battle.<br />Your match history will appear here.</div>
+                </div>
+              ) : recentBattles.map((b, i) => (
+                <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl border bg-[#0B1530] border-[rgba(26,40,69,0.55)]"
+                  >
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <BattleAvatar color={b.leftColor} variant={b.leftVariant} size={38} />
+                    <BattleAvatar color="#7C4DFF" variant={0} size={38} />
                     <div>
-                      <div className="text-sm font-bold text-white">{b.leftName}</div>
-                      <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span>🏆</span> Won</div>
+                      <div className="text-sm font-bold text-white">You</div>
+                      <div className={`flex items-center gap-1 text-[11px] ${b.won ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span>{b.won ? '🏆' : '❤️'}</span> {b.won ? 'Won' : 'Lost'}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-xs font-black text-slate-500 flex-shrink-0" style={{ fontFamily: 'JetBrains Mono, monospace' }}>VS</div>
+                  <div className="text-xs font-black text-slate-500 flex-shrink-0">VS</div>
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <BattleAvatar color={b.rightColor} variant={b.rightVariant} size={38} />
+                    <BattleAvatar color={b.oppColor} variant={b.oppVariant} size={38} />
                     <div>
-                      <div className="text-sm font-bold text-white">{b.rightName}</div>
-                      <div className="flex items-center gap-1 text-[11px] text-red-400"><span>❤️</span> Lost</div>
+                      <div className="text-sm font-bold text-white">{b.oppName}</div>
+                      <div className={`flex items-center gap-1 text-[11px] ${b.won ? 'text-red-400' : 'text-emerald-400'}`}>
+                        <span>{b.won ? '❤️' : '🏆'}</span> {b.won ? 'Lost' : 'Won'}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <div className="text-[11px] text-slate-500">{b.time}</div>
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                      style={{ background: 'rgba(255,215,0,0.1)', color: '#FFD700', border: '1px solid rgba(255,215,0,0.25)' }}>
-                      🏆 {b.pts}
+                      style={{ background: b.won ? 'rgba(25,211,162,0.1)' : 'rgba(239,68,68,0.08)', color: b.won ? '#19D3A2' : '#FCA5A5', border: `1px solid ${b.won ? 'rgba(25,211,162,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
+                      {b.pts}
                     </div>
                   </div>
                 </div>
@@ -3732,30 +3759,57 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           </div>
 
           {/* ── Leaderboard ── */}
-          <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
             <div className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-2"><span className="text-lg">🏆</span><div className="text-base font-bold text-white">Leaderboard</div></div>
-              <button onClick={() => setShowFullLeaderboard(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-                View Full Leaderboard <Ico n="chevR" cls="w-3 h-3" />
-              </button>
+              {userWins > 0 && <button onClick={() => setShowFullLeaderboard(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
+                View Full <Ico n="chevR" cls="w-3 h-3" />
+              </button>}
             </div>
-            <div className="flex items-end gap-3 px-5 pb-5">
-              {LEADERBOARD_DATA.map((p, i) => (
-                <div key={i} className={`flex-1 flex flex-col items-center gap-2.5 p-4 rounded-2xl border`}
-                  style={{ background: p.isFirst ? 'linear-gradient(160deg,rgba(245,158,11,0.12),rgba(251,191,36,0.06))' : 'rgba(14,21,40,0.5)', borderColor: p.isFirst ? 'rgba(245,158,11,0.5)' : 'rgba(124,58,237,0.2)', boxShadow: p.isFirst ? '0 0 24px rgba(245,158,11,0.15)' : 'none' }}>
-                  {p.isFirst && <span className="text-xl">👑</span>}
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ background: p.rank === 1 ? 'rgba(255,215,0,0.2)' : p.rank === 2 ? 'rgba(192,192,192,0.15)' : 'rgba(205,127,50,0.15)', color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : '#CD7F32', border: `1.5px solid ${p.rank === 1 ? '#FFD70060' : p.rank === 2 ? '#C0C0C060' : '#CD7F3260'}` }}>
-                    {p.rank}
-                  </div>
-                  <BattleAvatar color={p.color} variant={p.variant} size={52} glow={p.isFirst} />
-                  <div className="text-center">
-                    <div className="text-sm font-bold text-white">{p.name}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{p.wins} wins · {p.streak} streak</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {userWins === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center px-5 pb-5">
+                <div className="text-3xl mb-2">🏅</div>
+                <div className="text-sm font-semibold text-slate-400 mb-1">No rankings yet</div>
+                <div className="text-xs text-slate-600">Win your first battle to appear<br />on the leaderboard.</div>
+              </div>
+            ) : (
+              <div className="flex items-end gap-3 px-5 pb-5">
+                {(() => {
+                  const userEntry = { rank: 0, name: 'You', wins: userWins, streak: recentBattles.filter(b => b.won).length, color: '#7C4DFF', variant: 0, isMe: true }
+                  const allPlayers = [...LEADERBOARD_DATA, userEntry]
+                    .sort((a, b) => b.wins - a.wins)
+                    .map((p, i) => ({ ...p, rank: i + 1 }))
+                    .slice(0, 3)
+                  return allPlayers.map((p, i) => {
+                    const isFirst = p.rank === 1
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-2.5 p-4 rounded-2xl border"
+                        style={{ background: isFirst ? 'linear-gradient(160deg,rgba(245,158,11,0.12),rgba(251,191,36,0.06))' : '#0B1530', borderColor: isFirst ? 'rgba(245,158,11,0.5)' : '#1A2845', boxShadow: isFirst ? '0 0 24px rgba(245,158,11,0.15)' : 'none' }}>
+                        {isFirst && <span className="text-xl">👑</span>}
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ background: p.rank === 1 ? 'rgba(255,215,0,0.2)' : p.rank === 2 ? 'rgba(192,192,192,0.15)' : 'rgba(205,127,50,0.15)', color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : '#CD7F32', border: `1.5px solid ${p.rank === 1 ? '#FFD70060' : p.rank === 2 ? '#C0C0C060' : '#CD7F3260'}` }}>
+                          {p.rank}
+                        </div>
+                        <div className="relative">
+                          <BattleAvatar color={p.color} variant={p.variant} size={52} glow={isFirst} />
+                          {'isMe' in p && p.isMe && earnedTrophies.length > 0 && (
+                            <div className="absolute -bottom-1 -right-1">
+                              <div className="w-5 h-5 rounded-full overflow-hidden border border-[#0B1530]" >
+                                <img src={earnedTrophies[earnedTrophies.length - 1].img} alt="trophy" className="w-full h-full object-contain" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <div className="text-sm font-bold" style={{ color: 'isMe' in p && p.isMe ? '#C4B5FD' : 'white' }}>{p.name}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{p.wins} wins · {p.streak} streak</div>
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            )}
           </div>
           <div className="h-4" />
         </main>
@@ -3763,10 +3817,10 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
       {/* ── Full Leaderboard Modal ── */}
       {showFullLeaderboard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.78)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowFullLeaderboard(false) }}>
           <div className="rounded-2xl border p-7 w-[440px] max-h-[80vh] overflow-y-auto"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.45)', boxShadow: '0 0 60px rgba(124,58,237,0.2)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px #1A2845' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">RANKINGS</div>
               <div className="text-lg font-bold text-white">Full Leaderboard</div>
@@ -3776,15 +3830,15 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 { rank: 1, name: 'Aryan', wins: 12, streak: 8, pts: 1240, color: '#F59E0B', variant: 1 },
                 { rank: 2, name: 'Meera', wins: 10, streak: 6, pts: 1020, color: '#A855F7', variant: 2 },
                 { rank: 3, name: 'Nain', wins: 8, streak: 5, pts: 850, color: '#3B82F6', variant: 3 },
-                { rank: 4, name: 'You', wins: 5, streak: 3, pts: 620, color: '#7C3AED', variant: 0 },
-                { rank: 5, name: 'Dev', wins: 4, streak: 2, pts: 480, color: '#06B6D4', variant: 3 },
+                { rank: 4, name: 'You', wins: 5, streak: 3, pts: 620, color: '#7C4DFF', variant: 0 },
+                { rank: 5, name: 'Dev', wins: 4, streak: 2, pts: 480, color: '#19B5E6', variant: 3 },
                 { rank: 6, name: 'Riya', wins: 3, streak: 1, pts: 310, color: '#EC4899', variant: 0 },
-                { rank: 7, name: 'Arjun', wins: 2, streak: 0, pts: 200, color: '#22D3EE', variant: 1 },
+                { rank: 7, name: 'Arjun', wins: 2, streak: 0, pts: 200, color: '#19B5E6', variant: 1 },
               ].map(p => (
                 <div key={p.rank} className="flex items-center gap-3 p-3 rounded-xl border"
-                  style={{ background: p.name === 'You' ? 'rgba(124,58,237,0.1)' : 'rgba(14,21,40,0.5)', borderColor: p.name === 'You' ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.15)' }}>
+                  style={{ background: p.name === 'You' ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: p.name === 'You' ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : p.rank === 3 ? '#CD7F32' : '#64748B' }}>
+                    style={{ color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : p.rank === 3 ? '#CD7F32' : '#4E5E84' }}>
                     {p.rank}
                   </div>
                   <BattleAvatar color={p.color} variant={p.variant} size={36} />
@@ -3793,37 +3847,36 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                     <div className="text-[10px] text-slate-400">{p.wins} wins · {p.streak} streak</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="text-sm font-bold" style={{ color: '#FFD700' }}>{p.pts}</div>
+                    <div className="text-sm font-bold text-[#FFD700]" >{p.pts}</div>
                     <div className="text-[10px] text-slate-500">pts</div>
                   </div>
                 </div>
               ))}
             </div>
             <button onClick={() => setShowFullLeaderboard(false)}
-              className="w-full mt-5 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Close</button>
+              className="w-full mt-5 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+              >Close</button>
           </div>
         </div>
       )}
 
       {/* ── All Trophies Modal ── */}
       {showAllTrophies && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.78)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowAllTrophies(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.45)', boxShadow: '0 0 60px rgba(124,58,237,0.2)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px #1A2845' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">TROPHIES</div>
               <div className="text-lg font-bold text-white">All Trophies & Rewards</div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-5">
-              {[...TROPHY_TIERS,
-                { label: '50 Wins', sub: '50 battles', tier: 'Platinum', emoji: '🏅', color: '#67E8F9', bg: 'rgba(103,232,249,0.08)', border: 'rgba(103,232,249,0.25)' },
-                { label: '100 Wins', sub: '100 battles', tier: 'Legend', emoji: '⭐', color: '#A78BFA', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.35)' },
-              ].map(t => (
+              {TROPHY_TIERS.map(t => (
                 <div key={t.tier} className="flex items-center gap-3 p-3.5 rounded-xl border"
                   style={{ background: t.bg, borderColor: t.border }}>
-                  <span className="text-2xl">{t.emoji}</span>
+                  <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ filter: `drop-shadow(0 0 6px ${t.color}50)` }}>
+                    <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+                  </div>
                   <div>
                     <div className="text-xs font-bold text-white">{t.label}</div>
                     <div className="text-[9px] text-slate-400">{t.sub}</div>
@@ -3834,8 +3887,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               ))}
             </div>
             <button onClick={() => setShowAllTrophies(false)}
-              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Close</button>
+              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+              >Close</button>
           </div>
         </div>
       )}
