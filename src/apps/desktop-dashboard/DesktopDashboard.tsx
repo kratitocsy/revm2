@@ -4729,28 +4729,28 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
     ]
     const EXAMPLE_SUB_HEADS = [
       { name: "Aryan Tiwari", code: "WYNKO-ARYAN-HEAD", members: 12, revenue: "₹18,400", myShare: "₹1,840", avatar: "#EC4899", init: "AT" },
-      { name: "Komal Singh", code: "WYNKO-KOMAL-HEAD", members: 7, revenue: "₹9,600", myShare: "₹960", avatar: "#6366F1", init: "KS" },
+      { name: "Komal Singh", code: "WYNKO-KOMAL-HEAD", members: 7, revenue: "₹9,600", myShare: "₹960", avatar: "#7C4DFF", init: "KS" },
     ]
 
     return (
-      <div className="flex h-screen overflow-hidden" style={{ background: "#06080F", fontFamily: "Poppins, sans-serif" }}>
+      <div className="flex h-screen overflow-hidden bg-[#020615]" >
         <Sidebar active="earn" setActive={onNavigate} profile={profile} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-            style={{ background: "rgba(6,8,15,0.95)", borderColor: "rgba(124,58,237,0.15)" }}>
+          <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+            >
             <button onClick={() => setInLibrary(false)} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Back
             </button>
             <div className="flex-1">
-              <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: "JetBrains Mono, monospace" }}>WYNKOHEAD LIBRARY</div>
+              <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOHEAD LIBRARY</div>
               <div className="text-sm font-semibold text-slate-200">Your community dashboard</div>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border" style={{ background: "rgba(245,158,11,0.1)", borderColor: "rgba(245,158,11,0.3)" }}>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
               <span className="text-base">🪙</span>
-              <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
+              <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
               <span className="text-[10px] text-amber-500">WYNKOINS</span>
             </div>
-            <UserAvatar size={32} />
+          <UserAvatar size={32} />
           </header>
 
           <main className="flex-1 overflow-y-auto px-6 py-5">
@@ -4759,12 +4759,12 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
               <div className="flex-1 min-w-0 space-y-4">
 
                 {/* Share link */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">YOUR WYNKOHEAD INVITE LINK</div>
                   <div className="text-[11px] text-slate-500 mb-3">Share this link — anyone who joins Wynko via this link is added to your community.</div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3" style={{ background: "rgba(14,21,40,0.6)", borderColor: "rgba(124,58,237,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
                     <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoHeadLink}</span>
+                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" >{wynkoHeadLink}</span>
                     <button onClick={copyHeadLink} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
                       {headLinkCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -4782,10 +4782,10 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Community */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400">YOUR COMMUNITY</div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border" style={{ color: "#A78BFA", background: "rgba(124,58,237,0.1)", borderColor: "rgba(124,58,237,0.3)" }}>{communityMembers.length} members</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#9B6CFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]" >{communityMembers.length} members</span>
                   </div>
                   <div className="text-[11px] text-slate-500 mb-4">Only users who joined Wynko via your link appear here.</div>
 
@@ -4798,44 +4798,44 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                   ) : (
                     <div className="space-y-2">
                       {communityMembers.map((m, i) => (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border" style={{ background: "rgba(14,21,40,0.5)", borderColor: "rgba(124,58,237,0.12)" }}>
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[#0B1530] border-[rgba(26,40,69,0.55)]" >
                           <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#7C3AED,#06B6D4)" }}>
+                            style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)" }}>
                             {m.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1">
                             <div className="text-sm font-semibold text-slate-200">{m.name}</div>
                             <div className="text-[10px] text-slate-500 font-mono">Joined {m.joined}</div>
                           </div>
-                          <div className="px-2 py-0.5 rounded-full text-[9px] font-bold border" style={{ color: "#34D399", background: "rgba(52,211,153,0.1)", borderColor: "rgba(52,211,153,0.3)" }}>ACTIVE</div>
+                          <div className="px-2 py-0.5 rounded-full text-[9px] font-bold border text-[#19D3A2] bg-[rgba(25,211,162,0.10)] border-[rgba(25,211,162,0.30)]" >ACTIVE</div>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {/* Dev helper: simulate a user joining */}
-                  <div className="mt-4 pt-4 border-t flex gap-2 items-center" style={{ borderColor: "rgba(124,58,237,0.1)" }}>
+                  <div className="mt-4 pt-4 border-t flex gap-2 items-center border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[9px] text-slate-600 flex-shrink-0 font-mono">SIMULATE JOIN (DEMO)</div>
                     <input value={simName} onChange={e => setSimName(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && addSimMember()}
                       placeholder="Enter a name to simulate..."
-                      className="flex-1 px-3 py-1.5 rounded-lg border bg-transparent text-[11px] text-slate-300 outline-none placeholder-slate-700"
-                      style={{ borderColor: "rgba(124,58,237,0.2)" }} />
+                      className="flex-1 px-3 py-1.5 rounded-lg border bg-transparent text-[11px] text-slate-300 outline-none placeholder-slate-700 border-[#1A2845]"
+                       />
                     <button onClick={addSimMember}
-                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-violet-300 border hover:border-violet-500/50 transition-all"
-                      style={{ borderColor: "rgba(124,58,237,0.3)" }}>Add</button>
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-violet-300 border hover:border-violet-500/50 transition-all border-[#1E3060]"
+                      >Add</button>
                   </div>
                 </div>
 
                 {/* Sub WynkoHeads */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">SUB-WYNKOHEADS</div>
                   <div className="text-[11px] text-slate-500 mb-3">Share your WynkoHead code. If another creator registers as WynkoHead using your code, you earn 10% from their community revenue.</div>
 
                   {/* Share code */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-4" style={{ background: "rgba(14,21,40,0.6)", borderColor: "rgba(34,211,238,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-4 bg-[#0B1530] border-[rgba(25,181,230,0.25)]" >
                     <span className="text-cyan-400">👑</span>
-                    <span className="text-sm font-bold text-slate-200 flex-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{subHeadCode}</span>
+                    <span className="text-sm font-bold text-slate-200 flex-1" >{subHeadCode}</span>
                     <button onClick={copySubCode} className="text-slate-500 hover:text-cyan-400 transition-colors p-1">
                       {subCodeCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -4848,7 +4848,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
                   <div className="space-y-2">
                     {EXAMPLE_SUB_HEADS.map((sh, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl border" style={{ background: "rgba(6,182,212,0.04)", borderColor: "rgba(34,211,238,0.15)" }}>
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[rgba(25,181,230,0.04)] border-[rgba(25,181,230,0.15)]" >
                         <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
                           style={{ background: `linear-gradient(135deg,${sh.avatar},${sh.avatar}88)` }}>{sh.init}</div>
                         <div className="flex-1 min-w-0">
@@ -4865,7 +4865,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Community revenue detail */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">REVENUE BREAKDOWN — EXAMPLE</div>
                   <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
                     ⚠ THESE ARE EXAMPLE EARNINGS — YOUR ACTUAL NUMBERS WILL APPEAR AS YOUR COMMUNITY GROWS
@@ -4876,12 +4876,12 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       { icon: "🔗", label: "Sub-WynkoHead revenue", price: "₹28,000", earn: "₹2,800", note: "10% share" },
                       { icon: "📚", label: "Study Pack purchase", price: "₹500", earn: "₹250", note: "50% share" },
                     ].map(ex => (
-                      <div key={ex.label} className="flex-1 p-3.5 rounded-xl border" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
+                      <div key={ex.label} className="flex-1 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="text-xl mb-2">{ex.icon}</div>
                         <div className="text-[11px] font-bold text-slate-300 mb-0.5">{ex.label}</div>
                         <div className="text-[10px] text-slate-500">{ex.price} · {ex.note}</div>
-                        <div className="mt-2 pt-2 border-t text-[11px]" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-                          You earn: <span className="font-bold" style={{ color: "#34D399" }}>{ex.earn}</span>
+                        <div className="mt-2 pt-2 border-t text-[11px] border-[rgba(26,40,69,0.55)]" >
+                          You earn: <span className="font-bold text-[#19D3A2]" >{ex.earn}</span>
                         </div>
                       </div>
                     ))}
@@ -4892,59 +4892,59 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
               {/* Right sidebar — earnings */}
               <div className="w-68 flex-shrink-0 space-y-4" style={{ width: "268px" }}>
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
                   <div className="flex items-center gap-2 mb-4">
                     <span>👑</span>
                     <span className="text-sm font-bold text-white">Your Earnings</span>
                     <span className="text-[9px] text-amber-500 ml-1">[EXAMPLE]</span>
                   </div>
-                  <div className="text-4xl font-black text-white mb-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{totalEarned}</div>
+                  <div className="text-4xl font-black text-white mb-1" >{totalEarned}</div>
                   <div className="text-[10px] text-amber-500 mb-3 font-mono">EXAMPLE — grows as your community grows</div>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 rounded-xl border" style={{ background: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.2)" }}>
+                    <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(245,158,11,0.06)] border-[rgba(245,158,11,0.2)]" >
                       <div className="flex items-center gap-2"><span>⏱️</span><span className="text-[11px] text-slate-400">Pending confirmation</span></div>
                       <span className="text-sm font-bold text-amber-400">{pending}</span>
                     </div>
-                    <div className="flex items-center justify-between p-3 rounded-xl border" style={{ background: "rgba(52,211,153,0.06)", borderColor: "rgba(52,211,153,0.2)" }}>
+                    <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(25,211,162,0.06)] border-[rgba(25,211,162,0.20)]" >
                       <div className="flex items-center gap-2"><span>💳</span><span className="text-[11px] text-slate-400">Available to withdraw</span></div>
                       <span className="text-sm font-bold text-emerald-400">{available}</span>
                     </div>
                   </div>
                   <button className="w-full mt-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg,#7C3AED,#4F46E5)", boxShadow: "0 0 16px rgba(124,58,237,0.3)" }}>
+                    style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)", boxShadow: "0 0 16px #1E3060" }}>
                     Withdraw Earnings
                   </button>
                 </div>
 
                 {/* WYNKOINS */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(245,158,11,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">WYNKOINS</span></div>
-                  <div className="text-4xl font-black text-amber-400 mb-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</div>
+                  <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
                   <div className="text-[11px] text-slate-500 mb-3">Earned from friend invites</div>
                   <div className="space-y-1.5 text-[11px]">
                     {[
-                      { label: "Friend streak bonus", coins: "+50 (EXAMPLE)", color: "#34D399" },
-                      { label: "Welcome bonus", coins: "+100 (REAL)", color: "#A78BFA" },
+                      { label: "Friend streak bonus", coins: "+50 (EXAMPLE)", color: "#19D3A2" },
+                      { label: "Welcome bonus", coins: "+100 (REAL)", color: "#9B6CFF" },
                     ].map((e, i) => (
-                      <div key={i} className="flex items-center justify-between py-1.5 border-b" style={{ borderColor: "rgba(245,158,11,0.1)" }}>
+                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
                         <span className="text-slate-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
                   </div>
-                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10"
-                    style={{ borderColor: "rgba(245,158,11,0.3)" }}>Redeem WYNKOINS</button>
+                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
+                    >Redeem WYNKOINS</button>
                 </div>
 
-                <div className="rounded-2xl border p-4" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-4 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">COMMUNITY STATS</div>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: "Members", val: String(communityMembers.length), color: "#C4B5FD" },
-                      { label: "Sub-WynkoHeads", val: "0", color: "#67E8F9" },
+                      { label: "Members", val: String(communityMembers.length), color: "#C4AAFF" },
+                      { label: "Sub-WynkoHeads", val: "0", color: "#7DD8F0" },
                     ].map(s => (
-                      <div key={s.label} className="p-3 rounded-xl border text-center" style={{ borderColor: "rgba(124,58,237,0.15)", background: "rgba(14,21,40,0.4)" }}>
-                        <div className="text-xl font-black" style={{ color: s.color, fontFamily: "JetBrains Mono, monospace" }}>{s.val}</div>
+                      <div key={s.label} className="p-3 rounded-xl border text-center border-[rgba(26,40,69,0.55)] bg-[#0B1530]" >
+                        <div className="text-xl font-black" style={{ color: s.color }}>{s.val}</div>
                         <div className="text-[10px] text-slate-500 mt-0.5">{s.label}</div>
                       </div>
                     ))}
@@ -4960,21 +4960,21 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
   // ── Main Earn Page ──
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#06080F", fontFamily: "Poppins, sans-serif" }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="earn" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: "rgba(6,8,15,0.95)", borderColor: "rgba(124,58,237,0.15)" }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate("home")} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: "JetBrains Mono, monospace" }}>EARN WITH WYNKO</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >EARN WITH WYNKO</div>
             <div className="text-sm font-semibold text-slate-200">Build your community. Share the revenue.</div>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border" style={{ background: "rgba(245,158,11,0.1)", borderColor: "rgba(245,158,11,0.3)" }}>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
             <span className="text-base">🪙</span>
-            <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
+            <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
             <span className="text-[10px] text-amber-500">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
@@ -4982,11 +4982,11 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
         <main className="flex-1 overflow-y-auto">
           {/* Hero — no revenue split visual */}
-          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#080B1A 0%,#12083A 55%,#080B1A 100%)", borderBottom: "1px solid rgba(124,58,237,0.2)" }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,rgba(124,58,237,0.22),transparent 65%)" }} />
+          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#080B1A 0%,#12083A 55%,#080B1A 100%)", borderBottom: "1px solid #1A2845" }}>
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,#1A2845,transparent 65%)" }} />
             <div className="relative z-10">
               <div className="text-[10px] font-mono tracking-[0.28em] text-violet-400 mb-3">EARN WITH WYNKO</div>
-              <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C3AED,#06B6D4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
+              <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
               <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Grow your network — earn from your network's WynkoHeads too. Or simply invite friends and earn WYNKOINS together.</p>
               <div className="flex gap-6 flex-wrap">
                 {[
@@ -4996,9 +4996,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 ].map(f => (
                   <div key={f.label} className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                      style={{ background: "rgba(124,58,237,0.18)", border: "1px solid rgba(124,58,237,0.35)" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
+                      style={{ background: "rgba(26,40,69,0.55)", border: "1px solid #1E3060" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
                     <div>
-                      <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#C4B5FD,#67E8F9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
+                      <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#C4AAFF,#7DD8F0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
                       <div className="text-[10px] text-slate-500">{f.label}</div>
                     </div>
                   </div>
@@ -5008,7 +5008,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
           </div>
 
           {/* Tab switcher */}
-          <div className="flex items-center gap-1 px-6 py-3 border-b" style={{ borderColor: "rgba(124,58,237,0.12)" }}>
+          <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(26,40,69,0.55)]" >
             {([
               { id: "wynkohead" as EarnTab, icon: "👑", label: "WynkoHead Program" },
               { id: "invite" as EarnTab, icon: "🎁", label: "Invite a Friend" },
@@ -5016,9 +5016,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
                 style={{
-                  background: tab === t.id ? "rgba(124,58,237,0.15)" : "transparent",
-                  color: tab === t.id ? "#C4B5FD" : "#64748B",
-                  border: "1px solid " + (tab === t.id ? "rgba(124,58,237,0.35)" : "transparent"),
+                  background: tab === t.id ? "rgba(26,40,69,0.55)" : "transparent",
+                  color: tab === t.id ? "#C4AAFF" : "#4E5E84",
+                  border: "1px solid " + (tab === t.id ? "#1E3060" : "transparent"),
                 }}>
                 {t.icon} {t.label}
               </button>
@@ -5031,7 +5031,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             {tab === "wynkohead" && (
               <div className="space-y-4">
                 {/* How it works */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">HOW WYNKOHEAD WORKS</div>
                   <div className="grid grid-cols-3 gap-4">
                     {[
@@ -5039,10 +5039,10 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
                       { n: "3", icon: "🔗", title: "Grow Sub-WynkoHeads", desc: "Share your WynkoHead code to other creators. When they register using it, you earn 10% from their community revenue too." },
                     ].map(s => (
-                      <div key={s.n} className="p-4 rounded-xl border" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
+                      <div key={s.n} className="p-4 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#7C3AED,#4F46E5)" }}>{s.n}</div>
+                            style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)" }}>{s.n}</div>
                           <span className="text-xl">{s.icon}</span>
                         </div>
                         <div className="text-sm font-bold text-white mb-1.5">{s.title}</div>
@@ -5054,7 +5054,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
                 {/* Register / Open Library CTA */}
                 {!isWynkoHead ? (
-                  <div className="rounded-2xl border overflow-hidden" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.35)" }}>
+                  <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
                     {!registering ? (
                       <div className="p-6 flex items-center justify-between gap-6">
                         <div>
@@ -5064,7 +5064,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                         </div>
                         <button onClick={() => setRegistering(true)}
                           className="flex-shrink-0 px-6 py-3 rounded-xl text-white font-bold text-sm transition-all hover:scale-[1.03]"
-                          style={{ background: "linear-gradient(135deg,#7C3AED,#4F46E5)", boxShadow: "0 0 28px rgba(124,58,237,0.45)" }}>
+                          style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)", boxShadow: "0 0 28px #2855CC" }}>
                           👑 Register as WynkoHead
                         </button>
                       </div>
@@ -5076,23 +5076,23 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                             <div className="text-[10px] text-slate-500 mb-1.5">FULL NAME *</div>
                             <input value={regName} onChange={e => setRegName(e.target.value)}
                               placeholder="Your full name"
-                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                              style={{ borderColor: "rgba(124,58,237,0.3)" }} />
+                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                               />
                           </div>
                           <div>
                             <div className="text-[10px] text-slate-500 mb-1.5">PHONE / SOCIAL HANDLE (optional)</div>
                             <input value={regPhone} onChange={e => setRegPhone(e.target.value)}
                               placeholder="+91 or @handle"
-                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                              style={{ borderColor: "rgba(124,58,237,0.3)" }} />
+                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                               />
                           </div>
                           <div className="flex gap-3 pt-1">
                             <button onClick={() => setRegistering(false)}
-                              className="px-4 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                              style={{ borderColor: "rgba(124,58,237,0.2)" }}>Cancel</button>
+                              className="px-4 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                              >Cancel</button>
                             <button onClick={handleRegister}
                               className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
-                              style={{ background: regName.trim() ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : "rgba(14,21,40,0.7)", opacity: regName.trim() ? 1 : 0.5 }}>
+                              style={{ background: regName.trim() ? "linear-gradient(135deg,#7C4DFF,#6B44EE)" : "#0B1530", opacity: regName.trim() ? 1 : 0.5 }}>
                               Complete Registration →
                             </button>
                           </div>
@@ -5103,9 +5103,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 ) : (
                   <button onClick={() => setInLibrary(true)}
                     className="w-full flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
-                    style={{ background: "linear-gradient(135deg,rgba(124,58,237,0.18),rgba(79,70,229,0.12))", borderColor: "rgba(124,58,237,0.45)", boxShadow: "0 0 32px rgba(124,58,237,0.12)" }}>
+                    style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(124,58,237,0.25)", border: "1px solid rgba(124,58,237,0.5)" }}>👑</div>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
                       <div className="text-left">
                         <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
                         <div className="text-[11px] text-slate-400">{communityMembers.length} community members · your dashboard</div>
@@ -5121,7 +5121,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             {tab === "invite" && (
               <div className="space-y-4">
                 {/* How it works */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">HOW FRIEND INVITES WORK</div>
                   <div className="flex gap-4">
                     {[
@@ -5130,14 +5130,14 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       { icon: "🔥", title: "3-Day Streak", desc: "They study for 3 consecutive days on Wynko." },
                       { icon: "🪙", title: "Both Get WYNKOINS", desc: "You and your friend each receive WYNKOINS instantly!" },
                     ].map((s, i) => (
-                      <div key={i} className="flex-1 p-3.5 rounded-xl border text-center" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
+                      <div key={i} className="flex-1 p-3.5 rounded-xl border text-center bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="text-2xl mb-2 flex justify-center">{s.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-7 h-7 object-contain" /> : s.icon}</div>
                         <div className="text-[12px] font-bold text-white mb-1">{s.title}</div>
                         <div className="text-[10px] text-slate-400 leading-relaxed">{s.desc}</div>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center gap-4 p-4 rounded-xl border" style={{ background: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.25)" }}>
+                  <div className="mt-4 flex items-center gap-4 p-4 rounded-xl border bg-[rgba(245,158,11,0.06)] border-[rgba(245,158,11,0.25)]" >
                     <span className="text-3xl">🪙</span>
                     <div>
                       <div className="text-sm font-bold text-amber-300">WYNKOINS Reward</div>
@@ -5147,11 +5147,11 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Referral link */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">YOUR INVITE LINK</div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3" style={{ background: "rgba(14,21,40,0.6)", borderColor: "rgba(124,58,237,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
                     <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold" style={{ fontFamily: "JetBrains Mono, monospace" }}>{friendLink}</span>
+                    <span className="text-sm text-slate-200 flex-1 font-bold" >{friendLink}</span>
                     <button onClick={copyFriend} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
                       {friendCopied ? <span className="text-[10px] text-emerald-400">✓ Copied!</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -5169,7 +5169,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Friend tracking — clearly labeled */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400">FRIENDS YOU INVITED</div>
                   </div>
@@ -5182,26 +5182,26 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* WYNKOINS balance */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(245,158,11,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">Your WYNKOINS</span></div>
-                  <div className="text-4xl font-black text-amber-400 mb-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</div>
+                  <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
                   <div className="text-[11px] text-slate-500 mb-3">Earned from friend invites and bonuses</div>
                   <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
                     ⚠ BREAKDOWN BELOW IS FOR EXAMPLE — YOUR REAL HISTORY WILL APPEAR AS YOU INVITE FRIENDS
                   </div>
                   <div className="space-y-1.5 text-[11px]">
                     {[
-                      { label: "Friend streak bonus (EXAMPLE)", coins: "+50", color: "#34D399" },
-                      { label: "Welcome bonus (REAL)", coins: "+100", color: "#A78BFA" },
+                      { label: "Friend streak bonus (EXAMPLE)", coins: "+50", color: "#19D3A2" },
+                      { label: "Welcome bonus (REAL)", coins: "+100", color: "#9B6CFF" },
                     ].map((e, i) => (
-                      <div key={i} className="flex items-center justify-between py-1.5 border-b" style={{ borderColor: "rgba(245,158,11,0.1)" }}>
+                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
                         <span className="text-slate-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
                   </div>
-                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10"
-                    style={{ borderColor: "rgba(245,158,11,0.3)" }}>Redeem WYNKOINS</button>
+                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
+                    >Redeem WYNKOINS</button>
                 </div>
               </div>
             )}
