@@ -1513,6 +1513,15 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
     return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
   }
+  // While actually live, show a real ticking clock (H:MM:SS / MM:SS) so the
+  // card visibly counts up second-by-second -- a rounded "0m" for the first
+  // minute reads as broken/frozen. Once paused or offline, fall back to the
+  // coarser "Xh Ym" style every other card here uses.
+  const fmtLiveTime = (secs: number) => {
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60
+    const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0')
+    return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`
+  }
   // Three real states, not a binary studying flag: live (clock running right
   // now), paused (clock stopped but time was already banked this session),
   // offline (never started, or a bot marked not-studying).
@@ -1549,12 +1558,12 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
   return (
     <div className="rounded-2xl border overflow-hidden relative" style={{ background: '#080C1A', borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
       {avatarUrl ? (
-        <div className="relative h-40 overflow-hidden flex items-center justify-center"
-          style={{ background: bot.cardGrad }}>
-          <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 50% 110%, ${bot.accentColor}25, transparent 65%)` }} />
+        <div className="relative h-40 overflow-hidden" style={{ background: bot.cardGrad }}>
           <img src={avatarUrl} alt={bot.name}
-            className={`relative w-20 h-20 rounded-full object-cover border-2 ${isLive ? '' : 'grayscale opacity-70'}`}
-            style={{ borderColor: bot.accentColor }} />
+            className={`absolute inset-0 w-full h-full object-cover ${isLive ? '' : 'grayscale opacity-70'}`} />
+          <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 50% 110%, ${bot.accentColor}25, transparent 65%)` }} />
+          <div className="absolute bottom-0 left-0 right-0 h-14"
+            style={{ background: 'linear-gradient(to top, rgba(8,10,18,0.9), transparent)' }} />
         </div>
       ) : (
         <StudyingAvatar cardGrad={bot.cardGrad} accentColor={bot.accentColor} />
@@ -1578,7 +1587,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
         </div>
         <div className="text-xs text-slate-400">{bot.subject}</div>
         <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-400">
-          <Ico n="clock" cls="w-3 h-3" />{fmtTime(bot.studyTimeSecs)}
+          <Ico n="clock" cls="w-3 h-3" />{isLive ? fmtLiveTime(bot.studyTimeSecs) : fmtTime(bot.studyTimeSecs)}
         </div>
       </div>
     </div>
