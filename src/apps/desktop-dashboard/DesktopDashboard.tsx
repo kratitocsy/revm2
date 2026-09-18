@@ -4402,38 +4402,38 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   const PACKS = [
     {
       id: 'pack_199', coins: 199, price: '₹29', priceNum: 29,
-      badge: '', color: '#7C3AED', glow: 'rgba(124,58,237,0.4)',
-      grad: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
+      badge: '', color: '#7C4DFF', glow: '#2855CC',
+      grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)',
       perCoin: '14.6p/coin', popular: false,
     },
     {
       id: 'pack_399', coins: 399, price: '₹49', priceNum: 49,
-      badge: 'BEST VALUE', color: '#06B6D4', glow: 'rgba(6,182,212,0.4)',
-      grad: 'linear-gradient(135deg,#0891B2,#0E7490)',
+      badge: 'BEST VALUE', color: '#19B5E6', glow: 'rgba(25,181,230,0.40)',
+      grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)',
       perCoin: '12.3p/coin', popular: true,
     },
   ]
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="wynkoins" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>WYNKOINS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOINS</div>
             <div className="text-sm font-semibold text-slate-200">Buy coins. Unlock perks.</div>
           </div>
           {/* Balance pill */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border"
-            style={{ background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }}>
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
+            >
             <img src="/wynkoin.png" alt="Wynkoin" className="w-5 h-5 object-contain flex-shrink-0" />
-            <span className="text-base font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</span>
+            <span className="text-base font-black text-amber-400" >{balance}</span>
             <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
@@ -4443,9 +4443,9 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         {toast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl transition-all"
             style={{
-              background: toast.type === 'success' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)',
-              border: `1px solid ${toast.type === 'success' ? 'rgba(52,211,153,0.4)' : 'rgba(239,68,68,0.4)'}`,
-              color: toast.type === 'success' ? '#34D399' : '#F87171',
+              background: toast.type === 'success' ? 'rgba(25,211,162,0.15)' : 'rgba(239,68,68,0.15)',
+              border: `1px solid ${toast.type === 'success' ? 'rgba(25,211,162,0.40)' : 'rgba(239,68,68,0.4)'}`,
+              color: toast.type === 'success' ? '#19D3A2' : '#F87171',
               backdropFilter: 'blur(12px)',
             }}>
             {toast.msg}
@@ -4472,7 +4472,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               </div>
               <div className="ml-auto flex-shrink-0 text-right">
                 <div className="text-[10px] text-slate-500 font-mono mb-1">YOUR BALANCE</div>
-                <div className="text-5xl font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</div>
+                <div className="text-5xl font-black text-amber-400" >{balance}</div>
                 <div className="text-[11px] text-amber-600 mt-0.5">WYNKOINS</div>
               </div>
             </div>
@@ -4489,7 +4489,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="grid grid-cols-2 gap-4">
                   {PACKS.map(pack => (
                     <div key={pack.id} className="relative rounded-2xl border overflow-hidden"
-                      style={{ borderColor: pack.popular ? pack.color + '60' : 'rgba(124,58,237,0.25)', background: '#0A0D1E', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
+                      style={{ borderColor: pack.popular ? pack.color + '60' : '#1A2845', background: '#0B1530', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
                       {pack.popular && (
                         <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: pack.grad }} />
                       )}
@@ -4502,10 +4502,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
                             style={{ background: `${pack.color}20`, border: `1.5px solid ${pack.color}50` }}>
-                            🪙
+                            <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 object-contain" />
                           </div>
                           <div>
-                            <div className="text-3xl font-black text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{pack.coins}</div>
+                            <div className="text-3xl font-black text-white" >{pack.coins}</div>
                             <div className="text-[10px] text-slate-500">WYNKOINS · {pack.perCoin}</div>
                           </div>
                         </div>
@@ -4529,18 +4529,18 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               {/* ── SPEND WYNKOINS ── */}
               <div>
                 <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">SPEND WYNKOINS</div>
-                <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: adsFree ? 'rgba(52,211,153,0.4)' : 'rgba(124,58,237,0.25)' }}>
-                  {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#34D399,#059669)' }} />}
+                <div className="rounded-2xl border overflow-hidden" style={{ background: '#0B1530', borderColor: adsFree ? 'rgba(25,211,162,0.40)' : '#1A2845' }}>
+                  {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#19D3A2,#0DAE86)' }} />}
                   <div className="p-6 flex items-center gap-5">
                     {/* Icon */}
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                      style={{ background: adsFree ? 'rgba(52,211,153,0.12)' : 'rgba(124,58,237,0.12)', border: `1.5px solid ${adsFree ? 'rgba(52,211,153,0.4)' : 'rgba(124,58,237,0.3)'}` }}>
+                      style={{ background: adsFree ? 'rgba(25,211,162,0.12)' : 'rgba(26,40,69,0.55)', border: `1.5px solid ${adsFree ? 'rgba(25,211,162,0.40)' : '#1E3060'}` }}>
                       🚫
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="text-base font-black text-white">Remove Ads</div>
-                        {adsFree && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' }}>ACTIVE</span>}
+                        {adsFree && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(25,211,162,0.15)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>ACTIVE</span>}
                       </div>
                       <div className="text-sm text-slate-400 mb-2">Enjoy Wynko completely ad-free for <span className="text-white font-semibold">1 full month</span>.</div>
                       {adsFree && adsFreeExpiry && (
@@ -4548,7 +4548,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                       )}
                       {!adsFree && (
                         <div className="flex items-center gap-2">
-                          <span className="text-amber-400 font-black text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>199</span>
+                          <span className="text-amber-400 font-black text-lg" >199</span>
                           <span className="text-[11px] text-amber-600">WYNKOINS</span>
                           {balance < 199 && <span className="text-[10px] text-red-400 ml-1">— need {199 - balance} more</span>}
                         </div>
@@ -4560,10 +4560,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         disabled={spending || balance < 199}
                         className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                         style={{
-                          background: balance >= 199 ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(30,30,50,0.8)',
-                          color: balance >= 199 ? '#fff' : '#475569',
-                          border: balance >= 199 ? 'none' : '1px solid rgba(124,58,237,0.2)',
-                          boxShadow: balance >= 199 ? '0 0 20px rgba(124,58,237,0.35)' : 'none',
+                          background: balance >= 199 ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(30,30,50,0.8)',
+                          color: balance >= 199 ? '#fff' : '#4E5E84',
+                          border: balance >= 199 ? 'none' : '1px solid #1A2845',
+                          boxShadow: balance >= 199 ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
                         }}>
                         {spending ? 'Unlocking…' : balance >= 199 ? (<>Unlock for 199 <img src="/wynkoin.png" alt="Wynkoin" className="w-4 h-4 object-contain inline-block" style={{ verticalAlign: '-3px' }} /></>) : 'Not enough coins'}
                       </button>
@@ -4580,7 +4580,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { icon: '🏆', label: 'Exclusive Badges', coins: '???', soon: true },
                   ].map(p => (
                     <div key={p.label} className="rounded-xl border p-4 flex items-center gap-3 opacity-50"
-                      style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.15)', borderStyle: 'dashed' }}>
+                      style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
                       <span className="text-2xl">{p.icon}</span>
                       <div>
                         <div className="text-sm font-bold text-slate-300">{p.label}</div>
@@ -4596,44 +4596,44 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <div className="w-72 flex-shrink-0 space-y-4">
 
               {/* Balance card */}
-              <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(245,158,11,0.35)' }}>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.35)]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">WALLET</div>
                 <div className="flex items-end gap-2 mb-1">
-                  <div className="text-5xl font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</div>
+                  <div className="text-5xl font-black text-amber-400" >{balance}</div>
                   <div className="text-[11px] text-amber-600 mb-2">WYNKOINS</div>
                 </div>
-                <div className="w-full rounded-full h-2 mb-3" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                <div className="w-full rounded-full h-2 mb-3 bg-[rgba(245,158,11,0.12)]" >
                   <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (balance / 500) * 100)}%`, background: 'linear-gradient(90deg,#F59E0B,#D97706)' }} />
                 </div>
                 <div className="text-[10px] text-slate-600 mb-4">{balance < 199 ? `${199 - balance} more coins needed to remove ads` : 'Enough to remove ads!'}</div>
                 {adsFree && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3"
-                    style={{ background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.3)' }}>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3 bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.30)]"
+                    >
                     <span>🚫</span>
                     <div className="text-[11px] text-emerald-400 font-semibold">Ad-free until {adsFreeExpiry}</div>
                   </div>
                 )}
-                <button onClick={() => onNavigate('earn')} className="w-full py-2 rounded-xl border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all"
-                  style={{ borderColor: 'rgba(124,58,237,0.3)' }}>
+                <button onClick={() => onNavigate('earn')} className="w-full py-2 rounded-xl border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]"
+                  >
                   Earn free WYNKOINS →
                 </button>
               </div>
 
               {/* Transaction history */}
-              <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">TRANSACTION HISTORY</div>
                 {history.length === 0 ? (
                   <div className="text-center py-6 text-slate-600 text-[12px]">No transactions yet</div>
                 ) : (
                   <div className="space-y-0">
                     {history.map((h, i) => (
-                      <div key={i} className="flex items-center justify-between py-2.5 border-b last:border-0"
-                        style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                      <div key={i} className="flex items-center justify-between py-2.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]"
+                        >
                         <div>
                           <div className="text-[12px] font-medium text-slate-300">{h.label}</div>
                           <div className="text-[10px] text-slate-600 font-mono">{h.date}</div>
                         </div>
-                        <div className="text-sm font-black" style={{ color: h.type === 'credit' ? '#34D399' : '#F87171', fontFamily: 'JetBrains Mono, monospace' }}>
+                        <div className="text-sm font-black" style={{ color: h.type === 'credit' ? '#19D3A2' : '#F87171' }}>
                           {h.type === 'credit' ? '+' : '−'}{h.amount}
                         </div>
                       </div>
@@ -4643,7 +4643,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               </div>
 
               {/* How to earn free */}
-              <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.18)' }}>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(26,40,69,0.55)]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">EARN FREE WYNKOINS</div>
                 <div className="space-y-2.5">
                   {[
@@ -4653,7 +4653,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   ].map(e => (
                     <div key={e.label} className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                        style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>{e.icon}</div>
+                        style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>{e.icon}</div>
                       <div>
                         <div className="text-[12px] font-semibold text-slate-300">{e.label}</div>
                         <div className="text-[10px] text-slate-600">{e.sub}</div>
