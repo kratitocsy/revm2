@@ -108,13 +108,13 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
   return (
     <svg viewBox="0 0 760 200" className="w-full h-full" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="rcLine" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C3AED" /><stop offset="100%" stopColor="#22D3EE" /></linearGradient>
-        <linearGradient id="rcArea" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#7C3AED" stopOpacity="0.22" /><stop offset="100%" stopColor="#7C3AED" stopOpacity="0" /></linearGradient>
+        <linearGradient id="rcLine" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#19B5E6" /></linearGradient>
+        <linearGradient id="rcArea" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#7C4DFF" stopOpacity="0.22" /><stop offset="100%" stopColor="#7C4DFF" stopOpacity="0" /></linearGradient>
         <filter id="rcGlow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         <filter id="dotGlow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>
-      {[0, 25, 50, 75, 100].map(pct => { const gy = y(pct); return (<g key={pct}><line x1="0" y1={gy} x2={W} y2={gy} stroke="rgba(99,102,241,0.07)" strokeWidth="1" /><text x="6" y={gy - 3} fontSize="8" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">{pct}%</text></g>) })}
-      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(99,102,241,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{day === 0 ? 'd0' : day > 0 ? `+${day}d` : `${day}d`}</text></g>) })}
+      {[0, 25, 50, 75, 100].map(pct => { const gy = y(pct); return (<g key={pct}><line x1="0" y1={gy} x2={W} y2={gy} stroke="rgba(124,77,255,0.07)" strokeWidth="1" /><text x="6" y={gy - 3} fontSize="8" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">{pct}%</text></g>) })}
+      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(124,77,255,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{day === 0 ? 'd0' : day > 0 ? `+${day}d` : `${day}d`}</text></g>) })}
 
       {/* Primary (most-at-risk) line: original glow treatment + area fill + R1/R2/R3 labels */}
       <path d={primaryArea} fill="url(#rcArea)" />
@@ -122,8 +122,8 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
       <path d={primaryProjected} fill="none" stroke="#F59E0B" strokeWidth="1.75" strokeDasharray="5,4" opacity="0.7" />
       {primary.reviewMarkers.map(({ day, retention, label }) => (
         <g key={label}>
-          <circle cx={x(day)} cy={y(retention)} r="4" fill="#22D3EE" opacity="0.85" filter="url(#dotGlow)" />
-          <text x={x(day)} y={y(retention) - 9} fontSize="7.5" fill="rgba(34,211,238,0.65)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{label}</text>
+          <circle cx={x(day)} cy={y(retention)} r="4" fill="#19B5E6" opacity="0.85" filter="url(#dotGlow)" />
+          <text x={x(day)} y={y(retention) - 9} fontSize="7.5" fill="rgba(25,181,230,0.65)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{label}</text>
         </g>
       ))}
 
@@ -141,12 +141,12 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
         )
       })}
 
-      <line x1={x(0)} y1="0" x2={x(0)} y2={H + 2} stroke="rgba(34,211,238,0.18)" strokeWidth="1" strokeDasharray="3,3" />
-      <text x={x(0) + 6} y="11" fontSize="8" fill="rgba(34,211,238,0.7)" fontFamily="JetBrains Mono, monospace">TODAY</text>
-      <circle cx={x(0)} cy={y(primary.todayRetention)} r="8" fill="#22D3EE" opacity="0.12" filter="url(#dotGlow)" />
-      <circle cx={x(0)} cy={y(primary.todayRetention)} r="4.5" fill="#22D3EE" filter="url(#dotGlow)" />
+      <line x1={x(0)} y1="0" x2={x(0)} y2={H + 2} stroke="rgba(25,181,230,0.18)" strokeWidth="1" strokeDasharray="3,3" />
+      <text x={x(0) + 6} y="11" fontSize="8" fill="rgba(25,181,230,0.70)" fontFamily="JetBrains Mono, monospace">TODAY</text>
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="8" fill="#19B5E6" opacity="0.12" filter="url(#dotGlow)" />
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="4.5" fill="#19B5E6" filter="url(#dotGlow)" />
       <circle cx={x(0)} cy={y(primary.todayRetention)} r="2" fill="white" />
-      <text x={x(0) - 7} y={y(primary.todayRetention) - 8} fontSize="9" fill="rgba(34,211,238,0.9)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">{primary.topic} {Math.round(primary.todayRetention)}%</text>
+      <text x={x(0) - 7} y={y(primary.todayRetention) - 8} fontSize="9" fill="rgba(25,181,230,0.90)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">{primary.topic} {Math.round(primary.todayRetention)}%</text>
       <text x={x(maxDay * 0.6)} y={y(primary.projected[Math.floor(primary.projected.length * 0.6)]?.retention ?? 0) + 15} fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="JetBrains Mono, monospace">projected decay</text>
     </svg>
   )
@@ -385,33 +385,33 @@ function TodayHero({ onGoFocus, atRisk, due, stable, curveData }: { onGoFocus: (
   const dateLabel = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border"
-      style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.25)', boxShadow: '0 0 60px rgba(124,58,237,0.07), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-      <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 65%)', transform: 'translate(25%,-30%)' }} />
-      <div className="absolute bottom-0 left-1/3 w-56 h-56 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 65%)', transform: 'translate(-50%,40%)' }} />
+      style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: '0 0 60px rgba(124,77,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+      <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(26,40,69,0.55) 0%, transparent 65%)', transform: 'translate(25%,-30%)' }} />
+      <div className="absolute bottom-0 left-1/3 w-56 h-56 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(25,181,230,0.06) 0%, transparent 65%)', transform: 'translate(-50%,40%)' }} />
       <div className="relative flex gap-6 items-stretch">
         <div className="flex-shrink-0 w-44 flex flex-col justify-between">
           <div>
             <div className="text-[9px] font-mono text-violet-400 tracking-[0.2em] mb-2">TODAY · {dateLabel}</div>
-            <div className="text-[22px] font-bold text-slate-100 leading-tight mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Memory<br />at Risk</div>
-            <div className="text-xs text-slate-400 mb-4 leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <div className="text-[22px] font-bold text-slate-100 leading-tight mb-2">Memory<br />at Risk</div>
+            <div className="text-xs text-slate-400 mb-4 leading-relaxed">
               {atRisk > 0 ? `${atRisk} topic${atRisk > 1 ? 's' : ''} below critical retention threshold` : 'All topics above critical threshold'}
             </div>
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border" style={{ background: 'rgba(248,113,113,0.07)', borderColor: 'rgba(248,113,113,0.2)' }}>
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(248,113,113,0.07)] border-[rgba(248,113,113,0.2)]">
               <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
-              <span className="text-[11px] text-red-300" style={{ fontFamily: 'Poppins, sans-serif' }}>{atRisk} topic{atRisk !== 1 ? 's' : ''} at risk</span>
+              <span className="text-[11px] text-red-300">{atRisk} topic{atRisk !== 1 ? 's' : ''} at risk</span>
             </div>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border" style={{ background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.22)' }}>
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(124,77,255,0.08)] border-[#1A2845]">
               <Ico n="wave" cls="w-3 h-3 text-violet-400 flex-shrink-0" />
-              <span className="text-[11px] text-violet-300" style={{ fontFamily: 'Poppins, sans-serif' }}>{due} review{due !== 1 ? 's' : ''} due</span>
+              <span className="text-[11px] text-violet-300">{due} review{due !== 1 ? 's' : ''} due</span>
             </div>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border" style={{ background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.2)' }}>
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(25,211,162,0.07)] border-[rgba(25,211,162,0.20)]">
               <Ico n="check" cls="w-3 h-3 text-emerald-400 flex-shrink-0" />
-              <span className="text-[11px] text-emerald-300" style={{ fontFamily: 'Poppins, sans-serif' }}>{stable} stable</span>
+              <span className="text-[11px] text-emerald-300">{stable} stable</span>
             </div>
             <button onClick={onGoFocus} className="mt-3 w-full py-2 rounded-lg text-[11px] font-semibold text-white flex items-center justify-center gap-1.5 transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C3AED, #5B21B6)', fontFamily: 'Poppins, sans-serif', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+              style={{ background: 'linear-gradient(135deg, #7C4DFF, #5C35CC)', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
               <Ico n="play" cls="w-3 h-3" />Start Review
             </button>
           </div>
@@ -422,7 +422,7 @@ function TodayHero({ onGoFocus, atRisk, due, stable, curveData }: { onGoFocus: (
               RECALL CURVE{curveData && curveData.series.length === 1 ? ` — ${curveData.series[0].subject.toUpperCase()} · ${curveData.series[0].topic}` : curveData && curveData.series.length > 1 ? ` — ${curveData.series.length} TOPICS` : ''}
             </div>
             <div className="flex items-center gap-3 text-[9px] font-mono text-slate-500">
-              <div className="flex items-center gap-1.5"><div className="w-4 h-[2px] rounded" style={{ background: 'linear-gradient(90deg,#7C3AED,#22D3EE)' }} />actual</div>
+              <div className="flex items-center gap-1.5"><div className="w-4 h-[2px] rounded" style={{ background: 'linear-gradient(90deg,#7C4DFF,#19B5E6)' }} />actual</div>
               <div className="flex items-center gap-1.5"><div className="w-4 border-t border-amber-400 border-dashed" />projected</div>
               <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-cyan-400 opacity-80" />review</div>
             </div>
