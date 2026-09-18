@@ -176,10 +176,15 @@ function RetentionRing({ pct, size = 38 }: { pct: number; size?: number }) {
 }
 
 // ─── Timer Circle SVG ─────────────────────────────────────────────────────────
-function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
+// Single shared design used by both the normal Focus Lock layout and the
+// fullscreen overlay. Deliberately minimal: a track, a glowing blue→cyan
+// progress arc with a small tip dot, and the countdown itself. Nothing
+// else lives inside the ring — no logo, no label, no subject name — so the
+// time reads clearly at a glance in either mode.
+function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
   remaining: number; total: number; timeStr: string; running: boolean; size?: number
 }) {
-  const R = Math.round(size * 0.385)
+  const R = Math.round(size * 0.42)
   const CX = size / 2, CY = size / 2
   const circ = 2 * Math.PI * R
   const progress = total > 0 ? 1 - remaining / total : 0
@@ -187,42 +192,34 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
   const tipAngle = -Math.PI / 2 + progress * 2 * Math.PI
   const tipX = CX + R * Math.cos(tipAngle)
   const tipY = CY + R * Math.sin(tipAngle)
-  const sw = Math.round(size * 0.042)
+  const sw = Math.max(4, Math.round(size * 0.026))
   const gid = `g${size}`
+  const fontSize = size * (timeStr.length > 5 ? 0.148 : 0.192)
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full">
+    <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full" style={{ display: 'block' }}>
       <defs>
-        <radialGradient id={`ig${gid}`} cx="50%" cy="50%">
-          <stop offset="0%" stopColor="#130E2A" />
-          <stop offset="100%" stopColor="#070915" />
+        <radialGradient id={`ig${gid}`} cx="50%" cy="46%">
+          <stop offset="0%" stopColor="#0C1730" />
+          <stop offset="100%" stopColor="#05080F" />
         </radialGradient>
         <linearGradient id={`rg${gid}`} x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#7C4DFF" />
-          <stop offset="45%" stopColor="#6B44EE" />
-          <stop offset="100%" stopColor="#60A5FA" />
+          <stop offset="0%" stopColor="#2563EB" />
+          <stop offset="55%" stopColor="#38BDF8" />
+          <stop offset="100%" stopColor="#22D3EE" />
         </linearGradient>
-        <filter id={`rf${gid}`} x="-15%" y="-15%" width="130%" height="130%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.018} result="blur" />
+        <filter id={`rf${gid}`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.01} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <filter id={`df${gid}`} x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.014} result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <linearGradient id={`wg${gid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#C084FC" />
-          <stop offset="50%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#38BDF8" />
-        </linearGradient>
-        <filter id={`wf${gid}`} x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.018} result="blur" />
+        <filter id={`df${gid}`} x="-120%" y="-120%" width="340%" height="340%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.012} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      {/* Outer ambient halo */}
-      <circle cx={CX} cy={CY} r={R + sw + 6} fill="none" stroke="rgba(124,77,255,0.08)" strokeWidth={sw * 2.2} />
+      {/* Outer ambient halo — restrained, not neon */}
+      <circle cx={CX} cy={CY} r={R + sw + 5} fill="none" stroke="rgba(56,189,248,0.06)" strokeWidth={sw * 1.6} />
       {/* Track */}
-      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={sw} />
+      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
       {/* Inner dark fill */}
       <circle cx={CX} cy={CY} r={R - sw / 2 - 1} fill={`url(#ig${gid})`} />
       {/* Progress arc */}
@@ -235,35 +232,44 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
           transform={`rotate(-90, ${CX}, ${CY})`}
         />
       )}
-      {/* Tip glow dot */}
-      {progress > 0.008 && (
+      {/* Small glowing dot at the progress tip */}
+      {progress > 0.01 && (
         <>
-          <circle cx={tipX} cy={tipY} r={sw * 1.1} fill="#60A5FA" opacity="0.22" filter={`url(#df${gid})`} />
-          <circle cx={tipX} cy={tipY} r={sw * 0.62} fill="#60A5FA" filter={`url(#df${gid})`} />
-          <circle cx={tipX} cy={tipY} r={sw * 0.25} fill="white" />
+          <circle cx={tipX} cy={tipY} r={sw * 0.95} fill="#38BDF8" opacity="0.25" filter={`url(#df${gid})`} />
+          <circle cx={tipX} cy={tipY} r={sw * 0.48} fill="#BAE6FD" />
         </>
       )}
-      {/* Wynko W logo */}
-      <g transform={`translate(${CX - size * 0.088}, ${CY - size * 0.195}) scale(${size * 0.002})`} filter={`url(#wf${gid})`}>
-        <path d="M4 6 C7 4 12 5 14 9 L26 46 L38 18 C41 11 47 11 50 18 L62 46 L74 9 C76 5 81 4 84 6 L67 54 C64 60 56 60 53 54 L44 30 L35 54 C32 60 24 60 21 54 Z" fill={`url(#wg${gid})`} />
-      </g>
-      {/* FOCUS TIME label */}
-      <text x={CX} y={CY - size * 0.038} textAnchor="middle"
-        fontSize={size * 0.029} fill="rgba(148,163,184,0.6)"
-        fontFamily="Poppins, sans-serif" fontWeight="600" letterSpacing={size * 0.009}>
-        FOCUS TIME
-      </text>
-      {/* Time display */}
-      <text x={CX} y={CY + size * 0.095} textAnchor="middle"
-        fontSize={size < 400 ? (timeStr.length > 5 ? 34 : 44) : (timeStr.length > 5 ? 52 : 66)}
-        fill="#F1F5F9" fontFamily="JetBrains Mono, monospace" fontWeight="700">
+      {/* Countdown — the only content inside the ring */}
+      <text x={CX} y={CY} textAnchor="middle" dominantBaseline="central"
+        fontSize={fontSize} fill="#F1F5F9" fontFamily="JetBrains Mono, monospace" fontWeight="600"
+        style={{ letterSpacing: -fontSize * 0.02 }}>
         {timeStr}
       </text>
-      {/* Live dot */}
-      {running && (
-        <circle cx={CX + size * 0.09} cy={CY + size * 0.123} r={size * 0.008} fill="#19B5E6" opacity="0.9" />
-      )}
     </svg>
+  )
+}
+
+// ─── Mountain Backdrop ────────────────────────────────────────────────────────
+// Quiet, layered late-night mountain silhouette used behind the Focus Lock
+// timer (both normal and fullscreen). Pure decoration — sits behind
+// everything (pointer-events disabled) in dark navy monochrome so it never
+// competes with the ring or the controls above it.
+function MountainBackdrop() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden="true">
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 65% 45% at 50% 28%, rgba(56,189,248,0.05), rgba(56,189,248,0) 70%)' }} />
+      <svg viewBox="0 0 1200 520" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" style={{ height: '58%' }}>
+        {/* Farthest layer — subtle */}
+        <polygon opacity="0.55" fill="#0E1B36"
+          points="0,330 90,260 190,300 300,225 400,280 500,205 600,270 700,215 800,275 900,220 1000,285 1100,235 1200,290 1200,520 0,520" />
+        {/* Mid layer */}
+        <polygon opacity="0.78" fill="#0A1428"
+          points="0,390 110,320 230,365 340,290 460,350 580,275 700,345 820,290 940,355 1060,300 1200,350 1200,520 0,520" />
+        {/* Nearest layer — darkest, most defined */}
+        <polygon opacity="0.96" fill="#050C1A"
+          points="0,450 140,385 270,425 410,355 540,420 660,360 800,425 930,365 1060,420 1200,395 1200,520 0,520" />
+      </svg>
+    </div>
   )
 }
 
@@ -1104,54 +1110,64 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   const curSubjName = subjects[activeSubjectIdx] || 'Physics'
   const curSubjColor = SUBJ_COLORS[activeSubjectIdx % SUBJ_COLORS.length]
 
-  const pct = totalSecs > 0 ? (totalSecs - remaining) / totalSecs : 0
-  const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
-  const ss = String(remaining % 60).padStart(2, '0')
-  const R = 130
-  const CIRC = 2 * Math.PI * R
-  const dash = pct * CIRC
-  const gap = CIRC - dash
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
 
       {/* ── Fullscreen overlay ── */}
       {fullscreen && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-[#020615]">
-          <div className="absolute top-6 right-6">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+          <MountainBackdrop />
+
+          <div className="absolute top-6 right-6 z-10">
             <button onClick={() => setFullscreen(false)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.05)] border-[#1E3060]">
               <Ico n="compress" cls="w-4 h-4" /> Exit Fullscreen
             </button>
           </div>
-          <div style={{ width: 'min(520px, 80vw)', aspectRatio: '1' }}>
-            <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={520} />
+
+          <div className="relative z-10 h-full flex flex-col items-center justify-center gap-10">
+            <div style={{ width: 'min(440px, 62vh, 70vw)', aspectRatio: '1' }}>
+              <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={440} />
+            </div>
+
+            {/* Controls row — identical to normal mode: Reset / Resume·Pause / Tunes */}
+            <div className="flex items-center justify-center gap-5">
+              <button onClick={handleReset}
+                className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+                    <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                </div>
+                <span className="text-[10px]">Reset</span>
+              </button>
+
+              <button onClick={handleToggleRun}
+                className="h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-9"
+                style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
+                {running
+                  ? <><svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg><span className="whitespace-nowrap">Pause</span></>
+                  : <><Ico n="play" cls="w-5 h-5 flex-shrink-0" /><span className="whitespace-nowrap">{remaining < totalSecs ? 'Resume' : 'Start'}</span></>}
+              </button>
+
+              <button className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
+                  <Ico n="bell" cls="w-5 h-5" />
+                </div>
+                <span className="text-[10px]">Tunes</span>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={handleReset}
-              className="w-12 h-12 rounded-full flex items-center justify-center border text-slate-400 hover:text-white transition-colors border-[#1E3060] bg-[rgba(255,255,255,0.05)]">
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
-            </button>
-            <button onClick={handleToggleRun}
-              className="px-12 py-3.5 rounded-full text-white font-semibold text-lg flex items-center gap-3 transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 50px rgba(124,77,255,0.6), 0 0 100px rgba(40,85,204,0.3)' }}>
-              {running
-                ? <><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
-                : <><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>{remaining < totalSecs ? 'Resume' : 'Start'}</>
-              }
-            </button>
-          </div>
-          <div className="text-sm text-slate-600 font-mono tracking-wide">{curSubjName} — current focus</div>
         </div>
       )}
 
       <Sidebar active="focus" setActive={onNavigate} profile={profile} />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="relative flex-1 flex flex-col overflow-hidden">
+        <MountainBackdrop />
+
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <header className="relative z-10 h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
           <button onClick={() => onNavigate('home')}
             className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
@@ -1175,66 +1191,19 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           <UserAvatar size={32} />
         </header>
 
-        <main className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="flex gap-10 items-start max-w-5xl mx-auto">
+        <main className="relative z-10 flex-1 overflow-y-auto px-8 py-10">
+          <div className="flex gap-12 items-center max-w-5xl mx-auto">
 
             {/* ── Left: Timer ── */}
-            <div className="flex-1 flex flex-col items-center gap-6">
+            <div className="flex-1 flex flex-col items-center gap-9">
 
-              {/* Circular timer */}
-              <div className="relative flex items-center justify-center" style={{ width: 300, height: 300 }}>
-                <svg width="300" height="300" viewBox="0 0 300 300" className="absolute inset-0">
-                  <defs>
-                    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#7C4DFF" />
-                      <stop offset="100%" stopColor="#19B5E6" />
-                    </linearGradient>
-                    <filter id="ringGlow">
-                      <feGaussianBlur stdDeviation="3" result="blur" />
-                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                    </filter>
-                  </defs>
-                  {/* Track */}
-                  <circle cx="150" cy="150" r={R} fill="none" stroke="#1A1F38" strokeWidth="10" />
-                  {/* Progress */}
-                  <circle cx="150" cy="150" r={R} fill="none"
-                    stroke="url(#ringGrad)" strokeWidth="10"
-                    strokeLinecap="butt"
-                    strokeDasharray={`${dash} ${gap}`}
-                    transform="rotate(-90 150 150)"
-                    filter="url(#ringGlow)"
-                    style={{ transition: 'stroke-dasharray 0.5s ease' }} />
-                  {/* Dot at tip — only when meaningfully progressed */}
-                  {pct > 0.02 && (() => {
-                    const angle = -Math.PI / 2 + pct * 2 * Math.PI
-                    const x = 150 + R * Math.cos(angle)
-                    const y = 150 + R * Math.sin(angle)
-                    return <circle cx={x} cy={y} r="5" fill="#19B5E6" filter="url(#ringGlow)" />
-                  })()}
-                </svg>
-
-                {/* Center content */}
-                <div className="flex flex-col items-center gap-1 z-10">
-                  {/* Wynko W logo */}
-                  <svg width="44" height="32" viewBox="0 0 88 60" fill="none" className="mb-1" style={{ filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.9)) drop-shadow(0 0 20px rgba(56,189,248,0.55))' }}>
-                    <defs>
-                      <linearGradient id="wGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#C084FC" />
-                        <stop offset="50%" stopColor="#818CF8" />
-                        <stop offset="100%" stopColor="#38BDF8" />
-                      </linearGradient>
-                    </defs>
-                    <path d="M4 6 C7 4 12 5 14 9 L26 46 L38 18 C41 11 47 11 50 18 L62 46 L74 9 C76 5 81 4 84 6 L67 54 C64 60 56 60 53 54 L44 30 L35 54 C32 60 24 60 21 54 Z" fill="url(#wGrad)" />
-                  </svg>
-                  <div className="text-[11px] tracking-[0.2em] font-medium text-[#68728A]">FOCUS TIME</div>
-                  <div className="text-6xl font-bold tabular-nums" style={{ color: '#F3F4F6', letterSpacing: '-2px' }}>
-                    {mm}:{ss}
-                  </div>
-                </div>
+              {/* Circular timer — same design as fullscreen */}
+              <div className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
+                <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={320} />
               </div>
 
               {/* Controls row */}
-              <div className="flex items-center justify-center gap-4 w-full">
+              <div className="flex items-center justify-center gap-5 w-full">
                 <button onClick={handleReset}
                   className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
@@ -1284,7 +1253,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           </div>
 
           {/* ── BOTTOM: Quick Select ── */}
-          <div className="rounded-2xl border p-4 flex-shrink-0 mt-8 bg-[#0B1530] border-[#1A2845]">
+          <div className="rounded-2xl border p-4 flex-shrink-0 mt-10 max-w-5xl mx-auto bg-[#0B1530] border-[#1A2845]">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Ico n="zap" cls="w-4 h-4 text-violet-400" />
