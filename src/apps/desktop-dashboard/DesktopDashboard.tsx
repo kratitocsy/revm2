@@ -437,23 +437,23 @@ function TodayHero({ onGoFocus, atRisk, due, stable, curveData }: { onGoFocus: (
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 function QuickActions({ onGoFocus, onNavigate }: { onGoFocus: () => void; onNavigate: (id: string) => void }) {
   const actions = [
-    { label: 'Start Focus', sub: 'Focus Lock', icon: 'lock' as const, grad: 'linear-gradient(135deg,#7C3AED,#5B21B6)', glow: 'rgba(124,58,237,0.35)', onClick: onGoFocus },
-    { label: 'Schedules', sub: 'Plan sessions', icon: 'clock' as const, grad: 'linear-gradient(135deg,#0891B2,#0E7490)', glow: 'rgba(8,145,178,0.3)', onClick: () => onNavigate('schedules') },
-    { label: 'Study Room', sub: '24 online', icon: 'rooms' as const, grad: 'linear-gradient(135deg,#047857,#065F46)', glow: 'rgba(4,120,87,0.3)', onClick: () => onNavigate('studyrooms') },
-    { label: '3D Library', sub: 'Virtual Space', icon: 'cube' as const, grad: 'linear-gradient(135deg,#4338CA,#3730A3)', glow: 'rgba(67,56,202,0.3)', onClick: () => onNavigate('3dlibrary') },
+    { label: 'Start Focus', sub: 'Focus Lock', icon: 'lock' as const, grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)', glow: '0 0 28px rgba(124,77,255,0.65), 0 4px 24px rgba(92,53,204,0.4)', onClick: onGoFocus },
+    { label: 'Schedules', sub: 'Plan sessions', icon: 'clock' as const, grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)', glow: '0 0 24px rgba(15,153,204,0.55), 0 4px 20px rgba(12,127,170,0.35)', onClick: () => onNavigate('schedules') },
+    { label: 'Study Room', sub: '24 online', icon: 'rooms' as const, grad: 'linear-gradient(135deg,#0A9673,#077A5E)', glow: '0 0 24px rgba(10,150,115,0.5), 0 4px 20px rgba(7,122,94,0.3)', onClick: () => onNavigate('studyrooms') },
+    { label: '3D Library', sub: 'Virtual Space', icon: 'cube' as const, grad: 'linear-gradient(135deg,#5835CC,#4630AA)', glow: '0 0 24px rgba(88,53,204,0.55), 0 4px 20px rgba(70,48,170,0.35)', onClick: () => onNavigate('3dlibrary') },
   ]
   return (
     <div className="grid grid-cols-4 gap-3">
       {actions.map((a, i) => (
         <button key={i} onClick={a.onClick}
           className="flex items-center gap-3 p-3.5 rounded-xl border border-white/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
-          style={{ background: a.grad, boxShadow: `0 4px 24px ${a.glow}` }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          style={{ background: a.grad, boxShadow: a.glow }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-[rgba(0,0,0,0.2)]">
             <Ico n={a.icon} cls="w-4 h-4 text-white" />
           </div>
           <div className="text-left">
-            <div className="text-sm font-semibold text-white leading-none" style={{ fontFamily: 'Poppins, sans-serif' }}>{a.label}</div>
-            <div className="text-[10px] text-white/55 mt-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{a.sub}</div>
+            <div className="text-sm font-semibold text-white leading-none">{a.label}</div>
+            <div className="text-[10px] text-white/55 mt-0.5">{a.sub}</div>
           </div>
         </button>
       ))}
