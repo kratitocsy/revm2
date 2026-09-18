@@ -718,18 +718,18 @@ function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFoc
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <div className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Focus</div>
-          <div className="text-[11px] text-slate-500 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>{fmtHM(goalMinutes)} planned</div>
+          <div className="text-sm font-semibold text-slate-100">Today's Focus</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">{fmtHM(goalMinutes)} planned</div>
         </div>
         <div className="flex items-center gap-1.5 text-amber-400">
           <Ico n="fire" cls="w-3.5 h-3.5" />
-          <span className="text-xs font-semibold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{streakDays}-day streak</span>
+          <span className="text-xs font-semibold">{streakDays}-day streak</span>
         </div>
       </div>
       <div className="flex justify-center mb-3">
         <svg width="150" height="86" viewBox="0 0 150 86">
           <defs>
-            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C3AED" /><stop offset="100%" stopColor="#22D3EE" /></linearGradient>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#19B5E6" /></linearGradient>
             <filter id="gaugeGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           </defs>
           <path d="M 19,80 A 56,56 0 0,1 131,80" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="9" strokeLinecap="round" />
@@ -738,9 +738,9 @@ function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFoc
             const angle = Math.PI * (1 - t)
             const x1 = 75 + 56 * Math.cos(angle), y1 = 80 - 56 * Math.sin(angle)
             const x2 = 75 + 47 * Math.cos(angle), y2 = 80 - 47 * Math.sin(angle)
-            return <line key={t} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(124,58,237,0.25)" strokeWidth="1.5" />
+            return <line key={t} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#1A2845" strokeWidth="1.5" />
           })}
-          <text x="75" y="60" textAnchor="middle" fontSize="15" fontWeight="600" fill="#E2E8F0" fontFamily="JetBrains Mono, monospace">{fmtHM(doneMinutes)}</text>
+          <text x="75" y="60" textAnchor="middle" fontSize="15" fontWeight="600" fill="#EEF2FF" fontFamily="JetBrains Mono, monospace">{fmtHM(doneMinutes)}</text>
           <text x="75" y="75" textAnchor="middle" fontSize="8.5" fill="rgba(148,163,184,0.5)" fontFamily="JetBrains Mono, monospace">of {fmtHM(goalMinutes)}</text>
           <text x="16" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">0</text>
           <text x="134" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{goalLabel}</text>
@@ -748,19 +748,19 @@ function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFoc
       </div>
       <div className="space-y-1.5 flex-1">
         {bySubject.length === 0 ? (
-          <div className="text-[11px] text-slate-600 text-center py-4" style={{ fontFamily: 'Poppins, sans-serif' }}>Nothing logged yet today</div>
+          <div className="text-[11px] text-slate-600 text-center py-4">Nothing logged yet today</div>
         ) : bySubject.map((s) => (
           <div key={s.subject} className="flex items-center gap-2.5 px-3 py-2 rounded-lg"
-            style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.18)' }}>
+            style={{ background: 'rgba(124,77,255,0.08)', border: '1px solid rgba(26,40,69,0.55)' }}>
             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-violet-400" />
-            <span className="text-[11px] flex-1 text-slate-300" style={{ fontFamily: 'Poppins, sans-serif' }}>{s.subject}</span>
-            <span className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{s.minutes} min</span>
+            <span className="text-[11px] flex-1 text-slate-300">{s.subject}</span>
+            <span className="text-[10px] text-slate-500">{s.minutes} min</span>
             <Ico n="check" cls="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
           </div>
         ))}
       </div>
       <button onClick={onGoFocus} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
-        style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%)', fontFamily: 'Poppins, sans-serif', boxShadow: '0 0 24px rgba(124,58,237,0.3)' }}>
+        style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #19B5E6 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
         <Ico n="lock" cls="w-4 h-4" />Start Focus Lock
       </button>
     </div>
@@ -769,9 +769,9 @@ function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFoc
 
 // ─── Study Rooms ──────────────────────────────────────────────────────────────
 const ROOMS = [
-  { name: 'JEE Physics — Night Grind', cat: 'JEE Advanced', cur: 12, max: 20, cam: 'Cam off', avatars: [{ bg: '#7C3AED', init: 'RS' }, { bg: '#0891B2', init: 'PK' }, { bg: '#EC4899', init: 'AM' }], extra: '+9' },
-  { name: 'NEET Biology — Focus Room', cat: 'NEET 2026', cur: 8, max: 15, cam: 'Cam optional', avatars: [{ bg: '#059669', init: 'SK' }, { bg: '#3B82F6', init: 'DL' }, { bg: '#F59E0B', init: 'MK' }], extra: '+5' },
-  { name: 'Math Olympiad Prep', cat: 'Competition', cur: 5, max: 10, cam: 'Cam on', avatars: [{ bg: '#F97316', init: 'AK' }, { bg: '#6366F1', init: 'RV' }], extra: '+3' },
+  { name: 'JEE Physics — Night Grind', cat: 'JEE Advanced', cur: 12, max: 20, cam: 'Cam off', avatars: [{ bg: '#7C4DFF', init: 'RS' }, { bg: '#0F99CC', init: 'PK' }, { bg: '#EC4899', init: 'AM' }], extra: '+9' },
+  { name: 'NEET Biology — Focus Room', cat: 'NEET 2026', cur: 8, max: 15, cam: 'Cam optional', avatars: [{ bg: '#0DAE86', init: 'SK' }, { bg: '#3B82F6', init: 'DL' }, { bg: '#F59E0B', init: 'MK' }], extra: '+5' },
+  { name: 'Math Olympiad Prep', cat: 'Competition', cur: 5, max: 10, cam: 'Cam on', avatars: [{ bg: '#F97316', init: 'AK' }, { bg: '#7C4DFF', init: 'RV' }], extra: '+3' },
 ]
 function StudyRooms({ onNavigate }: { onNavigate: (id: string) => void }) {
   return (
