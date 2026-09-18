@@ -508,15 +508,15 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
 
   return (
     <div className="rounded-2xl border p-4 transition-all" style={{
-      background: '#0A0D1E',
-      borderColor: flash ? 'rgba(34,211,238,0.5)' : 'rgba(124,58,237,0.22)',
-      boxShadow: flash ? '0 0 30px rgba(34,211,238,0.1)' : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+      background: '#0B1530',
+      borderColor: flash ? 'rgba(25,181,230,0.50)' : '#1A2845',
+      boxShadow: flash ? '0 0 30px rgba(25,181,230,0.10)' : 'inset 0 1px 0 rgba(255,255,255,0.03)',
       transition: 'border-color 0.4s, box-shadow 0.4s',
     }}>
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] font-semibold tracking-[0.2em] text-slate-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>NEW STUDY UNIT: QUICK ADD</div>
+        <div className="text-[10px] font-semibold tracking-[0.2em] text-slate-400">NEW STUDY UNIT: QUICK ADD</div>
         {added.length > 0 && (
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border" style={{ color: '#34D399', background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.25)' }}>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#19D3A2] bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.25)]">
             {added.length} unit{added.length > 1 ? 's' : ''} added
           </span>
         )}
@@ -524,90 +524,46 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
       <div className="flex items-center gap-2 flex-wrap">
         {/* Subject */}
         <div ref={subjectRef} className="relative">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-text min-w-[180px] transition-colors"
-            style={{ background: 'rgba(14,21,40,0.7)', borderColor: subjectOpen ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.22)' }}
+          <div className="flex items-center px-3 py-2 rounded-xl border cursor-text min-w-[180px] transition-colors"
+            style={{ background: '#0B1530', borderColor: subjectOpen ? '#4A3A88' : '#1A2845' }}
             onClick={() => setSubjectOpen(true)}>
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 flex-shrink-0 text-violet-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M3 2h10M3 14h10M4 2v3l4 3-4 3v2M12 2v3L8 8l4 3v2" />
-            </svg>
-            <input className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder-slate-600 min-w-[100px]"
-              style={{ fontFamily: 'Poppins, sans-serif' }} placeholder="Subject"
+            <input className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder-slate-500"
+              placeholder="Subject name"
               value={subject} onChange={e => { setSubject(e.target.value); setSubjectOpen(true) }} onFocus={() => setSubjectOpen(true)} />
-            {exam && (<><span className="text-slate-600 text-xs flex-shrink-0">›</span><span className="text-xs text-cyan-400 flex-shrink-0 truncate max-w-[80px]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{exam}</span></>)}
-            <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
           </div>
           {subjectOpen && filteredSubjects.length > 0 && (
             <div className="absolute z-50 top-full mt-1 left-0 rounded-xl border overflow-hidden w-full min-w-[200px]"
-              style={{ background: '#0D1428', borderColor: 'rgba(124,58,237,0.35)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+              style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
               {filteredSubjects.map(s => (
                 <button key={s} className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-violet-500/10 hover:text-violet-200 transition-colors"
-                  style={{ fontFamily: 'Poppins, sans-serif' }} onMouseDown={e => { e.preventDefault(); setSubject(s); setSubjectOpen(false) }}>{s}</button>
+                  onMouseDown={e => { e.preventDefault(); setSubject(s); setSubjectOpen(false) }}>{s}</button>
               ))}
               {subject && !SUBJECT_SUGGESTIONS.map(s => s.toLowerCase()).includes(subject.toLowerCase()) && (
-                <button className="w-full text-left px-3 py-2 text-sm border-t flex items-center gap-2 transition-colors"
-                  style={{ color: '#A78BFA', borderColor: 'rgba(124,58,237,0.2)', fontFamily: 'Poppins, sans-serif' }}
+                <button className="w-full text-left px-3 py-2 text-sm border-t transition-colors text-[#9B6CFF] border-[#1A2845]"
                   onMouseDown={e => { e.preventDefault(); setSubjectOpen(false) }}>
-                  <span className="text-violet-500">+</span> Use "{subject}"
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        {/* Exam */}
-        <div ref={examRef} className="relative">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-text min-w-[140px] transition-colors"
-            style={{ background: 'rgba(14,21,40,0.7)', borderColor: examOpen ? 'rgba(34,211,238,0.4)' : 'rgba(124,58,237,0.22)' }}
-            onClick={() => setExamOpen(true)}>
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 flex-shrink-0 text-cyan-500" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M14 2H2a1 1 0 00-1 1v2a1 1 0 001 1h12a1 1 0 001-1V3a1 1 0 00-1-1zM2 10h4M2 13h2" />
-            </svg>
-            <input className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder-slate-600"
-              style={{ fontFamily: 'Poppins, sans-serif' }} placeholder="Exam / Category"
-              value={exam} onChange={e => { setExam(e.target.value); setExamOpen(true) }} onFocus={() => setExamOpen(true)} />
-          </div>
-          {examOpen && filteredExams.length > 0 && (
-            <div className="absolute z-50 top-full mt-1 left-0 rounded-xl border overflow-hidden w-full min-w-[180px]"
-              style={{ background: '#0D1428', borderColor: 'rgba(34,211,238,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-              {filteredExams.map(e => (
-                <button key={e} className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-200 transition-colors"
-                  style={{ fontFamily: 'Poppins, sans-serif' }} onMouseDown={ev => { ev.preventDefault(); setExam(e); setExamOpen(false) }}>{e}</button>
-              ))}
-              {exam && !EXAM_SUGGESTIONS.map(e => e.toLowerCase()).includes(exam.toLowerCase()) && (
-                <button className="w-full text-left px-3 py-2 text-sm border-t flex items-center gap-2 transition-colors"
-                  style={{ color: '#67E8F9', borderColor: 'rgba(34,211,238,0.2)', fontFamily: 'Poppins, sans-serif' }}
-                  onMouseDown={ev => { ev.preventDefault(); setExamOpen(false) }}>
-                  <span className="text-cyan-500">+</span> Use "{exam}"
+                  Use "{subject}"
                 </button>
               )}
             </div>
           )}
         </div>
         {/* Topic */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border flex-1 min-w-[160px] transition-colors"
-          style={{ background: 'rgba(14,21,40,0.7)', borderColor: 'rgba(124,58,237,0.22)' }}>
-          <Ico n="search" cls="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-          <input className="bg-transparent outline-none text-sm text-slate-200 flex-1 placeholder-slate-600"
-            style={{ fontFamily: 'Poppins, sans-serif' }} placeholder="Topic name"
+        <div className="flex items-center px-3 py-2 rounded-xl border transition-colors" style={{ background: '#0B1530', borderColor: '#1A2845', width: '180px' }}>
+          <input className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder-slate-500"
+            placeholder="Topic name"
             value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTopic() }} />
         </div>
-        {/* + */}
-        <button onClick={addTopic}
-          className="w-9 h-9 rounded-xl border flex items-center justify-center text-slate-400 hover:text-violet-300 hover:border-violet-500/40 transition-all flex-shrink-0"
-          style={{ background: 'rgba(14,21,40,0.7)', borderColor: 'rgba(124,58,237,0.22)' }}>
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-        </button>
-        {/* QUICK ADD */}
+        {/* Quick Add */}
         <button onClick={handleQuickAdd}
-          className="px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.97] flex-shrink-0"
-          style={{ fontFamily: 'JetBrains Mono, monospace', background: canAdd ? 'linear-gradient(135deg, #7C3AED, #22D3EE)' : 'rgba(14,21,40,0.7)', color: canAdd ? '#fff' : '#475569', border: '1px solid ' + (canAdd ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)'), boxShadow: canAdd ? '0 0 20px rgba(124,58,237,0.3)' : 'none' }}>
-          [QUICK ADD]
+          className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #7C4DFF, #19B5E6)', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(25,181,230,0.2)', opacity: canAdd ? 1 : 0.45 }}>
+          Quick Add
         </button>
       </div>
       {topics.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {topics.map(t => (
-            <span key={t} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border"
-              style={{ color: '#C4B5FD', background: 'rgba(124,58,237,0.1)', borderColor: 'rgba(124,58,237,0.3)', fontFamily: 'Poppins, sans-serif' }}>
+            <span key={t} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#C4AAFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]">
               {t}
               <button onClick={() => removeTopic(t)} className="text-slate-500 hover:text-red-400 transition-colors leading-none">×</button>
             </span>
@@ -615,10 +571,9 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
         </div>
       )}
       {added.length > 0 && (
-        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: 'rgba(124,58,237,0.12)' }}>
+        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2 border-[rgba(26,40,69,0.55)]">
           {added.map((u, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border group"
-              style={{ color: '#67E8F9', background: 'rgba(34,211,238,0.06)', borderColor: 'rgba(34,211,238,0.2)', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div key={i} className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border group text-[#7DD8F0] bg-[rgba(25,181,230,0.06)] border-[rgba(25,181,230,0.20)]">
               <Ico n="check" cls="w-3 h-3 text-emerald-400" />
               {u.subject}{u.exam ? ` › ${u.exam}` : ''} · {u.topics.join(', ')}
               <button onClick={() => onRemove(u.subject)}
