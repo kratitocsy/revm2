@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
+import wynkoLogo from './imports/wynko-logo.png'
 import avatar7 from './imports/avatar-7.png'
 import avatar8 from './imports/avatar-8.png'
 import avatar9 from './imports/avatar-9.png'
@@ -55,9 +56,9 @@ const IP: Record<string, string[]> = {
   coin: ['M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
 }
 
-function Ico({ n, cls = 'w-4 h-4' }: { n: keyof typeof IP; cls?: string }) {
+function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; style?: React.CSSProperties }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cls} style={style}>
       {IP[n].map((d, i) => <path key={i} d={d} />)}
     </svg>
   )
@@ -302,31 +303,35 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full"
-      style={{ background: '#090B18', borderColor: 'rgba(124,58,237,0.18)' }}>
-      <div className="flex items-center gap-3 px-5 py-[18px] border-b" style={{ borderColor: 'rgba(124,58,237,0.14)' }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center relative flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)' }}>
-          <span className="text-white font-bold text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>W</span>
-          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2" style={{ borderColor: '#090B18' }} />
+    <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full bg-[#060D1A] border-[rgba(26,40,69,0.55)]">
+      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(26,40,69,0.55)]">
+        <div className="w-8 h-8 relative flex-shrink-0">
+          <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.8)) brightness(1.1)' }} />
+          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#060D1A]" />
         </div>
         <div>
-          <div className="text-white font-semibold text-base leading-none" style={{ fontFamily: 'Poppins, sans-serif' }}>Wynko</div>
-          <div className="text-[10px] text-emerald-400 mt-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>● online</div>
+          <div className="text-white font-semibold text-base leading-none">Wynko</div>
+          <div className="text-[10px] text-emerald-400 mt-0.5">● online</div>
         </div>
       </div>
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
         {['HOME', 'STUDY', 'OTHER'].map(group => (
           <div key={group} className="mb-5">
-            <div className="text-[9px] font-semibold text-slate-600 tracking-[0.15em] px-2 mb-1.5" style={{ fontFamily: 'Poppins, sans-serif' }}>{group}</div>
+            <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#4E5E84]">{group}</div>
             {NAV.filter(n => n.group === group).map(item => {
               const isActive = active === item.id
               return (
                 <button key={item.id} onClick={() => setActive(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 mb-0.5 group relative ${isActive ? 'text-violet-300' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'}`}
-                  style={{ fontFamily: 'Poppins, sans-serif', background: isActive ? 'rgba(124,58,237,0.1)' : undefined }}>
-                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-violet-400 rounded-r-full" style={{ boxShadow: '0 0 8px rgba(167,139,250,0.6)' }} />}
-                  <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-violet-400' : 'text-slate-600 group-hover:text-slate-400'}`} />
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative`}
+                  style={{
+                    background: isActive ? 'rgba(13,21,69,0.85)' : 'transparent',
+                    color: isActive ? '#EEF2FF' : '#8B9AC7',
+                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(139,92,255,0.3)' : 'none',
+                  }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#D9DDF0' }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#8B9AC7' }}>
+                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#8B5CFF', boxShadow: '0 0 10px rgba(139,92,255,0.9), 0 0 20px rgba(139,92,255,0.4)' }} />}
+                  <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#9B6CFF' : undefined }} />
                   <span className="text-sm font-medium">{item.label}</span>
                 </button>
               )
@@ -334,12 +339,12 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
           </div>
         ))}
       </nav>
-      <div className="border-t p-4" style={{ borderColor: 'rgba(124,58,237,0.14)' }}>
+      <div className="border-t p-4 border-[rgba(26,40,69,0.55)]">
         <div className="flex items-center gap-2.5">
           <UserAvatar size={32} />
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-slate-200 font-medium truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{name}</div>
-            <div className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{exam}</div>
+            <div className="text-sm text-slate-200 font-medium truncate">{name}</div>
+            <div className="text-[10px] text-slate-500">{exam}</div>
           </div>
           <button className="text-slate-600 hover:text-slate-300 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
         </div>
