@@ -23,6 +23,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      # Rebuilds every generated, committed-at-root artifact from current
+      # source before deploying, so the live site can never drift behind
+      # source the way home-app-dist/home-app.js did (stale ~9 commits,
+      # still showing the old Focus Lock "Subject Timer" panel after it
+      # had been replaced with a Tasks checklist in DesktopDashboard.tsx).
+      # Each of these previously required someone to remember to run the
+      # matching `npm run build:*` script and commit its output by hand:
+      #   - build:css      -> src/styles/tailwind.build.css
+      #   - build:shared   -> shared.js (src/lib, IIFE bundle)
+      #   - build:sidebars -> stamps Sidebar.js into the static HTML pages
+      #   - build:mobile-home      -> mobile-home.html + assets/mobile-home-*
+      #   - build:desktop-dashboard -> home-app-dist/home-app.{js,css}
+      # Running them here means the deploy always reflects current
+      # source; committing the rebuilt output is no longer required for
+      # correctness (only for local `file://`/preview convenience).
+      - name: Build generated assets
+        run: |
+          npm run build:css
+          npm run build:shared
+          npm run build:sidebars
+          npm run build:mobile-home
+          npm run build:desktop-dashboard
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
