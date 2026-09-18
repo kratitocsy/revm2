@@ -3935,6 +3935,11 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   const [soundEffects, setSoundEffects] = useState(true)
   const [focusMode, setFocusMode] = useState(false)
 
+  function saveProfile() {
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2200)
+  }
+
   // profile arrives asynchronously (a fresh sign-in navigating straight
   // to Settings can beat useHomeData's fetch) - resync once it lands,
   // but only if the person hasn't already typed something of their own
@@ -3943,11 +3948,6 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   useEffect(() => {
     if (!displayNameTouched && profile?.displayName) setDisplayName(profile.displayName)
   }, [profile?.displayName, displayNameTouched])
-
-  function saveProfile() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2200)
-  }
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'profile', label: 'Profile', icon: '👤' },
@@ -3962,7 +3962,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     return (
       <button onClick={() => onChange(!val)}
         className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-        style={{ background: val ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px rgba(124,58,237,0.4)' : 'none' }}>
+        style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
         <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
           style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
       </button>
@@ -3971,7 +3971,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   function SettingRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
     return (
-      <div className="flex items-center justify-between py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+      <div className="flex items-center justify-between py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
         <div>
           <div className="text-sm font-medium text-slate-200">{label}</div>
           {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
@@ -3983,7 +3983,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-      <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+      <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
         <div className="px-5 pt-5 pb-1">
           <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
           {children}
@@ -3995,25 +3995,25 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   function FieldInput({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
     return (
-      <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
         <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
         <input type={type} value={value} onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
-          style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+          className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]"
+           />
       </div>
     )
   }
 
   function SelectInput({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
     return (
-      <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
         <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
         <div className="flex flex-wrap gap-2">
           {options.map(o => (
             <button key={o} onClick={() => onChange(o)}
               className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
-              style={{ background: value === o ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', color: value === o ? '#C4B5FD' : '#64748B', borderColor: value === o ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+              style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
               {o}
             </button>
           ))}
@@ -4023,21 +4023,21 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>SETTINGS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >SETTINGS</div>
             <div className="text-sm font-semibold text-slate-200">Manage your account & preferences.</div>
           </div>
           {saved && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-              style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' }}>
+              style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
               ✓ Changes saved
             </div>
           )}
@@ -4046,21 +4046,21 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
         <div className="flex flex-1 overflow-hidden">
           {/* Settings nav sidebar */}
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3"
-            style={{ borderColor: 'rgba(124,58,237,0.15)', background: 'rgba(6,8,15,0.5)' }}>
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]"
+            >
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
                 style={{
-                  background: activeTab === tab.id ? 'rgba(124,58,237,0.15)' : 'transparent',
-                  color: activeTab === tab.id ? '#C4B5FD' : '#64748B',
-                  border: `1px solid ${activeTab === tab.id ? 'rgba(124,58,237,0.35)' : 'transparent'}`,
+                  background: activeTab === tab.id ? 'rgba(26,40,69,0.55)' : 'transparent',
+                  color: activeTab === tab.id ? '#C4AAFF' : '#4E5E84',
+                  border: `1px solid ${activeTab === tab.id ? '#1E3060' : 'transparent'}`,
                 }}>
                 <span className="text-base">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
-            <div className="pt-4 mt-4 border-t px-1" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]" >
               <button className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10">
                 <span className="text-base">🚪</span> Log Out
               </button>
@@ -4079,13 +4079,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </div>
 
                 {/* Avatar picker */}
-                <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
                   <div className="flex items-center gap-6">
                     {/* Big avatar preview */}
                     <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
                       style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
-                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-cover" />
+                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-contain" />
                     </div>
                     <div className="flex-1">
                       <div className="text-[11px] text-slate-500 mb-3">Choose avatar</div>
@@ -4094,7 +4094,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                           <button key={i} onClick={() => setSelectedAvatar(av)}
                             className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
                             style={{ borderColor: selectedAvatar === av ? '#8B5CFF' : 'transparent', boxShadow: selectedAvatar === av ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
-                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-cover bg-[rgba(26,40,69,0.4)]" />
+                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]"  />
                           </button>
                         ))}
                       </div>
@@ -4119,7 +4119,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
                 <button onClick={saveProfile}
                   className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Save Profile Changes
                 </button>
               </>
@@ -4139,23 +4139,23 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </SectionCard>
 
                 <SectionCard title="SECURITY">
-                  <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
                     <input type="password" placeholder="Enter current password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       />
                   </div>
-                  <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
                     <input type="password" placeholder="Enter new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       />
                   </div>
                   <div className="py-3.5">
                     <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
                     <input type="password" placeholder="Confirm new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       />
                   </div>
                 </SectionCard>
 
@@ -4165,16 +4165,16 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { name: 'Discord', icon: '🟣', connected: false },
                     { name: 'GitHub', icon: '⚫', connected: false },
                   ].map(acc => (
-                    <div key={acc.name} className="flex items-center justify-between py-3.5 border-b last:border-0" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <div key={acc.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{acc.icon}</span>
                         <div>
                           <div className="text-sm font-medium text-slate-200">{acc.name}</div>
-                          <div className="text-[11px]" style={{ color: acc.connected ? '#34D399' : '#64748B' }}>{acc.connected ? 'Connected' : 'Not connected'}</div>
+                          <div className="text-[11px]" style={{ color: acc.connected ? '#19D3A2' : '#4E5E84' }}>{acc.connected ? 'Connected' : 'Not connected'}</div>
                         </div>
                       </div>
                       <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', color: acc.connected ? '#F87171' : '#A78BFA' }}>
+                        style={{ borderColor: '#1A2845', color: acc.connected ? '#F87171' : '#9B6CFF' }}>
                         {acc.connected ? 'Disconnect' : 'Connect'}
                       </button>
                     </div>
@@ -4183,19 +4183,19 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
                 <button onClick={saveProfile}
                   className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Save Account Changes
                 </button>
 
-                <div className="rounded-2xl border p-5" style={{ background: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.2)' }}>
+                <div className="rounded-2xl border p-5 bg-[rgba(239,68,68,0.04)] border-[rgba(239,68,68,0.2)]" >
                   <div className="text-[10px] font-mono tracking-[0.18em] text-red-400 mb-3">DANGER ZONE</div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-red-300">Delete Account</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data.</div>
                     </div>
-                    <button className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10"
-                      style={{ borderColor: 'rgba(239,68,68,0.35)' }}>Delete</button>
+                    <button className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]"
+                      >Delete</button>
                   </div>
                 </div>
               </>
@@ -4245,13 +4245,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { label: 'Download My Data', sub: 'Export all your study data and history', action: 'Download' },
                     { label: 'Clear Study History', sub: 'Remove all session and progress records', action: 'Clear' },
                   ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between py-3.5 border-b last:border-0" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <div key={item.label} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
                       <div>
                         <div className="text-sm font-medium text-slate-200">{item.label}</div>
                         <div className="text-[11px] text-slate-500 mt-0.5">{item.sub}</div>
                       </div>
-                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all"
-                        style={{ borderColor: 'rgba(124,58,237,0.3)' }}>{item.action}</button>
+                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060]"
+                        >{item.action}</button>
                     </div>
                   ))}
                 </SectionCard>
@@ -4266,13 +4266,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience.</p>
                 </div>
                 <SectionCard title="DAILY GOALS">
-                  <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS)</div>
                     <div className="flex gap-2 flex-wrap">
                       {['2', '4', '6', '8', '10', '12'].map(h => (
                         <button key={h} onClick={() => setDailyGoal(h)}
                           className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: dailyGoal === h ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', color: dailyGoal === h ? '#C4B5FD' : '#64748B', borderColor: dailyGoal === h ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+                          style={{ background: dailyGoal === h ? '#1A2845' : '#0B1530', color: dailyGoal === h ? '#C4AAFF' : '#4E5E84', borderColor: dailyGoal === h ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
                           {h}h
                         </button>
                       ))}
@@ -4291,13 +4291,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { name: 'Time Blocking', sub: 'Fixed time slots per subject' },
                     { name: 'Custom', sub: 'Set your own timer intervals' },
                   ].map((t, i) => (
-                    <div key={t.name} className="flex items-center justify-between py-3.5 border-b last:border-0" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <div key={t.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
                       <div>
                         <div className="text-sm font-medium text-slate-200">{t.name}</div>
                         <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
                       </div>
                       <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                        style={{ borderColor: i === 0 ? '#7C3AED' : 'rgba(124,58,237,0.3)' }}>
+                        style={{ borderColor: i === 0 ? '#7C4DFF' : '#1E3060' }}>
                         {i === 0 && <div className="w-2 h-2 rounded-full bg-violet-500" />}
                       </div>
                     </div>
@@ -4305,7 +4305,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </SectionCard>
                 <button onClick={saveProfile}
                   className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Save Study Preferences
                 </button>
               </>
@@ -4318,9 +4318,9 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   <h2 className="text-xl font-bold text-white">About Wynko</h2>
                   <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
                 </div>
-                <div className="rounded-2xl border p-8 text-center" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+                <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]" >
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 32px rgba(124,58,237,0.4)' }}>W</div>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
                   <div className="text-xl font-black text-white mb-1">Wynko</div>
                   <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
                   <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
@@ -4333,7 +4333,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { label: 'Contact Support', icon: '💬' },
                     { label: 'Rate Wynko ⭐', icon: '🌟' },
                   ].map(item => (
-                    <button key={item.label} className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <button key={item.label} className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]" >
                       <div className="flex items-center gap-3">
                         <span className="text-base">{item.icon}</span>
                         <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
