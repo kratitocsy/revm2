@@ -5217,7 +5217,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
 function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   return (
-    <div className="flex h-screen overflow-hidden" style={{ fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden" >
       <Sidebar active="3dlibrary" setActive={onNavigate} profile={profile} />
       {/* Full-screen image fill */}
       <div className="flex-1 relative overflow-hidden">
@@ -5232,14 +5232,14 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-8 text-center">
           {/* Icon */}
           <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mb-2"
-            style={{ background: 'rgba(124,58,237,0.25)', border: '1.5px solid rgba(124,58,237,0.5)', boxShadow: '0 0 48px rgba(124,58,237,0.35)', backdropFilter: 'blur(8px)' }}>
+            style={{ background: '#1A2845', border: '1.5px solid #4A3A88', boxShadow: '0 0 48px #1E3060', backdropFilter: 'blur(8px)' }}>
             🏛️
           </div>
           {/* Label */}
           <div className="text-[11px] font-mono tracking-[0.3em] text-violet-400">3D LIBRARY</div>
           {/* Heading */}
           <h1 className="text-6xl font-black text-white leading-tight"
-            style={{ textShadow: '0 0 60px rgba(124,58,237,0.8), 0 0 120px rgba(124,58,237,0.4)', letterSpacing: '-0.02em' }}>
+            style={{ textShadow: '0 0 60px #563FA0, 0 0 120px #2855CC', letterSpacing: '-0.02em' }}>
             Coming Soon
           </h1>
           {/* Sub */}
@@ -5250,14 +5250,14 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
           <div className="flex gap-3 flex-wrap justify-center mt-2">
             {['Virtual Study Rooms', 'Solo Pods', 'Discussion Corner', 'Resource Hub'].map(f => (
               <div key={f} className="px-4 py-1.5 rounded-full text-sm font-medium border"
-                style={{ background: 'rgba(124,58,237,0.15)', borderColor: 'rgba(124,58,237,0.4)', color: '#C4B5FD', backdropFilter: 'blur(8px)' }}>
+                style={{ background: 'rgba(26,40,69,0.55)', borderColor: '#2855CC', color: '#C4AAFF', backdropFilter: 'blur(8px)' }}>
                 {f}
               </div>
             ))}
           </div>
           {/* Notify button */}
           <button className="mt-2 flex items-center gap-2.5 px-8 py-3.5 rounded-full font-bold text-white text-base transition-all hover:opacity-90 active:scale-95"
-            style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 32px rgba(124,58,237,0.5)', backdropFilter: 'blur(8px)' }}>
+            style={{ background: '#7C4DFF', boxShadow: '0 0 32px #4A3A88', backdropFilter: 'blur(8px)' }}>
             <Ico n="bell" cls="w-5 h-5" />
             Notify Me When It's Live
           </button>
