@@ -57,7 +57,7 @@
   --r-lg:26px;
 }
 *,*::before,*::after{ box-sizing:border-box; }
-html{ scroll-behavior:smooth; }
+html{ scroll-behavior:smooth; overflow-x:hidden; max-width:100%; }
 body{
   margin:0;
   background:var(--ink);
@@ -246,6 +246,111 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .tabbar button svg{ width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.7; }
 .tabbar button.active{ color:var(--violet-2); }
 
+/* =============================================================
+   HOME DASHBOARD (replaces the old focus/earn/rank/rooms demo)
+   ============================================================= */
+.wk-home{
+  --wk-purple:#a78bfa;
+  --wk-purple-dim:#7c5cfc;
+  --wk-teal:#00d4c8;
+  --wk-teal-dim:#00b4a0;
+  --wk-orange:#f97316;
+  --wk-card:#0e1628;
+  --wk-card-border:rgba(100,120,255,.12);
+  flex:1; display:flex; flex-direction:column; min-height:0;
+}
+.wk-header{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:6px 0 6px; font-family:var(--font); font-weight:700; font-size:.82rem;
+  color:var(--text); letter-spacing:-.2px; flex-shrink:0;
+}
+.wk-scroll{
+  flex:1; overflow-y:auto; padding:4px 4px 10px; display:flex; flex-direction:column; gap:9px;
+  scrollbar-width:none;
+}
+.wk-scroll::-webkit-scrollbar{ width:0; background:transparent; }
+.wk-card{ background:var(--wk-card); border:1px solid var(--wk-card-border); border-radius:14px; }
+.wk-cta{ padding:11px; border-color:rgba(124,92,252,.25); }
+.wk-cta-btn{
+  width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
+  padding:11px; border-radius:11px; border:0; cursor:pointer; color:#fff; font-weight:700;
+  font-size:.68rem; letter-spacing:.08em; font-family:var(--font);
+  background:linear-gradient(135deg,var(--wk-purple-dim),var(--wk-teal));
+  box-shadow:0 0 16px rgba(124,92,252,.22); transition:transform .15s;
+}
+.wk-cta-btn:active{ transform:scale(.98); }
+.wk-cta-sub{ text-align:center; margin-top:7px; font-size:.64rem; color:var(--text-3); }
+
+.wk-continue{ padding:11px; display:flex; align-items:center; gap:9px; }
+.wk-continue-icon{
+  flex-shrink:0; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  background:rgba(0,180,160,.12); border:1px solid rgba(0,212,200,.2);
+}
+.wk-continue-icon svg{ width:18px; height:18px; }
+.wk-continue-body{ flex:1; min-width:0; }
+.wk-eyebrow{ font-size:.54rem; font-weight:600; letter-spacing:.13em; color:var(--text-3); font-family:var(--mono); margin-bottom:2px; }
+.wk-continue-title{ font-weight:600; font-size:.78rem; color:var(--text); line-height:1.2; }
+.wk-continue-sub{ font-size:.62rem; color:var(--text-2); margin-top:2px; }
+.wk-continue-btn{
+  flex-shrink:0; display:flex; align-items:center; gap:2px; padding:6px 9px; border-radius:8px;
+  font-size:.62rem; font-weight:500; color:var(--text); border:1px solid rgba(100,120,255,.25);
+  background:rgba(100,120,255,.08); font-family:var(--font); cursor:pointer;
+}
+
+.wk-label{ font-size:.54rem; font-weight:600; letter-spacing:.13em; color:var(--text-3); font-family:var(--mono); margin:2px 0 6px 2px; }
+
+.wk-quick{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.wk-quick button{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:11px 4px; cursor:pointer; transition:transform .15s; }
+.wk-quick button:active{ transform:scale(.95); }
+.wk-quick svg{ width:18px; height:18px; }
+.wk-quick span{ font-size:.6rem; font-weight:500; color:var(--text); font-family:var(--font); text-align:center; }
+
+.wk-together{ padding:11px; border-color:rgba(0,212,200,.18); }
+.wk-together-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.wk-together-live{ display:flex; align-items:center; gap:5px; }
+.wk-live-dot{ width:6px; height:6px; border-radius:999px; background:var(--wk-teal); box-shadow:0 0 6px var(--wk-teal); flex-shrink:0; }
+.wk-together-live span{ font-size:.66rem; font-weight:500; color:var(--text); }
+.wk-avatars{ display:flex; align-items:center; }
+.wk-avatar{
+  width:22px; height:22px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+  font-size:.54rem; font-weight:700; color:#fff; border:2px solid #080d1a; margin-left:-8px;
+}
+.wk-avatar:first-child{ margin-left:0; }
+.wk-avatar.more{ background:#1a2540; color:var(--text-2); font-weight:600; }
+.wk-together-actions{ display:flex; gap:7px; }
+.wk-btn-primary{
+  flex:1; padding:8px; border-radius:9px; border:0; cursor:pointer; font-size:.66rem; font-weight:600;
+  color:#fff; font-family:var(--font); background:linear-gradient(135deg,var(--wk-purple-dim),var(--wk-teal));
+  transition:transform .15s;
+}
+.wk-btn-primary:active{ transform:scale(.96); }
+.wk-btn-ghost{
+  flex:1; padding:8px; border-radius:9px; cursor:pointer; font-size:.66rem; font-weight:500; color:var(--text);
+  font-family:var(--font); border:1px solid rgba(100,120,255,.2); background:rgba(100,120,255,.06);
+  transition:transform .15s;
+}
+.wk-btn-ghost:active{ transform:scale(.96); }
+
+.wk-week{ display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+.wk-week-item{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:7px 2px; background:#0e1628; }
+.wk-week-icon{ font-size:.76rem; margin-bottom:1px; }
+.wk-week-val{ font-size:.62rem; font-weight:700; color:var(--text); font-family:var(--font); text-align:center; }
+.wk-week-label{ font-size:.53rem; color:var(--text-2); }
+
+.wk-review-top{ display:flex; align-items:center; justify-content:space-between; margin:0 2px 3px; }
+.wk-review-badge{ width:15px; height:15px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:.54rem; font-weight:700; color:#fff; background:var(--wk-orange); flex-shrink:0; }
+.wk-review-sub{ font-size:.64rem; color:var(--text-2); margin:0 2px 7px; }
+.wk-review-item{ display:flex; align-items:center; gap:7px; padding:8px 11px; margin-bottom:6px; border-radius:11px; }
+.wk-review-item.urgent{ border-left:3px solid var(--wk-orange); }
+.wk-review-item.normal{ border-left:3px solid var(--wk-purple-dim); }
+.wk-review-item svg{ flex-shrink:0; }
+.wk-review-body{ flex:1; }
+.wk-review-title{ font-weight:600; font-size:.68rem; color:var(--text); }
+.wk-review-subject{ font-size:.58rem; color:var(--text-2); margin-top:1px; }
+.wk-review-tag{ font-size:.54rem; font-weight:600; padding:3px 7px; border-radius:999px; font-family:var(--mono); flex-shrink:0; white-space:nowrap; }
+.wk-review-tag.urgent{ background:rgba(249,115,22,.15); color:var(--wk-orange); border:1px solid rgba(249,115,22,.3); }
+.wk-review-tag.normal{ background:rgba(124,92,252,.12); color:var(--wk-purple); border:1px solid rgba(124,92,252,.25); }
+
 /* balance / earn screen */
 .bal-card{
   border-radius:18px; padding:16px; border:1px solid rgba(52,211,153,.22);
@@ -304,6 +409,8 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .float-badge .dot{ width:9px; height:9px; border-radius:50%; background:var(--mint); box-shadow:0 0 12px var(--mint); }
 .float-badge b{ font-family:var(--mono); font-size:.82rem; }
 .float-badge span{ font-size:.62rem; color:var(--text-3); display:block; }
+.float-badge-a{ top:8%; left:-4%; }
+.float-badge-b{ bottom:12%; right:-6%; }
 
 /* emulator toolbar */
 .emu-shell{ position:relative; }
@@ -367,6 +474,7 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .mini-ring{ width:46px; height:46px; border-radius:50%; border:4px solid rgba(255,255,255,.1); border-top-color:var(--violet-2); margin:8px auto; animation:spin 2.6s linear infinite; }
 @keyframes spin{ to{transform:rotate(360deg)} }
 .mini-block{ height:26px; border-radius:8px; background:rgba(124,77,255,.18); border:1px solid rgba(124,77,255,.3); margin-top:7px; }
+.f-visual-img{ height:100%; width:auto; max-width:100%; object-fit:contain; display:block; }
 
 /* ---------- smart split ---------- */
 .split{ display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; }
@@ -427,6 +535,69 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .quote .who b{ display:block; font-size:.88rem; }
 .quote .who span{ font-size:.74rem; color:var(--text-3); }
 
+/* ---------- founders ---------- */
+.founders{ overflow:hidden; }
+.founders-track{ display:flex; will-change:transform; }
+.founder-tile{ box-sizing:border-box; padding:0 10px; }
+.founder-card{
+  height:100%; border:1px solid var(--border); border-radius:var(--r); padding:30px 26px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
+  display:flex; flex-direction:column; align-items:center; text-align:center; transition:.25s;
+}
+.founder-card:hover{ border-color:var(--border-2); background:rgba(124,77,255,.06); transform:translateY(-4px); }
+.founder-photo{
+  width:84px; height:84px; border-radius:50%; margin-bottom:18px; flex-shrink:0;
+  background:linear-gradient(140deg,rgba(124,77,255,.28),rgba(34,211,238,.18));
+  border:1px solid var(--border-2); display:grid; place-items:center; color:var(--text-3);
+}
+.founder-photo svg{ width:32px; height:32px; stroke:currentColor; fill:none; stroke-width:1.6; }
+.founder-photo img{ width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; }
+.founder-card h4{ font-size:1rem; margin-bottom:4px; }
+.founder-card .role{
+  font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--violet-2); margin-bottom:14px;
+}
+.founder-card p{ margin:0; color:var(--text-3); font-size:.84rem; line-height:1.6; }
+.founders-dots{ display:flex; justify-content:center; gap:8px; margin-top:30px; }
+.founders-dots button{
+  width:7px; height:7px; padding:0; border-radius:50%; border:0; background:var(--border-2);
+  cursor:pointer; transition:.25s;
+}
+.founders-dots button.active{ background:var(--violet-2); width:20px; border-radius:4px; }
+
+/* Desktop / tablet — 2 cards per slide, exactly 2 slides */
+@media (min-width:769px){
+  .founder-tile{ flex:0 0 50%; }
+}
+
+/* Mobile — vertical stack, one founder card below another, full width */
+@media (max-width:768px){
+  .founders{ overflow:visible; cursor:auto; }
+  .founders-track{ flex-direction:column; gap:18px; }
+  .founder-tile{ flex:0 0 auto; width:100%; padding:0; opacity:1; }
+  .founders-dots{ display:none; }
+}
+
+/* ---------- faq ---------- */
+.faq-list{ border-top:1px solid var(--border); }
+.faq-item{ border-bottom:1px solid var(--border); }
+.faq-q{
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:24px;
+  background:none; border:0; cursor:pointer; padding:24px 2px; font:inherit;
+  font-size:1rem; font-weight:600; color:var(--text); text-align:left; transition:color .2s ease;
+}
+.faq-q:hover{ color:var(--violet-2); }
+.faq-icon{ position:relative; width:16px; height:16px; flex:0 0 16px; }
+.faq-icon span{ position:absolute; top:50%; left:50%; background:var(--text-3); transition:transform .3s ease, opacity .3s ease, background .3s ease; }
+.faq-icon span:first-child{ width:16px; height:1.5px; transform:translate(-50%,-50%); }
+.faq-icon span:last-child{ width:1.5px; height:16px; transform:translate(-50%,-50%); }
+.faq-item.open .faq-q{ color:var(--violet-2); }
+.faq-item.open .faq-icon span{ background:var(--violet-2); }
+.faq-item.open .faq-icon span:last-child{ opacity:0; transform:translate(-50%,-50%) rotate(90deg); }
+.faq-a{ max-height:0; overflow:hidden; opacity:0; transition:max-height .38s ease, opacity .3s ease; }
+.faq-item.open .faq-a{ opacity:1; }
+.faq-a p{ margin:0 0 24px; color:var(--text-2); font-size:.92rem; line-height:1.65; max-width:640px; }
+
 /* ---------- final cta ---------- */
 .cta{
   position:relative; border-radius:var(--r-lg); overflow:hidden;
@@ -443,7 +614,7 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 
 /* ---------- footer ---------- */
 footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba(255,255,255,.012); }
-.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1fr; gap:34px; }
+.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:34px; }
 .foot-brand .brand{ margin-bottom:16px; }
 .foot-brand p{ color:var(--text-3); font-size:.84rem; max-width:280px; }
 .foot-col h5{ font-size:.72rem; text-transform:uppercase; letter-spacing:.16em; color:var(--text-4); margin:0 0 16px; font-weight:600; }
@@ -467,7 +638,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .quotes{ grid-template-columns:1fr; }
   .flex-grid{ grid-template-columns:repeat(2,1fr); }
   .earn-panel{ grid-template-columns:1fr; padding:30px; }
-  .foot-grid{ grid-template-columns:1.4fr 1fr 1fr; }
+  .foot-grid{ grid-template-columns:1fr 1fr; }
 }
 @media (max-width:760px){
   .nav-links{ display:none; }
@@ -479,7 +650,13 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .foot-grid{ grid-template-columns:1fr 1fr; }
   .cta{ padding:52px 22px; }
   .earn-panel{ padding:22px; }
-  .device{ transform:scale(.92); transform-origin:top center; }
+  .device{ transform:scale(.92); transform-origin:top center; max-width:100%; }
+
+  /* keep decorative glow + floating chips from pushing the page wider than the viewport */
+  .hero-device-wrap{ overflow:visible; max-width:100%; }
+  .hero-device-wrap .halo{ inset:-40px 0; }
+  .float-badge-a{ left:0; }
+  .float-badge-b{ right:0; }
 }
 </style>
 </head>
@@ -494,14 +671,14 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     </a>
     <nav class="nav-links">
       <a href="#product" class="active">Product</a>
-      <a href="#fast">Features</a>
-      <a href="#earn">Earn</a>
-      <a href="#rooms">Study Rooms</a>
-      <a href="#pricing">Pricing</a>
+      <a href="#flexible">Features</a>
+      <a href="#earn">Founders</a>
+      <a href="#pricing">Reviews</a>
+      <a href="#faq">FAQ</a>
     </nav>
     <div class="nav-right">
       <a class="login" href="login.html">Log in</a>
-      <a class="btn btn-primary btn-sm" href="#cta">Get early access</a>
+      <a class="btn btn-primary btn-sm" href="downloads/">Download Desktop App</a>
       <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display=(getComputedStyle(document.querySelector('.nav-links')).display==='none'?'flex':'none')">&#9776;</button>
     </div>
   </div>
@@ -513,9 +690,9 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <section class="hero" id="product">
   <div class="wrap hero-grid">
     <div>
-      <span class="kicker-chip"><span class="nav-dot"></span> The Product &middot; <b>Study OS 1.0</b></span>
+      <span class="kicker-chip"><span class="nav-dot"></span> Wynko &middot; <b>Focus without distractions</b></span>
       <h1 class="h-xl" style="margin-top:22px;">
-        The world's first <span class="grad-text">Study OS</span> which empowers you to focus, grow and earn.
+        The world's first <span class="grad-text">Study OS</span> designed to help you focus, learn, and grow.
       </h1>
       <p class="lead">
         Give Wynko your timetable — or let it build one for you — and it auto-schedules revision on a forgetting curve,
@@ -523,13 +700,13 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
         with people actually studying right now.
       </p>
       <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href="#cta">Get early access &rarr;</a>
-        <a class="btn btn-ghost btn-lg" href="#emulator">Try the live demo</a>
+        <a class="btn btn-primary btn-lg" href="waitlist.html">Sign Up / Login</a>
+        <a class="btn btn-ghost btn-lg" href="downloads/">Download Desktop App</a>
       </div>
       <div class="hero-meta">
         <span class="item"><b id="emLive">0</b> sessions running now</span>
         <span class="item"><b>184</b> topics decay / hr</span>
-        <span class="item">PC app &mdash; coming soon</span>
+        <span class="item">Mobile app &mdash; coming soon</span>
       </div>
       <div style="margin-top:14px;font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;color:var(--text-3);">
         Built for India's aspirants &middot; #MakeInIndia
@@ -540,11 +717,11 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <div class="halo"></div>
 
       <!-- floating HUD chips around the device -->
-      <div class="float-badge" style="top:8%; left:-4%;">
+      <div class="float-badge float-badge-a">
         <span class="dot"></span>
         <div><b>No early exit</b><span>lock is unbypassable</span></div>
       </div>
-      <div class="float-badge" style="bottom:12%; right:-6%; animation-delay:.8s;">
+      <div class="float-badge float-badge-b" style="animation-delay:.8s;">
         <div><b>12 days</b><span>focus streak</span></div>
       </div>
 
@@ -559,114 +736,139 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
             </span>
           </div>
 
-          <div class="app">
-            <!-- FOCUS SCREEN -->
-            <div class="app-screen active" data-screen="focus">
-              <div class="app-title">NOW FOCUSING</div>
-              <div class="app-h">Organic Chemistry</div>
-              <div class="ring-wrap">
-                <div class="ring">
-                  <svg viewBox="0 0 182 182">
-                    <defs>
-                      <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stop-color="#a78bfa"/>
-                        <stop offset=".5" stop-color="#6c8cff"/>
-                        <stop offset="1" stop-color="#22d3ee"/>
-                      </linearGradient>
-                    </defs>
-                    <circle class="track" cx="91" cy="91" r="83"/>
-                    <circle class="prog" cx="91" cy="91" r="83"/>
+          <div class="wk-home">
+            <div class="wk-header">
+              <img src="wynko-w-icon.png" alt="Wynko" width="20" height="20" style="border-radius:4px" />
+              <span>Wynko</span>
+            </div>
+
+            <div class="wk-scroll">
+              <!-- START FOCUS CTA -->
+              <div class="wk-card wk-cta">
+                <button class="wk-cta-btn">
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2.5l9 4.5-9 4.5V2.5z"/></svg>
+                  START FOCUS
+                </button>
+                <p class="wk-cta-sub">View today's plan &rarr;</p>
+              </div>
+
+              <!-- Continue Studying -->
+              <div class="wk-card wk-continue">
+                <div class="wk-continue-icon">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="8" height="8" rx="2" fill="rgba(0,212,200,0.3)"/>
+                    <rect x="13" y="3" width="8" height="8" rx="2" fill="rgba(124,92,252,0.3)"/>
+                    <rect x="3" y="13" width="8" height="8" rx="2" fill="rgba(124,92,252,0.3)"/>
+                    <rect x="13" y="13" width="8" height="8" rx="2" fill="rgba(0,212,200,0.15)"/>
                   </svg>
-                  <div class="ring-center">
-                    <div class="ring-time" id="ringTime">25:00</div>
-                    <div class="ring-label">deep focus</div>
-                    <div class="ring-earn" id="ringEarn">locked in &middot; next revision auto-scheduled</div>
-                  </div>
+                </div>
+                <div class="wk-continue-body">
+                  <div class="wk-eyebrow">CONTINUE STUDYING</div>
+                  <div class="wk-continue-title">Cell Cycle</div>
+                  <div class="wk-continue-sub">Biology &middot; Last studied 18 min ago</div>
+                </div>
+                <button class="wk-continue-btn">Continue
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+
+              <!-- Quick Start -->
+              <div>
+                <div class="wk-label">QUICK START</div>
+                <div class="wk-quick">
+                  <button style="background:rgba(124,92,252,0.1);border:1px solid rgba(124,92,252,0.2);border-radius:14px;">
+                    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#a78bfa" stroke-width="1.5"/><path d="M12 7v5l3 3" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Focus</span>
+                  </button>
+                  <button style="background:rgba(0,212,200,0.08);border:1px solid rgba(0,212,200,0.18);border-radius:14px;">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3M16 14c2.67 0 8 1.34 8 4v1h-8" stroke="#00d4c8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="8" r="3" stroke="#00d4c8" stroke-width="1.5"/><path d="M9 14c-4 0-8 1.34-8 4v1h16v-1c0-2.66-4-4-8-4z" stroke="#00d4c8" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Study Room</span>
+                  </button>
+                  <button style="background:rgba(0,180,120,0.08);border:1px solid rgba(0,180,120,0.18);border-radius:14px;">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M4 4h7a4 4 0 014 4v13a3 3 0 00-3-3H4V4z" stroke="#00b4a0" stroke-width="1.5" stroke-linejoin="round"/><path d="M20 4h-7a4 4 0 00-4 4v13a3 3 0 013-3h8V4z" stroke="#00b4a0" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    <span>Library</span>
+                  </button>
                 </div>
               </div>
-              <div class="chips">
-                <span class="chip lock">&#10005; Instagram</span>
-                <span class="chip lock">&#10005; YouTube</span>
-                <span class="chip on">&#10003; Distraction lock</span>
-              </div>
-              <button class="start-btn" id="startBtn">Start focus session</button>
-            </div>
 
-            <!-- EARN SCREEN -->
-            <div class="app-screen" data-screen="earn">
-              <div class="app-title">WALLET</div>
-              <div class="app-h">Earnings</div>
-              <div class="bal-card">
-                <div class="bal-label">available balance</div>
-                <div class="bal-amt mono">&#8377;2,480</div>
-                <div class="bal-sub">+&#8377;182 today &middot; withdraw anytime</div>
+              <!-- Study Together -->
+              <div class="wk-card wk-together">
+                <div class="wk-together-top">
+                  <div>
+                    <div class="wk-label" style="margin:0 0 5px 0;">STUDY TOGETHER</div>
+                    <div class="wk-together-live">
+                      <span class="wk-live-dot"></span>
+                      <span>12 students studying now</span>
+                    </div>
+                  </div>
+                  <div class="wk-avatars">
+                    <div class="wk-avatar" style="background:#7c5cfc;">S</div>
+                    <div class="wk-avatar" style="background:#00d4c8;">M</div>
+                    <div class="wk-avatar" style="background:#f97316;">R</div>
+                    <div class="wk-avatar" style="background:#06b6d4;">K</div>
+                    <div class="wk-avatar more">+8</div>
+                  </div>
+                </div>
+                <div class="wk-together-actions">
+                  <button class="wk-btn-primary">Join Room</button>
+                  <button class="wk-btn-ghost">Library</button>
+                </div>
               </div>
-              <div class="mini-stats">
-                <div class="mini"><b class="mono">41h</b><span>focused</span></div>
-                <div class="mini"><b class="mono">&#8377;68</b><span>avg / hour</span></div>
-              </div>
-              <div class="bars">
-                <div class="bar-row"><div class="top"><span>Mon</span><span class="mono">&#8377;124</span></div><div class="bar-track"><i class="bar-fill" data-w="62%"></i></div></div>
-                <div class="bar-row"><div class="top"><span>Tue</span><span class="mono">&#8377;182</span></div><div class="bar-track"><i class="bar-fill" data-w="88%"></i></div></div>
-                <div class="bar-row"><div class="top"><span>Wed</span><span class="mono">&#8377;96</span></div><div class="bar-track"><i class="bar-fill" data-w="48%"></i></div></div>
-              </div>
-            </div>
 
-            <!-- RANK SCREEN -->
-            <div class="app-screen" data-screen="rank">
-              <div class="app-title">THIS WEEK</div>
-              <div class="app-h">Leaderboard</div>
-              <div class="rank-hero">
-                <span>your rank</span>
-                <div class="big">#4</div>
-                <span>of 12,904 aspirants</span>
+              <!-- This Week -->
+              <div>
+                <div class="wk-label">THIS WEEK</div>
+                <div class="wk-week">
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#9201;</span><span class="wk-week-val">2h 40m</span><span class="wk-week-label">Focused</span></div>
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#128203;</span><span class="wk-week-val">18</span><span class="wk-week-label">Reviews</span></div>
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#127919;</span><span class="wk-week-val">7</span><span class="wk-week-label">Sessions</span></div>
+                  <div class="wk-card wk-week-item"><span class="wk-week-icon">&#128293;</span><span class="wk-week-val">4 days</span><span class="wk-week-label">Streak</span></div>
+                </div>
               </div>
-              <div class="lb-row"><span class="pos">1</span><span class="av">AR</span><span class="nm">Aarav</span><span class="pts">8,240</span></div>
-              <div class="lb-row"><span class="pos">2</span><span class="av">SK</span><span class="nm">Sana</span><span class="pts">7,910</span></div>
-              <div class="lb-row"><span class="pos">3</span><span class="av">VT</span><span class="nm">Vedant</span><span class="pts">7,455</span></div>
-              <div class="lb-row me"><span class="pos">4</span><span class="av">YOU</span><span class="nm">You</span><span class="pts">7,120</span></div>
-              <div class="lb-row"><span class="pos">5</span><span class="av">MI</span><span class="nm">Mira</span><span class="pts">6,880</span></div>
-            </div>
 
-            <!-- ROOMS SCREEN -->
-            <div class="app-screen" data-screen="rooms">
-              <div class="app-title">LIVE NOW</div>
-              <div class="app-h">Study Rooms</div>
-              <div class="room-tile">
-                <div class="room-ic">&#9788;</div>
-                <div><div class="t">NEET Droppers</div><div class="s">Silent focus &middot; 50 min</div></div>
-                <span class="room-live">&#9679; 214</span>
-              </div>
-              <div class="room-tile">
-                <div class="room-ic">&#10022;</div>
-                <div><div class="t">JEE Advanced</div><div class="s">Problem solving &middot; 90 min</div></div>
-                <span class="room-live">&#9679; 132</span>
-              </div>
-              <div class="room-tile">
-                <div class="room-ic">&#9733;</div>
-                <div><div class="t">UPSC Mains</div><div class="s">Answer writing &middot; 60 min</div></div>
-                <span class="room-live">&#9679; 87</span>
-              </div>
-              <div class="room-tile">
-                <div class="room-ic">&#9835;</div>
-                <div><div class="t">Lo-fi Library</div><div class="s">Open room &middot; always on</div></div>
-                <span class="room-live">&#9679; 401</span>
+              <!-- Review Queue -->
+              <div>
+                <div class="wk-review-top">
+                  <div class="wk-label" style="margin:0;">REVIEW QUEUE</div>
+                  <span class="wk-review-badge">2</span>
+                </div>
+                <p class="wk-review-sub">2 topics ready for revision</p>
+
+                <div class="wk-card wk-review-item urgent">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" fill="rgba(124,92,252,0.15)" stroke="rgba(124,92,252,0.3)" stroke-width="1.2"/><path d="M6 7h8M6 10h5M6 13h6" stroke="#a78bfa" stroke-width="1.2" stroke-linecap="round"/></svg>
+                  <div class="wk-review-body">
+                    <div class="wk-review-title">Cell Cycle</div>
+                    <div class="wk-review-subject">Biology</div>
+                  </div>
+                  <span class="wk-review-tag urgent">Due today</span>
+                </div>
+                <div class="wk-card wk-review-item normal">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" fill="rgba(124,92,252,0.15)" stroke="rgba(124,92,252,0.3)" stroke-width="1.2"/><path d="M6 7h8M6 10h5M6 13h6" stroke="#a78bfa" stroke-width="1.2" stroke-linecap="round"/></svg>
+                  <div class="wk-review-body">
+                    <div class="wk-review-title">Organic Reactions</div>
+                    <div class="wk-review-subject">Chemistry</div>
+                  </div>
+                  <span class="wk-review-tag normal">Due tomorrow</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="tabbar">
-            <button class="active" data-tab="focus">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus
+          <div class="tabbar" id="wkTabbar">
+            <button class="active" data-wktab="home">
+              <svg viewBox="0 0 22 22"><path d="M3 9.5L11 3l8 6.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linejoin="round"/><path d="M8 20v-7h6v7" stroke-linejoin="round"/></svg>Home
             </button>
-            <button data-tab="earn">
-              <svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn
+            <button data-wktab="focus">
+              <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="8"/><circle cx="11" cy="11" r="4"/></svg>Focus
             </button>
-            <button data-tab="rank">
-              <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank
+            <button data-wktab="rooms">
+              <svg viewBox="0 0 22 22"><path d="M7 8a4 4 0 118 0 4 4 0 01-8 0z"/><path d="M3 19c0-3.314 3.582-6 8-6s8 2.686 8 6" stroke-linecap="round"/></svg>Rooms
             </button>
-            <button data-tab="rooms">
-              <svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms
+            <button data-wktab="recall">
+              <svg viewBox="0 0 22 22"><path d="M4 11a7 7 0 107-7" stroke-linecap="round"/><path d="M4 5v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg>Recall
+            </button>
+            <button data-wktab="more">
+              <svg viewBox="0 0 22 22"><circle cx="6" cy="11" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="11" r="1.5" fill="currentColor" stroke="none"/><circle cx="16" cy="11" r="1.5" fill="currentColor" stroke="none"/></svg>More
             </button>
           </div>
         </div>
@@ -684,227 +886,95 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
         <span class="tag-pill">NEET</span><span class="tag-pill">JEE Main</span><span class="tag-pill">JEE Advanced</span>
         <span class="tag-pill">UPSC CSE</span><span class="tag-pill">CAT</span><span class="tag-pill">GATE</span>
         <span class="tag-pill">CUET</span><span class="tag-pill">Board Exams</span><span class="tag-pill">CA / CS</span>
-        <span class="tag-pill">NDA</span><span class="tag-pill">SSC</span><span class="tag-pill">University</span>
+        <span class="tag-pill">NDA</span><span class="tag-pill">SSC</span><span class="tag-pill">NORCET</span><span class="tag-pill">AIIMS</span><span class="tag-pill">University</span>
       </div>
     </div>
   </div>
 </div>
 
+<!-- ===================== FLEXIBLE ===================== -->
+<section id="flexible">
+  <div class="wrap">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Built for better study</span>
+      <h2 class="h-lg">Everything you need to study with focus.</h2>
+      <p class="lead">From planning your syllabus to blocking distractions, revising at the right time, studying with others, and competing in battles — Wynko brings your study workflow together.</p>
+    </div>
+    <div class="flex-grid">
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2.5V6M16 2.5V6"/></svg></div>
+        <h4>Automatic study plans</h4>
+        <p>Give Wynko your exam date and syllabus. It builds a structured study plan and adapts as you progress.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <h4>Distraction-free study</h4>
+        <p>Choose the apps and websites you want blocked during a focus session and study without digital distractions.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg></div>
+        <h4>Automated revision</h4>
+        <p>Wynko schedules revision at the right time using your study progress and retention patterns, so important topics don't get forgotten.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 11a3 3 0 1 0-1.5-5.6"/></svg></div>
+        <h4>Study together</h4>
+        <p>Join subject-based study rooms, study alongside other students, and stay accountable without studying alone.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a3 3 0 0 0 3 4"/><path d="M17 5h3a3 3 0 0 1-3 4"/><path d="M12 17v4"/><path d="M8 21h8"/></svg></div>
+        <h4>Compete. Challenge. Improve.</h4>
+        <p>Turn studying into a challenge. Join study battles, compete with others, track your performance, and earn achievements.</p>
+      </div>
+      <div class="flex-item reveal">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 4-6"/></svg></div>
+        <h4>Know your progress</h4>
+        <p>Track your focus time, study consistency, revision progress, and performance in one place.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ===================== FAST ===================== -->
 <section id="fast">
   <div class="wrap">
     <div class="section-head reveal">
-      <span class="eyebrow">Fast</span>
-      <h2 class="h-lg">Open a tab. Start studying in seconds.</h2>
-      <p class="lead">No installs, no provisioning, no phone wall. Wynko runs in the browser you already have and syncs the second you close the lid.</p>
+      <span class="eyebrow">Your Day</span>
+      <h2 class="h-lg">From your first session to your final revision.</h2>
+      <p class="lead">Wynko keeps your study day structured, focused, and on track — without making you manage everything yourself.</p>
     </div>
 
     <div class="cards-4">
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">01</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line"></div><div class="mini-line s"></div>
-            <div class="mini-ring"></div>
-            <div class="mini-block"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-01-plan.png" alt="Plan your exam — syllabus, goals and schedule" />
         </div>
-        <div class="body"><h4>One-tap focus session</h4><p>Pick a subject, hit start, and the world goes quiet. Distraction locks engage automatically.</p></div>
+        <div class="body"><h4>Plan</h4><p>Set your exam, syllabus, and study goals.</p></div>
       </div>
 
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">02</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line g"></div>
-            <div class="mini-line"></div><div class="mini-line s"></div>
-            <div class="mini-block" style="background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3);"></div>
-            <div class="mini-line s" style="margin-top:8px"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-02-focus.png" alt="Focus session — distractions blocked" />
         </div>
-        <div class="body"><h4>Runs anywhere in a browser</h4><p>Phone, tablet, laptop, lab PC — same session, same data. Nothing to download or update.</p></div>
+        <div class="body"><h4>Focus</h4><p>Start a session and eliminate distractions.</p></div>
       </div>
 
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">03</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line"></div><div class="mini-line"></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px">
-              <div class="mini-block" style="margin:0"></div><div class="mini-block" style="margin:0;background:rgba(52,211,153,.16);border-color:rgba(52,211,153,.3)"></div>
-              <div class="mini-block" style="margin:0;background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3)"></div><div class="mini-block" style="margin:0"></div>
-            </div>
-            <div class="mini-line s" style="margin-top:8px"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-03-revise.png" alt="Revision due — spaced repetition, automatically" />
         </div>
-        <div class="body"><h4>Sync across every device</h4><p>Resume a room on your phone that you started on your laptop. Progress never waits for a save.</p></div>
+        <div class="body"><h4>Revise</h4><p>Wynko brings topics back when they're due.</p></div>
       </div>
 
       <div class="f-card reveal">
         <div class="f-visual">
           <span class="f-num mono">04</span>
-          <div class="mini-phone">
-            <div class="notch"></div>
-            <div class="mini-line s"></div>
-            <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
-              <div style="width:22px;height:22px;border-radius:50%;background:var(--grad-soft);border:1px solid var(--border-2)"></div>
-              <div style="flex:1"><div class="mini-line g" style="margin-bottom:4px"></div><div class="mini-line s"></div></div>
-            </div>
-            <div class="mini-block" style="margin-top:10px;background:rgba(124,77,255,.12);border-color:rgba(124,77,255,.25)"></div>
-          </div>
+          <img class="f-visual-img" src="assets/day-04-improve.png" alt="Your progress — consistency over intensity" />
         </div>
-        <div class="body"><h4>Hand a clean room to anyone</h4><p>Invite a friend, a mentor, or an AI coach into a ready session — starting on the right screen.</p></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== SMART ===================== -->
-<section id="smart">
-  <div class="wrap split">
-    <div class="reveal">
-      <span class="eyebrow">Smart</span>
-      <h2 class="h-lg">Engineered around how memory actually works.</h2>
-      <p class="lead">Wynko doesn't just track time — it schedules the next revision at the exact minute your brain is about to forget.</p>
-      <div class="smart-list">
-        <div class="smart-item">
-          <div class="smart-ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
-          <div><h4>Distraction lock with configurable controls</h4><p>Define which apps and sites can run. Kiosk-style sessions block the feed, the shorts, and the 3 a.m. rabbit holes.</p></div>
-        </div>
-        <div class="smart-item">
-          <div class="smart-ic"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg></div>
-          <div><h4>Auto-scheduled revision</h4><p>Every chapter is re-queued on a forgetting curve — so the right topic comes back at the right time, not when you feel like it.</p></div>
-        </div>
-        <div class="smart-item">
-          <div class="smart-ic"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div>
-          <div><h4>Syllabus intelligence</h4><p>Track chapters, PYQs, mock scores and accuracy in one tree. You always know what's weak before the exam tells you.</p></div>
-        </div>
-        <div class="smart-item">
-          <div class="smart-ic"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 4-6"/></svg></div>
-          <div><h4>Deep analytics</h4><p>Inspect focus, retention and earnings side by side. Every number is derived from what you actually did — never faked.</p></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="media-panel reveal">
-      <div class="device" style="width:262px;height:536px;">
-        <div class="device-screen">
-          <div class="island"></div>
-          <div class="statusbar"><span>9:41</span><span class="icons" style="font-family:var(--mono);font-size:.6rem">WYNKO</span></div>
-          <div class="app">
-            <div class="app-screen active">
-              <div class="app-title">REVISION QUEUE</div>
-              <div class="app-h">Due today</div>
-              <div class="room-tile"><div class="room-ic">&#8635;</div><div><div class="t">Thermodynamics</div><div class="s">recall in 2h &middot; 68% strength</div></div><span class="room-live" style="color:var(--amber)">DUE</span></div>
-              <div class="room-tile"><div class="room-ic">&#8635;</div><div><div class="t">Rotational Motion</div><div class="s">recall in 5h &middot; 54%</div></div><span class="room-live" style="color:var(--amber)">DUE</span></div>
-              <div class="room-tile"><div class="room-ic">&#10003;</div><div><div class="t">Cell Biology</div><div class="s">reviewed &middot; 91% strength</div></div><span class="room-live">&#10003;</span></div>
-              <div class="room-tile"><div class="room-ic">&#8942;</div><div><div class="t">Organic Reactions</div><div class="s">recall tomorrow &middot; 77%</div></div><span class="room-live" style="color:var(--text-3)">SOON</span></div>
-              <div class="bars" style="margin-top:12px">
-                <div class="bar-row"><div class="top"><span>Retention strength</span><span class="mono">78%</span></div><div class="bar-track"><i class="bar-fill" data-w="78%"></i></div></div>
-              </div>
-            </div>
-          </div>
-          <div class="tabbar">
-            <button class="active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus</button>
-            <button><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn</button>
-            <button><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank</button>
-            <button><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== FLEXIBLE ===================== -->
-<section id="flexible">
-  <div class="wrap">
-    <div class="section-head center reveal">
-      <span class="eyebrow">Flexible</span>
-      <h2 class="h-lg">Build your Study OS around your life.</h2>
-      <p class="lead">Every part of Wynko is composable. Wire it into your calendar, your group, and your habits — and automate the parts that used to take willpower.</p>
-    </div>
-    <div class="flex-grid">
-      <div class="flex-item reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg></div>
-        <h4>Automatic study plans</h4>
-        <p>Drop in your exam date and syllabus — Wynko lays out the weeks and adapts when you fall behind.</p>
-      </div>
-      <div class="flex-item reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
-        <h4>Connect every subject</h4>
-        <p>Group chapters, notes, PYQs and mocks so nothing lives in five different apps.</p>
-      </div>
-      <div class="flex-item reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 11a3 3 0 1 0-1.5-5.6"/></svg></div>
-        <h4>Share study rooms</h4>
-        <p>Open a room to a friend, a cohort, or the whole platform. Presence does what motivation can't.</p>
-      </div>
-      <div class="flex-item reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2.5V6M16 2.5V6"/></svg></div>
-        <h4>Calendar-aware sessions</h4>
-        <p>Sync your timetable and Wynko books focus blocks into the gaps you actually have.</p>
-      </div>
-      <div class="flex-item reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></svg></div>
-        <h4>Automate revision</h4>
-        <p>Set the rules once. Recall prompts, streaks and payouts run themselves in the background.</p>
-      </div>
-      <div class="flex-item reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-        <h4>Embed anywhere</h4>
-        <p>A public focus timer, a cohort leaderboard — drop Wynko widgets into your own pages.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== EARN ===================== -->
-<section id="earn">
-  <div class="wrap">
-    <div class="section-head center reveal">
-      <span class="eyebrow">Earn</span>
-      <h2 class="h-lg">Bring people into Wynko. Share in what your community builds.</h2>
-      <p class="lead">Every aspirant gets a WynkoHead invite link. Anyone who joins through it becomes part of your community — and you earn a real revenue share when they buy in, plus a cut when someone <em>they</em> bring in registers as a WynkoHead themselves. It's not a payout for studying. It's a share of what you helped grow.</p>
-    </div>
-
-    <div class="earn-panel reveal">
-      <div>
-        <div class="xp-grid" style="margin-top:0">
-          <div class="xp"><b class="mono">50%</b><span>of your community's purchases</span></div>
-          <div class="xp"><b class="mono">10%</b><span>from sub-WynkoHeads you bring in</span></div>
-          <div class="xp"><b class="mono">&#8377;0</b><span>to get your invite link</span></div>
-        </div>
-        <div class="smart-list" style="margin-top:30px">
-          <div class="smart-item">
-            <div class="smart-ic" style="color:var(--mint)"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 11a3 3 0 1 0-1.5-5.6"/></svg></div>
-            <div><h4>Your own invite link</h4><p>Share it however you like. Everyone who joins through it is added to your WynkoHead community, visibly, in your dashboard.</p></div>
-          </div>
-          <div class="smart-item">
-            <div class="smart-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></svg></div>
-            <div><h4>Revenue share, not a task reward</h4><p>You earn a share of what your community actually spends inside Wynko — not a rate for hours you log yourself.</p></div>
-          </div>
-          <div class="smart-item">
-            <div class="smart-ic" style="color:var(--violet-2)"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div>
-            <div><h4>Compounds through sub-WynkoHeads</h4><p>If someone you brought in starts their own community, you keep earning a share of theirs too.</p></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="earn-dash">
-        <div class="dash-top"><i style="background:#fb7185"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span style="margin-left:8px;font-family:var(--mono);font-size:.68rem;color:var(--text-3)">wynko / wynkohead</span></div>
-        <div class="dash-body">
-          <div class="bal-label">YOUR COMMUNITY</div>
-          <div class="dash-bal grad-text">142 members</div>
-          <div style="font-size:.78rem;color:var(--mint);margin-bottom:14px">+9 this month</div>
-          <div class="dash-row"><span>Community revenue share</span><span class="r">&#8377;2,400</span></div>
-          <div class="dash-row"><span>Sub-WynkoHead share</span><span class="r">&#8377;440</span></div>
-          <div class="dash-row"><span>Pending confirmation</span><span class="r">&#8377;440</span></div>
-          <div class="dash-row"><span>Available to withdraw</span><span class="dash-pill">&#8377;2,400</span></div>
-        </div>
+        <div class="body"><h4>Improve</h4><p>Track your consistency and see how you're progressing.</p></div>
       </div>
     </div>
   </div>
@@ -915,57 +985,31 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   <div class="wrap">
     <div class="section-head center reveal">
       <span class="eyebrow">Study Together</span>
-      <h2 class="h-lg">Not a leaderboard screenshot. This is what your people actually see.</h2>
-      <p class="lead">A real screen from Wynko's virtual study library — floors, quiet zones, solo pods, and rooms other aspirants are sitting in right now.</p>
+      <h2 class="h-lg">A study space that feels alive.</h2>
+      <p class="lead">Step into a shared 2D study space, choose your spot, and study alongside others — without losing your focus.</p>
     </div>
     <div class="reveal" style="max-width:920px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid var(--border-2);box-shadow:0 30px 80px rgba(0,0,0,.35)">
-      <img src="assets/Screenshot_2026_0908_032315-Bfe6oYGo.png" alt="Wynko virtual study library — quiet zone, study table, solo pods, discussion corner and break zone" style="width:100%;display:block" />
+      <img src="assets/wynko-study-library-v2.png" alt="Wynko virtual study library — quiet zone, study table, solo pods, discussion corner and break zone" style="width:100%;display:block" />
     </div>
   </div>
 </section>
 
-<!-- ===================== ROOMS / SOCIAL ===================== -->
-<section id="rooms">
-  <div class="wrap split">
-    <div class="media-panel reveal" style="order:2">
-      <div class="device" style="width:262px;height:536px;">
-        <div class="device-screen">
-          <div class="island"></div>
-          <div class="statusbar"><span>9:41</span><span class="icons" style="font-family:var(--mono);font-size:.6rem">ROOM</span></div>
-          <div class="app">
-            <div class="app-screen active">
-              <div class="app-title">FOCUS TOGETHER</div>
-              <div class="app-h">NEET Droppers</div>
-              <div class="mini-stats">
-                <div class="mini"><b class="mono">50:00</b><span>session</span></div>
-                <div class="mini"><b class="mono">214</b><span>studying</span></div>
-              </div>
-              <div class="lb-row"><span class="av">AR</span><span class="nm">Aarav</span><span class="pts">focusing</span></div>
-              <div class="lb-row"><span class="av">SK</span><span class="nm">Sana</span><span class="pts">focusing</span></div>
-              <div class="lb-row me"><span class="av">YOU</span><span class="nm">You</span><span class="pts">focusing</span></div>
-              <div class="lb-row"><span class="av">MI</span><span class="nm">Mira</span><span class="pts">focusing</span></div>
-              <div class="chips" style="margin-top:12px"><span class="chip on">&#10003; camera optional</span><span class="chip">silent mode</span></div>
-            </div>
-          </div>
-          <div class="tabbar">
-            <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>Focus</button>
-            <button><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/></svg>Earn</button>
-            <button><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rank</button>
-            <button class="active"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Rooms</button>
-          </div>
-        </div>
-      </div>
+<!-- ===================== FOUNDERS ===================== -->
+<section id="earn">
+  <div class="wrap">
+    <div class="section-head center reveal">
+      <span class="eyebrow">The people behind Wynko</span>
+      <h2 class="h-lg">Built by people who believe studying can be better.</h2>
+      <p class="lead">Wynko is being built by a team that understands the pressure, distractions, and discipline behind serious preparation — and wants to make the journey more focused, consistent, and connected.</p>
     </div>
-    <div class="reveal">
-      <span class="eyebrow">Together</span>
-      <h2 class="h-lg">Study like someone's watching. Because someone is.</h2>
-      <p class="lead">Willpower is a terrible scheduler. Presence is a great one. Wynko rooms put real people — and a live timer — in the same virtual room, so showing up stops being optional.</p>
-      <div class="hero-cta" style="margin-top:28px">
-        <a class="btn btn-primary" href="#cta">Join a founding room &rarr;</a>
-      </div>
+
+    <div class="founders reveal" id="foundersCarousel">
+      <div class="founders-track" id="foundersTrack"></div>
     </div>
+    <div class="founders-dots" id="foundersDots"></div>
   </div>
 </section>
+
 
 <!-- ===================== TESTIMONIALS ===================== -->
 <section id="pricing">
@@ -977,89 +1021,34 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     <div class="quotes">
       <div class="quote reveal">
         <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p>"I used to study in guilt and scroll in secret. Wynko's room timer made me honest — and the earnings made it weirdly addictive."</p>
-        <div class="who"><span class="av">AR</span><div><b>Aarav M.</b><span>NEET 2027 aspirant</span></div></div>
+        <p>"I used to sit down to study and lose focus within minutes. Wynko helped me stay in the zone and actually finish my sessions."</p>
+        <div class="who"><span class="av">AM</span><div><b>Abhinav M.</b><span>NEET aspirant</span></div></div>
       </div>
       <div class="quote reveal">
         <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p>"The revision queue is the first thing that's ever beaten my forgetting curve. It literally brings back the chapter before I lose it."</p>
-        <div class="who"><span class="av">SK</span><div><b>Sana K.</b><span>JEE Advanced, dropper</span></div></div>
+        <p>"The revision queue changed how I revise. I don't have to keep remembering what to revise next — Wynko keeps it on track for me."</p>
+        <div class="who"><span class="av">MJ</span><div><b>Megha J.</b><span>UPSC CSE aspirant</span></div></div>
       </div>
       <div class="quote reveal">
         <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <p>"Earning while studying sounded like a gimmick until my first payout hit. My focus hours now have a price, and I treat them like one."</p>
-        <div class="who"><span class="av">VT</span><div><b>Vedant T.</b><span>UPSC CSE aspirant</span></div></div>
+        <p>"Having my study plan, focus sessions, and progress in one place makes my preparation feel much more structured and consistent."</p>
+        <div class="who"><span class="av">ST</span><div><b>Shivam T.</b><span>JEE Advanced, dropper</span></div></div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===================== CTA ===================== -->
-<section id="cta" style="padding-top:0">
-  <div class="wrap">
-    <div class="cta reveal">
-      <div class="cta-glow"></div>
-      <span class="eyebrow" style="justify-content:center">Founding cohort &middot; Top 50 only</span>
-      <h2 class="h-xl">Set your study, and your <span class="grad-text">earnings</span>, up for success.</h2>
-      <p class="lead">Wynko is opening to a limited founding cohort. Rank <b>#1&ndash;50</b> at launch locks in Premium for life, a verification tag, direct connect to the founding team, and early access to WynkoHead &mdash; permanently.</p>
-
-      <form id="ctaJoinForm" autocomplete="off" style="max-width:460px;margin:0 auto 14px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
-        <input type="email" id="ctaEmailInput" placeholder="you@example.com" aria-label="Email" required
-          style="flex:1;min-width:220px;padding:14px 18px;border-radius:999px;border:1px solid var(--border-2);background:rgba(255,255,255,.04);color:var(--text);font:inherit;font-size:.92rem;outline:none;" />
-        <button type="submit" class="btn btn-primary btn-lg" id="ctaJoinBtn">Get early access &rarr;</button>
-      </form>
-      <p id="ctaJoinMsg" style="min-height:20px;font-size:.82rem;color:var(--text-3);margin:0 0 20px;"></p>
-
-      <div id="ctaMeterWrap" style="max-width:460px;margin:0 auto 26px;">
-        <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text-3);margin-bottom:8px;">
-          <span>Aspirants registered with their email</span>
-          <span class="mono" id="ctaCount" style="color:var(--amber);font-weight:600;">&mdash; / 50</span>
-        </div>
-        <div style="height:8px;border-radius:999px;background:var(--ink-2);border:1px solid var(--border);overflow:hidden;">
-          <div id="ctaBarFill" style="height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--amber),var(--coral));transition:width .6s ease;"></div>
-        </div>
-      </div>
-
-      <!-- CONFIRMATION + REFERRAL (shown after a successful join, same data as waitlist.html) -->
-      <div id="ctaConfirmPanel" style="display:none;max-width:460px;margin:0 auto 26px;text-align:left;background:rgba(255,255,255,.03);border:1px solid var(--border-2);border-radius:18px;padding:22px 24px;">
-        <div style="text-align:center;margin-bottom:6px;">
-          <p class="eyebrow" style="justify-content:center;margin-bottom:6px;">You're on the list</p>
-          <h3 style="margin:0;font-size:1.3rem;">You're <span class="mono grad-text" id="ctaRankNum">&mdash;</span> in line.</h3>
-          <div id="ctaRankPushToast" style="display:none;margin-top:10px;font-size:.8rem;color:var(--mint);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:999px;padding:6px 14px;">
-            <span>&#9650;</span> <span id="ctaRankPushMsg"></span>
-          </div>
-        </div>
-        <p id="ctaRankSub" style="font-size:.82rem;color:var(--text-3);text-align:center;margin:10px 0 16px;">Referring friends moves you up immediately.</p>
-
-        <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text-3);margin-bottom:10px;">
-          <span>Referral progress</span>
-          <span class="mono" id="ctaReferralCountLabel">0 referrals</span>
-        </div>
-        <p id="ctaMeterCaption" style="font-size:.78rem;color:var(--text-3);margin:0 0 12px;">Every friend who joins with your link flattens your wait curve.</p>
-        <div id="ctaGuaranteeBadge" style="display:none;font-size:.78rem;color:var(--mint);background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:10px;padding:10px 12px;margin-bottom:16px;">
-          &#10003; Inside the Top 50 &mdash; Premium for life, founding-team access, your verification tag &amp; WynkoHead early access are locked in.
-        </div>
-
-        <label style="display:block;font-size:.72rem;color:var(--text-3);margin-bottom:6px;">Your invite link</label>
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <input type="text" id="ctaRefLinkInput" readonly
-            style="flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--border-2);background:rgba(255,255,255,.03);color:var(--text-3);font:inherit;font-size:.78rem;" />
-          <button class="btn btn-primary" id="ctaCopyBtn" style="white-space:nowrap;">Copy</button>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost" id="ctaWaBtn" style="flex:1;">WhatsApp</button>
-          <button class="btn btn-ghost" id="ctaXBtn" style="flex:1;">X</button>
-          <button class="btn btn-ghost" id="ctaMailBtn" style="flex:1;">Email</button>
-        </div>
-      </div>
-
-      <div class="cta-actions">
-        <a class="btn btn-ghost btn-lg" href="waitlist.html">See full founding cohort details &amp; your referral link &rarr;</a>
-        <a class="btn btn-ghost btn-lg" href="login.html">Log in</a>
-      </div>
+<!-- ===================== FAQ ===================== -->
+<section id="faq">
+  <div class="wrap" style="max-width:760px;">
+    <div class="section-head center reveal">
+      <span class="eyebrow">FAQ</span>
+      <h2 class="h-lg">Questions, answered.</h2>
     </div>
+    <div class="faq-list reveal" id="faqList"><!-- populated by FAQ_ITEMS below --></div>
   </div>
 </section>
+
 
 </main>
 
@@ -1072,39 +1061,32 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
           <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
           <span class="brand-word grad-text">WYNKO</span>
         </a>
-        <p>The world's first Study OS which empowers you to focus, grow and earn. Focus. Study. Together.</p>
+        <p>A Study OS designed to help you focus, learn, and grow. Focus. Study. Together.</p>
       </div>
       <div class="foot-col">
         <h5>Product</h5>
         <a href="#product">Overview</a>
-        <a href="#fast">Features</a>
-        <a href="#earn">Earnings</a>
-        <a href="#rooms">Study Rooms</a>
-      </div>
-      <div class="foot-col">
-        <h5>Exams</h5>
-        <a href="#">NEET</a>
-        <a href="#">JEE</a>
-        <a href="#">UPSC</a>
-        <a href="#">CAT &amp; GATE</a>
+        <a href="#flexible">Features</a>
+        <a href="#fast">Your Day</a>
+        <a href="#community-shot">Study Together</a>
       </div>
       <div class="foot-col">
         <h5>Company</h5>
         <a href="marketing.html">About</a>
-        <a href="partners.html">Partners</a>
-        <a href="product-tour.html">Product tour</a>
+        <a href="#earn">Team &amp; Partners</a>
+        <a href="#faq">FAQ</a>
         <a href="privacy.html">Privacy</a>
       </div>
       <div class="foot-col">
         <h5>Get started</h5>
-        <a href="login.html">Log in</a>
-        <a href="onboarding.html">Onboarding</a>
-        <a href="downloads/">Downloads</a>
-        <a href="docs/">Docs</a>
+        <a href="waitlist.html">Sign Up / Login</a>
+        <a href="downloads/">Download Desktop App</a>
+        <a href="#">Mobile App</a>
+        <a href="mailto:revisionnm2@gmail.com">Contact Us</a>
       </div>
     </div>
     <div class="foot-bottom">
-      <span>&copy; 2026 Wynko. Built for people who show up.</span>
+      <span>&copy; 2026 Wynko. All rights reserved. &nbsp;&middot;&nbsp; <a href="privacy.html">Privacy Policy</a> &middot; <a href="#">Terms of Service</a></span>
       <div class="soc">
         <a href="#" aria-label="X"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.2L1 2h7l4.9 6.4L18.9 2Zm-1.2 18h1.9L7.4 3.9H5.3L17.7 20Z"/></svg></a>
         <a href="#" aria-label="LinkedIn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5A2.5 2.5 0 1 1 5 8.5a2.5 2.5 0 0 1-.02-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.4 8.65 22 10.9 22 14.3V21h-4v-5.9c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.52-2.25 3.1V21H9V9Z"/></svg></a>
@@ -1115,61 +1097,16 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 </footer>
 
 <script>
-/* ================= emulator ================= */
+/* ================= home dashboard ================= */
 (function(){
-  const screenEls = document.querySelectorAll('#emulator .app-screen');
-  const tabs = document.querySelectorAll('#emulator .tabbar button');
-  tabs.forEach(btn=>{
+  /* bottom tab highlight (single home screen, so tabs just swap active state) */
+  const wkTabs = document.querySelectorAll('#wkTabbar button');
+  wkTabs.forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      tabs.forEach(b=>b.classList.remove('active'));
+      wkTabs.forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      const target = btn.dataset.tab;
-      screenEls.forEach(s=>s.classList.toggle('active', s.dataset.screen===target));
-      if(target==='earn') animateBars();
     });
   });
-
-  /* live focus timer */
-  const ringTime = document.getElementById('ringTime');
-  const ringEarn = document.getElementById('ringEarn');
-  const ringProg = document.querySelector('#emulator .ring .prog');
-  const startBtn = document.getElementById('startBtn');
-  const TOTAL = 25*60;
-  let remaining = TOTAL, running = false, timer = null;
-
-  function fmt(s){ const m=Math.floor(s/60), x=s%60; return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
-  function render(){
-    if(ringTime) ringTime.textContent = fmt(remaining);
-    const done = TOTAL - remaining;
-    if(ringProg) ringProg.style.strokeDashoffset = String(520 - 520*(done/TOTAL));
-    if(ringEarn) ringEarn.textContent = 'locked in \u00b7 '+fmt(remaining)+' left, no early exit';
-  }
-  function stop(){
-    running=false; clearInterval(timer);
-    if(startBtn){ startBtn.textContent='Start focus session'; startBtn.classList.remove('stop'); }
-  }
-  function start(){
-    running=true;
-    if(startBtn){ startBtn.textContent='End session'; startBtn.classList.add('stop'); }
-    timer=setInterval(()=>{
-      if(remaining>0){ remaining--; render(); }
-      else { stop(); if(ringEarn) ringEarn.textContent='Session complete'; }
-    },1000);
-  }
-  if(startBtn){
-    startBtn.addEventListener('click', ()=>{ running?stop():start(); });
-  }
-  render();
-
-  /* bars animate when shown */
-  function animateBars(){
-    document.querySelectorAll('#emulator .bar-fill').forEach(el=>{
-      el.style.width='0'; requestAnimationFrame(()=>{ el.style.width = el.dataset.w; });
-    });
-  }
-  setTimeout(animateBars, 400);
-  const earnTab = document.querySelector('#emulator .tabbar button[data-tab="earn"]');
-  if(earnTab) earnTab.addEventListener('click', animateBars);
 
   /* live session counter in hero */
   const emLive = document.getElementById('emLive');
@@ -1184,6 +1121,168 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 (function(){
   const track = document.getElementById('marqueeTrack');
   if(track){ track.innerHTML += track.innerHTML; }
+})();
+
+/* ================= FAQ ================= */
+(function(){
+  // Edit questions/answers here — the list re-renders automatically.
+  const FAQ_ITEMS = [
+    { q: "What is Wynko?", a: "Wynko is a study platform built to help students plan their studies, stay focused, revise at the right time, and study alongside others." },
+    { q: "Who is Wynko built for?", a: "Wynko is designed for students and competitive-exam aspirants who want a more structured, focused, and consistent way to study." },
+    { q: "What can I do with Wynko?", a: "You can create study plans, block distractions during focus sessions, stay on top of revision, join study spaces, compete in study battles, and track your progress." }
+  ];
+
+  const list = document.getElementById('faqList');
+  if(!list) return;
+
+  list.innerHTML = FAQ_ITEMS.map((item, i) => `
+    <div class="faq-item" data-i="${i}">
+      <button class="faq-q" type="button" aria-expanded="false">
+        <span>${item.q}</span>
+        <span class="faq-icon"><span></span><span></span></span>
+      </button>
+      <div class="faq-a"><p>${item.a}</p></div>
+    </div>
+  `).join('');
+
+  const items = Array.from(list.querySelectorAll('.faq-item'));
+  items.forEach(item => {
+    const btn = item.querySelector('.faq-q');
+    const ans = item.querySelector('.faq-a');
+    btn.addEventListener('click', () => {
+      const isOpen = item.classList.contains('open');
+      items.forEach(other => {
+        if(other !== item && other.classList.contains('open')){
+          other.classList.remove('open');
+          other.querySelector('.faq-a').style.maxHeight = null;
+          other.querySelector('.faq-q').setAttribute('aria-expanded','false');
+        }
+      });
+      if(isOpen){
+        item.classList.remove('open');
+        ans.style.maxHeight = null;
+        btn.setAttribute('aria-expanded','false');
+      } else {
+        item.classList.add('open');
+        ans.style.maxHeight = ans.scrollHeight + 'px';
+        btn.setAttribute('aria-expanded','true');
+      }
+    });
+  });
+})();
+
+/* ================= founders carousel ================= */
+(function(){
+  const FOUNDERS = [
+    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg" },
+    { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally.", photo:"founder-jatin.jpg" },
+    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg" },
+    { name:"Ismat Makwana", role:"Cybersecurity Expert", desc:"Helps strengthen Wynko\u2019s security and privacy, focusing on protecting the platform, its users, and the data behind a trusted study experience.", photo:"founder-ismat.jpg" }
+  ];
+
+  const track = document.getElementById('foundersTrack');
+  const dotsWrap = document.getElementById('foundersDots');
+  const viewport = document.getElementById('foundersCarousel');
+  if(!track || !dotsWrap || !viewport) return;
+
+  const photoIcon = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5S20 16 20 20"/></svg>';
+
+  function tileHTML(f){
+    const media = f.photo
+      ? '<img src="' + f.photo + '" alt="' + f.name + '" loading="lazy" />'
+      : photoIcon;
+    return '<div class="founder-tile"><div class="founder-card">' +
+      '<div class="founder-photo">' + media + '</div>' +
+      '<h4>' + f.name + '</h4>' +
+      '<div class="role">' + f.role + '</div>' +
+      '<p>' + f.desc + '</p>' +
+      '</div></div>';
+  }
+
+  const mq = window.matchMedia('(min-width: 769px)');
+  let autoplayTimer = null;
+  let cleanupFns = [];
+
+  function stopAutoplay(){ if(autoplayTimer){ clearInterval(autoplayTimer); autoplayTimer = null; } }
+
+  function addCleanup(el, evt, fn, opts){
+    el.addEventListener(evt, fn, opts);
+    cleanupFns.push(()=> el.removeEventListener(evt, fn, opts));
+  }
+
+  function teardown(){
+    stopAutoplay();
+    cleanupFns.forEach(fn=>fn());
+    cleanupFns = [];
+    track.style.transition = 'none';
+    track.style.transform = 'none';
+  }
+
+  /* ---- Desktop / tablet: 2 cards per slide, exactly 2 slides ---- */
+  function setupDesktop(){
+    track.innerHTML = FOUNDERS.map(tileHTML).join('');
+    dotsWrap.innerHTML = ['1','2'].map((_,i)=>'<button data-i="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>').join('');
+    const dots = Array.from(dotsWrap.children);
+
+    let page = 0;
+    let viewW = 0;
+
+    function computeWidth(){ viewW = viewport.getBoundingClientRect().width; }
+
+    function render(withTransition){
+      track.style.transition = withTransition !== false ? 'transform .6s cubic-bezier(.22,.61,.36,1)' : 'none';
+      track.style.transform = 'translateX(' + (-(page * viewW)) + 'px)';
+      dots.forEach((d,i)=> d.classList.toggle('active', i===page));
+    }
+
+    function goTo(p){ page = ((p % 2) + 2) % 2; render(true); }
+    function next(){ goTo(page+1); }
+    function start(){ stopAutoplay(); autoplayTimer = setInterval(next, 4500); }
+
+    computeWidth();
+    render(false);
+    start();
+
+    addCleanup(window, 'resize', ()=>{ computeWidth(); render(false); });
+    addCleanup(viewport, 'mouseenter', stopAutoplay);
+    addCleanup(viewport, 'mouseleave', start);
+
+    dots.forEach(dot=>{
+      addCleanup(dot, 'click', ()=>{
+        stopAutoplay();
+        goTo(parseInt(dot.dataset.i, 10));
+        setTimeout(start, 2500);
+      });
+    });
+
+    let isDown = false, startX = 0, curX = 0;
+    const onDown = (e)=>{ isDown = true; startX = (e.touches?e.touches[0].clientX:e.clientX); curX = startX; stopAutoplay(); track.style.transition = 'none'; };
+    const onMove = (e)=>{ if(!isDown) return; curX = (e.touches?e.touches[0].clientX:e.clientX); const delta = curX - startX; track.style.transform = 'translateX(' + (-(page*viewW) + delta) + 'px)'; };
+    const onUp = ()=>{ if(!isDown) return; isDown = false; const delta = curX - startX; const threshold = viewW * 0.15; if(delta > threshold) goTo(page-1); else if(delta < -threshold) goTo(page+1); else render(true); setTimeout(start, 2500); };
+
+    addCleanup(viewport, 'touchstart', onDown, {passive:true});
+    addCleanup(viewport, 'touchmove', onMove, {passive:true});
+    addCleanup(viewport, 'touchend', onUp);
+    addCleanup(viewport, 'mousedown', onDown);
+    addCleanup(window, 'mousemove', onMove);
+    addCleanup(window, 'mouseup', onUp);
+  }
+
+  /* ---- Mobile: static vertical stack, all founders, no carousel/drag/autoplay ---- */
+  function setupMobile(){
+    track.innerHTML = FOUNDERS.map(tileHTML).join('');
+    dotsWrap.innerHTML = '';
+    track.style.transition = 'none';
+    track.style.transform = 'none';
+  }
+
+  function init(){
+    teardown();
+    if(mq.matches){ setupDesktop(); } else { setupMobile(); }
+  }
+
+  init();
+  mq.addEventListener('change', init);
 })();
 
 /* ================= reveal on scroll ================= */
@@ -1202,205 +1301,6 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     entries.forEach(e=>{ if(e.isIntersecting){ e.target.style.width = e.target.dataset.w; io.unobserve(e.target); } });
   }, { threshold:.4 });
   bars.forEach(b=>io.observe(b));
-})();
-</script>
-
-<!-- ================= join waitlist (same signup + referral + confirmation logic as waitlist.html) ================= -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-(function(){
-  const SUPABASE_URL = 'https://dhzjtjekbvxxsauzhadl.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_9xK5LeyVdu2d4bVE1aFlNg_ef435Jkr';
-
-  async function sb(path, body){
-    return fetch(SUPABASE_URL + path, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify(body || {}),
-    });
-  }
-
-  async function getTotalCount(){
-    try {
-      const res = await sb('/rest/v1/rpc/get_waitlist_count');
-      if (!res.ok) return null;
-      const data = await res.json();
-      return typeof data === 'number' ? data : (Array.isArray(data) ? data[0] : null);
-    } catch(e){ console.error(e); return null; }
-  }
-
-  async function insertSignup(email, referredBy){
-    const body = { email, source: 'product_page' };
-    if (referredBy) body.referred_by = referredBy;
-    try {
-      const res = await sb('/rest/v1/waitlist_signups', body);
-      if (res.status === 201 || res.status === 204) return { ok:true };
-      if (res.status === 409) return { ok:true, existed:true };
-      return { ok:false, error: await res.text() };
-    } catch(e){ return { ok:false, error:String(e) }; }
-  }
-
-  async function getStatus(email){
-    try {
-      const res = await sb('/rest/v1/rpc/get_waitlist_status', { p_email: email });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return Array.isArray(data) ? data[0] : data;
-    } catch(e){ console.error(e); return null; }
-  }
-
-  function fmtNum(n){ return Number(n||0).toLocaleString('en-IN'); }
-  function saveMyEmail(email){ try { localStorage.setItem('wynko_waitlist_email', email.toLowerCase()); } catch(e){} }
-  function loadMyEmail(){ try { return localStorage.getItem('wynko_waitlist_email'); } catch(e){ return null; } }
-
-  const countEl = document.getElementById('ctaCount');
-  const fillEl = document.getElementById('ctaBarFill');
-  function renderCount(total){
-    if (total === null || !countEl || !fillEl) return;
-    const pct = Math.min(100, (total / 50) * 100);
-    fillEl.style.width = pct + '%';
-    countEl.textContent = total >= 50 ? fmtNum(total) + ' — Top 50 full' : fmtNum(total) + ' / 50';
-  }
-  getTotalCount().then(renderCount);
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const referredByCode = urlParams.get('ref');
-
-  const joinForm = document.getElementById('ctaJoinForm');
-  const joinBtn = document.getElementById('ctaJoinBtn');
-  const joinMsg = document.getElementById('ctaJoinMsg');
-  const meterWrap = document.getElementById('ctaMeterWrap');
-  const confirmPanel = document.getElementById('ctaConfirmPanel');
-
-  let lastKnownRank = null;
-  let lastKnownInZone = null;
-
-  function showRankPushToast(message){
-    const toast = document.getElementById('ctaRankPushToast');
-    const msg = document.getElementById('ctaRankPushMsg');
-    if (!toast || !msg) return;
-    msg.textContent = message;
-    toast.style.display = 'none';
-    void toast.offsetWidth;
-    toast.style.display = 'inline-block';
-    clearTimeout(showRankPushToast._t);
-    showRankPushToast._t = setTimeout(() => { toast.style.display = 'none'; }, 6000);
-  }
-
-  function renderConfirmation(status, email, opts){
-    opts = opts || {};
-    joinForm.style.display = 'none';
-    if (meterWrap) meterWrap.style.display = 'none';
-    joinMsg.textContent = '';
-    confirmPanel.style.display = 'block';
-
-    const rank = status.queue_position;
-    const prevRank = lastKnownRank;
-    const prevInZone = lastKnownInZone;
-    document.getElementById('ctaRankNum').textContent = '#' + fmtNum(rank);
-
-    const inZone = !!status.in_premium_zone;
-    const refCount = status.referral_count || 0;
-    const toGo = status.referrals_to_go || 0;
-
-    if (opts.animate && prevRank !== null && rank < prevRank) {
-      const jump = prevRank - rank;
-      if (!prevInZone && inZone) showRankPushToast("Someone joined with your link — you're in the Top 50 now.");
-      else showRankPushToast('Someone joined with your link — you moved up ' + jump + (jump === 1 ? ' spot' : ' spots') + ' to #' + fmtNum(rank) + '.');
-    }
-    lastKnownRank = rank;
-    lastKnownInZone = inZone;
-
-    document.getElementById('ctaRankSub').textContent = inZone
-      ? "You're inside the Top 50 right now — Premium for life, founding-team access, your verification tag, and WynkoHead early access are locked in."
-      : "Refer friends to move up — every referral flattens your wait curve.";
-
-    document.getElementById('ctaReferralCountLabel').textContent = refCount + (refCount === 1 ? ' referral' : ' referrals');
-    document.getElementById('ctaMeterCaption').textContent = inZone
-      ? 'Premium for life, founding-team access, your verification tag & WynkoHead early access — unlocked. Thank you for bringing your squad.'
-      : toGo + ' more referral' + (toGo === 1 ? '' : 's') + ' moves you into the Top 50 zone, based on where the cutoff sits right now.';
-    document.getElementById('ctaGuaranteeBadge').style.display = inZone ? 'block' : 'none';
-
-    const link = window.location.origin + window.location.pathname + '?ref=' + status.referral_code;
-    document.getElementById('ctaRefLinkInput').value = link;
-
-    document.getElementById('ctaCopyBtn').onclick = async () => {
-      const btn = document.getElementById('ctaCopyBtn');
-      try { await navigator.clipboard.writeText(link); }
-      catch(e) { const input = document.getElementById('ctaRefLinkInput'); input.select(); document.execCommand('copy'); }
-      btn.textContent = 'Copied ✓';
-      setTimeout(() => btn.textContent = 'Copy', 1600);
-    };
-
-    const shareMsg = "I just joined the Wynko founding cohort — a study app that actually locks out distraction. Join with my link and we both move up the list: " + link;
-    document.getElementById('ctaWaBtn').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(shareMsg), '_blank');
-    document.getElementById('ctaXBtn').onclick = () => window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareMsg), '_blank');
-    document.getElementById('ctaMailBtn').onclick = () => {
-      window.location.href = 'mailto:?subject=' + encodeURIComponent('Join me on the Wynko waitlist') + '&body=' + encodeURIComponent(shareMsg);
-    };
-  }
-
-  async function retryStatus(email){
-    const status = await getStatus(email);
-    if (status) { renderConfirmation(status, email); startStatusPolling(email); }
-    else setTimeout(() => retryStatus(email), 5000);
-  }
-
-  let statusPollTimer = null;
-  function startStatusPolling(email){
-    stopStatusPolling();
-    statusPollTimer = setInterval(async () => {
-      if (document.hidden) return;
-      try {
-        const status = await getStatus(email);
-        if (status) renderConfirmation(status, email, { animate: true });
-      } catch(e) {}
-    }, 25000);
-  }
-  function stopStatusPolling(){ if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; } }
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden || confirmPanel.style.display === 'none') return;
-    const email = loadMyEmail();
-    if (!email) return;
-    getStatus(email).then(status => { if (status) renderConfirmation(status, email, { animate: true }); });
-  });
-
-  if (joinForm) {
-    joinForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      joinMsg.textContent = '';
-      const emailInput = document.getElementById('ctaEmailInput');
-      const email = emailInput.value.trim().toLowerCase();
-      if (!email) { joinMsg.style.color = 'var(--coral)'; joinMsg.textContent = 'Please enter your email.'; return; }
-
-      joinBtn.disabled = true; joinBtn.textContent = 'Joining…';
-      const result = await insertSignup(email, referredByCode);
-      joinBtn.disabled = false; joinBtn.textContent = 'Get early access →';
-      if (!result.ok) { joinMsg.style.color = 'var(--coral)'; joinMsg.textContent = 'Something went wrong — please try again.'; return; }
-
-      saveMyEmail(email);
-      let status = await getStatus(email);
-      if (!status) { await new Promise(r => setTimeout(r, 900)); status = await getStatus(email); }
-      if (!status) { await new Promise(r => setTimeout(r, 1800)); status = await getStatus(email); }
-      const total = await getTotalCount();
-      renderCount(total);
-      if (status) { renderConfirmation(status, email); startStatusPolling(email); }
-      else { joinMsg.style.color = 'var(--text-3)'; joinMsg.textContent = "You're signed up — loading your queue position…"; setTimeout(() => retryStatus(email), 3000); }
-    });
-  }
-
-  // returning visitor who already joined — show their live status straight away
-  const savedEmail = loadMyEmail();
-  if (savedEmail) {
-    getStatus(savedEmail).then(status => {
-      if (status) { renderConfirmation(status, savedEmail); startStatusPolling(savedEmail); }
-    });
-  }
 })();
 </script>
 </body>
