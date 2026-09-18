@@ -360,21 +360,19 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
   // Home still showing the design's literal "Mon, 1 Sep 2026" string.
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   return (
-    <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 backdrop-blur-sm"
-      style={{ background: 'rgba(8,10,18,0.9)', borderColor: 'rgba(124,58,237,0.15)' }}>
+    <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 backdrop-blur-sm bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
       <div className="flex-1">
-        <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Home / Today</div>
-        <div className="text-sm font-semibold text-slate-200" style={{ fontFamily: 'Poppins, sans-serif' }}>{todayLabel}</div>
+        <div className="text-[10px] text-slate-600 mb-0.5">Home / Today</div>
+        <div className="text-sm font-semibold text-slate-200">{todayLabel}</div>
       </div>
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 text-sm w-52 border"
-        style={{ background: 'rgba(14,21,40,0.8)', borderColor: 'rgba(124,58,237,0.2)' }}>
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 text-sm w-52 border bg-[#0B1530] border-[#1A2845]">
         <Ico n="search" cls="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="text-xs text-slate-500 flex-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Search topics...</span>
-        <kbd className="text-[10px] rounded px-1 text-slate-600 font-mono border" style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }}>⌘K</kbd>
+        <span className="text-xs text-slate-500 flex-1">Search topics...</span>
+        <kbd className="text-[10px] rounded px-1 text-slate-600 font-mono border bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.08)]">⌘K</kbd>
       </div>
       <button className="relative p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-200 transition-colors">
         <Ico n="bell" cls="w-5 h-5" />
-        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" style={{ boxShadow: '0 0 6px rgba(139,92,246,0.8)' }} />
+        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" style={{ boxShadow: '0 0 6px rgba(155,108,255,0.8)' }} />
       </button>
       <UserAvatar size={32} className="cursor-pointer" />
     </header>
