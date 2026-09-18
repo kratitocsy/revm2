@@ -596,7 +596,7 @@ function ReviewQueue({ items, onDismiss }: {
   const tagCls = {
     high: { text: 'text-red-400', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', label: 'Review now' },
     medium: { text: 'text-amber-400', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', label: 'Review soon' },
-    low: { text: 'text-emerald-400', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.22)', label: 'Stable' },
+    low: { text: 'text-emerald-400', bg: 'rgba(25,211,162,0.08)', border: 'rgba(25,211,162,0.22)', label: 'Stable' },
   }
 
   // Group by subject
@@ -614,7 +614,7 @@ function ReviewQueue({ items, onDismiss }: {
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Review Queue</div>
+            <div className="text-sm font-semibold text-slate-100">Review Queue</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Topics needing your attention</div>
           </div>
         </div>
@@ -631,10 +631,10 @@ function ReviewQueue({ items, onDismiss }: {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <div className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Review Queue</div>
+          <div className="text-sm font-semibold text-slate-100">Review Queue</div>
           <div className="text-[11px] text-slate-500 mt-0.5">Topics from previous sessions</div>
         </div>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border" style={{ color: '#A78BFA', background: 'rgba(124,58,237,0.1)', borderColor: 'rgba(124,58,237,0.3)' }}>{due} due</span>
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#9B6CFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]">{due} due</span>
       </div>
 
       {/* Grouped dropdown accordion */}
@@ -646,13 +646,13 @@ function ReviewQueue({ items, onDismiss }: {
           const worstUrgency = group.some(g => g.urgency === 'high') ? 'high' : group.some(g => g.urgency === 'medium') ? 'medium' : 'low'
           const t = tagCls[worstUrgency]
           return (
-            <div key={subj} className="rounded-xl border overflow-hidden" style={{ borderColor: 'rgba(124,58,237,0.18)', background: 'rgba(14,21,40,0.5)' }}>
+            <div key={subj} className="rounded-xl border overflow-hidden border-[rgba(26,40,69,0.55)] bg-[#0B1530]">
               {/* Subject header — click to expand/collapse */}
               <button className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
                 onClick={() => setExpanded(prev => ({ ...prev, [subj]: !isOpen }))}>
                 <RetentionRing pct={worstRetention} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-200 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{subj}</div>
+                  <div className="text-sm font-semibold text-slate-200 truncate">{subj}</div>
                   <div className="text-[10px] text-slate-500 font-mono">{group.length} topic{group.length > 1 ? 's' : ''} pending</div>
                 </div>
                 <span className="text-[10px] px-2 py-0.5 rounded-full border font-mono flex-shrink-0 mr-1" style={{ color: t.text, background: t.bg, borderColor: t.border }}>{t.label}</span>
@@ -660,15 +660,14 @@ function ReviewQueue({ items, onDismiss }: {
               </button>
               {/* Topic rows */}
               {isOpen && (
-                <div className="border-t" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                <div className="border-t border-[rgba(26,40,69,0.55)]">
                   {group.map(item => {
                     const tc = tagCls[item.urgency]
                     const daysLabel = item.daysAgo === 1 ? 'Yesterday' : `${item.daysAgo} days ago`
                     return (
-                      <div key={item.key} className="flex items-center gap-3 px-3 py-2.5 border-b last:border-0 group hover:bg-violet-500/5 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.08)' }}>
+                      <div key={item.key} className="flex items-center gap-3 px-3 py-2.5 border-b last:border-0 group hover:bg-violet-500/5 transition-colors border-[rgba(124,77,255,0.08)]">
                         <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5"
-                          style={{ background: item.urgency === 'high' ? '#F87171' : item.urgency === 'medium' ? '#FBBF24' : '#34D399' }} />
+                          style={{ background: item.urgency === 'high' ? '#F87171' : item.urgency === 'medium' ? '#FBBF24' : '#19D3A2' }} />
                         <div className="flex-1 min-w-0">
                           <div className="text-[12px] font-medium text-slate-300 truncate">{item.topic}</div>
                           <div className="text-[10px] text-slate-600 font-mono">{daysLabel} · {item.retention}% retention</div>
@@ -676,8 +675,7 @@ function ReviewQueue({ items, onDismiss }: {
                         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono" style={{ color: tc.text, borderColor: tc.border, background: tc.bg }}>{tc.label}</span>
                           <button onClick={() => onDismiss(item.key)}
-                            className="text-[11px] px-2 py-1 rounded-lg border transition-all hover:border-emerald-500/50 hover:text-emerald-300"
-                            style={{ color: '#C4B5FD', background: 'rgba(124,58,237,0.12)', borderColor: 'rgba(124,58,237,0.28)', fontFamily: 'Poppins, sans-serif' }}>
+                            className="text-[11px] px-2 py-1 rounded-lg border transition-all hover:border-emerald-500/50 hover:text-emerald-300 text-[#C4AAFF] bg-[rgba(26,40,69,0.55)] border-[#1A2845]">
                             ✓ Done
                           </button>
                         </div>
