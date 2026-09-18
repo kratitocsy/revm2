@@ -1,5 +1,7 @@
 {
-  "redirects": [],
+  "redirects": [
+    { "source": "/index.html", "destination": "/", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/product.html" },
     { "source": "/product", "destination": "/product.html" },
