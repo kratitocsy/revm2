@@ -19,6 +19,14 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 export default defineConfig({
+  // Vite's default base ("/") builds asset URLs relative to the site
+  // root, e.g. "/home-app-assets/wynko-logo.png". But outDir below
+  // nests the actual output under home-app-dist/, so those files are
+  // really served at "/home-app-dist/home-app-assets/wynko-logo.png"
+  // — a mismatch that 404s every imported image (logo, avatars,
+  // screenshots) without ever failing the build. Setting base here
+  // makes Vite emit the correct nested URL.
+  base: '/home-app-dist/',
   plugins: [react()],
   build: {
     outDir: resolve(__dirname, 'home-app-dist'),
