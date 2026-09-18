@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
+import aiAssistantImg from './imports/ai-assistant.png'
 import wynkoLogo from './imports/wynko-logo.png'
 import avatar7 from './imports/avatar-7.png'
 import avatar8 from './imports/avatar-8.png'
@@ -1385,6 +1386,7 @@ interface RoomData {
 interface BotParticipant {
   id: string; name: string; initials: string; subject: string
   studyTimeSecs: number; isStudying: boolean; isPaused?: boolean; cardGrad: string; accentColor: string
+  isMe?: boolean
 }
 
 interface ChatMsg {
@@ -1395,7 +1397,7 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 1, name: 'Physics Warriors', emoji: '⚡', classes: 'Class 11 · 12', subject: 'Physics',
     desc: 'Concepts, PYQs, doubts — all in one place.', members: 48,
-    avatarColors: ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B'],
+    avatarColors: ['#7C4DFF', '#9B6CFF', '#EC4899', '#F59E0B'],
     avatarInits: ['RS', 'PK', 'AM', 'DJ'],
     iconBg: 'linear-gradient(135deg, #1E40AF, #3B82F6)',
     iconEmoji: '📘', tag: 'popular', subjectTag: 'physics', isPublic: true,
@@ -1403,31 +1405,31 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 2, name: 'Chemistry Crew', emoji: '✨', classes: 'Class 11 · 12', subject: 'Chemistry',
     desc: 'Study. Discuss. Score.', members: 32,
-    avatarColors: ['#7C3AED', '#0891B2', '#EC4899', '#F87171'],
+    avatarColors: ['#7C4DFF', '#0F99CC', '#EC4899', '#F87171'],
     avatarInits: ['SK', 'DL', 'MK', 'RV'],
-    iconBg: 'linear-gradient(135deg, #7C3AED, #A855F7)',
+    iconBg: 'linear-gradient(135deg, #7C4DFF, #A855F7)',
     iconEmoji: '🧪', tag: 'popular', subjectTag: 'chemistry', isPublic: true,
   },
   {
     id: 3, name: 'Maths Mavericks', emoji: '', classes: 'Class 10 · 11 · 12', subject: 'Mathematics',
     desc: 'Tricks, practice, progress.', members: 67,
-    avatarColors: ['#059669', '#3B82F6', '#F59E0B', '#F97316'],
+    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'],
     avatarInits: ['AK', 'KV', 'PN', 'SR'],
-    iconBg: 'linear-gradient(135deg, #0E7490, #22D3EE)',
+    iconBg: 'linear-gradient(135deg, #0C7FAA, #19B5E6)',
     iconEmoji: '√x', tag: 'popular', subjectTag: 'maths', isPublic: true,
   },
   {
     id: 4, name: 'Biology Buddies', emoji: '🌿', classes: 'Class 11 · 12', subject: 'Biology',
     desc: 'Learn, revise, ace.', members: 41,
-    avatarColors: ['#065F46', '#6366F1', '#F59E0B', '#EC4899'],
+    avatarColors: ['#0A9673', '#7C4DFF', '#F59E0B', '#EC4899'],
     avatarInits: ['VM', 'PR', 'SC', 'AT'],
-    iconBg: 'linear-gradient(135deg, #065F46, #34D399)',
+    iconBg: 'linear-gradient(135deg, #0A9673, #19D3A2)',
     iconEmoji: '📗', tag: 'all', subjectTag: 'biology', isPublic: false, password: 'bio123',
   },
   {
     id: 5, name: 'JEE 2026', emoji: '👑', classes: 'JEE Aspirants', subject: 'All Subjects',
     desc: 'Discipline. Consistency. Results.', members: 89,
-    avatarColors: ['#DC2626', '#7C3AED', '#0891B2', '#F59E0B'],
+    avatarColors: ['#DC2626', '#7C4DFF', '#0F99CC', '#F59E0B'],
     avatarInits: ['RK', 'AS', 'PG', 'NM'],
     iconBg: 'linear-gradient(135deg, #BE185D, #F43F5E)',
     iconEmoji: '🎯', tag: 'popular', subjectTag: 'all', isPublic: false, password: 'jee2026',
@@ -1435,7 +1437,7 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 6, name: 'Night Owls', emoji: '🌙', classes: 'All Classes', subject: 'All Subjects',
     desc: 'Late night study sessions. No distractions.', members: 27,
-    avatarColors: ['#1D4ED8', '#6366F1', '#8B5CF6', '#0891B2'],
+    avatarColors: ['#1D4ED8', '#7C4DFF', '#9B6CFF', '#0F99CC'],
     avatarInits: ['LD', 'VR', 'AM', 'TR'],
     iconBg: 'linear-gradient(135deg, #1E3A8A, #3B82F6)',
     iconEmoji: '💻', tag: 'all', subjectTag: 'all', isPublic: true,
@@ -1443,31 +1445,31 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 7, name: 'Class 12 Board Prep', emoji: '', classes: 'Class 12', subject: 'All Subjects',
     desc: "Let's crack it together!", members: 56,
-    avatarColors: ['#7C3AED', '#059669', '#F59E0B', '#EC4899'],
+    avatarColors: ['#7C4DFF', '#0DAE86', '#F59E0B', '#EC4899'],
     avatarInits: ['HP', 'GS', 'RT', 'MV'],
-    iconBg: 'linear-gradient(135deg, #4338CA, #6366F1)',
+    iconBg: 'linear-gradient(135deg, #5835CC, #7C4DFF)',
     iconEmoji: '👥', tag: 'all', subjectTag: 'all', isPublic: true,
   },
   {
     id: 8, name: 'Productive Humans', emoji: '✨', classes: 'All Classes', subject: 'All Subjects',
     desc: 'Better habits. Bigger dreams.', members: 73,
-    avatarColors: ['#7C3AED', '#3B82F6', '#EC4899', '#34D399'],
+    avatarColors: ['#7C4DFF', '#3B82F6', '#EC4899', '#19D3A2'],
     avatarInits: ['KD', 'PS', 'YR', 'NB'],
-    iconBg: 'linear-gradient(135deg, #5B21B6, #7C3AED)',
+    iconBg: 'linear-gradient(135deg, #5C35CC, #7C4DFF)',
     iconEmoji: '✦', tag: 'all', subjectTag: 'all', isPublic: true,
   },
 ]
 
 // ─── Bot Pool ─────────────────────────────────────────────────────────────────
 const BOT_POOL = [
-  { name: 'Riya', initials: 'RI', cardGrad: 'linear-gradient(160deg,#0F1729,#1E1244,#2A1860)', accentColor: '#8B5CF6', isStudying: true },
-  { name: 'Arjun', initials: 'AR', cardGrad: 'linear-gradient(160deg,#0D2030,#0E3355,#0C4A7A)', accentColor: '#22D3EE', isStudying: true },
+  { name: 'Riya', initials: 'RI', cardGrad: 'linear-gradient(160deg,#0F1729,#1E1244,#2A1860)', accentColor: '#9B6CFF', isStudying: true },
+  { name: 'Arjun', initials: 'AR', cardGrad: 'linear-gradient(160deg,#0D2030,#0E3355,#0C4A7A)', accentColor: '#19B5E6', isStudying: true },
   { name: 'Meera', initials: 'ME', cardGrad: 'linear-gradient(160deg,#1A0F28,#2D124A,#3D155C)', accentColor: '#A855F7', isStudying: true },
-  { name: 'Dev', initials: 'DE', cardGrad: 'linear-gradient(160deg,#0F1A20,#122A38,#0E3A50)', accentColor: '#06B6D4', isStudying: true },
-  { name: 'Anshul', initials: 'AN', cardGrad: 'linear-gradient(160deg,#15101E,#251540,#1E1060)', accentColor: '#7C3AED', isStudying: true },
+  { name: 'Dev', initials: 'DE', cardGrad: 'linear-gradient(160deg,#0F1A20,#122A38,#0E3A50)', accentColor: '#19B5E6', isStudying: true },
+  { name: 'Anshul', initials: 'AN', cardGrad: 'linear-gradient(160deg,#15101E,#251540,#1E1060)', accentColor: '#7C4DFF', isStudying: true },
   { name: 'Nain', initials: 'NA', cardGrad: 'linear-gradient(160deg,#0F1520,#1B2A3C,#223650)', accentColor: '#3B82F6', isStudying: false },
   { name: 'Adarsh', initials: 'AD', cardGrad: 'linear-gradient(160deg,#1A0F15,#2E1228,#3D1535)', accentColor: '#EC4899', isStudying: true },
-  { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#A78BFA', isStudying: true },
+  { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#9B6CFF', isStudying: true },
 ]
 
 function getRoomBots(room: RoomData): BotParticipant[] {
@@ -1512,7 +1514,7 @@ function FaceAvatars({ colors, inits }: { colors: string[]; inits: string[] }) {
     <div className="flex -space-x-2">
       {colors.slice(0, 4).map((c, i) => (
         <div key={i} className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 flex-shrink-0"
-          style={{ background: c, borderColor: '#0A0D1E', zIndex: 4 - i }}>
+          style={{ background: c, borderColor: '#0B1530', zIndex: 4 - i }}>
           {inits[i]}
         </div>
       ))}
@@ -1562,9 +1564,6 @@ function MicOffIcon() {
 }
 
 // ─── Bot Card ─────────────────────────────────────────────────────────────────
-// avatarUrl: the participant's actual chosen avatar (UserAvatarCtx for "You",
-// a real profile photo/pick for a real member once rooms are backend-wired).
-// Bots in BOT_POOL have no avatarUrl, so they keep the illustrated silhouette.
 function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string }) {
   const fmtTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
@@ -1587,7 +1586,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 
   if (state === 'offline') {
     return (
-      <div className="rounded-2xl border overflow-hidden" style={{ background: '#080C1A', borderColor: 'rgba(100,116,139,0.12)' }}>
+      <div className="rounded-2xl border overflow-hidden bg-[#020615] border-[rgba(100,116,139,0.12)]">
         <div className="h-40 flex flex-col items-center justify-center gap-2"
           style={{ background: 'linear-gradient(160deg,#0A0D18,#0D1120)' }}>
           {avatarUrl ? (
@@ -1600,7 +1599,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
           )}
           <div className="text-[10px] text-slate-600 font-mono">offline</div>
         </div>
-        <div className="p-3 border-t" style={{ borderColor: 'rgba(100,116,139,0.1)' }}>
+        <div className="p-3 border-t border-[rgba(100,116,139,0.1)]">
           <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-600" /><span className="text-slate-400 font-semibold text-sm">{bot.name}</span></div>
           <div className="text-xs text-slate-500 mt-0.5">{bot.subject}</div>
         </div>
@@ -1613,7 +1612,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
   const statusLabel = isLive ? null : 'Paused'
 
   return (
-    <div className="rounded-2xl border overflow-hidden relative" style={{ background: '#080C1A', borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
+    <div className="rounded-2xl border overflow-hidden relative bg-[#020615]" style={{ borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
       {avatarUrl ? (
         <div className="relative h-40 overflow-hidden" style={{ background: bot.cardGrad }}>
           <img src={avatarUrl} alt={bot.name}
@@ -1632,7 +1631,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
       {canKick && (
         <button onClick={onKick}
           className="absolute top-2.5 left-2.5 text-[9px] px-2 py-0.5 rounded-full transition-all hover:bg-red-500/20"
-          style={{ background: 'rgba(0,0,0,0.4)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)', fontFamily: 'Poppins, sans-serif' }}>
+          style={{ background: 'rgba(0,0,0,0.4)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }}>
           Kick
         </button>
       )}
@@ -1717,8 +1716,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
     const newRoom: RoomData = {
       id: Date.now(), name: createForm.name.trim(), emoji: '', classes: 'All Classes',
       subject: createForm.subject.trim() || 'All Subjects', desc: createForm.desc.trim() || 'Custom study room.',
-      members: 1, avatarColors: ['#7C3AED'], avatarInits: ['AS'],
-      iconBg: 'linear-gradient(135deg, #7C3AED, #4F46E5)', iconEmoji: '✦',
+      members: 1, avatarColors: ['#7C4DFF'], avatarInits: ['AS'],
+      iconBg: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', iconEmoji: '✦',
       tag: 'myrooms', isPublic: createForm.isPublic, password: createForm.isPublic ? undefined : createForm.password,
       isUserCreated: true, isOwner: true, subjectTag: 'all',
     }
@@ -1734,17 +1733,17 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}
+    <div className="flex h-screen overflow-hidden bg-[#020615]" 
       onClick={() => setOpenMenuId(null)}>
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>STUDY ROOMS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >STUDY ROOMS</div>
             <div className="text-sm font-semibold text-slate-200">Find your people. Focus better.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
@@ -1757,17 +1756,17 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             <div>
               <div className="text-[10px] font-mono tracking-[0.22em] text-slate-500 mb-2">STUDY TOGETHER · GROW TOGETHER</div>
               <h1 className="text-4xl font-bold leading-tight mb-2 text-white">
-                Study <span style={{ background: 'linear-gradient(90deg,#7C3AED,#A855F7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Rooms</span>
+                Study <span style={{ background: 'linear-gradient(90deg,#7C4DFF,#A855F7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Rooms</span>
               </h1>
               <p className="text-slate-400 text-sm">Find your people. Focus better.</p>
             </div>
             <button onClick={() => setShowCreate(true)}
               className="flex-shrink-0 flex items-center gap-4 p-5 rounded-2xl border relative overflow-hidden hover:scale-[1.02] transition-transform"
-              style={{ background: 'linear-gradient(135deg,#2D1B69,#1E3A8A)', borderColor: 'rgba(124,58,237,0.5)', minWidth: '240px', boxShadow: '0 0 40px rgba(124,58,237,0.2)' }}>
+              style={{ background: 'linear-gradient(135deg,#2D1B69,#1E3A8A)', borderColor: '#4A3A88', minWidth: '240px', boxShadow: '0 0 40px #1A2845' }}>
               <div className="absolute top-2 right-8 text-2xl opacity-30 select-none">✦</div>
               <div className="absolute top-5 right-4 text-sm opacity-20 select-none">✦</div>
               <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.5)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px #4A3A88' }}>
                 <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <div className="flex-1 text-left">
@@ -1781,13 +1780,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
           </div>
 
           {/* Search */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border mb-5"
-            style={{ background: 'rgba(14,21,40,0.7)', borderColor: 'rgba(124,58,237,0.25)' }}>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border mb-5 bg-[#0B1530] border-[#1A2845]"
+            >
             <Ico n="search" cls="w-4 h-4 text-slate-500 flex-shrink-0" />
             <input className="flex-1 bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600"
               placeholder="Search study rooms..." value={search} onChange={e => setSearch(e.target.value)} />
-            <kbd className="text-[11px] text-slate-600 border rounded px-1.5 py-0.5"
-              style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', fontFamily: 'JetBrains Mono, monospace' }}>⌘ K</kbd>
+            <kbd className="text-[11px] text-slate-600 border rounded px-1.5 py-0.5 bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)]"
+              >⌘ K</kbd>
           </div>
 
           {/* Tabs */}
@@ -1796,10 +1795,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
                 style={{
-                  background: tab === t.id ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(14,21,40,0.7)',
-                  color: tab === t.id ? '#fff' : '#94A3B8',
-                  border: `1px solid ${tab === t.id ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.2)'}`,
-                  boxShadow: tab === t.id ? '0 0 16px rgba(124,58,237,0.35)' : 'none',
+                  background: tab === t.id ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
+                  color: tab === t.id ? '#fff' : '#8B9AC7',
+                  border: `1px solid ${tab === t.id ? '#563FA0' : '#1A2845'}`,
+                  boxShadow: tab === t.id ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
                 }}>
                 <span>{t.icon}</span>{t.label}
               </button>
@@ -1812,9 +1811,9 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                 <button key={s} onClick={() => setSubjectFilter(s)}
                   className="px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
                   style={{
-                    background: subjectFilter === s ? 'rgba(124,58,237,0.2)' : 'transparent',
-                    color: subjectFilter === s ? '#C4B5FD' : '#64748B',
-                    borderColor: subjectFilter === s ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)',
+                    background: subjectFilter === s ? '#1A2845' : 'transparent',
+                    color: subjectFilter === s ? '#C4AAFF' : '#4E5E84',
+                    borderColor: subjectFilter === s ? '#4A3A88' : 'rgba(26,40,69,0.55)',
                   }}>{s}</button>
               ))}
             </div>
@@ -1826,8 +1825,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               <div className="text-slate-300 font-semibold mb-1">No rooms yet</div>
               <div className="text-slate-500 text-sm mb-4">Create your first study room to see it here.</div>
               <button onClick={() => setShowCreate(true)}
-                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>Create Room</button>
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]"
+                >Create Room</button>
             </div>
           )}
 
@@ -1838,7 +1837,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               return (
                 <div key={room.id}
                   className="flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-violet-500/40 relative"
-                  style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                  style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
                   <RoomIcon bg={room.iconBg} emoji={room.iconEmoji} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -1852,7 +1851,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                       )}
                       {room.isPublic && !room.isUserCreated && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
-                          style={{ background: 'rgba(52,211,153,0.08)', color: '#34D399', border: '1px solid rgba(52,211,153,0.2)' }}>
+                          style={{ background: 'rgba(25,211,162,0.08)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.20)' }}>
                           Public
                         </span>
                       )}
@@ -1862,10 +1861,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                       )}
                       {room.isOwner && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
-                          style={{ background: 'rgba(124,58,237,0.15)', color: '#A78BFA', border: '1px solid rgba(124,58,237,0.3)' }}>Owner</span>
+                          style={{ background: 'rgba(26,40,69,0.55)', color: '#9B6CFF', border: '1px solid #1E3060' }}>Owner</span>
                       )}
                     </div>
-                    <div className="text-[12px] text-slate-400 mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    <div className="text-[12px] text-slate-400 mb-1" >
                       {room.classes} &nbsp;|&nbsp; {room.subject}
                     </div>
                     <div className="text-sm text-slate-300 mb-3">{room.desc}</div>
@@ -1887,7 +1886,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                       {menuOpen && (
                         <div className="absolute right-0 top-full mt-1 w-40 rounded-xl border z-20 overflow-hidden"
                           onClick={e => e.stopPropagation()}
-                          style={{ background: '#0D1428', borderColor: 'rgba(124,58,237,0.35)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                          style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                           <button onClick={() => { setInviteRoom(room); setOpenMenuId(null) }}
                             className="w-full text-left px-3 py-2.5 text-sm text-slate-300 hover:bg-violet-500/10 hover:text-violet-200 transition-colors flex items-center gap-2">
                             <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-4l2 2-2 2M14 8H7" /></svg>
@@ -1895,8 +1894,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                           </button>
                           {joined && (
                             <button onClick={() => handleLeave(room.id)}
-                              className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t"
-                              style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+                              className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-[rgba(26,40,69,0.55)]"
+                              >
                               <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M17 10H7m0 0l3-3m-3 3l3 3M3 17V3" /></svg>
                               Leave Room
                             </button>
@@ -1909,13 +1908,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                     {joined ? (
                       <button onClick={() => onEnterRoom(room)}
                         className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', boxShadow: '0 0 18px rgba(124,58,237,0.4)' }}>
+                        style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
                         Enter →
                       </button>
                     ) : (
                       <button onClick={() => handleJoin(room)}
                         className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', boxShadow: '0 0 18px rgba(124,58,237,0.4)' }}>
+                        style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
                         {room.isPublic ? 'Join' : '🔒 Join'}
                       </button>
                     )}
@@ -1931,10 +1930,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
       {passwordRoomId !== null && (() => {
         const room = allRooms.find(r => r.id === passwordRoomId)!
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
             onClick={e => { if (e.target === e.currentTarget) setPasswordRoomId(null) }}>
             <div className="rounded-2xl border p-8 w-[360px]"
-              style={{ background: '#0A0D1E', borderColor: 'rgba(245,158,11,0.35)', boxShadow: '0 0 60px rgba(245,158,11,0.1)' }}>
+              style={{ background: '#0B1530', borderColor: 'rgba(245,158,11,0.35)', boxShadow: '0 0 60px rgba(245,158,11,0.1)' }}>
               <div className="text-center mb-5">
                 <div className="text-3xl mb-2">🔒</div>
                 <div className="text-[10px] text-amber-400 font-mono tracking-[0.2em] mb-1">PRIVATE ROOM</div>
@@ -1944,7 +1943,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               <input
                 type="password"
                 className="w-full px-4 py-3 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 mb-1 text-center tracking-widest transition-colors"
-                style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : 'rgba(124,58,237,0.3)', fontFamily: 'JetBrains Mono, monospace', fontSize: '18px', letterSpacing: '4px' }}
+                style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : '#1E3060', fontSize: '18px', letterSpacing: '4px' }}
                 placeholder="••••••"
                 value={passwordInput}
                 onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
@@ -1955,11 +1954,11 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               {!passwordError && <div className="h-4 mb-1" />}
               <div className="flex gap-3">
                 <button onClick={() => setPasswordRoomId(null)}
-                  className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                  style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                  className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                  >Cancel</button>
                 <button onClick={submitPassword}
                   className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Enter Room
                 </button>
               </div>
@@ -1970,10 +1969,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
 
       {/* Invite Modal */}
       {inviteRoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setInviteRoom(null) }}>
           <div className="rounded-2xl border p-8 w-[400px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 60px rgba(124,58,237,0.15)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
             <div className="text-center mb-5">
               <div className="text-2xl mb-2">🔗</div>
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">INVITE TO ROOM</div>
@@ -1984,21 +1983,21 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             </div>
             <div className="mb-4">
               <div className="text-[11px] text-slate-500 mb-1.5 font-mono">INVITE LINK</div>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border"
-                style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(124,58,237,0.25)' }}>
-                <span className="flex-1 text-sm text-violet-300 truncate" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-[#0B1530] border-[#1A2845]"
+                >
+                <span className="flex-1 text-sm text-violet-300 truncate" >
                   wynko.app/rooms/{inviteRoom.name.toLowerCase().replace(/\s+/g, '-')}
                 </span>
                 <button onClick={() => copyInviteLink(inviteRoom)}
                   className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all flex-shrink-0"
-                  style={{ background: copied ? 'rgba(52,211,153,0.15)' : 'rgba(124,58,237,0.15)', color: copied ? '#34D399' : '#A78BFA', border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(124,58,237,0.3)'}` }}>
+                  style={{ background: copied ? 'rgba(25,211,162,0.15)' : 'rgba(26,40,69,0.55)', color: copied ? '#19D3A2' : '#9B6CFF', border: `1px solid ${copied ? 'rgba(25,211,162,0.30)' : '#1E3060'}` }}>
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
             {!inviteRoom.isPublic && (
-              <div className="mb-4 p-3 rounded-xl border"
-                style={{ background: 'rgba(245,158,11,0.07)', borderColor: 'rgba(245,158,11,0.2)' }}>
+              <div className="mb-4 p-3 rounded-xl border bg-[rgba(245,158,11,0.07)] border-[rgba(245,158,11,0.2)]"
+                >
                 <div className="text-[11px] text-amber-400 font-mono mb-1">ROOM PASSWORD</div>
                 <div className="text-sm text-amber-300">Share the password separately with your friends.</div>
               </div>
@@ -2006,28 +2005,28 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             <div className="flex gap-2">
               {[{ icon: '💬', label: 'WhatsApp' }, { icon: '✈️', label: 'Telegram' }, { icon: '📧', label: 'Email' }].map(opt => (
                 <button key={opt.label}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors"
-                  style={{ borderColor: 'rgba(124,58,237,0.2)', background: 'rgba(14,21,40,0.5)' }}>
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors border-[#1A2845] bg-[#0B1530]"
+                  >
                   {opt.icon} {opt.label}
                 </button>
               ))}
             </div>
             <button onClick={() => setInviteRoom(null)}
-              className="w-full mt-3 py-2 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.15)' }}>Close</button>
+              className="w-full mt-3 py-2 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[rgba(26,40,69,0.55)]"
+              >Close</button>
           </div>
         </div>
       )}
 
       {/* Create Room Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowCreate(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
             <div className="text-center mb-5">
               <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.4)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(40,85,204,0.6), 0 0 40px rgba(124,77,255,0.2)' }}>
                 <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">CREATE STUDY ROOM</div>
@@ -2035,41 +2034,41 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             </div>
             <div className="space-y-3 mb-5">
               <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Room name *" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Room name *" />
               <input value={createForm.subject} onChange={e => setCreateForm(f => ({ ...f, subject: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Subject (e.g. Physics, JEE)" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Subject (e.g. Physics, JEE)" />
               <textarea value={createForm.desc} onChange={e => setCreateForm(f => ({ ...f, desc: e.target.value }))}
-                rows={2} className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 resize-none focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Short description..." />
+                rows={2} className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 resize-none focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Short description..." />
               {/* Public / Private toggle */}
               <div className="flex gap-2">
                 <button onClick={() => setCreateForm(f => ({ ...f, isPublic: true }))}
                   className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
-                  style={{ background: createForm.isPublic ? 'rgba(52,211,153,0.1)' : 'transparent', color: createForm.isPublic ? '#34D399' : '#64748B', borderColor: createForm.isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(124,58,237,0.2)' }}>
+                  style={{ background: createForm.isPublic ? 'rgba(25,211,162,0.10)' : 'transparent', color: createForm.isPublic ? '#19D3A2' : '#4E5E84', borderColor: createForm.isPublic ? 'rgba(25,211,162,0.40)' : '#1A2845' }}>
                   🌐 Public
                 </button>
                 <button onClick={() => setCreateForm(f => ({ ...f, isPublic: false }))}
                   className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
-                  style={{ background: !createForm.isPublic ? 'rgba(245,158,11,0.1)' : 'transparent', color: !createForm.isPublic ? '#F59E0B' : '#64748B', borderColor: !createForm.isPublic ? 'rgba(245,158,11,0.4)' : 'rgba(124,58,237,0.2)' }}>
+                  style={{ background: !createForm.isPublic ? 'rgba(245,158,11,0.1)' : 'transparent', color: !createForm.isPublic ? '#F59E0B' : '#4E5E84', borderColor: !createForm.isPublic ? 'rgba(245,158,11,0.4)' : '#1A2845' }}>
                   🔒 Private
                 </button>
               </div>
               {!createForm.isPublic && (
                 <input value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
                   type="password"
-                  className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/50 transition-colors"
-                  style={{ borderColor: 'rgba(245,158,11,0.3)' }} placeholder="Set room password" />
+                  className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/50 transition-colors border-[rgba(245,158,11,0.3)]"
+                   placeholder="Set room password" />
               )}
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowCreate(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                >Cancel</button>
               <button onClick={handleCreateRoom}
                 className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                 Create Room
               </button>
             </div>
@@ -2084,6 +2083,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
 function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
   room: RoomData; onBack: () => void; onNavigate: (id: string) => void; profile?: ProfileInfo
 }) {
+  const { avatar: userAvatar } = useContext(UserAvatarCtx)
   const bots = getRoomBots(room)
   const [focusRunning, setFocusRunning] = useState(false)
   const [focusTotal] = useState(25 * 60)
@@ -2144,7 +2144,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
 
   const selfName = profile?.displayName || 'Jatin Sinsinwar'
   const selfInitials = selfName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
-  const { avatar: selfAvatar } = useContext(UserAvatarCtx)
+
   const userCard: BotParticipant = {
     id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials, subject,
     studyTimeSecs: userStudyTime,
@@ -2154,18 +2154,18 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
     isStudying: focusRunning,
     isPaused: !focusRunning && userStudyTime > 0,
     cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
-    accentColor: '#7C3AED',
+    accentColor: '#7C4DFF',
   }
 
   const allParticipants = [userCard, ...visibleBots]
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#060914', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#060914]" >
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,9,20,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0 bg-[rgba(6,9,20,0.95)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm flex-shrink-0">
             <Ico n="chevL" cls="w-4 h-4" /> Rooms
           </button>
@@ -2186,17 +2186,17 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
         <main className="flex-1 overflow-y-auto flex flex-col">
           {/* Focus timer card */}
           <div className="mx-5 mt-4 mb-3 p-5 rounded-2xl border relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0D1130,#0F1845)', borderColor: 'rgba(124,58,237,0.35)', boxShadow: '0 0 40px rgba(124,58,237,0.1)' }}>
+            style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
             {/* Background wave */}
             <div className="absolute right-0 top-0 bottom-0 w-48 opacity-20 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right center,#7C3AED,transparent 70%)' }} />
+              style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
             <div className="flex items-center gap-6 relative">
               {/* Circular ring + play/pause */}
               <div className="flex-shrink-0 relative" style={{ width: 88, height: 88 }}>
                 <svg viewBox="0 0 88 88" width="88" height="88">
                   <defs>
                     <linearGradient id="rg2" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#7C3AED" /><stop offset="100%" stopColor="#60A5FA" />
+                      <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
                     </linearGradient>
                     <filter id="rf2"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                   </defs>
@@ -2220,12 +2220,12 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
               {/* Timer info */}
               <div className="flex-1">
                 <div className="text-[11px] text-slate-400 mb-0.5 font-mono tracking-wide">Focus Time</div>
-                <div className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 20px rgba(124,58,237,0.5)' }}>
+                <div className="text-4xl font-bold text-white mb-2" style={{ textShadow: '0 0 20px #4A3A88' }}>
                   {timeStr}
                 </div>
                 {/* Subject pill */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer hover:border-violet-400/40 transition-colors"
-                  style={{ background: 'rgba(124,58,237,0.12)', borderColor: 'rgba(124,58,237,0.3)' }}>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer hover:border-violet-400/40 transition-colors bg-[rgba(26,40,69,0.55)] border-[#1E3060]"
+                  >
                   <span className="text-base">🧪</span>
                   <span className="text-sm font-medium text-slate-200">{subject}</span>
                   <Ico n="chevR" cls="w-3 h-3 text-slate-400 rotate-90" />
@@ -2236,8 +2236,10 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 <div className="text-slate-400 text-sm font-mono">{studyingCount} studying</div>
                 <div className="flex -space-x-1.5 mt-2 justify-end">
                   {allParticipants.filter(p => p.isStudying).slice(0, 5).map(p => (
-                    <div key={p.id} className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white border"
-                      style={{ background: p.accentColor, borderColor: '#0D1130', zIndex: 1 }}>{p.initials}</div>
+                    <div key={p.id} className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[8px] font-bold text-white border"
+                      style={{ background: p.accentColor, borderColor: '#0B1530', zIndex: 1 }}>
+                      {p.id === 'user' ? <img src={userAvatar} alt="You" className="w-full h-full object-contain" /> : p.initials}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2245,15 +2247,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
           </div>
 
           {/* Tabs */}
-          <div className="mx-5 mb-3 flex rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)' }}>
+          <div className="mx-5 mb-3 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
+            >
             {([['studying', '👥', 'Active Studying'], ['chat', '💬', 'Chat']] as const).map(([id, icon, label]) => (
               <button key={id} onClick={() => setActiveTab(id as 'studying' | 'chat')}
                 className="flex-1 flex items-center justify-center gap-2.5 py-3 text-sm font-semibold transition-all"
                 style={{
-                  color: activeTab === id ? '#A78BFA' : '#64748B',
-                  background: activeTab === id ? 'rgba(124,58,237,0.12)' : 'transparent',
-                  borderBottom: activeTab === id ? '2px solid #7C3AED' : '2px solid transparent',
+                  color: activeTab === id ? '#9B6CFF' : '#4E5E84',
+                  background: activeTab === id ? 'rgba(26,40,69,0.55)' : 'transparent',
+                  borderBottom: activeTab === id ? '2px solid #7C4DFF' : '2px solid transparent',
                 }}>
                 <span>{icon}</span>{label}
               </button>
@@ -2267,16 +2269,16 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
                     bot={{ ...p, studyTimeSecs: i === 0 ? userStudyTime : botTimes[i - 1] ?? p.studyTimeSecs }}
-                    avatarUrl={p.id === 'user' ? selfAvatar : undefined}
                     canKick={room.isOwner && !p.isMe && p.id !== 'user'}
                     onKick={() => setKickedIds(prev => { const s = new Set(prev); s.add(p.id); return s })}
+                    avatarUrl={p.id === 'user' ? userAvatar : undefined}
                   />
                 ))}
                 {/* Seat available card */}
                 <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-violet-500/30 transition-colors"
-                  style={{ background: 'rgba(14,21,40,0.35)', borderColor: 'rgba(124,58,237,0.18)', borderStyle: 'dashed' }}>
-                  <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3"
-                    style={{ borderColor: 'rgba(124,58,237,0.35)' }}>
+                  style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                  <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#1E3060]"
+                    >
                     <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </div>
                   <div className="text-slate-300 font-semibold text-sm">Seat Available</div>
@@ -2290,7 +2292,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 {chatLocked ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8 py-16">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-                      style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)' }}>🔒</div>
+                      style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>🔒</div>
                     <div className="text-slate-200 font-bold text-base">Chat is locked during focus study</div>
                     <div className="text-slate-400 text-sm leading-relaxed">
                       Finish your focus time to unlock chat.<br />
@@ -2298,7 +2300,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                     </div>
                     <button onClick={() => { setFocusRunning(false) }}
                       className="mt-2 px-6 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                      style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                      style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                       Pause & Open Chat
                     </button>
                   </div>
@@ -2308,13 +2310,13 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                       {messages.map(msg => (
                         <div key={msg.id} className={`flex gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                            style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(124,58,237,0.25)' }}>
+                            style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#1A2845' }}>
                             {msg.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div className={`flex flex-col gap-0.5 max-w-[70%] ${msg.isMe ? 'items-end' : ''}`}>
                             {!msg.isMe && <span className="text-[10px] text-slate-500 font-mono">{msg.name}</span>}
                             <div className="px-3.5 py-2 rounded-2xl text-sm text-slate-200"
-                              style={{ background: msg.isMe ? 'rgba(124,58,237,0.25)' : 'rgba(14,21,40,0.7)', border: `1px solid ${msg.isMe ? 'rgba(124,58,237,0.3)' : 'rgba(124,58,237,0.1)'}` }}>
+                              style={{ background: msg.isMe ? '#1A2845' : '#0B1530', border: `1px solid ${msg.isMe ? '#1E3060' : 'rgba(26,40,69,0.55)'}` }}>
                               {msg.text}
                             </div>
                             <span className="text-[9px] text-slate-600 font-mono">{msg.time}</span>
@@ -2323,18 +2325,18 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                       ))}
                       <div ref={chatEndRef} />
                     </div>
-                    <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+                    <div className="flex items-center gap-2 pt-3 border-t border-[rgba(26,40,69,0.55)]" >
                       <input
-                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
-                        style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(124,58,237,0.2)' }}
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors bg-[#0B1530] border-[#1A2845]"
+                        
                         placeholder="Type a message..."
                         value={chatInput}
                         onChange={e => setChatInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && sendMessage()}
                       />
                       <button onClick={sendMessage}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0 bg-[#7C4DFF]"
+                        >
                         <Ico n="arrow" cls="w-4 h-4" />
                       </button>
                     </div>
@@ -2432,9 +2434,9 @@ function getWeekDates(): number[] {
 }
 
 const SUBJECT_COLOR_MAP: Record<string, string> = {
-  physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#22D3EE', maths: '#22D3EE',
-  biology: '#34D399', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
-  economics: '#6366F1', computer: '#06B6D4',
+  physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#19B5E6', maths: '#19B5E6',
+  biology: '#19D3A2', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
+  economics: '#7C4DFF', computer: '#19B5E6',
 }
 function subjectColor(name: string): string {
   const key = name.toLowerCase()
@@ -2477,7 +2479,7 @@ const WEBSITE_SUGGESTIONS = [
   'twitch.tv', 'facebook.com', 'tiktok.com', 'pinterest.com', 'amazon.com',
 ]
 
-const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#22D3EE', '#34D399', '#F59E0B', '#F87171', '#EC4899']
+const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#19B5E6', '#19D3A2', '#F59E0B', '#F87171', '#EC4899']
 
 function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile }: {
   onNavigate: (id: string) => void
@@ -2607,16 +2609,16 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>SCHEDULES & BLOCKERS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
             <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
@@ -2632,13 +2634,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── AI Assistant Banner ── */}
           <div className="rounded-2xl border p-5 relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 40px rgba(124,58,237,0.1)' }}>
+            style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: '#2855CC', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right,#7C3AED,transparent)' }} />
+              style={{ background: 'radial-gradient(ellipse at right,#7C4DFF,transparent)' }} />
             <div className="flex items-center gap-5 relative">
-              <div className="flex-shrink-0 w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
-                style={{ background: 'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(99,102,241,0.2))', border: '1px solid rgba(124,58,237,0.4)' }}>
-                🤖
+              <div className="flex-shrink-0 w-16 h-16 rounded-2xl overflow-hidden">
+                <img src={aiAssistantImg} alt="AI Assistant" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
@@ -2647,7 +2648,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </div>
               <button onClick={() => { setShowAI(true); setAiStep('form') }}
                 className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-all hover:opacity-90 active:scale-95"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 24px rgba(124,58,237,0.4)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(40,85,204,0.55), 0 0 48px rgba(124,77,255,0.2)' }}>
                 ✦ Generate with AI
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
@@ -2656,10 +2657,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Your Schedule ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>
                   <Ico n="clock" cls="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
@@ -2669,7 +2670,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </div>
               <button onClick={() => setEditMode(e => !e)}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-sm transition-all"
-                style={{ borderColor: editMode ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.25)', color: editMode ? '#A78BFA' : '#64748B', background: editMode ? 'rgba(124,58,237,0.12)' : 'transparent' }}>
+                style={{ borderColor: editMode ? '#4A3A88' : '#1A2845', color: editMode ? '#9B6CFF' : '#4E5E84', background: editMode ? 'rgba(26,40,69,0.55)' : 'transparent' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
                 {editMode ? 'Done' : 'Edit'}
               </button>
@@ -2681,12 +2682,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 <button key={i} onClick={() => setActiveDay(i)}
                   className="flex-1 flex flex-col items-center py-2.5 rounded-xl transition-all"
                   style={{
-                    background: activeDay === i ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(14,21,40,0.5)',
-                    border: `1px solid ${activeDay === i ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.15)'}`,
-                    boxShadow: activeDay === i ? '0 0 16px rgba(124,58,237,0.35)' : 'none',
+                    background: activeDay === i ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
+                    border: `1px solid ${activeDay === i ? '#563FA0' : 'rgba(26,40,69,0.55)'}`,
+                    boxShadow: activeDay === i ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
                   }}>
-                  <span className="text-[10px] font-semibold" style={{ color: activeDay === i ? 'rgba(255,255,255,0.75)' : '#64748B' }}>{day}</span>
-                  <span className="text-base font-bold leading-tight" style={{ color: activeDay === i ? '#fff' : '#475569', fontFamily: 'JetBrains Mono, monospace' }}>{weekDates[i]}</span>
+                  <span className="text-[10px] font-semibold" style={{ color: activeDay === i ? 'rgba(255,255,255,0.75)' : '#4E5E84' }}>{day}</span>
+                  <span className="text-base font-bold leading-tight" style={{ color: activeDay === i ? '#fff' : '#4E5E84' }}>{weekDates[i]}</span>
                 </button>
               ))}
             </div>
@@ -2698,12 +2699,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               )}
               {currentDaySchedule.map(session => (
                 <div key={session.id}
-                  className="flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:border-violet-500/30 group"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.15)' }}>
+                  className="flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:border-violet-500/30 group bg-[#0B1530] border-[rgba(26,40,69,0.55)]"
+                  >
                   {editMode && (
                     <button onClick={() => deleteSession(session.id)}
-                      className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
-                      style={{ background: 'rgba(248,113,113,0.15)', color: '#F87171' }}>
+                      className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors bg-[rgba(248,113,113,0.15)] text-[#F87171]"
+                      >
                       <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   )}
@@ -2715,11 +2716,11 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     <div className="text-sm font-bold text-slate-100">{session.subject}</div>
                     <div className="text-[11px] text-slate-500">{session.topic}</div>
                   </div>
-                  <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" >
                     {session.startTime} – {session.endTime}
                   </div>
                   <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 12px rgba(124,58,237,0.3)' }}>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
                     🎯 Focus Mode
                   </button>
                   <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
@@ -2729,10 +2730,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
             {/* Add new */}
             <button onClick={() => setShowAddSession(true)}
-              className="w-full flex items-center gap-3 px-5 py-4 border-t transition-all hover:bg-white/[0.02] group"
-              style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+              className="w-full flex items-center gap-3 px-5 py-4 border-t transition-all hover:bg-white/[0.02] group border-[rgba(26,40,69,0.55)]"
+              >
               <div className="w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                style={{ borderColor: 'rgba(124,58,237,0.4)', borderStyle: 'dashed' }}>
+                style={{ borderColor: '#2855CC', borderStyle: 'dashed' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <span className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">Add New Schedule</span>
@@ -2742,7 +2743,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
@@ -2769,9 +2770,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   return (
                     <button key={app.name} onClick={() => toggleApp(app.name)}
                       className="flex flex-col items-center gap-2 p-3 rounded-2xl border relative transition-all hover:scale-[1.04]"
-                      style={{ background: blocked ? 'rgba(124,58,237,0.08)' : 'rgba(14,21,40,0.5)', borderColor: blocked ? 'rgba(124,58,237,0.45)' : 'rgba(124,58,237,0.15)' }}>
+                      style={{ background: blocked ? 'rgba(124,77,255,0.08)' : '#0B1530', borderColor: blocked ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                       {blocked && (
-                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#7C3AED' }}>
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
                           <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                         </div>
                       )}
@@ -2784,8 +2785,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 })}
                 <button onClick={() => setShowMoreApps(true)}
                   className="flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all hover:scale-[1.04]"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.15)', borderStyle: 'dashed' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)' }}>
+                  style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>
                     <svg viewBox="0 0 24 24" className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </div>
                   <span className="text-[10px] text-slate-400">More</span>
@@ -2794,24 +2795,24 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
 
             {/* Website blocker */}
-            <div className="px-5 pb-5 border-t pt-4" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+            <div className="px-5 pb-5 border-t pt-4 border-[rgba(26,40,69,0.55)]" >
               <div className="text-[10px] text-slate-500 font-mono mb-3">WEBSITES</div>
               <div className="flex gap-2 mb-3">
                 <input value={websiteInput} onChange={e => setWebsiteInput(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                  style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="e.g. youtube.com, reddit.com..."
+                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                   placeholder="e.g. youtube.com, reddit.com..."
                   onKeyDown={e => e.key === 'Enter' && addBlockedWebsite()} />
                 <button onClick={addBlockedWebsite}
-                  className="px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>Block</button>
+                  className="px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#7C4DFF]"
+                  >Block</button>
               </div>
               {blockedWebsites.length === 0 ? (
                 <div className="text-[11px] text-slate-600 text-center py-2">No websites blocked yet. Add URLs above.</div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {blockedWebsites.map(w => (
-                    <div key={w} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px]"
-                      style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)', color: '#FCA5A5' }}>
+                    <div key={w} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] bg-[rgba(239,68,68,0.08)] border-[rgba(239,68,68,0.3)] text-[#FCA5A5]"
+                      >
                       🌐 {w}
                       <button onClick={() => setBlockedWebsites(prev => prev.filter(x => x !== w))}
                         className="text-slate-500 hover:text-red-400 transition-colors ml-0.5">×</button>
@@ -2824,10 +2825,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Create Focus Routine ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 py-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>⏰</div>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>⏰</div>
                 <div>
                   <div className="text-base font-bold text-white">Create Focus Routine</div>
                   <div className="text-[11px] text-slate-500">Set blocking rules once, activate like an alarm when needed.</div>
@@ -2835,7 +2836,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </div>
               <button onClick={() => setShowCreateRoutine(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 16px rgba(124,58,237,0.3)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.5)' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                 New Routine
               </button>
@@ -2847,18 +2848,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               )}
               {routines.map(routine => (
                 <div key={routine.id} className="p-4 rounded-2xl border transition-all"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: routine.enabled ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.15)' }}>
+                  style={{ background: '#0B1530', borderColor: routine.enabled ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2.5">
                       <span className="text-base font-bold text-white">{routine.name}</span>
                       {routine.enabled && (
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.25)' }}>ACTIVE</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.25)' }}>ACTIVE</span>
                       )}
                     </div>
                     <button
                       onClick={() => setRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, enabled: !r.enabled } : r))}
                       className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-                      style={{ background: routine.enabled ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(100,116,139,0.3)', boxShadow: routine.enabled ? '0 0 12px rgba(124,58,237,0.4)' : 'none' }}>
+                      style={{ background: routine.enabled ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.3)', boxShadow: routine.enabled ? '0 0 12px rgba(40,85,204,0.45)' : 'none' }}>
                       <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md"
                         style={{ left: routine.enabled ? 'calc(100% - 22px)' : '2px' }} />
                     </button>
@@ -2869,9 +2870,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     {DAYS_SHORT.map((day, i) => (
                       <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                         style={{
-                          background: routine.days.includes(i) ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)',
-                          color: routine.days.includes(i) ? '#C4B5FD' : '#475569',
-                          border: `1px solid ${routine.days.includes(i) ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.1)'}`,
+                          background: routine.days.includes(i) ? '#1A2845' : '#0B1530',
+                          color: routine.days.includes(i) ? '#C4AAFF' : '#4E5E84',
+                          border: `1px solid ${routine.days.includes(i) ? '#2855CC' : 'rgba(26,40,69,0.55)'}`,
                         }}>{day}</span>
                     ))}
                   </div>
@@ -2880,7 +2881,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div className="flex items-center gap-4 text-[11px] text-slate-400">
                     <div className="flex items-center gap-1.5">
                       <Ico n="clock" cls="w-3 h-3 text-violet-400" />
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmtTime(routine.timeFrom)} → {fmtTime(routine.timeTo)}</span>
+                      <span >{fmtTime(routine.timeFrom)} → {fmtTime(routine.timeTo)}</span>
                     </div>
                     {routine.apps.length > 0 && (
                       <div className="flex items-center gap-1.5">
@@ -2896,7 +2897,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-[rgba(26,40,69,0.55)]" >
                     <button onClick={() => setRoutines(prev => prev.filter(r => r.id !== routine.id))}
                       className="text-[11px] text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10">
                       Delete routine
@@ -2912,10 +2913,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
       {/* ── AI Modal ── */}
       {showAI && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)]" 
           onClick={e => { if (e.target === e.currentTarget && aiStep !== 'generating') setShowAI(false) }}>
           <div className="rounded-2xl border w-[460px] overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.2)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 80px #1A2845' }}>
             {aiStep === 'form' && (
               <div className="p-7">
                 <div className="text-center mb-6">
@@ -2928,14 +2929,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-1 block">SUBJECTS</label>
                     <input value={aiForm.subjects} onChange={e => setAiForm(f => ({ ...f, subjects: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Physics, Chemistry, Mathematics..." />
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       placeholder="Physics, Chemistry, Mathematics..." />
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-1 block">TARGET EXAM / GOAL</label>
                     <input value={aiForm.exam} onChange={e => setAiForm(f => ({ ...f, exam: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="JEE Advanced, NEET, Board Exams..." />
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       placeholder="JEE Advanced, NEET, Board Exams..." />
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-2 block">AVAILABLE HOURS PER DAY</label>
@@ -2943,7 +2944,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                       {['4', '6', '8', '10', '12'].map(h => (
                         <button key={h} onClick={() => setAiForm(f => ({ ...f, hoursPerDay: h }))}
                           className="flex-1 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: aiForm.hoursPerDay === h ? 'rgba(124,58,237,0.2)' : 'transparent', color: aiForm.hoursPerDay === h ? '#C4B5FD' : '#64748B', borderColor: aiForm.hoursPerDay === h ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.2)' }}>
+                          style={{ background: aiForm.hoursPerDay === h ? '#1A2845' : 'transparent', color: aiForm.hoursPerDay === h ? '#C4AAFF' : '#4E5E84', borderColor: aiForm.hoursPerDay === h ? '#4A3A88' : '#1A2845' }}>
                           {h}h
                         </button>
                       ))}
@@ -2952,10 +2953,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => setShowAI(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
                   <button onClick={generateAI}
                     className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 24px rgba(124,58,237,0.3)' }}>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
                     ✦ Generate Schedule
                   </button>
                 </div>
@@ -2981,7 +2982,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div className="text-lg font-bold text-white">Schedule Ready!</div>
                   <div className="text-sm text-slate-400 mt-1">Your personalized 7-day plan is generated.</div>
                 </div>
-                <div className="rounded-xl border p-4 mb-5 space-y-2.5" style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.2)' }}>
+                <div className="rounded-xl border p-4 mb-5 space-y-2.5 bg-[#0B1530] border-[#1A2845]" >
                   {aiForm.subjects.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4).map((sub, i) => {
                     const times = [['8:00 AM', '10:00 AM'], ['11:00 AM', '1:00 PM'], ['3:00 PM', '5:00 PM'], ['6:00 PM', '7:30 PM']]
                     return (
@@ -2996,10 +2997,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => { setAiStep('form') }}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Regenerate</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Regenerate</button>
                   <button onClick={applyAISchedule}
                     className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>Apply Schedule</button>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Apply Schedule</button>
                 </div>
               </div>
             )}
@@ -3009,10 +3010,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
       {/* ── Add Session Modal ── */}
       {showAddSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowAddSession(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 60px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">NEW SESSION</div>
               <div className="text-lg font-bold text-white">Add Study Session</div>
@@ -3020,23 +3021,23 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
             <div className="space-y-3 mb-5">
               <input value={newSession.subject} onChange={e => setNewSession(s => ({ ...s, subject: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Subject (e.g. Physics)" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Subject (e.g. Physics)" />
               <input value={newSession.topic} onChange={e => setNewSession(s => ({ ...s, topic: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Topic (e.g. Chapter 5 – Current Electricity)" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Topic (e.g. Chapter 5 – Current Electricity)" />
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="text-[10px] text-slate-500 mb-1 block font-mono">FROM</label>
                   <input value={newSession.startTime} onChange={e => setNewSession(s => ({ ...s, startTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600"
-                    style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="9:00 AM" />
+                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600 border-[#1A2845]"
+                     placeholder="9:00 AM" />
                 </div>
                 <div className="flex-1">
                   <label className="text-[10px] text-slate-500 mb-1 block font-mono">TO</label>
                   <input value={newSession.endTime} onChange={e => setNewSession(s => ({ ...s, endTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600"
-                    style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="11:00 AM" />
+                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600 border-[#1A2845]"
+                     placeholder="11:00 AM" />
                 </div>
               </div>
               <div>
@@ -3052,10 +3053,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowAddSession(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
               <button onClick={addSession}
                 className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>Add Session</button>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Add Session</button>
             </div>
           </div>
         </div>
@@ -3063,10 +3064,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
       {/* ── All Apps Modal ── */}
       {showMoreApps && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowMoreApps(false) }}>
           <div className="rounded-2xl border p-7 w-[480px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 60px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">APP BLOCKER</div>
               <div className="text-lg font-bold text-white">Manage Blocked Apps</div>
@@ -3078,9 +3079,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 return (
                   <button key={app.name} onClick={() => toggleApp(app.name)}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border relative transition-all hover:scale-105"
-                    style={{ background: blocked ? 'rgba(124,58,237,0.1)' : 'rgba(14,21,40,0.5)', borderColor: blocked ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+                    style={{ background: blocked ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: blocked ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
                     {blocked && (
-                      <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#7C3AED' }}>
+                      <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
                         <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                       </div>
                     )}
@@ -3091,17 +3092,17 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               })}
             </div>
             <button onClick={() => setShowMoreApps(false)}
-              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>Done</button>
+              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#7C4DFF]"
+              >Done</button>
           </div>
         </div>
       )}
 
       {/* ── Create Focus Routine Modal ── */}
       {showCreateRoutine && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.78)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowCreateRoutine(false) }}>
-          <div className="rounded-2xl border w-[500px] overflow-hidden" style={{ maxHeight: '90vh', background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.18)' }}>
+          <div className="rounded-2xl border w-[500px] overflow-hidden" style={{ maxHeight: '90vh', background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
             <div className="overflow-y-auto" style={{ maxHeight: '90vh' }}>
               <div className="p-7">
                 <div className="text-center mb-6">
@@ -3116,8 +3117,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-1.5 block">ROUTINE NAME</label>
                     <input value={newRoutine.name} onChange={e => setNewRoutine(r => ({ ...r, name: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="e.g. Study Week, Morning Focus, Exam Mode..." />
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       placeholder="e.g. Study Week, Morning Focus, Exam Mode..." />
                   </div>
 
                   {/* Days */}
@@ -3129,14 +3130,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                         return (
                           <button key={i} onClick={() => toggleRoutineDay(i)}
                             className="px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all"
-                            style={{ background: sel ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', color: sel ? '#C4B5FD' : '#64748B', borderColor: sel ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+                            style={{ background: sel ? '#1A2845' : '#0B1530', color: sel ? '#C4AAFF' : '#4E5E84', borderColor: sel ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
                             {day}
                           </button>
                         )
                       })}
                       <button onClick={() => setNewRoutine(r => ({ ...r, days: r.days.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6] }))}
                         className="px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all"
-                        style={{ borderColor: 'rgba(124,58,237,0.2)', color: '#64748B', background: 'transparent' }}>
+                        style={{ borderColor: '#1A2845', color: '#4E5E84', background: 'transparent' }}>
                         {newRoutine.days.length === 7 ? 'Clear' : 'All'}
                       </button>
                     </div>
@@ -3148,11 +3149,11 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     <div className="flex gap-3 items-center">
                       <input type="time" value={newRoutine.timeFrom} onChange={e => setNewRoutine(r => ({ ...r, timeFrom: e.target.value }))}
                         className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', colorScheme: 'dark' }} />
+                        style={{ borderColor: '#1A2845', colorScheme: 'dark' }} />
                       <span className="text-slate-500">→</span>
                       <input type="time" value={newRoutine.timeTo} onChange={e => setNewRoutine(r => ({ ...r, timeTo: e.target.value }))}
                         className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', colorScheme: 'dark' }} />
+                        style={{ borderColor: '#1A2845', colorScheme: 'dark' }} />
                     </div>
                   </div>
 
@@ -3165,9 +3166,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                         return (
                           <button key={app.name} onClick={() => toggleRoutineApp(app.name)}
                             className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border relative transition-all hover:scale-105"
-                            style={{ background: sel ? 'rgba(124,58,237,0.1)' : 'rgba(14,21,40,0.5)', borderColor: sel ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.12)' }}>
+                            style={{ background: sel ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: sel ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                             {sel && (
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: '#7C3AED' }}>
+                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
                                 <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                               </div>
                             )}
@@ -3188,7 +3189,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                         return (
                           <button key={w} onClick={() => toggleRoutineWebsite(w)}
                             className="px-2.5 py-1 rounded-full text-[11px] transition-all border"
-                            style={{ background: sel ? 'rgba(124,58,237,0.15)' : 'rgba(14,21,40,0.5)', color: sel ? '#C4B5FD' : '#64748B', borderColor: sel ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.12)' }}>
+                            style={{ background: sel ? 'rgba(26,40,69,0.55)' : '#0B1530', color: sel ? '#C4AAFF' : '#4E5E84', borderColor: sel ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                             {sel ? '✓ ' : ''}{w}
                           </button>
                         )
@@ -3196,18 +3197,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     </div>
                     <div className="flex gap-2">
                       <input value={newRoutine.customWebsite} onChange={e => setNewRoutine(r => ({ ...r, customWebsite: e.target.value }))}
-                        className="flex-1 px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.2)' }} placeholder="Add custom URL (e.g. example.com)"
+                        className="flex-1 px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors border-[#1A2845]"
+                         placeholder="Add custom URL (e.g. example.com)"
                         onKeyDown={e => e.key === 'Enter' && addCustomWebsite()} />
                       <button onClick={addCustomWebsite}
-                        className="px-4 py-2 rounded-xl text-violet-400 border transition-colors hover:border-violet-400/40"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', background: 'rgba(124,58,237,0.08)' }}>Add</button>
+                        className="px-4 py-2 rounded-xl text-violet-400 border transition-colors hover:border-violet-400/40 border-[#1A2845] bg-[rgba(124,77,255,0.08)]"
+                        >Add</button>
                     </div>
                     {newRoutine.websites.filter(w => !WEBSITE_SUGGESTIONS.includes(w)).length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {newRoutine.websites.filter(w => !WEBSITE_SUGGESTIONS.includes(w)).map(w => (
-                          <span key={w} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border"
-                            style={{ color: '#67E8F9', background: 'rgba(34,211,238,0.06)', borderColor: 'rgba(34,211,238,0.2)' }}>
+                          <span key={w} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#7DD8F0] bg-[rgba(25,181,230,0.06)] border-[rgba(25,181,230,0.20)]"
+                            >
                             🌐 {w}
                             <button onClick={() => setNewRoutine(r => ({ ...r, websites: r.websites.filter(x => x !== w) }))}
                               className="text-slate-500 hover:text-red-400 transition-colors">×</button>
@@ -3220,10 +3221,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
                 <div className="flex gap-3 mt-6">
                   <button onClick={() => setShowCreateRoutine(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
                   <button onClick={createRoutine}
                     className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>Create Routine</button>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Create Routine</button>
                 </div>
               </div>
             </div>
