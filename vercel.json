@@ -1,6 +1,11 @@
 {
   "redirects": [],
   "rewrites": [
+    { "source": "/", "destination": "/product.html" },
+    { "source": "/product", "destination": "/product.html" },
+    { "source": "/about", "destination": "/marketing.html" },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/waitlist", "destination": "/waitlist.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/terms", "destination": "/terms.html" }
   ],

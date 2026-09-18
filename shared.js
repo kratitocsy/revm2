@@ -149,23 +149,23 @@ var RevM2Shared = function(exports) {
       }
     } catch (e) {
     }
-    window.location.href = "login.html";
+    window.location.href = "/login";
   }
   async function requireAuth() {
     try {
       if (typeof sb === "undefined") {
-        window.location.href = "login.html";
+        window.location.href = "/login";
         return null;
       }
       const { data: { session } } = await sb.auth.getSession();
       if (!session) {
-        window.location.href = "login.html";
+        window.location.href = "/login";
         return null;
       }
       startDesktopAuthSync(session);
       return session;
     } catch (e) {
-      window.location.href = "login.html";
+      window.location.href = "/login";
       return null;
     }
   }
