@@ -192,8 +192,8 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
           <stop offset="100%" stopColor="#070915" />
         </radialGradient>
         <linearGradient id={`rg${gid}`} x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#7C3AED" />
-          <stop offset="45%" stopColor="#4F46E5" />
+          <stop offset="0%" stopColor="#7C4DFF" />
+          <stop offset="45%" stopColor="#6B44EE" />
           <stop offset="100%" stopColor="#60A5FA" />
         </linearGradient>
         <filter id={`rf${gid}`} x="-15%" y="-15%" width="130%" height="130%">
@@ -204,9 +204,18 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
           <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.014} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
+        <linearGradient id={`wg${gid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#C084FC" />
+          <stop offset="50%" stopColor="#818CF8" />
+          <stop offset="100%" stopColor="#38BDF8" />
+        </linearGradient>
+        <filter id={`wf${gid}`} x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.018} result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
       </defs>
       {/* Outer ambient halo */}
-      <circle cx={CX} cy={CY} r={R + sw + 6} fill="none" stroke="rgba(124,58,237,0.07)" strokeWidth={sw * 2.2} />
+      <circle cx={CX} cy={CY} r={R + sw + 6} fill="none" stroke="rgba(124,77,255,0.08)" strokeWidth={sw * 2.2} />
       {/* Track */}
       <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={sw} />
       {/* Inner dark fill */}
@@ -229,8 +238,10 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
           <circle cx={tipX} cy={tipY} r={sw * 0.25} fill="white" />
         </>
       )}
-      {/* Plant icon */}
-      <text x={CX} y={CY - size * 0.125} textAnchor="middle" fontSize={size * 0.07}>🌱</text>
+      {/* Wynko W logo */}
+      <g transform={`translate(${CX - size * 0.088}, ${CY - size * 0.195}) scale(${size * 0.002})`} filter={`url(#wf${gid})`}>
+        <path d="M4 6 C7 4 12 5 14 9 L26 46 L38 18 C41 11 47 11 50 18 L62 46 L74 9 C76 5 81 4 84 6 L67 54 C64 60 56 60 53 54 L44 30 L35 54 C32 60 24 60 21 54 Z" fill={`url(#wg${gid})`} />
+      </g>
       {/* FOCUS TIME label */}
       <text x={CX} y={CY - size * 0.038} textAnchor="middle"
         fontSize={size * 0.029} fill="rgba(148,163,184,0.6)"
@@ -245,7 +256,7 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
       </text>
       {/* Live dot */}
       {running && (
-        <circle cx={CX + size * 0.09} cy={CY + size * 0.123} r={size * 0.008} fill="#22D3EE" opacity="0.9" />
+        <circle cx={CX + size * 0.09} cy={CY + size * 0.123} r={size * 0.008} fill="#19B5E6" opacity="0.9" />
       )}
     </svg>
   )
@@ -1088,16 +1099,23 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   const curSubjName = subjects[activeSubjectIdx] || 'Physics'
   const curSubjColor = SUBJ_COLORS[activeSubjectIdx % SUBJ_COLORS.length]
 
+  const pct = totalSecs > 0 ? (totalSecs - remaining) / totalSecs : 0
+  const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
+  const ss = String(remaining % 60).padStart(2, '0')
+  const R = 130
+  const CIRC = 2 * Math.PI * R
+  const dash = pct * CIRC
+  const gap = CIRC - dash
+
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
 
       {/* ── Fullscreen overlay ── */}
       {fullscreen && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8" style={{ background: '#06080F' }}>
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-[#020615]">
           <div className="absolute top-6 right-6">
             <button onClick={() => setFullscreen(false)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors"
-              style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(124,58,237,0.3)', fontFamily: 'Poppins, sans-serif' }}>
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.05)] border-[#1E3060]">
               <Ico n="compress" cls="w-4 h-4" /> Exit Fullscreen
             </button>
           </div>
@@ -1106,15 +1124,14 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           </div>
           <div className="flex items-center gap-4">
             <button onClick={handleReset}
-              className="w-12 h-12 rounded-full flex items-center justify-center border text-slate-400 hover:text-white transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.3)', background: 'rgba(255,255,255,0.05)' }}>
+              className="w-12 h-12 rounded-full flex items-center justify-center border text-slate-400 hover:text-white transition-colors border-[#1E3060] bg-[rgba(255,255,255,0.05)]">
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
                 <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
             </button>
             <button onClick={handleToggleRun}
               className="px-12 py-3.5 rounded-full text-white font-semibold text-lg flex items-center gap-3 transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C3AED, #4F46E5)', boxShadow: '0 0 50px rgba(124,58,237,0.45)', fontFamily: 'Poppins, sans-serif' }}>
+              style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 50px rgba(124,77,255,0.6), 0 0 100px rgba(40,85,204,0.3)' }}>
               {running
                 ? <><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
                 : <><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>{remaining < totalSecs ? 'Resume' : 'Start'}</>
@@ -1129,72 +1146,117 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
           <button onClick={() => onNavigate('home')}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>FOCUS LOCK</div>
-            <div className="text-sm font-semibold text-slate-200 flex items-center gap-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {sessionLoading ? 'Syncing…' : running ? '● Session running' : remaining < totalSecs ? '⏸ Paused' : 'Ready to focus'}
+            <div className="text-[10px] tracking-[0.18em] mb-0.5 text-[#68728A]">FOCUS LOCK</div>
+            <div className="text-sm font-semibold text-[#F3F4F6] flex items-center gap-2">
+              {sessionLoading ? 'Syncing…' : running ? '● Session running' : remaining < totalSecs ? '⏸ Paused' : 'Smarter focus. Bigger dreams.'}
               {enforcementActive && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full border" title="Reusing the active block preset from Blocks/Timer"
-                  style={{ color: '#67E8F9', background: 'rgba(6,182,212,0.1)', borderColor: 'rgba(6,182,212,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
+                  style={{ color: '#67E8F9', background: 'rgba(6,182,212,0.1)', borderColor: 'rgba(6,182,212,0.3)' }}>
                   🔒 Blocking active
                 </span>
               )}
             </div>
           </div>
           <button onClick={() => setFullscreen(true)}
-            className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg border transition-all hover:border-violet-400/40"
-            style={{ color: '#A78BFA', background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.22)', fontFamily: 'Poppins, sans-serif' }}>
+            className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg border transition-all hover:border-violet-400/40 text-[#9B6CFF] bg-[rgba(124,77,255,0.08)] border-[#1A2845]">
             <Ico n="expand" cls="w-3.5 h-3.5" /> Fullscreen
           </button>
           <UserAvatar size={32} />
         </header>
 
-        <main className="flex-1 overflow-y-auto flex flex-col gap-4 p-5">
-          <div className="flex gap-5 flex-1 min-h-0">
+        <main className="flex-1 overflow-y-auto px-8 py-6">
+          <div className="flex gap-10 items-start max-w-5xl mx-auto">
 
-            {/* ── LEFT: Timer ── */}
-            <div className="flex-1 flex flex-col items-center justify-center gap-5 min-w-0">
-              {/* Circle */}
-              <div className="relative flex-shrink-0" style={{ width: 'min(320px, 100%)', aspectRatio: '1' }}>
-                <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={320} />
+            {/* ── Left: Timer ── */}
+            <div className="flex-1 flex flex-col items-center gap-6">
+
+              {/* Circular timer */}
+              <div className="relative flex items-center justify-center" style={{ width: 300, height: 300 }}>
+                <svg width="300" height="300" viewBox="0 0 300 300" className="absolute inset-0">
+                  <defs>
+                    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#7C4DFF" />
+                      <stop offset="100%" stopColor="#19B5E6" />
+                    </linearGradient>
+                    <filter id="ringGlow">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    </filter>
+                  </defs>
+                  {/* Track */}
+                  <circle cx="150" cy="150" r={R} fill="none" stroke="#1A1F38" strokeWidth="10" />
+                  {/* Progress */}
+                  <circle cx="150" cy="150" r={R} fill="none"
+                    stroke="url(#ringGrad)" strokeWidth="10"
+                    strokeLinecap="butt"
+                    strokeDasharray={`${dash} ${gap}`}
+                    transform="rotate(-90 150 150)"
+                    filter="url(#ringGlow)"
+                    style={{ transition: 'stroke-dasharray 0.5s ease' }} />
+                  {/* Dot at tip — only when meaningfully progressed */}
+                  {pct > 0.02 && (() => {
+                    const angle = -Math.PI / 2 + pct * 2 * Math.PI
+                    const x = 150 + R * Math.cos(angle)
+                    const y = 150 + R * Math.sin(angle)
+                    return <circle cx={x} cy={y} r="5" fill="#19B5E6" filter="url(#ringGlow)" />
+                  })()}
+                </svg>
+
+                {/* Center content */}
+                <div className="flex flex-col items-center gap-1 z-10">
+                  {/* Wynko W logo */}
+                  <svg width="44" height="32" viewBox="0 0 88 60" fill="none" className="mb-1" style={{ filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.9)) drop-shadow(0 0 20px rgba(56,189,248,0.55))' }}>
+                    <defs>
+                      <linearGradient id="wGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#C084FC" />
+                        <stop offset="50%" stopColor="#818CF8" />
+                        <stop offset="100%" stopColor="#38BDF8" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M4 6 C7 4 12 5 14 9 L26 46 L38 18 C41 11 47 11 50 18 L62 46 L74 9 C76 5 81 4 84 6 L67 54 C64 60 56 60 53 54 L44 30 L35 54 C32 60 24 60 21 54 Z" fill="url(#wGrad)" />
+                  </svg>
+                  <div className="text-[11px] tracking-[0.2em] font-medium text-[#68728A]">FOCUS TIME</div>
+                  <div className="text-6xl font-bold tabular-nums" style={{ color: '#F3F4F6', letterSpacing: '-2px' }}>
+                    {mm}:{ss}
+                  </div>
+                </div>
               </div>
 
-              {/* Controls */}
-              <div className="flex items-center gap-6 w-full max-w-[320px]">
-                <div className="flex flex-col items-center gap-1">
-                  <button onClick={handleReset}
-                    className="w-11 h-11 rounded-full flex items-center justify-center border transition-colors hover:border-slate-500"
-                    style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.12)' }}>
-                    <svg viewBox="0 0 24 24" className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+              {/* Controls row */}
+              <div className="flex items-center justify-center gap-4 w-full">
+                <button onClick={handleReset}
+                  className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
                       <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
-                  </button>
-                  <span className="text-[10px] text-slate-500">Reset</span>
-                </div>
-
-                <button onClick={handleToggleRun}
-                  className="flex-1 py-3 rounded-full text-white font-semibold text-base flex items-center justify-center gap-2.5 transition-all hover:opacity-90 active:scale-[0.97]"
-                  style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)', boxShadow: '0 0 32px rgba(124,58,237,0.4)', fontFamily: 'Poppins, sans-serif' }}>
-                  {running
-                    ? <><svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
-                    : <><svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>{remaining < totalSecs ? 'Resume' : 'Start'}</>
-                  }
+                  </div>
+                  <span className="text-[10px]">Reset</span>
                 </button>
 
-                <div className="flex flex-col items-center gap-1">
-                  <button className="w-11 h-11 rounded-full flex items-center justify-center border transition-colors hover:border-slate-500"
-                    style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.12)' }}>
-                    <Ico n="bell" cls="w-4 h-4 text-slate-300" />
-                  </button>
-                  <span className="text-[10px] text-slate-500">Sound</span>
-                </div>
+                {/* Play/Pause */}
+                <button onClick={handleToggleRun}
+                  className="h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8"
+                  style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
+                  {running
+                    ? <><svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg><span className="whitespace-nowrap">Pause</span></>
+                    : <><Ico n="play" cls="w-5 h-5 flex-shrink-0" /><span className="whitespace-nowrap">{remaining < totalSecs ? 'Resume' : 'Start'}</span></>}
+                </button>
+
+                <button className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
+                    <Ico n="bell" cls="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px]">Tunes</span>
+                </button>
               </div>
+
             </div>
 
             {/* ── RIGHT: Tasks ── */}
@@ -1217,12 +1279,11 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           </div>
 
           {/* ── BOTTOM: Quick Select ── */}
-          <div className="rounded-2xl border p-4 flex-shrink-0"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          <div className="rounded-2xl border p-4 flex-shrink-0 mt-8 bg-[#0B1530] border-[#1A2845]">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Ico n="zap" cls="w-4 h-4 text-violet-400" />
-                <span className="text-sm font-semibold text-slate-200" style={{ fontFamily: 'Poppins, sans-serif' }}>Quick Select</span>
+                <span className="text-sm font-semibold text-slate-200">Quick Select</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1230,36 +1291,33 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
                   <button key={mins} onClick={() => setQuickTime(mins, idx)}
                     className="flex flex-col items-center px-5 py-2.5 rounded-xl border font-semibold transition-all hover:scale-[1.03] active:scale-[0.97]"
                     style={{
-                      background: quickActive === idx ? 'linear-gradient(135deg, #7C3AED, #4F46E5)' : 'rgba(14,21,40,0.7)',
-                      borderColor: quickActive === idx ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.2)',
-                      boxShadow: quickActive === idx ? '0 0 20px rgba(124,58,237,0.35)' : 'none',
+                      background: quickActive === idx ? 'linear-gradient(135deg, #7C4DFF, #6B44EE)' : '#0B1530',
+                      borderColor: quickActive === idx ? '#563FA0' : '#1A2845',
+                      boxShadow: quickActive === idx ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
                     }}>
-                    <span className="text-lg text-white leading-none" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{mins}</span>
+                    <span className="text-lg text-white leading-none">{mins}</span>
                     <span className="text-[10px] text-white/55 mt-0.5">min</span>
                   </button>
                 ))}
               </div>
 
-              <div className="w-px h-10 flex-shrink-0" style={{ background: 'rgba(124,58,237,0.2)' }} />
+              <div className="w-px h-10 flex-shrink-0 bg-[#1A2845]" />
 
               <button onClick={() => setShowCustom(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm transition-all hover:border-violet-400/40 flex-shrink-0"
-                style={{ background: 'rgba(14,21,40,0.7)', borderColor: 'rgba(124,58,237,0.22)', color: '#A78BFA', fontFamily: 'Poppins, sans-serif' }}>
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm transition-all hover:border-violet-400/40 flex-shrink-0 bg-[#0B1530] border-[#1A2845] text-[#9B6CFF]">
                 <Ico n="cog" cls="w-3.5 h-3.5" /> Custom Timer
               </button>
 
               {/* Current subject pill */}
-              <div className="ml-auto flex items-center gap-2.5 px-4 py-2.5 rounded-xl border flex-shrink-0"
-                style={{ background: 'rgba(14,21,40,0.7)', borderColor: 'rgba(124,58,237,0.22)' }}>
+              <div className="ml-auto flex items-center gap-2.5 px-4 py-2.5 rounded-xl border flex-shrink-0 bg-[#0B1530] border-[#1A2845]">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                   style={{ background: `${curSubjColor}1A`, color: curSubjColor, border: `1px solid ${curSubjColor}44` }}>
                   {curSubjName.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-slate-200 leading-none" style={{ fontFamily: 'Poppins, sans-serif' }}>{curSubjName}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Current Subject</div>
+                  <div className="text-sm font-semibold text-slate-200 leading-none">{curSubjName}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Current Subject</div>
                 </div>
-                <Ico n="chevR" cls="w-3.5 h-3.5 text-slate-600" />
               </div>
             </div>
           </div>
@@ -1268,13 +1326,13 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
 
       {/* ── Custom Timer Modal ── */}
       {showCustom && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
           onClick={e => { if (e.target === e.currentTarget) setShowCustom(false) }}>
           <div className="rounded-2xl border p-8 w-[400px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
             <div className="text-center mb-6">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">CUSTOM TIMER</div>
-              <div className="text-lg font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Set your session time</div>
+              <div className="text-lg font-semibold text-slate-100">Set your session time</div>
               <div className="text-xs text-slate-500 mt-1">Up to 99 hours — infinite-length sessions</div>
             </div>
             <div className="flex items-center justify-center gap-4 mb-8">
@@ -1286,7 +1344,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
             </div>
             {/* Preview */}
             <div className="text-center mb-6">
-              <span className="text-2xl font-mono text-violet-300" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              <span className="text-2xl font-mono text-violet-300">
                 {f2(inputH)}:{f2(inputM)}:{f2(inputS)}
               </span>
               <div className="text-[10px] text-slate-500 mt-1 font-mono">
@@ -1297,13 +1355,12 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowCustom(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.2)', fontFamily: 'Poppins, sans-serif' }}>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
                 Cancel
               </button>
               <button onClick={applyCustom}
                 className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #7C3AED, #4F46E5)', fontFamily: 'Poppins, sans-serif', boxShadow: '0 0 24px rgba(124,58,237,0.3)' }}>
+                style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
                 Apply Timer
               </button>
             </div>
