@@ -1327,7 +1327,7 @@ interface RoomData {
 
 interface BotParticipant {
   id: string; name: string; initials: string; subject: string
-  studyTimeSecs: number; isStudying: boolean; cardGrad: string; accentColor: string
+  studyTimeSecs: number; isStudying: boolean; isPaused?: boolean; cardGrad: string; accentColor: string
 }
 
 interface ChatMsg {
@@ -1505,20 +1505,33 @@ function MicOffIcon() {
 }
 
 // ─── Bot Card ─────────────────────────────────────────────────────────────────
-function BotCard({ bot, canKick, onKick }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void }) {
+// avatarUrl: the participant's actual chosen avatar (UserAvatarCtx for "You",
+// a real profile photo/pick for a real member once rooms are backend-wired).
+// Bots in BOT_POOL have no avatarUrl, so they keep the illustrated silhouette.
+function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string }) {
   const fmtTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
     return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
   }
-  if (!bot.isStudying) {
+  // Three real states, not a binary studying flag: live (clock running right
+  // now), paused (clock stopped but time was already banked this session),
+  // offline (never started, or a bot marked not-studying).
+  const state: 'live' | 'paused' | 'offline' =
+    bot.isStudying ? 'live' : (bot.isPaused && bot.studyTimeSecs > 0) ? 'paused' : 'offline'
+
+  if (state === 'offline') {
     return (
       <div className="rounded-2xl border overflow-hidden" style={{ background: '#080C1A', borderColor: 'rgba(100,116,139,0.12)' }}>
         <div className="h-40 flex flex-col items-center justify-center gap-2"
           style={{ background: 'linear-gradient(160deg,#0A0D18,#0D1120)' }}>
-          <div className="w-12 h-12 rounded-full flex items-center justify-center text-slate-500 font-bold text-base"
-            style={{ background: 'rgba(100,116,139,0.06)', border: '1px solid rgba(100,116,139,0.12)' }}>
-            {bot.initials}
-          </div>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={bot.name} className="w-12 h-12 rounded-full object-cover grayscale opacity-60" />
+          ) : (
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-slate-500 font-bold text-base"
+              style={{ background: 'rgba(100,116,139,0.06)', border: '1px solid rgba(100,116,139,0.12)' }}>
+              {bot.initials}
+            </div>
+          )}
           <div className="text-[10px] text-slate-600 font-mono">offline</div>
         </div>
         <div className="p-3 border-t" style={{ borderColor: 'rgba(100,116,139,0.1)' }}>
@@ -1528,9 +1541,24 @@ function BotCard({ bot, canKick, onKick }: { bot: BotParticipant; canKick?: bool
       </div>
     )
   }
+
+  const isLive = state === 'live'
+  const dotColor = isLive ? 'bg-emerald-400' : 'bg-amber-400'
+  const statusLabel = isLive ? null : 'Paused'
+
   return (
-    <div className="rounded-2xl border overflow-hidden relative" style={{ background: '#080C1A', borderColor: `${bot.accentColor}30` }}>
-      <StudyingAvatar cardGrad={bot.cardGrad} accentColor={bot.accentColor} />
+    <div className="rounded-2xl border overflow-hidden relative" style={{ background: '#080C1A', borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
+      {avatarUrl ? (
+        <div className="relative h-40 overflow-hidden flex items-center justify-center"
+          style={{ background: bot.cardGrad }}>
+          <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 50% 110%, ${bot.accentColor}25, transparent 65%)` }} />
+          <img src={avatarUrl} alt={bot.name}
+            className={`relative w-20 h-20 rounded-full object-cover border-2 ${isLive ? '' : 'grayscale opacity-70'}`}
+            style={{ borderColor: bot.accentColor }} />
+        </div>
+      ) : (
+        <StudyingAvatar cardGrad={bot.cardGrad} accentColor={bot.accentColor} />
+      )}
       <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center"
         style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
         <MicOffIcon />
@@ -1544,8 +1572,9 @@ function BotCard({ bot, canKick, onKick }: { bot: BotParticipant; canKick?: bool
       )}
       <div className="p-3">
         <div className="flex items-center gap-2 mb-0.5">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor} ${isLive ? 'animate-pulse' : ''}`} />
           <span className="text-white font-semibold text-sm">{bot.name}</span>
+          {statusLabel && <span className="text-[9px] font-mono text-amber-400/80 tracking-wide">{statusLabel}</span>}
         </div>
         <div className="text-xs text-slate-400">{bot.subject}</div>
         <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-400">
@@ -2049,10 +2078,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
 
   const selfName = profile?.displayName || 'Jatin Sinsinwar'
   const selfInitials = selfName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
+  const { avatar: selfAvatar } = useContext(UserAvatarCtx)
   const userCard: BotParticipant = {
     id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials, subject,
     studyTimeSecs: userStudyTime,
-    isStudying: focusRunning || userStudyTime > 0,
+    // Live only while the clock is actually running; paused (not offline)
+    // once time's been banked but the play/pause button has been toggled
+    // off — the card should track the real button, not just "> 0 secs".
+    isStudying: focusRunning,
+    isPaused: !focusRunning && userStudyTime > 0,
     cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
     accentColor: '#7C3AED',
   }
@@ -2167,6 +2201,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
                     bot={{ ...p, studyTimeSecs: i === 0 ? userStudyTime : botTimes[i - 1] ?? p.studyTimeSecs }}
+                    avatarUrl={p.id === 'user' ? selfAvatar : undefined}
                     canKick={room.isOwner && !p.isMe && p.id !== 'user'}
                     onKick={() => setKickedIds(prev => { const s = new Set(prev); s.add(p.id); return s })}
                   />
