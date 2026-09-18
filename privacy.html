@@ -1,74 +1,573 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>WYNKO — Privacy Policy</title>
-<link rel="stylesheet" href="style.css">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#8b5cf6">
-<link rel="stylesheet" href="src/styles/tailwind.build.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy Policy — Wynko</title>
+<meta name="description" content="Privacy Policy for Wynko, a collaborative learning platform for students." />
+<link rel="canonical" href="https://wynko.in/privacy" />
+<link rel="icon" href="wynko-icon.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://wynko.in/privacy" />
+<meta property="og:title" content="Privacy Policy — Wynko" />
+<meta property="og:description" content="Privacy Policy for Wynko, a collaborative learning platform for students." />
+<meta property="og:image" content="https://wynko.in/wynko-lockup.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0a0a12;
+  --ink-2:#0e0e18;
+  --surface:rgba(255,255,255,.025);
+  --surface-2:rgba(255,255,255,.045);
+  --surface-3:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);
+  --border-2:rgba(255,255,255,.14);
+  --text:#f4f4f8;
+  --text-2:#b6b6c6;
+  --text-3:#7a7a90;
+  --text-4:#4c4c62;
+
+  --violet:#7c4dff;
+  --violet-2:#a78bfa;
+  --blue:#4a6bff;
+  --cyan:#22d3ee;
+  --mint:#34d399;
+  --amber:#fbbf24;
+  --coral:#fb7185;
+
+  --grad:linear-gradient(118deg,#a78bfa 0%,#6c8cff 46%,#22d3ee 100%);
+  --grad-soft:linear-gradient(120deg,rgba(124,77,255,.16),rgba(34,211,238,.12));
+  --glow-v:rgba(124,77,255,.32);
+  --glow-c:rgba(34,211,238,.28);
+
+  --font:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --maxw:1200px;
+  --r:16px;
+  --r-sm:10px;
+  --r-lg:26px;
+}
+*,*::before,*::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; overflow-x:hidden; max-width:100%; }
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    radial-gradient(1100px 560px at 8% -12%, rgba(124,77,255,.16), transparent 62%),
+    radial-gradient(900px 520px at 96% 2%, rgba(34,211,238,.10), transparent 58%),
+    radial-gradient(1200px 700px at 50% 118%, rgba(74,107,255,.10), transparent 60%);
+}
+body::after{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.026) 1px, transparent 1px);
+  background-size:46px 46px;
+  mask-image:radial-gradient(circle at 50% 0%, rgba(0,0,0,.85), transparent 78%);
+  -webkit-mask-image:radial-gradient(circle at 50% 0%, rgba(0,0,0,.85), transparent 78%);
+}
+main,header,footer{ position:relative; z-index:1; }
+a{ color:inherit; text-decoration:none; }
+img{ max-width:100%; display:block; }
+.mono{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.wrap{ max-width:var(--maxw); margin:0 auto; padding:0 28px; }
+.grad-text{ background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  font-family:var(--font); font-weight:600; font-size:.92rem;
+  padding:12px 22px; border-radius:999px; border:1px solid transparent;
+  cursor:pointer; transition:transform .18s ease, box-shadow .22s ease, background .2s ease, border-color .2s ease;
+  white-space:nowrap;
+}
+.btn:active{ transform:scale(.97); }
+.btn-primary{ background:var(--grad); color:#080810; box-shadow:0 10px 34px -12px var(--glow-v); }
+.btn-primary:hover{ box-shadow:0 14px 44px -10px var(--glow-v), 0 0 0 1px rgba(255,255,255,.12) inset; transform:translateY(-1px); }
+.btn-ghost{ background:rgba(255,255,255,.03); border-color:var(--border-2); color:var(--text); }
+.btn-ghost:hover{ border-color:var(--violet-2); color:#fff; background:rgba(124,77,255,.1); }
+.btn-sm{ padding:8px 16px; font-size:.82rem; }
+.btn-lg{ padding:15px 30px; font-size:1rem; }
+
+/* ---------- nav ---------- */
+header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(10,10,18,.72);
+  backdrop-filter:blur(16px) saturate(140%);
+  border-bottom:1px solid var(--border);
+}
+.nav{ display:flex; align-items:center; gap:34px; height:66px; }
+.brand{ display:flex; align-items:center; gap:11px; flex-shrink:0; }
+.brand-mark{
+  width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+}
+.brand-mark img{ width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 10px var(--glow-v)); }
+.brand-word{ font-weight:800; font-size:1.18rem; letter-spacing:.14em; }
+.nav-links{ display:flex; align-items:center; gap:26px; margin-left:8px; }
+.nav-links a{ font-size:.9rem; font-weight:500; color:var(--text-2); transition:color .18s; }
+.nav-links a:hover{ color:#fff; }
+.nav-links a.active{ color:#fff; }
+.nav-links a.active::after{ content:''; display:block; height:2px; margin-top:3px; border-radius:2px; background:var(--grad); }
+.nav-right{ margin-left:auto; display:flex; align-items:center; gap:18px; }
+.nav-right .login{ font-size:.9rem; font-weight:500; color:var(--text-2); }
+.nav-right .login:hover{ color:#fff; }
+.nav-toggle{ display:none; background:none; border:0; color:var(--text); font-size:1.5rem; cursor:pointer; }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease; }
+.reveal.in{ opacity:1; transform:none; }
+
+/* ---------- legal document ---------- */
+.legal-wrap{ padding:64px 0 40px; }
+.legal-doc{
+  max-width:760px; margin:0 auto; padding:44px 48px 56px;
+  border:1px solid var(--border); border-radius:var(--r-lg);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
+  box-shadow:0 40px 90px -50px var(--glow-v);
+}
+.legal-doc h1{
+  font-size:clamp(1.9rem,3.6vw,2.5rem); font-weight:800; letter-spacing:-.02em;
+  margin-bottom:10px;
+}
+.legal-doc > p:nth-of-type(1),
+.legal-doc > p:nth-of-type(2){ color:var(--text-3); font-size:.88rem; margin:0 0 4px; }
+.legal-doc > p:nth-of-type(1) strong,
+.legal-doc > p:nth-of-type(2) strong{ color:var(--text-2); }
+.legal-doc hr{ border:0; border-top:1px solid var(--border); margin:28px 0; }
+.legal-doc h2{
+  font-size:1.22rem; font-weight:700; letter-spacing:-.01em; color:var(--text);
+  margin:44px 0 14px; padding-top:20px; border-top:1px solid var(--border);
+}
+.legal-doc h2:first-of-type{ margin-top:0; }
+.legal-doc h3{ font-size:1rem; font-weight:600; color:var(--violet-2); margin:26px 0 10px; }
+.legal-doc p{ color:var(--text-2); font-size:.94rem; line-height:1.75; margin:0 0 14px; }
+.legal-doc p strong{ color:var(--text); font-weight:600; }
+.legal-doc a{ color:var(--cyan); text-decoration:underline; text-underline-offset:2px; }
+.legal-doc a:hover{ color:#fff; }
+.legal-doc ul{ margin:0 0 16px; padding-left:1.3em; }
+.legal-doc li{ color:var(--text-2); font-size:.94rem; line-height:1.75; margin-bottom:8px; }
+.legal-doc li strong{ color:var(--text); font-weight:600; }
+.legal-doc blockquote{
+  margin:22px 0; padding:14px 18px; background:rgba(124,77,255,.07);
+  border-left:3px solid var(--violet-2); border-radius:0 12px 12px 0;
+  color:var(--text-3); font-size:.9rem;
+}
+.legal-doc table{ width:100%; border-collapse:collapse; margin:18px 0 22px; font-size:.86rem; display:block; overflow-x:auto; }
+.legal-doc th,
+.legal-doc td{ border:1px solid var(--border); padding:10px 13px; text-align:left; vertical-align:top; }
+.legal-doc th{ background:rgba(124,77,255,.08); color:var(--text); font-weight:600; white-space:nowrap; }
+.legal-doc td{ color:var(--text-2); }
+.legal-doc code{ background:var(--surface-3); padding:2px 6px; border-radius:5px; font-family:var(--mono); font-size:.86em; color:var(--cyan); }
+
+/* ---------- footer ---------- */
+footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba(255,255,255,.012); }
+.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:34px; }
+.foot-brand .brand{ margin-bottom:16px; }
+.foot-brand p{ color:var(--text-3); font-size:.84rem; max-width:280px; }
+.foot-col h5{ font-size:.72rem; text-transform:uppercase; letter-spacing:.16em; color:var(--text-4); margin:0 0 16px; font-weight:600; }
+.foot-col a{ display:block; color:var(--text-2); font-size:.86rem; margin-bottom:11px; transition:color .18s; }
+.foot-col a:hover{ color:#fff; }
+.foot-bottom{ display:flex; justify-content:space-between; align-items:center; margin-top:48px; padding-top:26px; border-top:1px solid var(--border); color:var(--text-4); font-size:.78rem; flex-wrap:wrap; gap:14px; }
+.foot-bottom .soc{ display:flex; gap:10px; }
+.foot-bottom .soc a{ width:34px; height:34px; border-radius:9px; border:1px solid var(--border); display:grid; place-items:center; color:var(--text-3); }
+.foot-bottom .soc a:hover{ color:#fff; border-color:var(--border-2); }
+
+/* ---------- responsive ---------- */
+@media (max-width:1024px){
+  .foot-grid{ grid-template-columns:1.4fr 1fr 1fr; }
+}
+@media (max-width:760px){
+  .nav-links{ display:none; }
+  .nav-toggle{ display:block; }
+  .nav-right .login{ display:none; }
+  .foot-grid{ grid-template-columns:1fr 1fr; }
+  .legal-wrap{ padding:36px 0 24px; }
+  .legal-doc{ padding:28px 20px 36px; border-radius:var(--r); }
+  .legal-doc table{ font-size:.8rem; }
+  .legal-doc th, .legal-doc td{ padding:8px 10px; }
+}
+</style>
 </head>
 <body>
-<canvas id="starfield"></canvas>
-<nav class="topnav">
-  <a href="index.html"><img src="wynko-logo.png" alt="WYNKO" class="h-8 w-auto"></a>
-  <ul class="topnav-links"><li><a href="index.html">← Back to WYNKO</a></li></ul>
-  <a class="topnav-cta" href="login.html">Launch app →</a>
-</nav>
-<div class="relative z-[5] max-w-[720px] mx-auto pt-20 px-8 pb-16
-            [&_h1]:text-[1.8rem] [&_h1]:font-black [&_h1]:text-white [&_h1]:uppercase [&_h1]:tracking-[-0.02em] [&_h1]:mb-2
-            [&_h2]:text-[0.88rem] [&_h2]:font-bold [&_h2]:text-white [&_h2]:uppercase [&_h2]:tracking-[0.06em] [&_h2]:mt-8 [&_h2]:mb-[0.65rem]
-            [&_p]:text-[0.85rem] [&_p]:text-muted [&_p]:leading-[1.8] [&_p]:mb-2
-            [&_li]:text-[0.85rem] [&_li]:text-muted [&_li]:leading-[1.8] [&_li]:mb-2
-            [&_ul]:pl-5
-            [&_a]:text-violet-bright [&_a]:no-underline">
-  <h1>Privacy Policy</h1>
-  <div class="text-[0.72rem] text-muted mb-10">Last updated: June 2026</div>
 
-  <p>WYNKO ("we", "our", "us") is committed to protecting your privacy. This policy explains what information we collect and how we use it.</p>
+<!-- ===================== NAV ===================== -->
+<header>
+  <div class="wrap nav">
+      <a class="brand" href="product.html" aria-label="Wynko home">
+      <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
+      <span class="brand-word grad-text">WYNKO</span>
+    </a>
+    <nav class="nav-links">
+      <a href="product.html#product">Product</a>
+      <a href="product.html#flexible">Features</a>
+      <a href="product.html#earn">Founders</a>
+      <a href="product.html#pricing">Reviews</a>
+      <a href="product.html#faq">FAQ</a>
+    </nav>
+    <div class="nav-right">
+      <a class="login" href="login.html">Log in</a>
+      <a class="btn btn-primary btn-sm" href="downloads/">Download Desktop App</a>
+      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display=(getComputedStyle(document.querySelector('.nav-links')).display==='none'?'flex':'none')">&#9776;</button>
+    </div>
+  </div>
+</header>
 
-  <h2>Information we collect</h2>
-  <ul>
-    <li><strong>Account data:</strong> When you sign in with Google, we receive your email address and name from Google OAuth.</li>
-    <li><strong>Usage data:</strong> Your revision tracker entries, study timer sessions, and onboarding preferences are stored to provide the service.</li>
-    <li><strong>Analytics:</strong> We use Google Analytics to understand how the app is used. This collects anonymised usage data.</li>
-    <li><strong>Advertising:</strong> We use Google AdSense to display ads. Google may use cookies to show relevant ads based on your browsing history.</li>
-  </ul>
-
-  <h2>How we use your information</h2>
-  <ul>
-    <li>To provide and improve the WYNKO service</li>
-    <li>To personalise your tracker and dashboard</li>
-    <li>To improve percentile predictions using anonymised score submissions</li>
-    <li>To display relevant advertisements through Google AdSense</li>
-  </ul>
-
-  <h2>Data storage</h2>
-  <p>Your data is stored securely using Supabase (PostgreSQL). Tracker data is also stored locally in your browser's localStorage for offline access.</p>
-
-  <h2>Third-party services</h2>
-  <ul>
-    <li><strong>Google OAuth</strong> — for sign-in</li>
-    <li><strong>Supabase</strong> — for database and authentication</li>
-    <li><strong>Google Analytics</strong> — for usage analytics</li>
-    <li><strong>Google AdSense</strong> — for advertisements</li>
-  </ul>
-
-  <h2>Your rights</h2>
-  <p>You may request deletion of your account and data at any time by contacting us. Score submissions are stored anonymously and cannot be individually identified or deleted.</p>
-
-  <h2>Cookies</h2>
-  <p>We use cookies for authentication and advertising. You can disable cookies in your browser settings, though this may affect app functionality.</p>
-
-  <h2>Contact</h2>
-  <p>For any privacy concerns, contact us at: <a href="mailto:privacy@revm2.in">privacy@revm2.in</a></p>
-
-  <p class="!mt-8 !text-xs !text-dim">This privacy policy applies to revm2.vercel.app and revm2.in.</p>
+<div class="legal-wrap">
+  <div class="wrap">
+<main class="legal-doc reveal">
+<h1>Privacy Policy</h1>
+<p><strong>Wynko — Learn Together. Win Together.</strong> · wynko.in</p>
+<p><strong>Last updated:</strong> 17 September 2026
+<strong>Effective date:</strong> 17 September 2026</p>
+<hr />
+<h2>1. Who we are</h2>
+<p>Wynko ("Wynko", "we", "us", "our") is a collaborative learning platform for students, available at https://wynko.in and through our apps (together, the "Platform"). Wynko helps students focus, study solo, join study chat and voice rooms, set goals, and learn together.</p>
+<p>Wynko is currently operated as an unregistered venture by its founding team. The person responsible for your personal data is:</p>
+<ul>
+<li><strong>Operator:</strong> Mahipat Singh Sengar, operating as Wynko</li>
+<li><strong>Address:</strong> 154 Sevagram Colony, Khajuraho, Madhya Pradesh, India</li>
+<li><strong>Contact email:</strong> founder@wynko.in</li>
+<li><strong>Grievance Officer (India — required under the DPDP Act, 2023 and the IT Rules, 2021):</strong> Mahipat Singh Sengar, founder@wynko.in</li>
+</ul>
+<p>If Wynko is later incorporated as a company, this Policy will be updated to name that company as the data fiduciary and your data will transfer to it.</p>
+<h2>2. Scope</h2>
+<p>This Policy explains what personal data we collect, why, who we share it with, how long we keep it, and what rights you have. It applies to everyone who uses the Platform, including people who only sign up to the waitlist. It does not apply to third-party websites we link to.</p>
+<h2>3. What data we collect</h2>
+<h3>3.1 Data you give us</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Examples</th>
+<th>Why we need it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Account data</td>
+<td>Name, email address, profile photo, username, age or date of birth</td>
+<td>To create and secure your account</td>
+</tr>
+<tr>
+<td>Google Sign-In data</td>
+<td>Your name, email address, and profile picture as supplied by Google. We never receive your Google password.</td>
+<td>To let you sign in without a separate password</td>
+</tr>
+<tr>
+<td>Profile and study data</td>
+<td>Class or year, exams or subjects you're preparing for, goals, study preferences, timetable</td>
+<td>To personalise your study experience</td>
+</tr>
+<tr>
+<td>Content you create</td>
+<td>Notes, tasks, goals, files you upload, and messages you send in chat rooms</td>
+<td>To deliver the core features</td>
+</tr>
+<tr>
+<td>Voice data</td>
+<td>Live audio you speak in a voice study room, plus your microphone permission and mute state</td>
+<td>To let you talk to other students in real time</td>
+</tr>
+<tr>
+<td>Social activity</td>
+<td>Study rooms and groups you join, friends, leaderboard participation, streaks</td>
+<td>To enable learning together</td>
+</tr>
+<tr>
+<td>Support and feedback</td>
+<td>Emails you send us, bug reports, survey answers</td>
+<td>To answer you and improve Wynko</td>
+</tr>
+<tr>
+<td>Payment data (planned, not collected today)</td>
+<td>Billing name, email, plan, transaction ID</td>
+<td>To process subscriptions when we launch them. Card and bank details will be handled entirely by our payment processor and will never be stored on Wynko's servers.</td>
+</tr>
+</tbody>
+</table>
+<h3>3.2 Data collected automatically</h3>
+<ul>
+<li><strong>Usage data:</strong> screens and pages viewed, features used, session length, focus-timer and streak activity, clicks, referring URL.</li>
+<li><strong>Device and technical data:</strong> IP address, approximate city/country derived from IP, device type, operating system, browser and version, language, time zone, crash and error logs.</li>
+<li><strong>Cookies and similar technologies:</strong> see Section 8.</li>
+</ul>
+<h3>3.3 Voice rooms — how your audio is handled</h3>
+<p>Voice study rooms run on <strong>Agora</strong>, a real-time audio provider. When you join a voice room:</p>
+<ul>
+<li>Your audio is transmitted live through Agora's servers to the other people in that room.</li>
+<li><strong>We do not record or store your voice.</strong> Audio is streamed in real time, is not saved on Wynko's servers, and Agora's cloud recording is not enabled.</li>
+<li>Agora processes technical call data (connection quality, timing, IP address, channel ID) to deliver and debug the call. It acts as our processor and may not use your audio for its own purposes.</li>
+<li>Your microphone is accessed only while you are in a voice room and have granted browser or device permission. You can mute or leave at any time, and you can revoke microphone permission in your browser or device settings.</li>
+<li>If we ever introduce recording, we will ask for your explicit consent first and show a clear recording indicator to everyone in the room.</li>
+</ul>
+<h3>3.4 Sensitive data we don't want</h3>
+<p>Please do not put sensitive personal data — health details, Aadhaar or other government ID numbers, bank account numbers, caste or religion — into your profile, notes, or chat messages. We don't need it and we ask you not to share it.</p>
+<h2>4. Why we use your data, and our legal basis</h2>
+<p>Under India's Digital Personal Data Protection Act, 2023 we rely on your consent or on legitimate uses permitted by that Act. Where the GDPR / UK GDPR applies to a user, we rely on the basis shown below.</p>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>Legal basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Creating your account, running study rooms, timers, goals, chat, voice rooms, and groups</td>
+<td>Performance of a contract</td>
+</tr>
+<tr>
+<td>Transmitting your live audio in voice rooms</td>
+<td>Performance of a contract, plus your consent given through the microphone permission</td>
+</tr>
+<tr>
+<td>Keeping Wynko secure; preventing spam, abuse, harassment, and fake accounts</td>
+<td>Legitimate interests</td>
+</tr>
+<tr>
+<td>Fixing bugs, measuring performance, and improving features</td>
+<td>Legitimate interests / consent for non-essential analytics</td>
+</tr>
+<tr>
+<td>Service emails (password resets, security alerts, changes to these policies)</td>
+<td>Contract / legal obligation</td>
+</tr>
+<tr>
+<td>Product announcements and marketing emails or push notifications</td>
+<td>Consent — withdraw any time</td>
+</tr>
+<tr>
+<td>Streaks, leaderboards, and study suggestions</td>
+<td>Legitimate interests / consent</td>
+</tr>
+<tr>
+<td>Processing payments and keeping tax records (once paid plans launch)</td>
+<td>Contract / legal obligation</td>
+</tr>
+<tr>
+<td>Responding to lawful requests and enforcing our Terms</td>
+<td>Legal obligation / legitimate interests</td>
+</tr>
+</tbody>
+</table>
+<p><strong>We do not sell your personal data. We do not share it with anyone for their own advertising. We do not run behavioural advertising on the Platform.</strong></p>
+<h2>5. Users under 18 — important</h2>
+<p>The minimum age to use Wynko is <strong>13</strong>.</p>
+<p>Under India's DPDP Act, everyone under 18 is treated as a "child". This means:</p>
+<ul>
+<li>If you are under 18, you may only use Wynko with the consent of a parent or legal guardian, and we will ask you to provide a parent's or guardian's verifiable consent before your account is fully activated.</li>
+<li>We do <strong>not</strong> carry out behavioural tracking, profiling, or targeted advertising directed at users under 18.</li>
+<li>We keep data collected from under-18 users to the minimum needed to run the study features, and we never record voice rooms.</li>
+<li>Voice rooms let minors speak with other users in real time. Parents and guardians should be aware of this; we act quickly on safety reports sent to founder@wynko.in.</li>
+<li>Parents and guardians can review, correct, export, or delete their child's data, or withdraw consent, by emailing founder@wynko.in. We will act within 30 days.</li>
+</ul>
+<p>If we learn that we hold data about a child without the required parental consent, we will delete it promptly.</p>
+<h2>6. Who we share data with</h2>
+<p>We share personal data only with the service providers below, only to the extent needed, and always under contracts that require them to protect it and use it only on our instructions.</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>What it does for Wynko</th>
+<th>Data involved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Supabase</strong></td>
+<td>Database, authentication, and backend storage</td>
+<td>Account data, profile, your content</td>
+</tr>
+<tr>
+<td><strong>Backblaze (B2)</strong></td>
+<td>File and media storage</td>
+<td>Files and images you upload</td>
+</tr>
+<tr>
+<td><strong>Cloudflare</strong></td>
+<td>DNS, CDN, DDoS protection, and security filtering</td>
+<td>IP address, request metadata</td>
+</tr>
+<tr>
+<td><strong>Vercel</strong></td>
+<td>Website and application hosting</td>
+<td>IP address, request logs</td>
+</tr>
+<tr>
+<td><strong>Google Sign-In</strong></td>
+<td>Login</td>
+<td>Name, email, profile picture</td>
+</tr>
+<tr>
+<td><strong>Agora</strong></td>
+<td>Real-time voice in study rooms</td>
+<td>Live audio (not recorded), IP address, connection and call-quality data</td>
+</tr>
+<tr>
+<td><strong>Google Analytics</strong></td>
+<td>Understanding how the Platform is used</td>
+<td>Pseudonymous usage and device data, IP (truncated where supported)</td>
+</tr>
+<tr>
+<td><strong>Razorpay</strong> <em>(planned)</em></td>
+<td>Subscription payments</td>
+<td>Billing details, transaction records</td>
+</tr>
+</tbody>
+</table>
+<p>We may also disclose data to courts, regulators, or law-enforcement where legally required, to professional advisers, and to a successor if Wynko is acquired or reorganised (we'll notify you first).</p>
+<p>Other users only see and hear what you choose to share: your display name and profile, your messages in chat rooms you join, your voice while you are unmuted in a voice room, your activity in shared groups, and your position on leaderboards you take part in.</p>
+<h2>7. International transfers</h2>
+<p>Some of our providers (Supabase, Backblaze, Cloudflare, Vercel, Google, Agora) store or process data outside India, including in the United States and the EU. Where data covered by the GDPR/UK GDPR leaves the EEA or UK, we rely on adequacy decisions or the European Commission's Standard Contractual Clauses (with the UK Addendum where relevant). You can ask us for details at founder@wynko.in.</p>
+<h2>8. Cookies and similar technologies</h2>
+<p>We use:</p>
+<ul>
+<li><strong>Strictly necessary cookies and local storage</strong> — login sessions, security, and load balancing (Supabase auth, Cloudflare). These can't be turned off.</li>
+<li><strong>Preference cookies</strong> — remembering your settings, theme, and language.</li>
+<li><strong>Analytics cookies</strong> — Google Analytics, to see which features are used.</li>
+</ul>
+<p>We don't run advertising or retargeting pixels. Where the law requires it, we ask for consent before setting analytics cookies, and you can change your choice at any time by emailing founder@wynko.in or through your browser settings.</p>
+<h2>9. How long we keep data</h2>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Retention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Account and profile</td>
+<td>While your account is active, then deleted or anonymised within 30 days of deletion</td>
+</tr>
+<tr>
+<td>Your content (notes, tasks, uploads)</td>
+<td>Until you delete it, or within 30 days of account deletion</td>
+</tr>
+<tr>
+<td>Chat room messages</td>
+<td>12 months, or until deleted — messages you sent may remain visible to other room members in context</td>
+</tr>
+<tr>
+<td>Voice room audio</td>
+<td>Not stored — streamed live only</td>
+</tr>
+<tr>
+<td>Voice call metadata (join and leave times, quality logs)</td>
+<td>3 months, held by Agora for debugging</td>
+</tr>
+<tr>
+<td>Backups</td>
+<td>Rolling backups purged within 35 days</td>
+</tr>
+<tr>
+<td>Analytics data</td>
+<td>14 months</td>
+</tr>
+<tr>
+<td>Security, abuse, and moderation logs</td>
+<td>12 months</td>
+</tr>
+<tr>
+<td>Payment and tax records (once applicable)</td>
+<td>8 years, as required by Indian tax law</td>
+</tr>
+</tbody>
+</table>
+<h2>10. How we protect your data</h2>
+<p>Data is encrypted in transit (HTTPS/TLS everywhere, via Cloudflare and Vercel) and at rest with our storage providers. We use Supabase row-level security and role-based access, restrict access to the minimum number of people, keep dependencies patched, and log access. No system is perfectly secure. If a breach occurs that is likely to affect you, we will notify you and the Data Protection Board of India (and CERT-In, and your EU/UK authority where applicable) within the legally required timeframes.</p>
+<h2>11. Your rights</h2>
+<p>You can ask us to:</p>
+<ul>
+<li><strong>Access</strong> the data we hold about you and get a copy;</li>
+<li><strong>Correct</strong> anything inaccurate or incomplete;</li>
+<li><strong>Delete</strong> your data;</li>
+<li><strong>Port</strong> your data to another service in a machine-readable format;</li>
+<li><strong>Object to or restrict</strong> certain processing;</li>
+<li><strong>Withdraw consent</strong> at any time (this doesn't undo processing already done lawfully);</li>
+<li><strong>Nominate</strong> someone to exercise your rights if you die or become incapacitated (DPDP Act);</li>
+<li><strong>Complain</strong> to the Data Protection Board of India, or to your local authority if you are in the EU/EEA or UK.</li>
+</ul>
+<p>Email founder@wynko.in. We respond within 30 days and never penalise you for exercising a right. We may ask you to verify your identity first. You can delete your account at any time by emailing founder@wynko.in from your registered email address.</p>
+<h2>12. Changes to this Policy</h2>
+<p>We'll update this Policy as Wynko grows — for example when we launch paid plans or add new providers. For material changes we'll notify you by email or in-app at least 7 days before they take effect. The "Last updated" date above always reflects the current version.</p>
+<h2>13. Contact</h2>
+<p><strong>Email:</strong> founder@wynko.in
+<strong>Operator / Grievance Officer:</strong> Mahipat Singh Sengar
+<strong>Address:</strong> 154 Sevagram Colony, Khajuraho, Madhya Pradesh, India</p>
+<p>We aim to acknowledge privacy requests within 48 hours and resolve them within 30 days.</p>
+</main>
+  </div>
 </div>
-<script src="shared.js"></script>
-<script>initStarfield();</script>
-<script>if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js");</script>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="product.html">
+          <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
+          <span class="brand-word grad-text">WYNKO</span>
+        </a>
+        <p>A Study OS designed to help you focus, learn, and grow. Focus. Study. Together.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Product</h5>
+        <a href="product.html#product">Overview</a>
+        <a href="product.html#flexible">Features</a>
+        <a href="product.html#fast">Your Day</a>
+        <a href="product.html#community-shot">Study Together</a>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <a href="marketing.html">About</a>
+        <a href="product.html#earn">Team &amp; Partners</a>
+        <a href="product.html#faq">FAQ</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="foot-col">
+        <h5>Get started</h5>
+        <a href="waitlist.html">Sign Up / Login</a>
+        <a href="downloads/">Download Desktop App</a>
+        <a href="#">Mobile App</a>
+        <a href="mailto:revisionnm2@gmail.com">Contact Us</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>&copy; 2026 Wynko. All rights reserved. &nbsp;&middot;&nbsp; <a href="/privacy">Privacy Policy</a> &middot; <a href="#">Terms of Service</a></span>
+      <div class="soc">
+        <a href="#" aria-label="X"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.2L1 2h7l4.9 6.4L18.9 2Zm-1.2 18h1.9L7.4 3.9H5.3L17.7 20Z"/></svg></a>
+        <a href="#" aria-label="LinkedIn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5A2.5 2.5 0 1 1 5 8.5a2.5 2.5 0 0 1-.02-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.4 8.65 22 10.9 22 14.3V21h-4v-5.9c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.52-2.25 3.1V21H9V9Z"/></svg></a>
+        <a href="#" aria-label="Instagram"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold:.05 });
+  els.forEach(el=> io.observe(el));
+})();
+</script>
 </body>
 </html>

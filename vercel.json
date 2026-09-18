@@ -1,5 +1,8 @@
 {
   "redirects": [],
+  "rewrites": [
+    { "source": "/privacy", "destination": "/privacy.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
