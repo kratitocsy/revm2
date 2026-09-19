@@ -1198,6 +1198,45 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   const [showAddTask, setShowAddTask] = useState(false)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const fullscreenRef = useRef<HTMLDivElement | null>(null)
+
+  // True browser Fullscreen API when available (desktop + most mobile
+  // browsers), with the always-on CSS overlay below as the visual
+  // fallback for browsers that refuse/lack it (notably iOS Safari for
+  // non-<video> elements) - either way the distraction-free overlay
+  // renders, so "fullscreen" always works even without OS-level support.
+  async function enterFullscreen() {
+    setFullscreen(true)
+    try {
+      const el = fullscreenRef.current as any
+      if (el?.requestFullscreen) await el.requestFullscreen()
+      else if (el?.webkitRequestFullscreen) await el.webkitRequestFullscreen()
+    } catch { /* CSS overlay above already covers this - native API is a bonus, not a requirement */ }
+  }
+  async function exitFullscreen() {
+    setFullscreen(false)
+    try {
+      const doc = document as any
+      if (doc.fullscreenElement && doc.exitFullscreen) await doc.exitFullscreen()
+      else if (doc.webkitFullscreenElement && doc.webkitExitFullscreen) await doc.webkitExitFullscreen()
+    } catch { /* nothing to exit, or already exited (e.g. via Esc) */ }
+  }
+  // Keeps our state in sync if the browser's own fullscreen is dismissed
+  // some other way (Esc key, swipe-down, OS gesture) so the overlay
+  // doesn't stay stuck open behind a non-fullscreen window.
+  useEffect(() => {
+    function onFsChange() {
+      const doc = document as any
+      const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement)
+      if (!isFs) setFullscreen(false)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    document.addEventListener('webkitfullscreenchange', onFsChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange)
+      document.removeEventListener('webkitfullscreenchange', onFsChange)
+    }
+  }, [])
 
   const {
     loading: sessionLoading,
@@ -1343,36 +1382,36 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
 
-      {/* ── Fullscreen overlay ── */}
+      {/* ── Fullscreen overlay ──────────────────────────────────────────────
+          True distraction-free view: only the timer, the active subject/
+          topic, and an icon-only exit control. Clicking/tapping the timer
+          itself toggles pause/resume - no extra button chrome on top. */}
       {fullscreen && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+        <div ref={fullscreenRef} className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
           <MountainBackdrop />
-          <div className="absolute top-6 right-6 z-10">
-            <button onClick={() => setFullscreen(false)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.05)] border-[#1E3060]">
-              <Ico n="compress" cls="w-4 h-4" /> Exit Fullscreen
-            </button>
-          </div>
-          <div className="relative z-10 h-full flex flex-col items-center justify-center gap-10">
-            <div style={{ width: 'min(440px, 62vh, 70vw)', aspectRatio: '1' }}>
+
+          <button onClick={exitFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen"
+            className="absolute top-6 right-6 z-10 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
+            <Ico n="compress" cls="w-5 h-5" />
+          </button>
+
+          <div className="relative z-10 h-full flex flex-col items-center justify-center gap-8 px-6">
+            <button
+              onClick={() => activeTask && (running ? handlePauseTask(activeTask.id) : handleStartTask(activeTask.id))}
+              disabled={!activeTask}
+              title={activeTask ? (running ? 'Tap to pause' : 'Tap to resume') : undefined}
+              className="bg-transparent border-none p-0 disabled:cursor-default"
+              style={{ width: 'min(440px, 62vh, 80vw)', aspectRatio: '1' }}>
               <TimerCircle remaining={circleRemaining} total={circleTotal} timeStr={circleTimeStr} running={isLiveRunning} size={440} />
-            </div>
-            {activeTask && (
+            </button>
+            {activeTask ? (
               <div className="text-center">
-                <div className="text-sm font-semibold text-slate-100">{activeTask.subject}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{activeTask.topic}</div>
+                <div className="text-base font-semibold text-slate-100">{activeTask.subject}</div>
+                <div className="text-sm text-slate-500 mt-1">{activeTask.topic}</div>
               </div>
+            ) : (
+              <div className="text-sm text-slate-500">Select a task in My Study Plan to begin</div>
             )}
-            <div className="flex items-center justify-center gap-5">
-              <button onClick={() => activeTask && (running ? handlePauseTask(activeTask.id) : handleStartTask(activeTask.id))}
-                disabled={!activeTask}
-                className="h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 px-9"
-                style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
-                {running
-                  ? <><svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg><span className="whitespace-nowrap">Pause</span></>
-                  : <><Ico n="play" cls="w-5 h-5 flex-shrink-0" /><span className="whitespace-nowrap">{activeTask ? 'Resume' : 'Select a task'}</span></>}
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -1392,10 +1431,6 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
             <div className="text-[10px] tracking-[0.18em] mb-0.5 text-[#68728A]">FOCUS LOCK</div>
             <div className="text-sm font-semibold text-[#F3F4F6] truncate">{headerStatus}</div>
           </div>
-          <button onClick={() => setFullscreen(true)}
-            className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg border transition-all hover:border-violet-400/40 text-[#9B6CFF] bg-[rgba(124,77,255,0.08)] border-[#1A2845] flex-shrink-0">
-            <Ico n="expand" cls="w-3.5 h-3.5" /> Fullscreen
-          </button>
           <UserAvatar size={32} />
         </header>
 
@@ -1414,6 +1449,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
             <div className="flex flex-col items-center gap-3 py-2">
               <div className="relative flex items-center justify-center" style={{ width: 280, height: 280 }}>
                 <TimerCircle remaining={circleRemaining} total={circleTotal} timeStr={circleTimeStr} running={isLiveRunning} size={280} />
+                <button onClick={enterFullscreen} title="Fullscreen" aria-label="Enter fullscreen"
+                  className="absolute -top-1 -right-1 w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:opacity-90 active:scale-95 text-[#9B6CFF] bg-[rgba(124,77,255,0.10)] border border-[#1A2845]">
+                  ⛶
+                </button>
               </div>
               <div className="text-xs text-slate-500">{circleCaption}</div>
               {activeTask && (
@@ -1444,7 +1483,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
                     + Add Task
                   </button>
                 </div>
-                <div className="wynko-scroll px-4 pb-4 space-y-2 overflow-y-auto" style={{ maxHeight: 420 }}>
+                <div className="px-4 pb-4 space-y-2">
                   {tasks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-14 text-center">
                       <div className="text-2xl mb-2">📋</div>
