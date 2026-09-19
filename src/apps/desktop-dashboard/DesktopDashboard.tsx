@@ -12,7 +12,7 @@ import avatar9 from './imports/avatar-9.png'
 import avatar10 from './imports/avatar-10.png'
 import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
-import { useHomeData, type TodayFocus, type ProfileInfo } from './lib/useHomeData'
+import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 
@@ -401,56 +401,168 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
   )
 }
 
-// ─── Today Hero ───────────────────────────────────────────────────────────────
-function TodayHero({ onGoFocus, atRisk, due, stable, curveData }: { onGoFocus: () => void; atRisk: number; due: number; stable: number; curveData: MultiRecallCurveData | null }) {
-  const today = new Date()
-  const dateLabel = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
+// ─── Study Progress ───────────────────────────────────────────────────────────
+// Replaces the old "Memory at Risk" hero as the first block on Home. Built to
+// match the reference design pixel-for-pixel in spirit: deep navy card with a
+// subtle blue gradient, thin electric-blue border + soft outer glow, a
+// violet→royal-blue→cyan curved line with its own glow, a faint gradient fill
+// beneath it, and a brighter cyan glow on today's point. Everything plotted
+// (the three stats + all 7 points) comes from weeklyStudy/totalWeekMinutes/
+// avgWeekMinutes in useHomeData — real per-day totals from study_log, the
+// same column tracker.html/timer.html write to. Nothing here is hardcoded.
+function formatStudyDuration(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60)
+  const m = Math.round(totalMinutes % 60)
+  if (h <= 0) return `${m}m`
+  if (m <= 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
+// Catmull-Rom → cubic-bezier conversion so the line is a smooth curve
+// through every point rather than sharp angular segments.
+function buildSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x},${points[0].y}`
+  let d = `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1]
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`
+  }
+  return d
+}
+
+function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
+  weeklyStudy: WeeklyStudyDay[]; totalMinutes: number; avgMinutes: number; streakDays: number
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const W = 920, H = 190, padX = 22, padTop = 22, padBottom = 32
+
+  const maxMinutes = Math.max(60, ...weeklyStudy.map(d => d.minutes))
+  const stepX = weeklyStudy.length > 1 ? (W - padX * 2) / (weeklyStudy.length - 1) : 0
+  const pts = weeklyStudy.map((d, i) => ({
+    x: padX + i * stepX,
+    y: padTop + (1 - d.minutes / maxMinutes) * (H - padTop - padBottom),
+  }))
+  const linePath = buildSmoothPath(pts)
+  const areaPath = pts.length
+    ? `${linePath} L ${pts[pts.length - 1].x.toFixed(1)},${(H - padBottom).toFixed(1)} L ${pts[0].x.toFixed(1)},${(H - padBottom).toFixed(1)} Z`
+    : ''
+
+  const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
+    { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied' },
+    { icon: 'progress', value: formatStudyDuration(avgMinutes), label: 'Daily Average' },
+    { icon: 'fire', value: `${streakDays} day${streakDays === 1 ? '' : 's'}`, label: 'Current Streak' },
+  ]
+
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border"
-      style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: '0 0 60px rgba(124,77,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-      <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(26,40,69,0.55) 0%, transparent 65%)', transform: 'translate(25%,-30%)' }} />
-      <div className="absolute bottom-0 left-1/3 w-56 h-56 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(25,181,230,0.06) 0%, transparent 65%)', transform: 'translate(-50%,40%)' }} />
-      <div className="relative flex gap-6 items-stretch">
-        <div className="flex-shrink-0 w-44 flex flex-col justify-between">
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.30)',
+        boxShadow: '0 0 70px rgba(41,98,255,0.14), 0 0 140px rgba(124,77,255,0.07), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="absolute top-0 right-0 w-80 h-80 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(41,98,255,0.12) 0%, transparent 65%)', transform: 'translate(20%,-35%)' }} />
+      <div className="absolute bottom-0 left-1/4 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 65%)', transform: 'translate(-40%,45%)' }} />
+
+      <div className="relative flex items-start justify-between mb-5 flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.45)', boxShadow: '0 0 18px rgba(41,98,255,0.4)' }}>
+            <Ico n="progress" cls="w-4 h-4 text-cyan-300" />
+          </div>
           <div>
-            <div className="text-[9px] font-mono text-violet-400 tracking-[0.2em] mb-2">TODAY · {dateLabel}</div>
-            <div className="text-[22px] font-bold text-slate-100 leading-tight mb-2">Memory<br />at Risk</div>
-            <div className="text-xs text-slate-400 mb-4 leading-relaxed">
-              {atRisk > 0 ? `${atRisk} topic${atRisk > 1 ? 's' : ''} below critical retention threshold` : 'All topics above critical threshold'}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(248,113,113,0.07)] border-[rgba(248,113,113,0.2)]">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
-              <span className="text-[11px] text-red-300">{atRisk} topic{atRisk !== 1 ? 's' : ''} at risk</span>
-            </div>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(124,77,255,0.08)] border-[#1A2845]">
-              <Ico n="wave" cls="w-3 h-3 text-violet-400 flex-shrink-0" />
-              <span className="text-[11px] text-violet-300">{due} review{due !== 1 ? 's' : ''} due</span>
-            </div>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(25,211,162,0.07)] border-[rgba(25,211,162,0.20)]">
-              <Ico n="check" cls="w-3 h-3 text-emerald-400 flex-shrink-0" />
-              <span className="text-[11px] text-emerald-300">{stable} stable</span>
-            </div>
-            <button onClick={onGoFocus} className="mt-3 w-full py-2 rounded-lg text-[11px] font-semibold text-white flex items-center justify-center gap-1.5 transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C4DFF, #5C35CC)', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-              <Ico n="play" cls="w-3 h-3" />Start Review
-            </button>
+            <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Your Study Progress</div>
+            <div className="text-xs text-slate-500">Study time · Last 7 days</div>
           </div>
         </div>
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[9px] font-mono text-slate-500 tracking-wide uppercase">
-              RECALL CURVE{curveData && curveData.series.length === 1 ? ` — ${curveData.series[0].subject.toUpperCase()} · ${curveData.series[0].topic}` : curveData && curveData.series.length > 1 ? ` — ${curveData.series.length} TOPICS` : ''}
+
+        <div className="flex items-center gap-6">
+          {stats.map(s => (
+            <div key={s.label} className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 12px rgba(41,98,255,0.35)' }}>
+                <Ico n={s.icon} cls="w-3.5 h-3.5 text-cyan-300" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-100 leading-tight">{s.value}</div>
+                <div className="text-[10px] text-slate-500 leading-tight">{s.label}</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[9px] font-mono text-slate-500">
-              <div className="flex items-center gap-1.5"><div className="w-4 h-[2px] rounded" style={{ background: 'linear-gradient(90deg,#7C4DFF,#19B5E6)' }} />actual</div>
-              <div className="flex items-center gap-1.5"><div className="w-4 border-t border-amber-400 border-dashed" />projected</div>
-              <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-cyan-400 opacity-80" />review</div>
-            </div>
-          </div>
-          <div className="flex-1" style={{ minHeight: '170px' }}><RecallCurve data={curveData} /></div>
+          ))}
         </div>
+      </div>
+
+      <div className="relative" style={{ height: H }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="spLine" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#7C4DFF" />
+              <stop offset="55%" stopColor="#2979FF" />
+              <stop offset="100%" stopColor="#22D3EE" />
+            </linearGradient>
+            <linearGradient id="spArea" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2979FF" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#2979FF" stopOpacity="0" />
+            </linearGradient>
+            <filter id="spGlow" x="-20%" y="-60%" width="140%" height="220%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <filter id="spDotGlow" x="-200%" y="-200%" width="500%" height="500%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+
+          <path d={areaPath} fill="url(#spArea)" />
+          <path d={linePath} fill="none" stroke="url(#spLine)" strokeWidth="2.5" strokeLinecap="round" filter="url(#spGlow)" />
+
+          {pts.map((p, i) => {
+            const d = weeklyStudy[i]
+            return (
+              <g key={i}
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx(null)}
+                onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
+                style={{ cursor: 'pointer' }}>
+                <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+                {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
+                <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
+                {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
+              </g>
+            )
+          })}
+
+          {pts.map((p, i) => (
+            <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
+              fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
+              fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
+              {weeklyStudy[i].label}
+            </text>
+          ))}
+        </svg>
+
+        {hoverIdx !== null && (
+          <div className="absolute px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-100 pointer-events-none z-10"
+            style={{
+              left: `${(pts[hoverIdx].x / W) * 100}%`,
+              top: `${(pts[hoverIdx].y / H) * 100}%`,
+              transform: 'translate(-50%, -135%)',
+              background: '#0F1B3D',
+              border: '1px solid rgba(56,132,255,0.45)',
+              boxShadow: '0 0 16px rgba(41,98,255,0.4)',
+              whiteSpace: 'nowrap',
+            }}>
+            {weeklyStudy[hoverIdx].label} · {formatStudyDuration(weeklyStudy[hoverIdx].minutes)}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -5405,7 +5517,7 @@ export default function DesktopDashboard() {
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
-  const { authState, reviewItems, recallCurves, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  const { authState, reviewItems, profile, todayFocus, weeklyStudy, totalWeekMinutes, avgWeekMinutes, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   // A real uploaded photo wins over the 6 illustrated presets, same
   // "resync until touched" pattern as Settings' displayName field -
@@ -5480,10 +5592,6 @@ export default function DesktopDashboard() {
       )
     }
 
-    const atRisk = reviewItems.filter(i => i.urgency === 'high').length
-    const due = reviewItems.filter(i => i.urgency !== 'low').length
-    const stable = reviewItems.filter(i => i.urgency === 'low').length
-
     // Today's already-logged entries, shown as removable chips in
     // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
     // rather than tracked as separate local state.
@@ -5497,8 +5605,7 @@ export default function DesktopDashboard() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
-            <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} curveData={recallCurves} />
-            <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
+            <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
             <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
             <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
               <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>

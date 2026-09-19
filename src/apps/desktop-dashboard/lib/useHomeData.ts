@@ -33,8 +33,35 @@ export interface TodayFocus {
   streakDays: number; // consecutive days (today backward) with any study_log total > 0
 }
 
+export interface WeeklyStudyDay {
+  label: string; // short weekday, e.g. "Mon"
+  minutes: number;
+  isToday: boolean;
+}
+
 function dateKeyUTC(d: Date): string {
   return d.toISOString().split('T')[0];
+}
+
+// Last 7 calendar days (6 days ago .. today), oldest first, each day's
+// total minutes summed across subjects — same study_log column/shape
+// computeStreak already reads. Used by the Home "Your Study Progress"
+// card so its chart and Total/Average stats are real, never hardcoded.
+function computeWeeklyStudy(slog: StudyLog): WeeklyStudyDay[] {
+  const days: WeeklyStudyDay[] = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = dateKeyUTC(d);
+    const totalSecs = Object.values(slog[key] || {}).reduce((a, b) => a + b, 0);
+    days.push({
+      label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      minutes: Math.round(totalSecs / 60),
+      isToday: i === 0,
+    });
+  }
+  return days;
 }
 
 // Same algorithm as tracker.html's renderAnalytics() streak block:
@@ -87,6 +114,7 @@ export function useHomeData() {
   const [rows, setRows] = useState<TrackerRow[]>([]);
   const [profile, setProfile] = useState<ProfileInfo>({ displayName: null, avatarUrl: null, exam: null });
   const [todayFocus, setTodayFocus] = useState<TodayFocus>({ goalMinutes: 180, doneMinutes: 0, bySubject: [], streakDays: 0 });
+  const [weeklyStudy, setWeeklyStudy] = useState<WeeklyStudyDay[]>(computeWeeklyStudy({}));
   const [loadingRows, setLoadingRows] = useState(true);
   const userIdRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,6 +151,7 @@ export function useHomeData() {
       bySubject,
       streakDays: computeStreak(slog),
     });
+    setWeeklyStudy(computeWeeklyStudy(slog));
 
     setLoadingRows(false);
   }, []);
@@ -149,6 +178,7 @@ export function useHomeData() {
         setRows([]);
         setProfile({ displayName: null, avatarUrl: null, exam: null });
         setTodayFocus({ goalMinutes: 180, doneMinutes: 0, bySubject: [], streakDays: 0 });
+        setWeeklyStudy(computeWeeklyStudy({}));
         return;
       }
       userIdRef.current = session.user.id;
@@ -215,5 +245,21 @@ export function useHomeData() {
   // locking to a single topic — see buildMultiRecallCurve.
   const recallCurves: MultiRecallCurveData | null = buildMultiRecallCurve(rows, reviewItems);
 
-  return { authState, reviewItems, recallCurves, profile, todayFocus, loading: loadingRows, addUnit, removeUnitBySubject, markAsReviewed };
+  const totalWeekMinutes = weeklyStudy.reduce((sum, d) => sum + d.minutes, 0);
+  const avgWeekMinutes = totalWeekMinutes / (weeklyStudy.length || 1);
+
+  return {
+    authState,
+    reviewItems,
+    recallCurves,
+    profile,
+    todayFocus,
+    weeklyStudy,
+    totalWeekMinutes,
+    avgWeekMinutes,
+    loading: loadingRows,
+    addUnit,
+    removeUnitBySubject,
+    markAsReviewed,
+  };
 }
