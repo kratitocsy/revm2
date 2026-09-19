@@ -3428,603 +3428,565 @@ const TROPHY_TIERS = [
   { label: '60 Battles', sub: '60 battles', tier: 'Diamond', img: trophyDiamond, color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
 ]
 
-const BATTLE_BOTS = [
-  { name: 'Aryan', color: '#F59E0B', variant: 1 },
-  { name: 'Meera', color: '#A855F7', variant: 2 },
-  { name: 'Arjun', color: '#19B5E6', variant: 1 },
-  { name: 'Dev', color: '#19B5E6', variant: 3 },
-  { name: 'Riya', color: '#EC4899', variant: 0 },
-  { name: 'Nain', color: '#3B82F6', variant: 3 },
+interface BAFriend { id: string; name: string; color: string; variant: number; xp: number; status: 'online' | 'busy' | 'offline' }
+
+const BA_TIERS = [
+  { n: 'Rookie', min: 0 },
+  { n: 'Challenger', min: 500 },
+  { n: 'Focused', min: 1200 },
+  { n: 'Warrior', min: 2000 },
+  { n: 'Elite', min: 3200 },
+  { n: 'Unstoppable', min: 5000 },
+]
+const BA_XP_WIN = 120
+const BA_XP_LOSS = 25
+const BA_MILESTONES = [1, 10, 30, 60]
+
+const BA_FRIENDS: BAFriend[] = [
+  { id: 'aryan', name: 'Aryan', color: '#F59E0B', variant: 1, xp: 3460, status: 'online' },
+  { id: 'meera', name: 'Meera', color: '#A855F7', variant: 2, xp: 2420, status: 'online' },
+  { id: 'kabir', name: 'Kabir', color: '#19B5E6', variant: 1, xp: 1780, status: 'online' },
+  { id: 'dev', name: 'Dev', color: '#19B5E6', variant: 3, xp: 1240, status: 'busy' },
+  { id: 'riya', name: 'Riya', color: '#EC4899', variant: 0, xp: 860, status: 'offline' },
+  { id: 'nain', name: 'Nain', color: '#3B82F6', variant: 3, xp: 310, status: 'offline' },
 ]
 
-const RECENT_BATTLES_DATA = [
-  { leftName: 'You', leftColor: '#7C4DFF', leftVariant: 0, leftWon: true, rightName: 'Nain', rightColor: '#3B82F6', rightVariant: 3, time: '2h ago', pts: '+15' },
-  { leftName: 'Meera', leftColor: '#A855F7', leftVariant: 2, leftWon: true, rightName: 'Arjun', rightColor: '#19B5E6', rightVariant: 1, time: '5h ago', pts: '+12' },
-  { leftName: 'Dev', leftColor: '#19B5E6', leftVariant: 3, leftWon: true, rightName: 'Riya', rightColor: '#EC4899', rightVariant: 0, time: '1d ago', pts: '+10' },
-]
+function baFmtTime(s: number) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+function baFmtXP(n: number) { return Math.round(n).toLocaleString('en-US') }
+function baTierInfo(xp: number) {
+  let i = 0
+  BA_TIERS.forEach((t, k) => { if (xp >= t.min) i = k })
+  const cur = BA_TIERS[i], next = BA_TIERS[i + 1] || null
+  const frac = next ? (xp - cur.min) / (next.min - cur.min) : 1
+  return { i, cur, next, pct: Math.min(100, frac * 100), need: next ? next.min - xp : 0 }
+}
 
-const LEADERBOARD_DATA = [
-  { rank: 2, name: 'Meera', wins: 10, streak: 6, color: '#A855F7', variant: 2 },
-  { rank: 1, name: 'Aryan', wins: 12, streak: 8, color: '#F59E0B', variant: 1, isFirst: true },
-  { rank: 3, name: 'Nain', wins: 8, streak: 5, color: '#3B82F6', variant: 3 },
-]
+function BAStatGrid({ battles, wins, losses, streak, best, focusSecs, xp }: {
+  battles: number; wins: number; losses: number; streak: number; best: number; focusSecs: number; xp: number
+}) {
+  const wr = battles > 0 ? Math.round((wins / battles) * 100) : 0
+  const focusStr = `${Math.floor(focusSecs / 3600)}h ${String(Math.floor((focusSecs % 3600) / 60)).padStart(2, '0')}m`
+  const items: { l: string; v: string | number; sub?: string; c?: string }[] = [
+    { l: 'Total battles', v: battles },
+    { l: 'Wins', v: wins, sub: `${wr}% win rate`, c: '#4ade80' },
+    { l: 'Losses', v: losses, c: '#f87171' },
+    { l: 'Win streak', v: streak, sub: `Best: ${best}`, c: '#22d3ee' },
+    { l: 'Focus time', v: focusStr, sub: 'In battles' },
+    { l: 'Battle XP', v: baFmtXP(xp), c: '#C4AAFF' },
+  ]
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {items.map(it => (
+        <div key={it.l} className="rounded-xl border p-3 bg-[rgba(255,255,255,0.02)] border-[#1A2845]">
+          <div className="text-[11px] text-slate-500 mb-1">{it.l}</div>
+          <div className="text-lg font-bold" style={{ color: it.c || '#fff' }}>{it.v}</div>
+          {it.sub && <div className="text-[10px] text-slate-600 mt-0.5">{it.sub}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
-  type BattlePhase = 'idle' | 'invite-sent' | 'accepted' | 'active' | 'finished'
+  type BAView = 'home' | 'waiting' | 'profile'
+  type ArenaPhase = 'countdown' | 'live' | 'result' | null
 
-  interface PendingInvite { id: string; name: string; color: string; variant: number; msg: string }
+  const [view, setView] = useState<BAView>('home')
+  const [arenaPhase, setArenaPhase] = useState<ArenaPhase>(null)
 
-  const [phase, setPhase] = useState<BattlePhase>('idle')
-  const [inviteInput, setInviteInput] = useState('')
-  const [opponent, setOpponent] = useState<{ name: string; color: string; variant: number } | null>(null)
-  const [battleSecs, setBattleSecs] = useState(0)
-  const [myStudySecs, setMyStudySecs] = useState(0)
-  const [oppStudySecs, setOppStudySecs] = useState(0)
-  const [winner, setWinner] = useState<'you' | 'opponent' | null>(null)
-  const [userWins, setUserWins] = useState(0)
-  const [recentBattles, setRecentBattles] = useState<{ oppName: string; oppColor: string; oppVariant: number; won: boolean; time: string; pts: string }[]>([])
-  const [showFullLeaderboard, setShowFullLeaderboard] = useState(false)
-  const [showAllTrophies, setShowAllTrophies] = useState(false)
-  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([
-    { id: 'pi1', name: 'Aryan', color: '#F59E0B', variant: 1, msg: 'wants to battle you! ⚔️' },
-    { id: 'pi2', name: 'Meera', color: '#A855F7', variant: 2, msg: 'challenged you to a duel!' },
+  const [meXp, setMeXp] = useState(2610)
+  const [meBattles, setMeBattles] = useState(47)
+  const [meWins, setMeWins] = useState(31)
+  const [meLosses, setMeLosses] = useState(16)
+  const [meStreak, setMeStreak] = useState(4)
+  const [meBest, setMeBest] = useState(9)
+  const [meFocusSecs, setMeFocusSecs] = useState(38 * 3600 + 42 * 60)
+
+  const [invites, setInvites] = useState<{ id: string; ago: string }[]>([
+    { id: 'aryan', ago: '2 min ago' },
+    { id: 'kabir', ago: '14 min ago' },
   ])
-  const battleRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const acceptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerSel, setPickerSel] = useState<string | null>(null)
+
+  const [pendingOpp, setPendingOpp] = useState<BAFriend | null>(null)
+  const [expirySecs, setExpirySecs] = useState(300)
+  const [countdownN, setCountdownN] = useState(3)
+  const [battleOpp, setBattleOpp] = useState<BAFriend | null>(null)
+  const [elapsedSecs, setElapsedSecs] = useState(0)
+  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
+  const [result, setResult] = useState<{ kind: 'won' | 'lost'; opp: BAFriend; elapsed: number; before: number; after: number; gain: number } | null>(null)
+
+  const waitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const expiryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function clearAllTimers() {
+    if (waitTimeoutRef.current) clearTimeout(waitTimeoutRef.current)
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    if (liveIntervalRef.current) clearInterval(liveIntervalRef.current)
+    if (expiryIntervalRef.current) clearInterval(expiryIntervalRef.current)
+    waitTimeoutRef.current = null; countdownIntervalRef.current = null; liveIntervalRef.current = null; expiryIntervalRef.current = null
+  }
+  useEffect(() => () => clearAllTimers(), [])
 
   useEffect(() => {
-    if (phase === 'active') {
-      battleRef.current = setInterval(() => {
-        setBattleSecs(s => s + 1)
-        setMyStudySecs(s => s + 1)
-        setOppStudySecs(s => s + 1)
-      }, 1000)
-    } else {
-      if (battleRef.current) clearInterval(battleRef.current)
+    if (arenaPhase === 'live') {
+      liveIntervalRef.current = setInterval(() => setElapsedSecs(s => s + 1), 1000)
+    } else if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current); liveIntervalRef.current = null
     }
-    return () => { if (battleRef.current) clearInterval(battleRef.current) }
-  }, [phase])
+    return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current) }
+  }, [arenaPhase])
 
-  useEffect(() => {
-    return () => {
-      if (acceptTimerRef.current) clearTimeout(acceptTimerRef.current)
-      if (battleRef.current) clearInterval(battleRef.current)
-    }
-  }, [])
+  function byId(id: string) { return (BA_FRIENDS.find(f => f.id === id) || BA_FRIENDS[0]) as BAFriend }
 
-  function fmt(s: number) {
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
-    if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`
-    return `${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`
+  function openPicker() { setPickerOpen(true); setPickerQuery(''); setPickerSel(null) }
+  function closePicker() { setPickerOpen(false) }
+
+  function sendChallenge() {
+    if (!pickerSel) return
+    const f = byId(pickerSel)
+    setPickerOpen(false)
+    setPendingOpp(f)
+    setExpirySecs(300)
+    setView('waiting')
+    waitTimeoutRef.current = setTimeout(() => startCountdown(f), 5500)
+    expiryIntervalRef.current = setInterval(() => {
+      setExpirySecs(s => {
+        if (s <= 1) { clearAllTimers(); setPendingOpp(null); setView('home'); return 300 }
+        return s - 1
+      })
+    }, 1000)
   }
 
-  function sendInvite() {
-    const name = inviteInput.trim()
-    if (!name) return
-    const bot = BATTLE_BOTS.find(b => b.name.toLowerCase() === name.toLowerCase()) ||
-      { name, color: '#7C4DFF', variant: 0 }
-    setOpponent(bot)
-    setPhase('invite-sent')
-    setInviteInput('')
-    acceptTimerRef.current = setTimeout(() => setPhase('accepted'), 3000)
+  function cancelChallenge() {
+    clearAllTimers(); setPendingOpp(null); setView('home')
   }
 
-  function acceptInvite(inv: PendingInvite) {
-    setOpponent({ name: inv.name, color: inv.color, variant: inv.variant })
-    setPendingInvites(prev => prev.filter(p => p.id !== inv.id))
-    setPhase('accepted')
-    setBattleSecs(0); setMyStudySecs(0); setOppStudySecs(0); setWinner(null)
+  function acceptInvite(id: string) {
+    if (battleOpp) return
+    const f = byId(id)
+    setInvites(prev => prev.filter(i => i.id !== id))
+    startCountdown(f)
   }
-
   function rejectInvite(id: string) {
-    setPendingInvites(prev => prev.filter(p => p.id !== id))
+    setInvites(prev => prev.filter(i => i.id !== id))
   }
 
-  function startBattle() {
-    setBattleSecs(0); setMyStudySecs(0); setOppStudySecs(0); setWinner(null)
-    setPhase('active')
+  function startCountdown(opp: BAFriend) {
+    clearAllTimers()
+    setPendingOpp(opp); setCountdownN(3); setArenaPhase('countdown')
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdownN(n => {
+        if (n <= 1) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+          setBattleOpp(opp); setElapsedSecs(0); setPendingOpp(null)
+          setArenaPhase('live')
+          return 3
+        }
+        return n - 1
+      })
+    }, 1000)
   }
 
-  function recordBattle(won: boolean) {
-    if (!opponent) return
-    const now = new Date()
-    const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`
-    setRecentBattles(prev => [{ oppName: opponent.name, oppColor: opponent.color, oppVariant: opponent.variant, won, time: timeStr, pts: won ? '+15' : '+5' }, ...prev.slice(0, 9)])
-    if (won) setUserWins(w => w + 1)
+  function requestPause() { setPauseConfirmOpen(true) }
+  function keepFocusing() { setPauseConfirmOpen(false) }
+  function confirmPause() { finishBattle('lost', true) }
+  function opponentPausesFirst() { finishBattle('won', true) }
+
+  function finishBattle(kind: 'won' | 'lost', apply: boolean) {
+    const opp = battleOpp || byId('aryan')
+    const gain = kind === 'won' ? BA_XP_WIN : BA_XP_LOSS
+    const before = meXp
+    setResult({ kind, opp, elapsed: elapsedSecs, before, after: before + gain, gain })
+    if (apply) {
+      setMeBattles(b => b + 1); setMeXp(x => x + gain); setMeFocusSecs(f => f + elapsedSecs)
+      if (kind === 'won') { setMeWins(w => w + 1); setMeStreak(s => { const ns = s + 1; setMeBest(b => Math.max(b, ns)); return ns }) }
+      else { setMeLosses(l => l + 1); setMeStreak(0) }
+    }
+    setPauseConfirmOpen(false); setBattleOpp(null)
+    setArenaPhase('result')
   }
 
-  function endMyTimer() {
-    setPhase('finished')
-    setWinner('opponent')
-    recordBattle(false)
+  function backToBattlegroundFromResult() {
+    setArenaPhase(null); setResult(null); setView('home')
   }
 
-  function cancelInvite() {
-    if (acceptTimerRef.current) clearTimeout(acceptTimerRef.current)
-    setPhase('idle'); setOpponent(null)
+  // ── Fullscreen arena: countdown / live duel / result ──────────────────────
+  if (arenaPhase) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020615] text-center px-6">
+        <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6">
+          <div className="text-sm font-bold tracking-wider text-white">WYN<span className="text-[#7C4DFF]">KO</span></div>
+          {arenaPhase === 'live' && (
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
+              <Ico n="lock" cls="w-3.5 h-3.5" /> Focus Lock on
+            </div>
+          )}
+        </div>
+
+        {arenaPhase === 'countdown' && pendingOpp && (
+          <div>
+            <p className="text-slate-400 text-sm mb-2"><b className="text-white">{pendingOpp.name}</b> accepted</p>
+            <div className="text-8xl font-black text-white mb-3" style={{ textShadow: '0 0 40px rgba(124,77,255,0.5)' }}>{countdownN}</div>
+            <p className="text-slate-300 text-sm mb-1">Battle starts now. Don't pause.</p>
+            <p className="text-slate-500 text-xs mb-6">Focus Lock is turning on.</p>
+            <div className="flex items-center justify-center gap-3">
+              <BattleAvatar color="#7C4DFF" variant={0} size={40} />
+              <span className="text-slate-500 text-xs font-bold">VS</span>
+              <BattleAvatar color={pendingOpp.color} variant={pendingOpp.variant} size={40} />
+            </div>
+          </div>
+        )}
+
+        {arenaPhase === 'live' && battleOpp && (
+          <div className="w-full max-w-xl">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mb-8" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" /> BATTLE ACTIVE
+            </div>
+            <div className="flex items-center justify-center gap-8 mb-6">
+              <div className="flex flex-col items-center gap-2">
+                <BattleAvatar color="#7C4DFF" variant={0} size={88} glow />
+                <div className="text-sm font-semibold text-white">You</div>
+                <div className="text-[11px] text-slate-500">Your focus time</div>
+                <div className="text-3xl font-black text-white" style={{ fontFamily: 'monospace' }}>{baFmtTime(elapsedSecs)}</div>
+                <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Focusing</div>
+              </div>
+              <div className="text-slate-600 text-xs font-bold">VS</div>
+              <div className="flex flex-col items-center gap-2">
+                <BattleAvatar color={battleOpp.color} variant={battleOpp.variant} size={88} glow ringColor={battleOpp.color} />
+                <div className="text-sm font-semibold text-white">{battleOpp.name}</div>
+                <div className="text-[11px] text-slate-500">{battleOpp.name}'s focus time</div>
+                <div className="text-3xl font-black text-white" style={{ fontFamily: 'monospace' }}>{baFmtTime(elapsedSecs)}</div>
+                <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Focusing</div>
+              </div>
+            </div>
+            <p className="text-slate-500 text-xs mb-5">First person to pause loses.</p>
+            <button onClick={requestPause} className="mx-auto flex items-center gap-2 px-8 py-3 rounded-2xl font-bold" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+              PAUSE
+            </button>
+            <p className="text-slate-600 text-[11px] mt-4">Pausing Focus Lock counts as pausing the battle.</p>
+            <button onClick={opponentPausesFirst} className="mt-8 text-[11px] text-slate-600 hover:text-slate-400 underline">Simulate: opponent pauses first</button>
+
+            {pauseConfirmOpen && (
+              <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 px-4">
+                <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[#1E3060] p-6">
+                  <h2 className="text-lg font-bold text-white mb-2">Pause and lose the battle?</h2>
+                  <p className="text-slate-400 text-sm mb-5">{battleOpp.name} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
+                  <div className="flex flex-col gap-2">
+                    <button onClick={keepFocusing} className="w-full py-2.5 rounded-xl font-bold text-white" style={{ background: '#7C4DFF' }}>Keep focusing</button>
+                    <button onClick={confirmPause} className="w-full py-2.5 rounded-xl font-semibold text-sm" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>Pause and lose</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {arenaPhase === 'result' && result && (
+          <div className="w-full max-w-md">
+            <div className="text-6xl mb-3">{result.kind === 'won' ? '🏆' : '💀'}</div>
+            <h1 className="text-3xl font-black text-white mb-1">{result.kind === 'won' ? 'YOU WIN' : 'DEFEAT'}</h1>
+            <p className="text-slate-400 text-sm mb-1">{result.kind === 'won' ? 'Your opponent paused first.' : 'You paused first.'}</p>
+            <p className="text-slate-500 text-xs mb-6">You vs {result.opp.name}</p>
+            <div className="flex items-center justify-center gap-8 mb-6">
+              <div><div className="text-[11px] text-slate-500 mb-1">Focus time</div><div className="text-xl font-bold text-white">{baFmtTime(result.elapsed)}</div></div>
+              <div><div className="text-[11px] text-slate-500 mb-1">Battle XP</div><div className="text-xl font-bold text-emerald-400">+{result.gain}</div></div>
+            </div>
+            {(() => {
+              const a = baTierInfo(result.before), b = baTierInfo(result.after), promoted = b.i > a.i
+              return (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{b.cur.n}</span>
+                    <span className="text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.after)} XP</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#1A2845] overflow-hidden">
+                    <div className="h-full rounded-full bg-[#7C4DFF]" style={{ width: `${promoted ? b.pct : a.pct}%` }} />
+                  </div>
+                  <p className="text-[11px] mt-1.5" style={{ color: promoted ? '#4ade80' : '#64748b' }}>
+                    {promoted ? `New title unlocked: ${b.cur.n}` : b.next ? `${baFmtXP(b.need)} XP to ${b.next.n}` : 'Top title reached'}
+                  </p>
+                </div>
+              )
+            })()}
+            <button onClick={backToBattlegroundFromResult} className="w-full py-3 rounded-2xl font-bold text-white" style={{ background: '#7C4DFF' }}>Back to Battleground</button>
+          </div>
+        )}
+      </div>
+    )
   }
 
-  function resetBattle() {
-    setPhase('idle'); setOpponent(null); setWinner(null)
-    setBattleSecs(0); setMyStudySecs(0); setOppStudySecs(0)
-  }
-
-  // Trophies earned by user based on battle count
-  const BATTLE_MILESTONES = [1, 10, 30, 60]
-  const earnedTrophies = TROPHY_TIERS.filter((_, i) => userWins >= BATTLE_MILESTONES[i])
+  const rank = baTierInfo(meXp)
+  const earnedTrophies = TROPHY_TIERS.filter((_, i) => meBattles >= BA_MILESTONES[i])
+  const boardRows = [
+    ...BA_FRIENDS.map(f => ({ id: f.id, name: f.name, color: f.color, variant: f.variant, xp: f.xp, me: false })),
+    { id: 'me', name: 'You', color: '#7C4DFF', variant: 0, xp: meXp, me: true },
+  ].sort((a, b) => b.xp - a.xp)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
       <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
-          >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
-            <Ico n="chevL" cls="w-4 h-4" /> Home
-          </button>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+          {view === 'profile' ? (
+            <button onClick={() => setView('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+              <Ico n="chevL" cls="w-4 h-4" /> Battleground
+            </button>
+          ) : (
+            <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+              <Ico n="chevL" cls="w-4 h-4" /> Home
+            </button>
+          )}
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >BATTLEGROUND</div>
+            <div className="text-[10px] text-slate-600 mb-0.5">BATTLEGROUND</div>
             <div className="text-sm font-semibold text-slate-200">Challenge. Compete. Win.</div>
           </div>
           <div className="relative p-2 text-slate-400">
             <Ico n="bell" cls="w-5 h-5" />
-            {pendingInvites.length > 0 && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]" >{pendingInvites.length}</div>
+            {invites.length > 0 && (
+              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]">{invites.length}</div>
             )}
           </div>
           <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {/* Page title */}
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>
-              ⚔️
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Battleground</h1>
-              <p className="text-slate-400 text-sm">Challenge your friends. Stay consistent. Win together.</p>
-            </div>
-          </div>
-
-          {/* ── Invitations Inbox ── */}
-          {pendingInvites.length > 0 && (
-            <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
-              <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
-                <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-                <div className="text-sm font-bold text-white">Battle Invitations</div>
-                <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]" >{pendingInvites.length} pending</div>
+          {view === 'waiting' && pendingOpp && (
+            <div className="max-w-md mx-auto text-center py-16">
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <BattleAvatar color="#7C4DFF" variant={0} size={64} />
+                <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />)}</div>
+                <BattleAvatar color={pendingOpp.color} variant={pendingOpp.variant} size={64} glow ringColor={pendingOpp.color} />
               </div>
-              <div className="px-4 pb-4 space-y-2">
-                {pendingInvites.map(inv => (
-                  <div key={inv.id} className="flex items-center gap-3 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[#1A2845]" >
-                    <BattleAvatar color={inv.color} variant={inv.variant} size={40} glow />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-bold text-white">{inv.name}</span>
-                      <span className="text-sm text-slate-400"> {inv.msg}</span>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => rejectInvite(inv.id)}
-                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
-                        >Reject</button>
-                      <button onClick={() => acceptInvite(inv)}
-                        className="px-3 py-1.5 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-90"
-                        style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>Accept ⚔️</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <h2 className="text-lg font-bold text-white mb-2">Waiting for {pendingOpp.name} to accept</h2>
+              <p className="text-slate-400 text-sm mb-6">Once they accept, you both get a 3-2-1 countdown and the battle begins.</p>
+              <div className="text-xs text-slate-500 mb-6">Invitation expires in <b className="text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(expirySecs)}</b></div>
+              <button onClick={cancelChallenge} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel challenge</button>
             </div>
           )}
 
-          {/* ── Active Battle Card ── */}
-          <div className="rounded-2xl border overflow-hidden relative"
-            style={{ background: 'linear-gradient(160deg,#080B1A,#12083A,#080E28)', borderColor: '#4A3A88', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
-            <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at 20% 50%,rgba(25,181,230,0.07),transparent 55%), radial-gradient(ellipse at 80% 50%,rgba(236,72,153,0.07),transparent 55%)' }} />
-
-            {/* Badge row */}
-            <div className="flex items-center justify-between px-5 pt-4 pb-2 relative z-10">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-                style={{ background: phase === 'active' ? 'rgba(239,68,68,0.15)' : 'rgba(26,40,69,0.55)', border: `1px solid ${phase === 'active' ? 'rgba(239,68,68,0.35)' : '#1E3060'}`, color: phase === 'active' ? '#FCA5A5' : '#C4AAFF' }}>
-                {phase === 'active' ? '🔥 Battle Live' : phase === 'finished' ? '🏁 Battle Ended' : '⚔️ Battle Arena'}
+          {view === 'profile' && (
+            <div className="max-w-2xl mx-auto space-y-4">
+              <div className="rounded-2xl border p-6 flex items-center gap-5 bg-[#0B1530] border-[#1E3060]">
+                <BattleAvatar color="#7C4DFF" variant={0} size={72} glow />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h1 className="text-xl font-bold text-white">You</h1>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{rank.cur.n}</span>
+                  </div>
+                  <div className="text-2xl font-black text-white mb-2">{baFmtXP(meXp)} <span className="text-xs font-normal text-slate-500">Battle XP</span></div>
+                  <div className="h-2 rounded-full bg-[#1A2845] overflow-hidden mb-1.5"><div className="h-full rounded-full bg-[#7C4DFF]" style={{ width: `${rank.pct}%` }} /></div>
+                  <div className="text-[11px] text-slate-500">{rank.next ? <>{baFmtXP(rank.need)} XP to {rank.next.n}</> : 'Top title reached'}</div>
+                </div>
               </div>
-              {phase === 'active' && (
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-                  style={{ background: 'rgba(25,211,162,0.10)', border: '1px solid rgba(25,211,162,0.30)', color: '#19D3A2' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  Live Now
+
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold text-white">Battle titles</div>
+                  <div className="text-[11px] text-slate-500">Earned with Battle XP</div>
+                </div>
+                <div className="space-y-2">
+                  {BA_TIERS.map((t, i) => {
+                    const done = i < rank.i, cur = i === rank.i
+                    return (
+                      <div key={t.n} className="flex items-center gap-3 py-1.5">
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] flex-shrink-0" style={{ background: done ? '#4ade80' : cur ? '#7C4DFF' : '#1A2845', color: done || cur ? '#020615' : '#64748b' }}>
+                          {done ? '✓' : ''}
+                        </div>
+                        <div className={`text-sm font-semibold flex-1 ${cur ? 'text-white' : done ? 'text-slate-300' : 'text-slate-500'}`}>{t.n}</div>
+                        <div className="text-[11px] text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(t.min)} XP</div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1A2845] text-[11px] text-slate-500">
+                  <span>Win a battle <b className="text-emerald-400">+{BA_XP_WIN} XP</b></span>
+                  <span>Lose a battle <b className="text-slate-400">+{BA_XP_LOSS} XP</b></span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+                <div className="text-sm font-bold text-white mb-4">Battle stats</div>
+                <BAStatGrid battles={meBattles} wins={meWins} losses={meLosses} streak={meStreak} best={meBest} focusSecs={meFocusSecs} xp={meXp} />
+                <div className="mt-4 flex items-center gap-3 text-xs text-slate-400">
+                  <span><b className="text-emerald-400">{meWins}</b> wins</span>
+                  <span><b className="text-red-400">{meLosses}</b> losses</span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden flex mt-1.5 bg-[#1A2845]">
+                  <div className="h-full bg-emerald-400" style={{ width: `${meBattles > 0 ? Math.round((meWins / meBattles) * 100) : 0}%` }} />
+                  <div className="h-full flex-1" style={{ background: 'rgba(248,113,113,0.7)' }} />
+                </div>
+              </div>
+
+              {earnedTrophies.length > 0 && (
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+                  <div className="text-sm font-bold text-white mb-4">Trophies</div>
+                  <div className="grid grid-cols-4 gap-3">
+                    {TROPHY_TIERS.map(t => {
+                      const earned = earnedTrophies.includes(t)
+                      return (
+                        <div key={t.tier} className="rounded-xl border p-3 text-center" style={{ background: earned ? t.bg : 'rgba(255,255,255,0.02)', borderColor: earned ? t.border : '#1A2845', opacity: earned ? 1 : 0.4 }}>
+                          <img src={t.img} alt={t.tier} className="w-10 h-10 mx-auto mb-1.5 object-contain" />
+                          <div className="text-[10px] text-slate-400">{t.sub}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>
+          )}
 
-            {/* Finished overlay */}
-            {phase === 'finished' && winner && (
-              <div className="relative z-10 mx-5 mb-3 p-5 rounded-2xl border text-center"
-                style={{ background: winner === 'you' ? 'rgba(25,211,162,0.10)' : 'rgba(239,68,68,0.1)', borderColor: winner === 'you' ? 'rgba(25,211,162,0.40)' : 'rgba(239,68,68,0.4)' }}>
-                <div className="text-3xl mb-1">{winner === 'you' ? '🏆' : '💔'}</div>
-                <div className="text-lg font-bold text-white">{winner === 'you' ? 'You Won!' : `${opponent?.name} Won!`}</div>
-                <div className="text-sm text-slate-400 mt-0.5">
-                  {winner === 'you' ? `${opponent?.name} ended their session first.` : 'You ended your session first.'}
+          {view === 'home' && (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>⚔️</div>
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold text-white">Battleground</h1>
+                  <p className="text-slate-400 text-sm">Challenge your friends. Stay focused. Don't pause.</p>
                 </div>
-                <div className="text-[11px] font-mono mt-2 text-[#9B6CFF]" >Battle time: {fmt(battleSecs)}</div>
-                <button onClick={resetBattle}
-                  className="mt-3 px-6 py-2 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 bg-[#7C4DFF]"
-                  >New Battle</button>
-              </div>
-            )}
-
-            {/* Players row */}
-            <div className="flex items-center gap-3 px-5 py-4 relative z-10">
-              {/* You */}
-              <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="relative">
-                  <BattleAvatar color="#7C4DFF" variant={0} size={68} ringColor="#19B5E6" glow />
-                  {earnedTrophies.length > 0 && (
-                    <div className="absolute -bottom-1 -right-1 flex gap-0.5">
-                      {earnedTrophies.slice(-2).map((t, i) => (
-                        <div key={i} className="w-6 h-6 rounded-full overflow-hidden border" style={{ borderColor: '#0B1530', filter: `drop-shadow(0 0 4px ${t.color}80)` }}>
-                          <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center gap-1.5 justify-center">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-base font-bold text-white">You</span>
-                    {userWins > 0 && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(124,77,255,0.15)', color: '#9B6CFF', border: '1px solid rgba(124,77,255,0.3)' }}>{userWins}W</span>}
+                <button onClick={() => setView('profile')} className="text-right hover:opacity-80 transition-opacity">
+                  <div className="text-[10px] text-slate-500 mb-0.5">Your battle title</div>
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <span className="text-sm font-bold" style={{ color: '#C4AAFF' }}>{rank.cur.n}</span>
+                    <span className="text-xs text-slate-500">{baFmtXP(meXp)} XP</span>
                   </div>
-                  {phase === 'active' || phase === 'finished' ? (
-                    <div className="text-[11px] font-mono text-violet-300 mt-0.5">{fmt(myStudySecs)} studied</div>
-                  ) : (
-                    <div className="text-[10px] text-emerald-400">● Online</div>
-                  )}
-                </div>
-                {phase === 'active' && (
-                  <div className="flex flex-col gap-1.5 items-center">
-                    <button onClick={() => { setPhase('finished'); setWinner('you'); recordBattle(true) }}
-                      className="px-4 py-2 rounded-full text-[11px] font-bold transition-all hover:opacity-90 active:scale-95"
-                      style={{ background: 'rgba(25,211,162,0.15)', border: '1px solid rgba(25,211,162,0.4)', color: '#19D3A2', boxShadow: '0 0 10px rgba(25,211,162,0.15)' }}>
-                      🏆 Declare Win
-                    </button>
-                    <button onClick={endMyTimer}
-                      className="px-4 py-1.5 rounded-full text-[10px] font-bold transition-all hover:opacity-90 active:scale-95"
-                      style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#FCA5A5' }}>
-                      🛑 End Timer
-                    </button>
-                  </div>
-                )}
+                </button>
               </div>
 
-              {/* Center — VS + invite */}
-              <div className="flex flex-col items-center gap-3 flex-shrink-0">
-                <div className="text-4xl font-black"
-                  style={{ background: 'linear-gradient(135deg,#7C4DFF,#EC4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 0 12px #4A3A88)' }}>
-                  VS
-                </div>
-
-                {/* Battle timer */}
-                {(phase === 'active' || phase === 'finished') && (
-                  <div className="px-4 py-2 rounded-xl text-center" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>
-                    <div className="text-[9px] text-slate-500 font-mono mb-0.5">BATTLE TIME</div>
-                    <div className="text-base font-black text-white" >{fmt(battleSecs)}</div>
-                  </div>
-                )}
-
-                {/* Idle — invite input */}
-                {phase === 'idle' && (
-                  <div className="flex flex-col items-center gap-2 w-48">
-                    <div className="text-[10px] text-slate-500 font-mono">INVITE A USER</div>
-                    <input value={inviteInput} onChange={e => setInviteInput(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 text-center focus:border-violet-500/50 transition-colors border-[#1E3060]"
-                       placeholder="Enter username..."
-                      onKeyDown={e => e.key === 'Enter' && sendInvite()} />
-                    <button onClick={sendInvite} disabled={!inviteInput.trim()}
-                      className="w-full py-2 rounded-xl text-[11px] font-bold text-white transition-all hover:opacity-90 disabled:opacity-40"
-                      style={{ background: '#7C4DFF', boxShadow: '0 0 14px #1E3060' }}>
-                      Send Invite ⚔️
-                    </button>
-                  </div>
-                )}
-
-                {/* Invite sent — waiting */}
-                {phase === 'invite-sent' && (
-                  <div className="flex flex-col items-center gap-2 w-44 text-center">
-                    <div className="flex gap-1 justify-center">
-                      {[0,1,2].map(i => <div key={i} className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: `${i*0.2}s` }} />)}
-                    </div>
-                    <div className="text-[11px] text-slate-400">Waiting for<br /><span className="text-violet-300 font-semibold">{opponent?.name}</span>...</div>
-                    <button onClick={cancelInvite} className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
-                  </div>
-                )}
-
-                {/* Accepted — start battle */}
-                {phase === 'accepted' && (
-                  <div className="flex flex-col items-center gap-2 w-44 text-center">
-                    <div className="text-[11px] text-emerald-400 font-semibold">✓ {opponent?.name} accepted!</div>
-                    <button onClick={startBattle}
-                      className="px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
-                      style={{ background: 'linear-gradient(135deg,#7C4DFF,#EC4899)', boxShadow: '0 0 20px #4A3A88' }}>
-                      ▶ Start Battle
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Opponent */}
-              <div className="flex-1 flex flex-col items-center gap-2">
-                {opponent ? (
-                  <>
-                    <BattleAvatar color={opponent.color} variant={opponent.variant} size={68} ringColor="#EC4899" glow />
-                    <div className="text-center">
-                      <div className="flex items-center gap-1.5 justify-center">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                        <span className="text-base font-bold text-white">{opponent.name}</span>
-                      </div>
-                      {phase === 'active' || phase === 'finished' ? (
-                        <div className="text-[11px] font-mono mt-0.5" style={{ color: opponent.color }}>{fmt(oppStudySecs)} studied</div>
-                      ) : (
-                        <div className="text-[10px] text-emerald-400">● Online</div>
-                      )}
-                    </div>
-                    {phase === 'active' && (
-                      <div className="px-4 py-2 rounded-full text-[11px] font-bold border bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.25)] text-[#19D3A2]"
-                        >
-                        ⏱ Studying...
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-[68px] h-[68px] rounded-full border-2 flex items-center justify-center"
-                      style={{ borderColor: '#1E3060', borderStyle: 'dashed', background: 'rgba(124,77,255,0.08)' }}>
-                      <svg viewBox="0 0 24 24" className="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M20 8v6M23 11h-6" /><circle cx="9" cy="7" r="4" /></svg>
-                    </div>
-                    <div className="text-[11px] text-slate-600 text-center">No opponent yet</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom stats */}
-            {(phase === 'active' || phase === 'finished') && (
-              <div className="flex items-center mx-4 mb-4 rounded-xl border overflow-hidden relative z-10 border-[#1A2845] bg-[#0B1530]"
-                >
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r border-[#1A2845]" >
-                  <span className="text-lg">⏱️</span>
+              <div className="rounded-2xl border p-6 bg-[#0B1530] border-[#1E3060]">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                   <div>
-                    <div className="text-[10px] text-slate-500">Battle Time</div>
-                    <div className="text-sm font-bold text-white" >{fmt(battleSecs)}</div>
+                    <h2 className="text-lg font-bold text-white mb-1.5">Ready for a challenge?</h2>
+                    <p className="text-slate-400 text-sm mb-4">Challenge a friend and see who can stay focused longer.</p>
+                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-white text-sm" style={{ background: '#7C4DFF' }}>⚔️ Challenge friend</button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <BattleAvatar color="#7C4DFF" variant={0} size={56} />
+                    <span className="text-slate-600 text-xs font-bold">VS</span>
+                    <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#1E3060] flex items-center justify-center text-slate-600">?</div>
                   </div>
                 </div>
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r border-[#1A2845]" >
-                  <span className="text-lg">🔥</span>
-                  <div>
-                    <div className="text-[10px] text-slate-500">Your Study Time</div>
-                    <div className="text-sm font-bold text-violet-300" >{fmt(myStudySecs)}</div>
-                  </div>
-                </div>
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3">
-                  <span className="text-lg">⚡</span>
-                  <div>
-                    <div className="text-[10px] text-slate-500">{opponent?.name || "Opp"}'s Study Time</div>
-                    <div className="text-sm font-bold" style={{ color: opponent?.color || '#19B5E6' }}>{fmt(oppStudySecs)}</div>
-                  </div>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-5 pt-5 border-t border-[#1A2845] text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1.5"><Ico n="check" cls="w-3.5 h-3.5 text-emerald-400" /> You both start together</span>
+                  <span className="flex items-center gap-1.5"><Ico n="lock" cls="w-3.5 h-3.5" /> Focus Lock stays on</span>
+                  <span className="flex items-center gap-1.5">⏸ First to pause loses</span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* ── Trophies ── */}
-          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
-            <div className="flex items-center justify-between px-5 pt-5 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(255,215,0,0.12)', border: '1px solid rgba(255,215,0,0.3)' }}>🏆</div>
-                <div>
-                  <div className="text-base font-bold text-white">Trophies</div>
-                  <div className="text-[11px] text-violet-400 mt-0.5">Study more. Earn trophies.</div>
-                </div>
-              </div>
-              <button onClick={() => setShowAllTrophies(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-                View All <Ico n="chevR" cls="w-3 h-3" />
-              </button>
-            </div>
-            <div className="flex gap-3 px-5 pb-5">
-              {TROPHY_TIERS.map(t => (
-                <div key={t.tier} className="flex-1 flex flex-col items-center p-3.5 rounded-2xl border text-center"
-                  style={{ background: t.bg, borderColor: t.border, boxShadow: `0 0 16px ${t.color}20` }}>
-                  <div className="w-12 h-12 mb-1.5 rounded-xl overflow-hidden" style={{ filter: `drop-shadow(0 0 8px ${t.color}60)` }}>
-                    <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+              {invites.length > 0 && (
+                <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]">
+                  <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
+                    <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+                    <div className="text-sm font-bold text-white">Battle Invitations</div>
+                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]">{invites.length} pending</div>
                   </div>
-                  <div className="text-xs font-bold text-white">{t.label}</div>
-                  <div className="text-[10px] text-slate-400 mb-2">({t.sub})</div>
-                  <div className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
-                    style={{ background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}44` }}>{t.tier}</div>
+                  <div className="px-4 pb-4 space-y-2">
+                    {invites.map(inv => {
+                      const f = byId(inv.id)
+                      return (
+                        <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(124,77,255,0.06)' }}>
+                          <BattleAvatar color={f.color} variant={f.variant} size={36} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-white">{f.name} <span className="text-slate-400 font-normal">challenged you</span></div>
+                            <div className="text-[11px] text-slate-500">{inv.ago}</div>
+                          </div>
+                          <button onClick={() => acceptInvite(inv.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#7C4DFF' }}>Accept</button>
+                          <button onClick={() => rejectInvite(inv.id)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-[#1A2845]">Reject</button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
 
-          {/* ── Recent Battles ── */}
-          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
-            <div className="flex items-center justify-between px-5 py-4">
-              <div className="text-base font-bold text-white">Recent Battles</div>
-            </div>
-            <div className="px-4 pb-4 space-y-2">
-              {recentBattles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="text-3xl mb-2">⚔️</div>
-                  <div className="text-sm font-semibold text-slate-400 mb-1">No battles yet</div>
-                  <div className="text-xs text-slate-600">Challenge someone to your first battle.<br />Your match history will appear here.</div>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold text-white">Your battle stats</div>
+                  <button onClick={() => setView('profile')} className="text-[11px] font-semibold" style={{ color: '#C4AAFF' }}>View profile</button>
                 </div>
-              ) : recentBattles.map((b, i) => (
-                <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl border bg-[#0B1530] border-[rgba(26,40,69,0.55)]"
-                  >
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <BattleAvatar color="#7C4DFF" variant={0} size={38} />
-                    <div>
-                      <div className="text-sm font-bold text-white">You</div>
-                      <div className={`flex items-center gap-1 text-[11px] ${b.won ? 'text-emerald-400' : 'text-red-400'}`}>
-                        <span>{b.won ? '🏆' : '❤️'}</span> {b.won ? 'Won' : 'Lost'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-xs font-black text-slate-500 flex-shrink-0">VS</div>
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <BattleAvatar color={b.oppColor} variant={b.oppVariant} size={38} />
-                    <div>
-                      <div className="text-sm font-bold text-white">{b.oppName}</div>
-                      <div className={`flex items-center gap-1 text-[11px] ${b.won ? 'text-red-400' : 'text-emerald-400'}`}>
-                        <span>{b.won ? '❤️' : '🏆'}</span> {b.won ? 'Lost' : 'Won'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <div className="text-[11px] text-slate-500">{b.time}</div>
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                      style={{ background: b.won ? 'rgba(25,211,162,0.1)' : 'rgba(239,68,68,0.08)', color: b.won ? '#19D3A2' : '#FCA5A5', border: `1px solid ${b.won ? 'rgba(25,211,162,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
-                      {b.pts}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                <BAStatGrid battles={meBattles} wins={meWins} losses={meLosses} streak={meStreak} best={meBest} focusSecs={meFocusSecs} xp={meXp} />
+              </div>
 
-          {/* ── Leaderboard ── */}
-          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
-            <div className="flex items-center justify-between px-5 py-4">
-              <div className="flex items-center gap-2"><span className="text-lg">🏆</span><div className="text-base font-bold text-white">Leaderboard</div></div>
-              {userWins > 0 && <button onClick={() => setShowFullLeaderboard(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-                View Full <Ico n="chevR" cls="w-3 h-3" />
-              </button>}
-            </div>
-            {userWins === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center px-5 pb-5">
-                <div className="text-3xl mb-2">🏅</div>
-                <div className="text-sm font-semibold text-slate-400 mb-1">No rankings yet</div>
-                <div className="text-xs text-slate-600">Win your first battle to appear<br />on the leaderboard.</div>
-              </div>
-            ) : (
-              <div className="flex items-end gap-3 px-5 pb-5">
-                {(() => {
-                  const userEntry = { rank: 0, name: 'You', wins: userWins, streak: recentBattles.filter(b => b.won).length, color: '#7C4DFF', variant: 0, isMe: true }
-                  const allPlayers = [...LEADERBOARD_DATA, userEntry]
-                    .sort((a, b) => b.wins - a.wins)
-                    .map((p, i) => ({ ...p, rank: i + 1 }))
-                    .slice(0, 3)
-                  return allPlayers.map((p, i) => {
-                    const isFirst = p.rank === 1
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-2.5 p-4 rounded-2xl border"
-                        style={{ background: isFirst ? 'linear-gradient(160deg,rgba(245,158,11,0.12),rgba(251,191,36,0.06))' : '#0B1530', borderColor: isFirst ? 'rgba(245,158,11,0.5)' : '#1A2845', boxShadow: isFirst ? '0 0 24px rgba(245,158,11,0.15)' : 'none' }}>
-                        {isFirst && <span className="text-xl">👑</span>}
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ background: p.rank === 1 ? 'rgba(255,215,0,0.2)' : p.rank === 2 ? 'rgba(192,192,192,0.15)' : 'rgba(205,127,50,0.15)', color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : '#CD7F32', border: `1.5px solid ${p.rank === 1 ? '#FFD70060' : p.rank === 2 ? '#C0C0C060' : '#CD7F3260'}` }}>
-                          {p.rank}
-                        </div>
-                        <div className="relative">
-                          <BattleAvatar color={p.color} variant={p.variant} size={52} glow={isFirst} />
-                          {'isMe' in p && p.isMe && earnedTrophies.length > 0 && (
-                            <div className="absolute -bottom-1 -right-1">
-                              <div className="w-5 h-5 rounded-full overflow-hidden border border-[#0B1530]" >
-                                <img src={earnedTrophies[earnedTrophies.length - 1].img} alt="trophy" className="w-full h-full object-contain" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-bold" style={{ color: 'isMe' in p && p.isMe ? '#C4B5FD' : 'white' }}>{p.name}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">{p.wins} wins · {p.streak} streak</div>
-                        </div>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm font-bold text-white">🏆 Friends leaderboard</div>
+                  <div className="text-[11px] text-slate-500">Ranked by Battle XP</div>
+                </div>
+                <div className="space-y-1">
+                  {boardRows.map((r, i) => (
+                    <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(124,77,255,0.08)' } : undefined}>
+                      <div className="w-5 text-center text-xs font-bold text-slate-500">{i + 1}</div>
+                      <BattleAvatar color={r.color} variant={r.variant} size={32} />
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white truncate">{r.name}</span>
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{baTierInfo(r.xp).cur.n}</span>
                       </div>
-                    )
-                  })
-                })()}
+                      <div className="text-xs font-bold text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-slate-600 font-normal">XP</span></div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
-          <div className="h-4" />
+            </>
+          )}
         </main>
       </div>
 
-      {/* ── Full Leaderboard Modal ── */}
-      {showFullLeaderboard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
-          onClick={e => { if (e.target === e.currentTarget) setShowFullLeaderboard(false) }}>
-          <div className="rounded-2xl border p-7 w-[440px] max-h-[80vh] overflow-y-auto"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px #1A2845' }}>
-            <div className="text-center mb-5">
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">RANKINGS</div>
-              <div className="text-lg font-bold text-white">Full Leaderboard</div>
+      {pickerOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 px-4" onClick={closePicker}>
+          <div className="w-full max-w-md rounded-2xl border bg-[#0B1530] border-[#1E3060] p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="text-base font-bold text-white">Challenge a friend</div>
+                <div className="text-xs text-slate-500 mt-0.5">Search by username or pick from your friends.</div>
+              </div>
+              <button onClick={closePicker} className="text-slate-500 hover:text-slate-300 text-lg leading-none">✕</button>
             </div>
-            <div className="space-y-2">
-              {[
-                { rank: 1, name: 'Aryan', wins: 12, streak: 8, pts: 1240, color: '#F59E0B', variant: 1 },
-                { rank: 2, name: 'Meera', wins: 10, streak: 6, pts: 1020, color: '#A855F7', variant: 2 },
-                { rank: 3, name: 'Nain', wins: 8, streak: 5, pts: 850, color: '#3B82F6', variant: 3 },
-                { rank: 4, name: 'You', wins: 5, streak: 3, pts: 620, color: '#7C4DFF', variant: 0 },
-                { rank: 5, name: 'Dev', wins: 4, streak: 2, pts: 480, color: '#19B5E6', variant: 3 },
-                { rank: 6, name: 'Riya', wins: 3, streak: 1, pts: 310, color: '#EC4899', variant: 0 },
-                { rank: 7, name: 'Arjun', wins: 2, streak: 0, pts: 200, color: '#19B5E6', variant: 1 },
-              ].map(p => (
-                <div key={p.rank} className="flex items-center gap-3 p-3 rounded-xl border"
-                  style={{ background: p.name === 'You' ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: p.name === 'You' ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : p.rank === 3 ? '#CD7F32' : '#4E5E84' }}>
-                    {p.rank}
-                  </div>
-                  <BattleAvatar color={p.color} variant={p.variant} size={36} />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-white">{p.name}</div>
-                    <div className="text-[10px] text-slate-400">{p.wins} wins · {p.streak} streak</div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-sm font-bold text-[#FFD700]" >{p.pts}</div>
-                    <div className="text-[10px] text-slate-500">pts</div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 border-[#1A2845]">
+              <Ico n="search" cls="w-4 h-4 text-slate-500" />
+              <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-600 outline-none" />
             </div>
-            <button onClick={() => setShowFullLeaderboard(false)}
-              className="w-full mt-5 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
-              >Close</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── All Trophies Modal ── */}
-      {showAllTrophies && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
-          onClick={e => { if (e.target === e.currentTarget) setShowAllTrophies(false) }}>
-          <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px #1A2845' }}>
-            <div className="text-center mb-5">
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">TROPHIES</div>
-              <div className="text-lg font-bold text-white">All Trophies & Rewards</div>
+            <div className="max-h-64 overflow-y-auto space-y-1 mb-3">
+              {BA_FRIENDS.filter(f => !pickerQuery.trim() || f.name.toLowerCase().includes(pickerQuery.trim().toLowerCase())).map(f => {
+                const offline = f.status !== 'online'
+                const sel = pickerSel === f.id
+                return (
+                  <button key={f.id} disabled={offline} onClick={() => setPickerSel(f.id)}
+                    className={`w-full flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors ${offline ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
+                    style={sel ? { background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.4)' } : { border: '1px solid transparent' }}>
+                    <BattleAvatar color={f.color} variant={f.variant} size={36} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-white">{f.name}</div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${f.status === 'online' ? 'bg-emerald-400' : f.status === 'busy' ? 'bg-amber-400' : 'bg-slate-600'}`} />
+                        {f.status === 'online' ? 'Online' : f.status === 'busy' ? 'In session' : 'Offline'}
+                      </div>
+                    </div>
+                    {sel && <Ico n="check" cls="w-4 h-4 text-[#7C4DFF]" />}
+                  </button>
+                )
+              })}
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              {TROPHY_TIERS.map(t => (
-                <div key={t.tier} className="flex items-center gap-3 p-3.5 rounded-xl border"
-                  style={{ background: t.bg, borderColor: t.border }}>
-                  <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ filter: `drop-shadow(0 0 6px ${t.color}50)` }}>
-                    <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-white">{t.label}</div>
-                    <div className="text-[9px] text-slate-400">{t.sub}</div>
-                    <div className="text-[9px] mt-1 px-1.5 py-0.5 rounded-full inline-block"
-                      style={{ background: `${t.color}20`, color: t.color }}>{t.tier}</div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-start gap-2 text-[11px] text-slate-500 mb-4">
+              <Ico n="lock" cls="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>First person to pause loses. Focus Lock turns on for both of you.</span>
             </div>
-            <button onClick={() => setShowAllTrophies(false)}
-              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
-              >Close</button>
+            <div className="flex gap-2">
+              <button onClick={closePicker} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
+              <button onClick={sendChallenge} disabled={!pickerSel} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+                {pickerSel ? `Challenge ${byId(pickerSel).name}` : 'Send challenge'}
+              </button>
+            </div>
           </div>
         </div>
       )}
