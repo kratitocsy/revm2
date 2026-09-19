@@ -1088,7 +1088,7 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
 
         <label className="block text-[11px] text-slate-500 mb-1.5">Subject</label>
         <input autoFocus value={subject} onChange={e => setSubject(e.target.value)}
-          placeholder="e.g. Fundamental Nursing"
+          placeholder="e.g. Physics"
           list="focus-subject-suggestions"
           className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
           style={{ borderColor: '#1A2845' }} />
@@ -1099,7 +1099,7 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
         <label className="block text-[11px] text-slate-500 mb-1.5">Topic</label>
         <input value={topic} onChange={e => setTopic(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
-          placeholder="e.g. Infection Control"
+          placeholder="e.g. Electricity"
           className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
           style={{ borderColor: '#1A2845' }} />
 
