@@ -889,274 +889,529 @@ function LibraryPreview({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 // ─── Subject colors ───────────────────────────────────────────────────────────
 const SUBJ_COLORS = ['#3B82F6', '#8B5CF6', '#14B8A6', '#22C55E', '#F59E0B', '#EC4899', '#F97316', '#6366F1']
+const TASK_EMOJIS = ['📘', '🩺', '💊', '🧑\u200d🎓', '📄', '🧪', '📐', '🔬', '🧠', '📖']
+
+// Deterministic (not random) icon/color per subject, so the same subject
+// always renders the same glyph across renders/sessions without needing
+// to persist it separately.
+function hashSubject(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h
+}
+function subjectVisual(subject: string) {
+  const h = hashSubject(subject || 'General')
+  return { emoji: TASK_EMOJIS[h % TASK_EMOJIS.length], color: SUBJ_COLORS[h % SUBJ_COLORS.length] }
+}
+
+function formatClock(totalSecs: number, alwaysHours = false): string {
+  const secs = Math.max(0, Math.floor(totalSecs))
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  const f2 = (n: number) => String(n).padStart(2, '0')
+  return alwaysHours || h > 0 ? `${f2(h)}:${f2(m)}:${f2(s)}` : `${f2(m)}:${f2(s)}`
+}
 
 // ─── Focus Lock Page ──────────────────────────────────────────────────────────
-// Persists a paused Focus Lock countdown across in-app navigation and full
-// page reloads. There's no server-side "paused" concept — pausing here
-// (same as timer.html) just stops the study_sessions row entirely — so a
-// paused countdown has nowhere to live except the client. Before this,
-// that meant plain useState, which reset to 25:00 the moment this page
-// unmounted (e.g. navigating to Home and back), even though nothing was
-// actually running server-side to reconcile against. A live/running
-// session already re-seeds correctly from real elapsed time (see the
-// effect below keyed on `running`/`remoteStartedAt`) — this only covers
-// the paused-with-time-left case that reconciliation can't see.
-const FL_PAUSE_KEY = 'wynko_focus_lock_paused_v1'
-interface FocusLockPausedSnapshot { totalSecs: number; remaining: number; subjectIdx: number }
-function loadFocusLockPausedSnapshot(): FocusLockPausedSnapshot | null {
+// Redesigned around per-task (subject + topic) timers instead of one global
+// countdown. Two independent timer "modes" a task can run in:
+//   - Pomodoro: counts DOWN from 25:00.
+//   - Regular: counts UP from 00:00:00, no limit.
+// Only one task can actually be "live" against the backend at a time
+// (study_sessions enforces a single open row per user - see
+// useFocusSession), so starting a task stops whatever task was previously
+// running, exactly like the old subject-switch behavior. Each task keeps
+// its own paused/resumed value locally so switching between tasks (or
+// navigating away and back) never silently resets someone else's progress.
+const FL_PLAN_KEY = 'wynko_focus_plan_v1'
+type TimerMode = 'pomodoro' | 'regular'
+interface StudyTask {
+  id: string
+  subject: string
+  topic: string
+  mode: TimerMode
+  pomodoroRemaining: number // seconds left, meaningful when mode === 'pomodoro'
+  regularElapsed: number    // seconds elapsed, meaningful when mode === 'regular'
+}
+interface FocusPlanSnapshot {
+  tasks: StudyTask[]
+  activeTaskId: string | null
+  running: boolean
+  runningStartedAtMs: number | null // Date.now() snapshot for offline/away catch-up
+}
+const POMODORO_DEFAULT_SECS = 25 * 60
+
+function loadFocusPlanSnapshot(): FocusPlanSnapshot | null {
   try {
-    const raw = localStorage.getItem(FL_PAUSE_KEY)
+    const raw = localStorage.getItem(FL_PLAN_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    if (typeof parsed?.totalSecs === 'number' && typeof parsed?.remaining === 'number') return parsed
+    if (Array.isArray(parsed?.tasks)) return parsed
   } catch { /* corrupt/inaccessible storage - just start fresh */ }
   return null
 }
-function saveFocusLockPausedSnapshot(snap: FocusLockPausedSnapshot) {
-  try { localStorage.setItem(FL_PAUSE_KEY, JSON.stringify(snap)) } catch { /* best-effort */ }
-}
-function clearFocusLockPausedSnapshot() {
-  try { localStorage.removeItem(FL_PAUSE_KEY) } catch { /* best-effort */ }
+function saveFocusPlanSnapshot(snap: FocusPlanSnapshot) {
+  try { localStorage.setItem(FL_PLAN_KEY, JSON.stringify(snap)) } catch { /* best-effort */ }
 }
 
-// ─── Tasks Panel ──────────────────────────────────────────────────────────────
-// Replaces Focus Lock's old "Subject Timer" list (per-subject accumulated
-// time) with a checklist built from quick-added topics + today's schedule
-// - matches the latest Figma export. Purely local/ephemeral (checked state
-// isn't persisted anywhere), same as the export itself.
-function TasksPanel({ taskList }: { taskList: { id: string; label: string; sub: string }[] }) {
-  const [checked, setChecked] = useState<Set<string>>(new Set())
-  const toggle = (id: string) => setChecked(prev => {
-    const next = new Set(prev)
-    next.has(id) ? next.delete(id) : next.add(id)
-    return next
-  })
-  const done = checked.size
-  const total = taskList.length
+function makeTaskId(): string {
+  return `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+// Seeds the plan from real data (quick-added topics + today's schedule) —
+// same de-dup key (subject::topic) the old TasksPanel used — rather than
+// ever hard-coding example subjects. Starts empty if there's genuinely
+// nothing yet; the empty state below invites adding a task instead.
+function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number): StudyTask[] {
+  const tasks: StudyTask[] = []
+  const seen = new Set<string>()
+  const addTask = (subject: string, topic: string) => {
+    const key = `${subject}::${topic}`
+    if (seen.has(key)) return
+    seen.add(key)
+    tasks.push({ id: makeTaskId(), subject, topic, mode: 'pomodoro', pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 })
+  }
+  units.forEach(u => u.topics.forEach(t => addTask(u.subject, t)))
+  const todaySchedule = schedule[todayIdx] || []
+  todaySchedule.forEach(s => addTask(s.subject, s.topic || s.subject))
+  return tasks
+}
+
+// ─── Timer mode selector (segmented control) ──────────────────────────────────
+function ModeTab({ active, onClick, icon, title, sub }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string }) {
   return (
-    <div className="w-72 flex-shrink-0">
-      <div className="rounded-2xl border h-full flex flex-col p-4"
-        style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Ico n="check" cls="w-4 h-4 text-violet-400" />
-            <span className="text-sm font-semibold text-slate-100">Tasks</span>
-          </div>
-          {total > 0 && (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border"
-              style={{ color: done === total ? '#19D3A2' : '#9B6CFF', background: done === total ? 'rgba(25,211,162,0.08)' : 'rgba(124,77,255,0.08)', borderColor: done === total ? 'rgba(25,211,162,0.25)' : '#1E3060' }}>
-              {done}/{total} done
-            </span>
-          )}
+    <button onClick={onClick}
+      className="flex items-center gap-3 px-5 py-3 rounded-2xl border transition-all flex-1 sm:flex-none"
+      style={{
+        background: active ? 'linear-gradient(135deg, rgba(124,77,255,0.28), rgba(25,181,230,0.14))' : '#0B1530',
+        borderColor: active ? '#6B44EE' : '#1A2845',
+        boxShadow: active ? '0 0 24px rgba(124,77,255,0.35)' : 'none',
+      }}>
+      <span className="text-xl flex-shrink-0 leading-none">{icon}</span>
+      <span className="text-left">
+        <span className="block text-sm font-semibold text-slate-100">{title}</span>
+        <span className="block text-[11px] text-slate-400">{sub}</span>
+      </span>
+    </button>
+  )
+}
+
+// ─── My Study Plan row ─────────────────────────────────────────────────────────
+function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
+  task: StudyTask; isActive: boolean; running: boolean
+  onStart: () => void; onPause: () => void; onRemove: () => void
+}) {
+  const { emoji, color } = subjectVisual(task.subject)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const displaySecs = task.mode === 'pomodoro' ? task.pomodoroRemaining : task.regularElapsed
+  const timeStr = formatClock(displaySecs, task.mode === 'regular')
+  const isLiveRunning = isActive && running
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all"
+      style={{
+        background: isActive ? 'rgba(124,77,255,0.07)' : 'rgba(11,21,48,0.55)',
+        borderColor: isActive ? 'rgba(124,77,255,0.35)' : 'rgba(26,40,69,0.7)',
+      }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+        style={{ background: `${color}1A`, border: `1px solid ${color}44` }}>{emoji}</div>
+
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-slate-100 truncate">{task.subject}</div>
+        <div className="text-[11px] text-slate-500 truncate">{task.topic}</div>
+      </div>
+
+      <div className="text-right flex-shrink-0 hidden sm:block" style={{ width: 96 }}>
+        <div className="text-[11px] font-medium flex items-center justify-end gap-1"
+          style={{ color: task.mode === 'pomodoro' ? '#F87171' : '#38BDF8' }}>
+          {task.mode === 'pomodoro' ? <>🍅 Pomodoro</> : <><Ico n="clock" cls="w-3 h-3" /> Regular</>}
         </div>
-        {total > 0 && (
-          <div className="h-1 rounded-full mb-3 overflow-hidden bg-[#1A2845]">
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${(done / total) * 100}%`, background: 'linear-gradient(90deg, #7C4DFF, #19B5E6)' }} />
-          </div>
-        )}
-        <div className="flex-1 overflow-y-auto space-y-1.5">
-          {total === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-10 text-center">
-              <div className="text-2xl mb-2">📋</div>
-              <div className="text-xs text-slate-500">No tasks yet.<br />Quick Add topics on the home page<br />or add items to your schedule.</div>
-            </div>
-          ) : taskList.map(task => {
-            const isDone = checked.has(task.id)
-            return (
-              <button key={task.id} onClick={() => toggle(task.id)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all hover:border-violet-500/30"
-                style={{ background: isDone ? 'rgba(25,211,162,0.05)' : 'rgba(26,40,69,0.35)', borderColor: isDone ? 'rgba(25,211,162,0.2)' : 'rgba(26,40,69,0.55)' }}>
-                <div className="rounded-md border flex items-center justify-center flex-shrink-0 transition-all"
-                  style={{ width: 18, height: 18, borderColor: isDone ? '#19D3A2' : '#4E5E84', background: isDone ? '#19D3A2' : 'transparent' }}>
-                  {isDone && <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round"><path d="M2 6l3 3 5-5" /></svg>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-medium truncate transition-all" style={{ color: isDone ? '#4E5E84' : '#C7D2FE', textDecoration: isDone ? 'line-through' : 'none' }}>{task.label}</div>
-                  <div className="text-[10px] truncate text-[#4E5E84]">{task.sub}</div>
-                </div>
+        <div className="text-[12px] font-mono mt-0.5" style={{ color: isLiveRunning ? '#E2E8F0' : '#8B9AC7' }}>{timeStr}</div>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button onClick={onStart} disabled={isLiveRunning}
+          title="Start"
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-40 hover:opacity-90 active:scale-95"
+          style={{ background: '#19D3A2', color: '#04140F' }}>
+          <Ico n="play" cls="w-3.5 h-3.5" />
+        </button>
+        <button onClick={onPause} disabled={!isLiveRunning}
+          title="Pause"
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30 hover:opacity-90 active:scale-95"
+          style={{ background: '#1A2845', color: '#C7D2FE' }}>
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+        </button>
+        <div className="relative">
+          <button onClick={() => setMenuOpen(v => !v)} title="More"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors">
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-1 z-20 rounded-lg border overflow-hidden whitespace-nowrap"
+              style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+              onMouseLeave={() => setMenuOpen(false)}>
+              <button onClick={() => { setMenuOpen(false); onRemove() }}
+                className="px-3 py-2 text-[12px] text-red-400 hover:bg-red-500/10 transition-colors w-full text-left">
+                Remove task
               </button>
-            )
-          })}
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
-  const [pausedSnapshot] = useState(loadFocusLockPausedSnapshot)
-  const [inputH, setInputH] = useState(0)
-  const [inputM, setInputM] = useState(25)
-  const [inputS, setInputS] = useState(0)
-  const [totalSecs, setTotalSecs] = useState(pausedSnapshot?.totalSecs ?? 25 * 60)
-  const [remaining, setRemaining] = useState(pausedSnapshot?.remaining ?? 25 * 60)
-  const [fullscreen, setFullscreen] = useState(false)
-  const [showCustom, setShowCustom] = useState(false)
-  const [activeSubjectIdx, setActiveSubjectIdx] = useState(pausedSnapshot?.subjectIdx ?? 0)
-  const [quickActive, setQuickActive] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+// ─── Add Task modal ─────────────────────────────────────────────────────────────
+function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject: string, topic: string, mode: TimerMode) => void }) {
+  const [subject, setSubject] = useState('')
+  const [topic, setTopic] = useState('')
+  const [mode, setMode] = useState<TimerMode>('pomodoro')
+  const canAdd = subject.trim().length > 0 && topic.trim().length > 0
 
-  // Real backend wiring: study_sessions (rpc_start/stop_study_session,
-  // same RPCs timer.html uses), today's real per-subject totals, and a
-  // read-only relay of whatever block-preset enforcement is already
-  // active (never starts one from here - see useFocusSession's header
-  // comment). This replaces the page's previous local-only useState/
-  // setInterval clock, which reset on refresh and never left the browser tab.
+  function submit() {
+    if (!canAdd) return
+    onAdd(subject.trim(), topic.trim(), mode)
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="rounded-2xl border p-7 w-[380px] max-w-[92vw]"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="mb-5">
+          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">ADD TASK</div>
+          <div className="text-lg font-semibold text-slate-100">New study task</div>
+        </div>
+
+        <label className="block text-[11px] text-slate-500 mb-1.5">Subject</label>
+        <input autoFocus value={subject} onChange={e => setSubject(e.target.value)}
+          placeholder="e.g. Fundamental Nursing"
+          list="focus-subject-suggestions"
+          className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
+          style={{ borderColor: '#1A2845' }} />
+        <datalist id="focus-subject-suggestions">
+          {SUBJECT_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+        </datalist>
+
+        <label className="block text-[11px] text-slate-500 mb-1.5">Topic</label>
+        <input value={topic} onChange={e => setTopic(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') submit() }}
+          placeholder="e.g. Infection Control"
+          className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
+          style={{ borderColor: '#1A2845' }} />
+
+        <label className="block text-[11px] text-slate-500 mb-1.5">Timer mode</label>
+        <div className="flex gap-2 mb-6">
+          <button onClick={() => setMode('pomodoro')}
+            className="flex-1 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all"
+            style={{ background: mode === 'pomodoro' ? 'rgba(124,77,255,0.18)' : 'transparent', borderColor: mode === 'pomodoro' ? '#6B44EE' : '#1A2845', color: mode === 'pomodoro' ? '#C4AAFF' : '#8B9AC7' }}>
+            🍅 Pomodoro
+          </button>
+          <button onClick={() => setMode('regular')}
+            className="flex-1 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all"
+            style={{ background: mode === 'regular' ? 'rgba(25,181,230,0.18)' : 'transparent', borderColor: mode === 'regular' ? '#19B5E6' : '#1A2845', color: mode === 'regular' ? '#7DD8F0' : '#8B9AC7' }}>
+            🕐 Regular
+          </button>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={!canAdd}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
+            Add Task
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Current Focus panel ────────────────────────────────────────────────────────
+function CurrentFocusPanel({ task }: { task: StudyTask | null }) {
+  return (
+    <div className="rounded-2xl border p-4" style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+      <div className="flex items-center gap-2 mb-4">
+        <Ico n="target" cls="w-4 h-4 text-violet-400" />
+        <span className="text-sm font-semibold text-slate-100">Current Focus</span>
+      </div>
+      {task ? (
+        <div className="space-y-3">
+          <div>
+            <div className="text-[10px] tracking-wide text-slate-500 mb-1.5">Subject</div>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(26,40,69,0.5)' }}>
+              <Ico n="library" cls="w-4 h-4 text-violet-300 flex-shrink-0" />
+              <span className="text-sm text-slate-100 truncate">{task.subject}</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] tracking-wide text-slate-500 mb-1.5">Topic</div>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(26,40,69,0.5)' }}>
+              <Ico n="check" cls="w-4 h-4 text-cyan-300 flex-shrink-0" />
+              <span className="text-sm text-slate-100 truncate">{task.topic}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="text-2xl mb-2">🎯</div>
+          <div className="text-xs text-slate-500">No active session yet.<br />Start a task in My Study Plan.</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Quick Notes panel ───────────────────────────────────────────────────────────
+// Purely local scratch space for the current session - not synced anywhere,
+// same "ephemeral by design" spirit as the old Tasks checklist it replaces.
+function QuickNotesPanel() {
+  const [note, setNote] = useState('')
+  return (
+    <div className="rounded-2xl border p-4 flex-1 flex flex-col min-h-[140px]"
+      style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-base leading-none">📝</span>
+        <span className="text-sm font-semibold text-slate-100">Quick Notes</span>
+      </div>
+      <textarea value={note} onChange={e => setNote(e.target.value)}
+        placeholder="No notes yet…
+Add a quick note for this session."
+        className="flex-1 w-full bg-transparent outline-none text-[13px] leading-relaxed text-slate-300 placeholder-slate-600 resize-none" />
+    </div>
+  )
+}
+
+function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+  const [snapshot] = useState(loadFocusPlanSnapshot)
+  const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx))
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(snapshot?.activeTaskId ?? null)
+  const [running, setRunning] = useState<boolean>(!!snapshot?.running)
+  const [selectedMode, setSelectedMode] = useState<TimerMode>('pomodoro')
+  const [fullscreen, setFullscreen] = useState(false)
+  const [showAddTask, setShowAddTask] = useState(false)
+  const didCatchUp = useRef(false)
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const fullscreenRef = useRef<HTMLDivElement | null>(null)
+
+  // True browser Fullscreen API when available (desktop + most mobile
+  // browsers), with the always-on CSS overlay below as the visual
+  // fallback for browsers that refuse/lack it (notably iOS Safari for
+  // non-<video> elements) - either way the distraction-free overlay
+  // renders, so "fullscreen" always works even without OS-level support.
+  async function enterFullscreen() {
+    setFullscreen(true)
+    try {
+      const el = fullscreenRef.current as any
+      if (el?.requestFullscreen) await el.requestFullscreen()
+      else if (el?.webkitRequestFullscreen) await el.webkitRequestFullscreen()
+    } catch { /* CSS overlay above already covers this - native API is a bonus, not a requirement */ }
+  }
+  async function exitFullscreen() {
+    setFullscreen(false)
+    try {
+      const doc = document as any
+      if (doc.fullscreenElement && doc.exitFullscreen) await doc.exitFullscreen()
+      else if (doc.webkitFullscreenElement && doc.webkitExitFullscreen) await doc.webkitExitFullscreen()
+    } catch { /* nothing to exit, or already exited (e.g. via Esc) */ }
+  }
+  // Keeps our state in sync if the browser's own fullscreen is dismissed
+  // some other way (Esc key, swipe-down, OS gesture) so the overlay
+  // doesn't stay stuck open behind a non-fullscreen window.
+  useEffect(() => {
+    function onFsChange() {
+      const doc = document as any
+      const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement)
+      if (!isFs) setFullscreen(false)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    document.addEventListener('webkitfullscreenchange', onFsChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange)
+      document.removeEventListener('webkitfullscreenchange', onFsChange)
+    }
+  }, [])
+
   const {
     loading: sessionLoading,
-    running,
-    activeSubject: remoteActiveSubject,
-    startedAt: remoteStartedAt,
-    subjectTotals,
-    enforcementActive,
     start: startRemoteSession,
     stop: stopRemoteSession,
-    switchSubject: switchRemoteSubject,
   } = useFocusSession()
 
-  const subjects = units.length > 0
-    ? [...new Set(units.map(u => u.subject))]
-    : ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English']
-
-  // Keep the local subject-picker index in sync with whatever subject
-  // is actually live server-side (e.g. a session reconciled on mount
-  // from another page/device), so this page can't silently disagree
-  // with what RevMGrid/leaderboards see as "current subject".
+  // One-time catch-up: if the plan was left running and the tab/app was
+  // closed or backgrounded, fast-forward the active task by real elapsed
+  // time instead of silently losing (or freezing) its progress.
   useEffect(() => {
-    if (!remoteActiveSubject) return
-    const idx = subjects.indexOf(remoteActiveSubject)
-    if (idx >= 0) setActiveSubjectIdx(idx)
-  }, [remoteActiveSubject, subjects])
-
-  // Seed the countdown from real elapsed time whenever a session is
-  // (re)found running server-side - on first mount, and again if the
-  // person navigates away (e.g. to Home) and back, which remounts
-  // this page and would otherwise reset `remaining` to its initial
-  // 25:00 useState value even though the real session underneath was
-  // never touched. totalSecs stays whatever the countdown length was
-  // set to (quick-select/custom) rather than being re-derived, since
-  // the backend only tracks elapsed time, not a target duration.
-  useEffect(() => {
-    if (!running || !remoteStartedAt) return
-    const elapsed = Math.max(0, Math.floor((Date.now() - new Date(remoteStartedAt).getTime()) / 1000))
-    setRemaining(prev => {
-      const next = Math.max(0, totalSecs - elapsed)
-      return next !== prev ? next : prev
-    })
-    clearFocusLockPausedSnapshot() // a live remote session takes priority over any stale paused snapshot
-    // deliberately excludes totalSecs/remaining - this should only
-    // re-seed when the remote session identity changes (found
-    // running, or a new started_at from a fresh start), not on every
-    // local tick this same effect's interval below produces
+    if (didCatchUp.current) return
+    didCatchUp.current = true
+    if (!snapshot?.running || !snapshot.activeTaskId || !snapshot.runningStartedAtMs) return
+    const elapsed = Math.max(0, Math.floor((Date.now() - snapshot.runningStartedAtMs) / 1000))
+    if (elapsed <= 0) return
+    setTasks(prev => prev.map(t => {
+      if (t.id !== snapshot.activeTaskId) return t
+      if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - elapsed) }
+      return { ...t, regularElapsed: t.regularElapsed + elapsed }
+    }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, remoteStartedAt])
+  }, [])
 
+  // Keep the segmented mode tab in sync with whichever task is actually
+  // active, so it always reflects reality rather than a stale click.
   useEffect(() => {
-    if (running) {
-      timerRef.current = setInterval(() => {
-        setRemaining(prev => {
-          if (prev <= 1) { stopRemoteSession(); clearFocusLockPausedSnapshot(); return 0 }
-          return prev - 1
-        })
+    if (!activeTaskId) return
+    const t = tasks.find(x => x.id === activeTaskId)
+    if (t) setSelectedMode(t.mode)
+  }, [activeTaskId, tasks])
+
+  // Local 1s ticker for the active task only - Pomodoro counts down,
+  // Regular counts up indefinitely.
+  useEffect(() => {
+    if (running && activeTaskId) {
+      tickRef.current = setInterval(() => {
+        setTasks(prev => prev.map(t => {
+          if (t.id !== activeTaskId) return t
+          if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - 1) }
+          return { ...t, regularElapsed: t.regularElapsed + 1 }
+        }))
       }, 1000)
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current)
+    } else if (tickRef.current) {
+      clearInterval(tickRef.current)
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [running, stopRemoteSession])
+    return () => { if (tickRef.current) clearInterval(tickRef.current) }
+  }, [running, activeTaskId])
 
-  const PRESETS = [25, 50, 75, 100]
-
-  function setQuickTime(mins: number, idx: number) {
-    const s = mins * 60
-    setTotalSecs(s); setRemaining(s)
-    setInputH(0); setInputM(mins); setInputS(0); setQuickActive(idx)
-    clearFocusLockPausedSnapshot()
-  }
-
-  function applyCustom() {
-    const s = inputH * 3600 + inputM * 60 + inputS
-    if (s > 0) { setTotalSecs(s); setRemaining(s) }
-    setShowCustom(false); setQuickActive(-1)
-    clearFocusLockPausedSnapshot()
-  }
-
-  function handleReset() { stopRemoteSession(); clearFocusLockPausedSnapshot(); setRemaining(totalSecs) }
-
-  function handleToggleRun() {
-    if (running) {
-      // Pausing has nowhere server-side to live (see the module comment
-      // above) - snapshot the countdown locally so navigating away and
-      // back, or a page refresh, doesn't silently lose it.
-      saveFocusLockPausedSnapshot({ totalSecs, remaining, subjectIdx: activeSubjectIdx })
-      stopRemoteSession() // "pause" = stop the study_sessions row, same as timer.html's own pause button
-    } else {
-      clearFocusLockPausedSnapshot()
-      startRemoteSession(subjects[activeSubjectIdx] || 'General')
+  // A Pomodoro task that hits 0 while running auto-completes (pauses)
+  // rather than going negative or forcing a hard stop mid-render.
+  useEffect(() => {
+    if (!running || !activeTaskId) return
+    const t = tasks.find(x => x.id === activeTaskId)
+    if (t && t.mode === 'pomodoro' && t.pomodoroRemaining <= 0) {
+      setRunning(false)
+      stopRemoteSession()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, running, activeTaskId])
+
+  // Persist the whole plan on every change so switching tabs/sections,
+  // adding a task, or scrolling never has a chance to lose state, and a
+  // refresh/relaunch can catch up on real elapsed time (see effect above).
+  useEffect(() => {
+    saveFocusPlanSnapshot({ tasks, activeTaskId, running, runningStartedAtMs: running ? Date.now() : null })
+  }, [tasks, activeTaskId, running])
+
+  const activeTask = tasks.find(t => t.id === activeTaskId) || null
+
+  async function handleStartTask(taskId: string) {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+    if (running && activeTaskId && activeTaskId !== taskId) {
+      // Only one live study_sessions row per user - starting a different
+      // task means stopping (and logging) whatever was running before.
+      await stopRemoteSession()
+    }
+    setActiveTaskId(taskId)
+    setRunning(true)
+    try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
   }
 
-  function handleSelectSubject(idx: number) {
-    setActiveSubjectIdx(idx)
-    if (running) switchRemoteSubject(subjects[idx])
+  async function handlePauseTask(taskId: string) {
+    if (activeTaskId !== taskId || !running) return
+    setRunning(false)
+    await stopRemoteSession()
   }
 
-  const h = Math.floor(remaining / 3600)
-  const m = Math.floor((remaining % 3600) / 60)
-  const s = remaining % 60
-  const f2 = (n: number) => String(n).padStart(2, '0')
-  const timeStr = h > 0 ? `${f2(h)}:${f2(m)}:${f2(s)}` : `${f2(m)}:${f2(s)}`
-  const curSubjName = subjects[activeSubjectIdx] || 'Physics'
-  const curSubjColor = SUBJ_COLORS[activeSubjectIdx % SUBJ_COLORS.length]
+  function handleRemoveTask(taskId: string) {
+    if (activeTaskId === taskId) {
+      setRunning(false)
+      stopRemoteSession()
+      setActiveTaskId(null)
+    }
+    setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  function handleAddTask(subject: string, topic: string, mode: TimerMode) {
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+    setTasks(prev => [task, ...prev])
+    setShowAddTask(false)
+  }
+
+  // ── Main circle: mirrors the active task while one is running/paused;
+  // otherwise previews whichever mode tab is selected. ──
+  const isLiveRunning = running && !!activeTask
+  let circleRemaining: number, circleTotal: number, circleTimeStr: string
+  if (activeTask) {
+    if (activeTask.mode === 'pomodoro') {
+      circleRemaining = activeTask.pomodoroRemaining
+      circleTotal = POMODORO_DEFAULT_SECS
+      circleTimeStr = formatClock(activeTask.pomodoroRemaining)
+    } else {
+      // No fixed max for Regular - fill the ring once per hour purely as
+      // a visual heartbeat; the digits themselves are still unbounded.
+      const withinHour = activeTask.regularElapsed % 3600
+      circleTotal = 3600
+      circleRemaining = 3600 - withinHour
+      circleTimeStr = formatClock(activeTask.regularElapsed, true)
+    }
+  } else if (selectedMode === 'pomodoro') {
+    circleRemaining = POMODORO_DEFAULT_SECS
+    circleTotal = POMODORO_DEFAULT_SECS
+    circleTimeStr = formatClock(POMODORO_DEFAULT_SECS)
+  } else {
+    circleRemaining = 0
+    circleTotal = 0 // TimerCircle treats total<=0 as "no progress yet" - an empty ring preview
+    circleTimeStr = '00:00:00'
+  }
+  const circleCaption = activeTask ? (activeTask.mode === 'pomodoro' ? 'Study Time' : 'Studying') : (selectedMode === 'pomodoro' ? 'Focus • 25/5 • Repeat' : 'Count Up • No Limit')
+
+  const headerStatus = sessionLoading
+    ? 'Syncing…'
+    : activeTask
+      ? (running ? `● ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')
+      : 'Smarter focus. Bigger dreams.'
+
+  const TimerModeIcon = ({ mode }: { mode: TimerMode }) => mode === 'pomodoro'
+    ? <span>🍅</span>
+    : <Ico n="clock" cls="w-5 h-5" />
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
 
-      {/* ── Fullscreen overlay ── */}
+      {/* ── Fullscreen overlay ──────────────────────────────────────────────
+          True distraction-free view: only the timer, the active subject/
+          topic, and an icon-only exit control. Clicking/tapping the timer
+          itself toggles pause/resume - no extra button chrome on top. */}
       {fullscreen && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+        <div ref={fullscreenRef} className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
           <MountainBackdrop />
 
-          <div className="absolute top-6 right-6 z-10">
-            <button onClick={() => setFullscreen(false)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.05)] border-[#1E3060]">
-              <Ico n="compress" cls="w-4 h-4" /> Exit Fullscreen
+          <button onClick={exitFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen"
+            className="absolute top-6 right-6 z-10 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
+            <Ico n="compress" cls="w-5 h-5" />
+          </button>
+
+          <div className="relative z-10 h-full flex flex-col items-center justify-center gap-8 px-6">
+            <button
+              onClick={() => activeTask && (running ? handlePauseTask(activeTask.id) : handleStartTask(activeTask.id))}
+              disabled={!activeTask}
+              title={activeTask ? (running ? 'Tap to pause' : 'Tap to resume') : undefined}
+              className="bg-transparent border-none p-0 disabled:cursor-default"
+              style={{ width: 'min(440px, 62vh, 80vw)', aspectRatio: '1' }}>
+              <TimerCircle remaining={circleRemaining} total={circleTotal} timeStr={circleTimeStr} running={isLiveRunning} size={440} />
             </button>
-          </div>
-
-          <div className="relative z-10 h-full flex flex-col items-center justify-center gap-10">
-            <div style={{ width: 'min(440px, 62vh, 70vw)', aspectRatio: '1' }}>
-              <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={440} />
-            </div>
-
-            {/* Controls row — identical to normal mode: Reset / Resume·Pause / Tunes */}
-            <div className="flex items-center justify-center gap-5">
-              <button onClick={handleReset}
-                className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
-                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                    <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                  </svg>
-                </div>
-                <span className="text-[10px]">Reset</span>
-              </button>
-
-              <button onClick={handleToggleRun}
-                className="h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-9"
-                style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
-                {running
-                  ? <><svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg><span className="whitespace-nowrap">Pause</span></>
-                  : <><Ico n="play" cls="w-5 h-5 flex-shrink-0" /><span className="whitespace-nowrap">{remaining < totalSecs ? 'Resume' : 'Start'}</span></>}
-              </button>
-
-              <button className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
-                  <Ico n="bell" cls="w-5 h-5" />
-                </div>
-                <span className="text-[10px]">Tunes</span>
-              </button>
-            </div>
+            {activeTask ? (
+              <div className="text-center">
+                <div className="text-base font-semibold text-slate-100">{activeTask.subject}</div>
+                <div className="text-sm text-slate-500 mt-1">{activeTask.topic}</div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">Select a task in My Study Plan to begin</div>
+            )}
           </div>
         </div>
       )}
@@ -1172,178 +1427,90 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
             className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="text-[10px] tracking-[0.18em] mb-0.5 text-[#68728A]">FOCUS LOCK</div>
-            <div className="text-sm font-semibold text-[#F3F4F6] flex items-center gap-2">
-              {sessionLoading ? 'Syncing…' : running ? '● Session running' : remaining < totalSecs ? '⏸ Paused' : 'Smarter focus. Bigger dreams.'}
-              {enforcementActive && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full border" title="Reusing the active block preset from Blocks/Timer"
-                  style={{ color: '#67E8F9', background: 'rgba(6,182,212,0.1)', borderColor: 'rgba(6,182,212,0.3)' }}>
-                  🔒 Blocking active
-                </span>
-              )}
-            </div>
+            <div className="text-sm font-semibold text-[#F3F4F6] truncate">{headerStatus}</div>
           </div>
-          <button onClick={() => setFullscreen(true)}
-            className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg border transition-all hover:border-violet-400/40 text-[#9B6CFF] bg-[rgba(124,77,255,0.08)] border-[#1A2845]">
-            <Ico n="expand" cls="w-3.5 h-3.5" /> Fullscreen
-          </button>
           <UserAvatar size={32} />
         </header>
 
-        <main className="relative z-10 flex-1 overflow-y-auto px-8 py-10">
-          <div className="flex gap-12 items-center max-w-5xl mx-auto">
+        <main className="relative z-10 flex-1 overflow-y-auto px-5 sm:px-8 py-8">
+          <div className="max-w-6xl mx-auto flex flex-col gap-8">
 
-            {/* ── Left: Timer ── */}
-            <div className="flex-1 flex flex-col items-center gap-9">
-
-              {/* Circular timer — same design as fullscreen */}
-              <div className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
-                <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={320} />
-              </div>
-
-              {/* Controls row */}
-              <div className="flex items-center justify-center gap-5 w-full">
-                <button onClick={handleReset}
-                  className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                      <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                    </svg>
-                  </div>
-                  <span className="text-[10px]">Reset</span>
-                </button>
-
-                {/* Play/Pause */}
-                <button onClick={handleToggleRun}
-                  className="h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8"
-                  style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
-                  {running
-                    ? <><svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg><span className="whitespace-nowrap">Pause</span></>
-                    : <><Ico n="play" cls="w-5 h-5 flex-shrink-0" /><span className="whitespace-nowrap">{remaining < totalSecs ? 'Resume' : 'Start'}</span></>}
-                </button>
-
-                <button className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
-                    <Ico n="bell" cls="w-5 h-5" />
-                  </div>
-                  <span className="text-[10px]">Tunes</span>
-                </button>
-              </div>
-
+            {/* ── Timer mode selector ── */}
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <ModeTab active={selectedMode === 'pomodoro'} onClick={() => !activeTask && setSelectedMode('pomodoro')}
+                icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub="Focus • 25/5 • Repeat" />
+              <ModeTab active={selectedMode === 'regular'} onClick={() => !activeTask && setSelectedMode('regular')}
+                icon={<TimerModeIcon mode="regular" />} title="Regular Timer" sub="Count Up • No Limit" />
             </div>
 
-            {/* ── RIGHT: Tasks ── */}
-            {(() => {
-              // Flatten quick-added units + today's schedule into a
-              // checklist. Same de-dup key (subject::label) as the design.
-              const taskList: { id: string; label: string; sub: string }[] = []
-              const seen = new Set<string>()
-              const addTask = (id: string, label: string, sub: string) => {
-                const key = `${sub}::${label}`
-                if (!seen.has(key)) { seen.add(key); taskList.push({ id, label, sub }) }
-              }
-              units.forEach((u, ui) => {
-                u.topics.forEach((t, ti) => addTask(`u${ui}_${ti}`, t, u.subject))
-              })
-              const todaySchedule = schedule[todayIdx] || []
-              todaySchedule.forEach((s, si) => addTask(`s${si}`, s.topic || s.subject, s.subject))
-              return <TasksPanel taskList={taskList} />
-            })()}
-          </div>
-
-          {/* ── BOTTOM: Quick Select ── */}
-          <div className="rounded-2xl border p-4 flex-shrink-0 mt-10 max-w-5xl mx-auto bg-[#0B1530] border-[#1A2845]">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Ico n="zap" cls="w-4 h-4 text-violet-400" />
-                <span className="text-sm font-semibold text-slate-200">Quick Select</span>
+            {/* ── Main timer ── */}
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div className="relative flex items-center justify-center" style={{ width: 280, height: 280 }}>
+                <TimerCircle remaining={circleRemaining} total={circleTotal} timeStr={circleTimeStr} running={isLiveRunning} size={280} />
+                <button onClick={enterFullscreen} title="Fullscreen" aria-label="Enter fullscreen"
+                  className="absolute -top-1 -right-1 w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:opacity-90 active:scale-95 text-[#9B6CFF] bg-[rgba(124,77,255,0.10)] border border-[#1A2845]">
+                  ⛶
+                </button>
               </div>
+              <div className="text-xs text-slate-500">{circleCaption}</div>
+              {activeTask && (
+                <button onClick={() => (running ? handlePauseTask(activeTask.id) : handleStartTask(activeTask.id))}
+                  className="mt-2 h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8"
+                  style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
+                  {running
+                    ? <><svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
+                    : <><Ico n="play" cls="w-4 h-4 flex-shrink-0" />Resume</>}
+                </button>
+              )}
+            </div>
 
-              <div className="flex items-center gap-2">
-                {PRESETS.map((mins, idx) => (
-                  <button key={mins} onClick={() => setQuickTime(mins, idx)}
-                    className="flex flex-col items-center px-5 py-2.5 rounded-xl border font-semibold transition-all hover:scale-[1.03] active:scale-[0.97]"
-                    style={{
-                      background: quickActive === idx ? 'linear-gradient(135deg, #7C4DFF, #6B44EE)' : '#0B1530',
-                      borderColor: quickActive === idx ? '#563FA0' : '#1A2845',
-                      boxShadow: quickActive === idx ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
-                    }}>
-                    <span className="text-lg text-white leading-none">{mins}</span>
-                    <span className="text-[10px] text-white/55 mt-0.5">min</span>
+            {/* ── My Study Plan + Right column ── */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+
+              {/* My Study Plan */}
+              <div className="flex-1 min-w-0 w-full rounded-2xl border flex flex-col"
+                style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Ico n="progress" cls="w-4 h-4 text-violet-400" />
+                    <span className="text-sm font-semibold text-slate-100">My Study Plan</span>
+                  </div>
+                  <button onClick={() => setShowAddTask(true)}
+                    className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-all hover:border-violet-400/40"
+                    style={{ background: 'rgba(124,77,255,0.10)', borderColor: 'rgba(124,77,255,0.3)', color: '#C4AAFF' }}>
+                    + Add Task
                   </button>
-                ))}
+                </div>
+                <div className="px-4 pb-4 space-y-2">
+                  {tasks.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-14 text-center">
+                      <div className="text-2xl mb-2">📋</div>
+                      <div className="text-xs text-slate-500">No study tasks yet.<br />Add your first subject + topic to start a timer.</div>
+                    </div>
+                  ) : tasks.map(task => (
+                    <StudyPlanRow key={task.id} task={task} isActive={task.id === activeTaskId} running={running}
+                      onStart={() => handleStartTask(task.id)}
+                      onPause={() => handlePauseTask(task.id)}
+                      onRemove={() => handleRemoveTask(task.id)} />
+                  ))}
+                </div>
               </div>
 
-              <div className="w-px h-10 flex-shrink-0 bg-[#1A2845]" />
-
-              <button onClick={() => setShowCustom(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm transition-all hover:border-violet-400/40 flex-shrink-0 bg-[#0B1530] border-[#1A2845] text-[#9B6CFF]">
-                <Ico n="cog" cls="w-3.5 h-3.5" /> Custom Timer
-              </button>
-
-              {/* Current subject pill */}
-              <div className="ml-auto flex items-center gap-2.5 px-4 py-2.5 rounded-xl border flex-shrink-0 bg-[#0B1530] border-[#1A2845]">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                  style={{ background: `${curSubjColor}1A`, color: curSubjColor, border: `1px solid ${curSubjColor}44` }}>
-                  {curSubjName.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-slate-200 leading-none">{curSubjName}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Current Subject</div>
-                </div>
+              {/* Right column: Current Focus + Quick Notes */}
+              <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
+                <CurrentFocusPanel task={activeTask} />
+                <QuickNotesPanel />
               </div>
             </div>
           </div>
         </main>
       </div>
 
-      {/* ── Custom Timer Modal ── */}
-      {showCustom && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
-          onClick={e => { if (e.target === e.currentTarget) setShowCustom(false) }}>
-          <div className="rounded-2xl border p-8 w-[400px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
-            <div className="text-center mb-6">
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">CUSTOM TIMER</div>
-              <div className="text-lg font-semibold text-slate-100">Set your session time</div>
-              <div className="text-xs text-slate-500 mt-1">Up to 99 hours — infinite-length sessions</div>
-            </div>
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <TimeSpinner label="HH" value={inputH} onChange={setInputH} max={99} />
-              <div className="text-3xl text-slate-500 font-mono mb-6">:</div>
-              <TimeSpinner label="MM" value={inputM} onChange={setInputM} max={59} />
-              <div className="text-3xl text-slate-500 font-mono mb-6">:</div>
-              <TimeSpinner label="SS" value={inputS} onChange={setInputS} max={59} />
-            </div>
-            {/* Preview */}
-            <div className="text-center mb-6">
-              <span className="text-2xl font-mono text-violet-300">
-                {f2(inputH)}:{f2(inputM)}:{f2(inputS)}
-              </span>
-              <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                {inputH * 3600 + inputM * 60 + inputS > 0
-                  ? `${inputH * 3600 + inputM * 60 + inputS} seconds total`
-                  : 'Set a time above'}
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowCustom(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
-                Cancel
-              </button>
-              <button onClick={applyCustom}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
-                Apply Timer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showAddTask && <AddTaskModal onClose={() => setShowAddTask(false)} onAdd={handleAddTask} />}
     </div>
   )
-
 }
 
 // ─── Study Rooms Page ─────────────────────────────────────────────────────────
