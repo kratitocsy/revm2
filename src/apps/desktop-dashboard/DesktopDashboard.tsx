@@ -1198,20 +1198,26 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   const [showAddTask, setShowAddTask] = useState(false)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const fullscreenRef = useRef<HTMLDivElement | null>(null)
 
   // True browser Fullscreen API when available (desktop + most mobile
   // browsers), with the always-on CSS overlay below as the visual
   // fallback for browsers that refuse/lack it (notably iOS Safari for
   // non-<video> elements) - either way the distraction-free overlay
   // renders, so "fullscreen" always works even without OS-level support.
-  async function enterFullscreen() {
+  //
+  // The native request targets <html>, NOT the overlay element: setFullscreen(true)
+  // only *schedules* the overlay's render, so an overlay ref is still null at
+  // this point and the request silently never fired (no native fullscreen =>
+  // nothing for Esc to exit). <html> always exists, and the request must run
+  // synchronously inside the click to keep the browser's user-gesture grant.
+  function enterFullscreen() {
     setFullscreen(true)
     try {
-      const el = fullscreenRef.current as any
-      if (el?.requestFullscreen) await el.requestFullscreen()
-      else if (el?.webkitRequestFullscreen) await el.webkitRequestFullscreen()
-    } catch { /* CSS overlay above already covers this - native API is a bonus, not a requirement */ }
+      const el = document.documentElement as any
+      const req = el.requestFullscreen || el.webkitRequestFullscreen
+      const res = req ? req.call(el) : null
+      if (res && typeof res.catch === 'function') res.catch(() => { /* denied - CSS overlay still covers it */ })
+    } catch { /* CSS overlay already covers this - native API is a bonus, not a requirement */ }
   }
   async function exitFullscreen() {
     setFullscreen(false)
@@ -1221,6 +1227,19 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
       else if (doc.webkitFullscreenElement && doc.webkitExitFullscreen) await doc.webkitExitFullscreen()
     } catch { /* nothing to exit, or already exited (e.g. via Esc) */ }
   }
+  // Esc closes the overlay even when native fullscreen isn't active (iOS
+  // Safari, a denied request, embedded webviews) - in real fullscreen the
+  // browser consumes Esc itself and the fullscreenchange listener below
+  // takes over, so this is harmless there.
+  useEffect(() => {
+    if (!fullscreen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') exitFullscreen()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [fullscreen])
+
   // Keeps our state in sync if the browser's own fullscreen is dismissed
   // some other way (Esc key, swipe-down, OS gesture) so the overlay
   // doesn't stay stuck open behind a non-fullscreen window.
@@ -1387,11 +1406,14 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           topic, and an icon-only exit control. Clicking/tapping the timer
           itself toggles pause/resume - no extra button chrome on top. */}
       {fullscreen && (
-        <div ref={fullscreenRef} className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
           <MountainBackdrop />
 
-          <button onClick={exitFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen"
-            className="absolute top-6 right-6 z-10 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
+          {/* z-20 (not z-10): the content layer below is `relative z-10 h-full`, i.e.
+              it covers the whole overlay and, with an equal z-index, paints OVER this
+              button because it comes later in the DOM - swallowing every click. */}
+          <button onClick={exitFullscreen} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen"
+            className="absolute top-6 right-6 z-20 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
             <Ico n="compress" cls="w-5 h-5" />
           </button>
 
