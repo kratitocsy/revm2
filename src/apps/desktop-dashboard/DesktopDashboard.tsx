@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
+import aiAssistantImg from './imports/ai-assistant.png'
+import trophyBronze from './imports/trophy-bronze.png'
+import trophySilver from './imports/trophy-silver.png'
+import trophyGold from './imports/trophy-gold.png'
+import trophyDiamond from './imports/trophy-diamond.png'
 import wynkoLogo from './imports/wynko-logo.png'
 import avatar7 from './imports/avatar-7.png'
 import avatar8 from './imports/avatar-8.png'
@@ -171,10 +176,15 @@ function RetentionRing({ pct, size = 38 }: { pct: number; size?: number }) {
 }
 
 // ─── Timer Circle SVG ─────────────────────────────────────────────────────────
-function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
+// Single shared design used by both the normal Focus Lock layout and the
+// fullscreen overlay. Deliberately minimal: a track, a glowing blue→cyan
+// progress arc with a small tip dot, and the countdown itself. Nothing
+// else lives inside the ring — no logo, no label, no subject name — so the
+// time reads clearly at a glance in either mode.
+function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
   remaining: number; total: number; timeStr: string; running: boolean; size?: number
 }) {
-  const R = Math.round(size * 0.385)
+  const R = Math.round(size * 0.42)
   const CX = size / 2, CY = size / 2
   const circ = 2 * Math.PI * R
   const progress = total > 0 ? 1 - remaining / total : 0
@@ -182,42 +192,34 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
   const tipAngle = -Math.PI / 2 + progress * 2 * Math.PI
   const tipX = CX + R * Math.cos(tipAngle)
   const tipY = CY + R * Math.sin(tipAngle)
-  const sw = Math.round(size * 0.042)
+  const sw = Math.max(4, Math.round(size * 0.026))
   const gid = `g${size}`
+  const fontSize = size * (timeStr.length > 5 ? 0.148 : 0.192)
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full">
+    <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full" style={{ display: 'block' }}>
       <defs>
-        <radialGradient id={`ig${gid}`} cx="50%" cy="50%">
-          <stop offset="0%" stopColor="#130E2A" />
-          <stop offset="100%" stopColor="#070915" />
+        <radialGradient id={`ig${gid}`} cx="50%" cy="46%">
+          <stop offset="0%" stopColor="#0C1730" />
+          <stop offset="100%" stopColor="#05080F" />
         </radialGradient>
         <linearGradient id={`rg${gid}`} x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#7C4DFF" />
-          <stop offset="45%" stopColor="#6B44EE" />
-          <stop offset="100%" stopColor="#60A5FA" />
+          <stop offset="0%" stopColor="#2563EB" />
+          <stop offset="55%" stopColor="#38BDF8" />
+          <stop offset="100%" stopColor="#22D3EE" />
         </linearGradient>
-        <filter id={`rf${gid}`} x="-15%" y="-15%" width="130%" height="130%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.018} result="blur" />
+        <filter id={`rf${gid}`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.01} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <filter id={`df${gid}`} x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.014} result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <linearGradient id={`wg${gid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#C084FC" />
-          <stop offset="50%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#38BDF8" />
-        </linearGradient>
-        <filter id={`wf${gid}`} x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.018} result="blur" />
+        <filter id={`df${gid}`} x="-120%" y="-120%" width="340%" height="340%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.012} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      {/* Outer ambient halo */}
-      <circle cx={CX} cy={CY} r={R + sw + 6} fill="none" stroke="rgba(124,77,255,0.08)" strokeWidth={sw * 2.2} />
+      {/* Outer ambient halo — restrained, not neon */}
+      <circle cx={CX} cy={CY} r={R + sw + 5} fill="none" stroke="rgba(56,189,248,0.06)" strokeWidth={sw * 1.6} />
       {/* Track */}
-      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={sw} />
+      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
       {/* Inner dark fill */}
       <circle cx={CX} cy={CY} r={R - sw / 2 - 1} fill={`url(#ig${gid})`} />
       {/* Progress arc */}
@@ -230,35 +232,44 @@ function TimerCircle({ remaining, total, timeStr, running, size = 340 }: {
           transform={`rotate(-90, ${CX}, ${CY})`}
         />
       )}
-      {/* Tip glow dot */}
-      {progress > 0.008 && (
+      {/* Small glowing dot at the progress tip */}
+      {progress > 0.01 && (
         <>
-          <circle cx={tipX} cy={tipY} r={sw * 1.1} fill="#60A5FA" opacity="0.22" filter={`url(#df${gid})`} />
-          <circle cx={tipX} cy={tipY} r={sw * 0.62} fill="#60A5FA" filter={`url(#df${gid})`} />
-          <circle cx={tipX} cy={tipY} r={sw * 0.25} fill="white" />
+          <circle cx={tipX} cy={tipY} r={sw * 0.95} fill="#38BDF8" opacity="0.25" filter={`url(#df${gid})`} />
+          <circle cx={tipX} cy={tipY} r={sw * 0.48} fill="#BAE6FD" />
         </>
       )}
-      {/* Wynko W logo */}
-      <g transform={`translate(${CX - size * 0.088}, ${CY - size * 0.195}) scale(${size * 0.002})`} filter={`url(#wf${gid})`}>
-        <path d="M4 6 C7 4 12 5 14 9 L26 46 L38 18 C41 11 47 11 50 18 L62 46 L74 9 C76 5 81 4 84 6 L67 54 C64 60 56 60 53 54 L44 30 L35 54 C32 60 24 60 21 54 Z" fill={`url(#wg${gid})`} />
-      </g>
-      {/* FOCUS TIME label */}
-      <text x={CX} y={CY - size * 0.038} textAnchor="middle"
-        fontSize={size * 0.029} fill="rgba(148,163,184,0.6)"
-        fontFamily="Poppins, sans-serif" fontWeight="600" letterSpacing={size * 0.009}>
-        FOCUS TIME
-      </text>
-      {/* Time display */}
-      <text x={CX} y={CY + size * 0.095} textAnchor="middle"
-        fontSize={size < 400 ? (timeStr.length > 5 ? 34 : 44) : (timeStr.length > 5 ? 52 : 66)}
-        fill="#F1F5F9" fontFamily="JetBrains Mono, monospace" fontWeight="700">
+      {/* Countdown — the only content inside the ring */}
+      <text x={CX} y={CY} textAnchor="middle" dominantBaseline="central"
+        fontSize={fontSize} fill="#F1F5F9" fontFamily="JetBrains Mono, monospace" fontWeight="600"
+        style={{ letterSpacing: -fontSize * 0.02 }}>
         {timeStr}
       </text>
-      {/* Live dot */}
-      {running && (
-        <circle cx={CX + size * 0.09} cy={CY + size * 0.123} r={size * 0.008} fill="#19B5E6" opacity="0.9" />
-      )}
     </svg>
+  )
+}
+
+// ─── Mountain Backdrop ────────────────────────────────────────────────────────
+// Quiet, layered late-night mountain silhouette used behind the Focus Lock
+// timer (both normal and fullscreen). Pure decoration — sits behind
+// everything (pointer-events disabled) in dark navy monochrome so it never
+// competes with the ring or the controls above it.
+function MountainBackdrop() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden="true">
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 65% 45% at 50% 28%, rgba(56,189,248,0.05), rgba(56,189,248,0) 70%)' }} />
+      <svg viewBox="0 0 1200 520" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" style={{ height: '58%' }}>
+        {/* Farthest layer — subtle */}
+        <polygon opacity="0.55" fill="#0E1B36"
+          points="0,330 90,260 190,300 300,225 400,280 500,205 600,270 700,215 800,275 900,220 1000,285 1100,235 1200,290 1200,520 0,520" />
+        {/* Mid layer */}
+        <polygon opacity="0.78" fill="#0A1428"
+          points="0,390 110,320 230,365 340,290 460,350 580,275 700,345 820,290 940,355 1060,300 1200,350 1200,520 0,520" />
+        {/* Nearest layer — darkest, most defined */}
+        <polygon opacity="0.96" fill="#050C1A"
+          points="0,450 140,385 270,425 410,355 540,420 660,360 800,425 930,365 1060,420 1200,395 1200,520 0,520" />
+      </svg>
+    </div>
   )
 }
 
@@ -1099,54 +1110,64 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   const curSubjName = subjects[activeSubjectIdx] || 'Physics'
   const curSubjColor = SUBJ_COLORS[activeSubjectIdx % SUBJ_COLORS.length]
 
-  const pct = totalSecs > 0 ? (totalSecs - remaining) / totalSecs : 0
-  const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
-  const ss = String(remaining % 60).padStart(2, '0')
-  const R = 130
-  const CIRC = 2 * Math.PI * R
-  const dash = pct * CIRC
-  const gap = CIRC - dash
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
 
       {/* ── Fullscreen overlay ── */}
       {fullscreen && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-[#020615]">
-          <div className="absolute top-6 right-6">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+          <MountainBackdrop />
+
+          <div className="absolute top-6 right-6 z-10">
             <button onClick={() => setFullscreen(false)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.05)] border-[#1E3060]">
               <Ico n="compress" cls="w-4 h-4" /> Exit Fullscreen
             </button>
           </div>
-          <div style={{ width: 'min(520px, 80vw)', aspectRatio: '1' }}>
-            <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={520} />
+
+          <div className="relative z-10 h-full flex flex-col items-center justify-center gap-10">
+            <div style={{ width: 'min(440px, 62vh, 70vw)', aspectRatio: '1' }}>
+              <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={440} />
+            </div>
+
+            {/* Controls row — identical to normal mode: Reset / Resume·Pause / Tunes */}
+            <div className="flex items-center justify-center gap-5">
+              <button onClick={handleReset}
+                className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+                    <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                </div>
+                <span className="text-[10px]">Reset</span>
+              </button>
+
+              <button onClick={handleToggleRun}
+                className="h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-9"
+                style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
+                {running
+                  ? <><svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg><span className="whitespace-nowrap">Pause</span></>
+                  : <><Ico n="play" cls="w-5 h-5 flex-shrink-0" /><span className="whitespace-nowrap">{remaining < totalSecs ? 'Resume' : 'Start'}</span></>}
+              </button>
+
+              <button className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
+                  <Ico n="bell" cls="w-5 h-5" />
+                </div>
+                <span className="text-[10px]">Tunes</span>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={handleReset}
-              className="w-12 h-12 rounded-full flex items-center justify-center border text-slate-400 hover:text-white transition-colors border-[#1E3060] bg-[rgba(255,255,255,0.05)]">
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
-            </button>
-            <button onClick={handleToggleRun}
-              className="px-12 py-3.5 rounded-full text-white font-semibold text-lg flex items-center gap-3 transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 50px rgba(124,77,255,0.6), 0 0 100px rgba(40,85,204,0.3)' }}>
-              {running
-                ? <><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
-                : <><svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>{remaining < totalSecs ? 'Resume' : 'Start'}</>
-              }
-            </button>
-          </div>
-          <div className="text-sm text-slate-600 font-mono tracking-wide">{curSubjName} — current focus</div>
         </div>
       )}
 
       <Sidebar active="focus" setActive={onNavigate} profile={profile} />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="relative flex-1 flex flex-col overflow-hidden">
+        <MountainBackdrop />
+
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <header className="relative z-10 h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
           <button onClick={() => onNavigate('home')}
             className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
@@ -1170,66 +1191,19 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           <UserAvatar size={32} />
         </header>
 
-        <main className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="flex gap-10 items-start max-w-5xl mx-auto">
+        <main className="relative z-10 flex-1 overflow-y-auto px-8 py-10">
+          <div className="flex gap-12 items-center max-w-5xl mx-auto">
 
             {/* ── Left: Timer ── */}
-            <div className="flex-1 flex flex-col items-center gap-6">
+            <div className="flex-1 flex flex-col items-center gap-9">
 
-              {/* Circular timer */}
-              <div className="relative flex items-center justify-center" style={{ width: 300, height: 300 }}>
-                <svg width="300" height="300" viewBox="0 0 300 300" className="absolute inset-0">
-                  <defs>
-                    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#7C4DFF" />
-                      <stop offset="100%" stopColor="#19B5E6" />
-                    </linearGradient>
-                    <filter id="ringGlow">
-                      <feGaussianBlur stdDeviation="3" result="blur" />
-                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                    </filter>
-                  </defs>
-                  {/* Track */}
-                  <circle cx="150" cy="150" r={R} fill="none" stroke="#1A1F38" strokeWidth="10" />
-                  {/* Progress */}
-                  <circle cx="150" cy="150" r={R} fill="none"
-                    stroke="url(#ringGrad)" strokeWidth="10"
-                    strokeLinecap="butt"
-                    strokeDasharray={`${dash} ${gap}`}
-                    transform="rotate(-90 150 150)"
-                    filter="url(#ringGlow)"
-                    style={{ transition: 'stroke-dasharray 0.5s ease' }} />
-                  {/* Dot at tip — only when meaningfully progressed */}
-                  {pct > 0.02 && (() => {
-                    const angle = -Math.PI / 2 + pct * 2 * Math.PI
-                    const x = 150 + R * Math.cos(angle)
-                    const y = 150 + R * Math.sin(angle)
-                    return <circle cx={x} cy={y} r="5" fill="#19B5E6" filter="url(#ringGlow)" />
-                  })()}
-                </svg>
-
-                {/* Center content */}
-                <div className="flex flex-col items-center gap-1 z-10">
-                  {/* Wynko W logo */}
-                  <svg width="44" height="32" viewBox="0 0 88 60" fill="none" className="mb-1" style={{ filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.9)) drop-shadow(0 0 20px rgba(56,189,248,0.55))' }}>
-                    <defs>
-                      <linearGradient id="wGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#C084FC" />
-                        <stop offset="50%" stopColor="#818CF8" />
-                        <stop offset="100%" stopColor="#38BDF8" />
-                      </linearGradient>
-                    </defs>
-                    <path d="M4 6 C7 4 12 5 14 9 L26 46 L38 18 C41 11 47 11 50 18 L62 46 L74 9 C76 5 81 4 84 6 L67 54 C64 60 56 60 53 54 L44 30 L35 54 C32 60 24 60 21 54 Z" fill="url(#wGrad)" />
-                  </svg>
-                  <div className="text-[11px] tracking-[0.2em] font-medium text-[#68728A]">FOCUS TIME</div>
-                  <div className="text-6xl font-bold tabular-nums" style={{ color: '#F3F4F6', letterSpacing: '-2px' }}>
-                    {mm}:{ss}
-                  </div>
-                </div>
+              {/* Circular timer — same design as fullscreen */}
+              <div className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
+                <TimerCircle remaining={remaining} total={totalSecs} timeStr={timeStr} running={running} size={320} />
               </div>
 
               {/* Controls row */}
-              <div className="flex items-center justify-center gap-4 w-full">
+              <div className="flex items-center justify-center gap-5 w-full">
                 <button onClick={handleReset}
                   className="flex flex-col items-center gap-1.5 transition-all flex-shrink-0 text-[#4E5E84] hover:text-[#8B9AC7]">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#0B1530] border-[#1A2845]">
@@ -1279,7 +1253,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           </div>
 
           {/* ── BOTTOM: Quick Select ── */}
-          <div className="rounded-2xl border p-4 flex-shrink-0 mt-8 bg-[#0B1530] border-[#1A2845]">
+          <div className="rounded-2xl border p-4 flex-shrink-0 mt-10 max-w-5xl mx-auto bg-[#0B1530] border-[#1A2845]">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Ico n="zap" cls="w-4 h-4 text-violet-400" />
@@ -1385,6 +1359,7 @@ interface RoomData {
 interface BotParticipant {
   id: string; name: string; initials: string; subject: string
   studyTimeSecs: number; isStudying: boolean; isPaused?: boolean; cardGrad: string; accentColor: string
+  isMe?: boolean
 }
 
 interface ChatMsg {
@@ -1395,7 +1370,7 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 1, name: 'Physics Warriors', emoji: '⚡', classes: 'Class 11 · 12', subject: 'Physics',
     desc: 'Concepts, PYQs, doubts — all in one place.', members: 48,
-    avatarColors: ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B'],
+    avatarColors: ['#7C4DFF', '#9B6CFF', '#EC4899', '#F59E0B'],
     avatarInits: ['RS', 'PK', 'AM', 'DJ'],
     iconBg: 'linear-gradient(135deg, #1E40AF, #3B82F6)',
     iconEmoji: '📘', tag: 'popular', subjectTag: 'physics', isPublic: true,
@@ -1403,31 +1378,31 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 2, name: 'Chemistry Crew', emoji: '✨', classes: 'Class 11 · 12', subject: 'Chemistry',
     desc: 'Study. Discuss. Score.', members: 32,
-    avatarColors: ['#7C3AED', '#0891B2', '#EC4899', '#F87171'],
+    avatarColors: ['#7C4DFF', '#0F99CC', '#EC4899', '#F87171'],
     avatarInits: ['SK', 'DL', 'MK', 'RV'],
-    iconBg: 'linear-gradient(135deg, #7C3AED, #A855F7)',
+    iconBg: 'linear-gradient(135deg, #7C4DFF, #A855F7)',
     iconEmoji: '🧪', tag: 'popular', subjectTag: 'chemistry', isPublic: true,
   },
   {
     id: 3, name: 'Maths Mavericks', emoji: '', classes: 'Class 10 · 11 · 12', subject: 'Mathematics',
     desc: 'Tricks, practice, progress.', members: 67,
-    avatarColors: ['#059669', '#3B82F6', '#F59E0B', '#F97316'],
+    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'],
     avatarInits: ['AK', 'KV', 'PN', 'SR'],
-    iconBg: 'linear-gradient(135deg, #0E7490, #22D3EE)',
+    iconBg: 'linear-gradient(135deg, #0C7FAA, #19B5E6)',
     iconEmoji: '√x', tag: 'popular', subjectTag: 'maths', isPublic: true,
   },
   {
     id: 4, name: 'Biology Buddies', emoji: '🌿', classes: 'Class 11 · 12', subject: 'Biology',
     desc: 'Learn, revise, ace.', members: 41,
-    avatarColors: ['#065F46', '#6366F1', '#F59E0B', '#EC4899'],
+    avatarColors: ['#0A9673', '#7C4DFF', '#F59E0B', '#EC4899'],
     avatarInits: ['VM', 'PR', 'SC', 'AT'],
-    iconBg: 'linear-gradient(135deg, #065F46, #34D399)',
+    iconBg: 'linear-gradient(135deg, #0A9673, #19D3A2)',
     iconEmoji: '📗', tag: 'all', subjectTag: 'biology', isPublic: false, password: 'bio123',
   },
   {
     id: 5, name: 'JEE 2026', emoji: '👑', classes: 'JEE Aspirants', subject: 'All Subjects',
     desc: 'Discipline. Consistency. Results.', members: 89,
-    avatarColors: ['#DC2626', '#7C3AED', '#0891B2', '#F59E0B'],
+    avatarColors: ['#DC2626', '#7C4DFF', '#0F99CC', '#F59E0B'],
     avatarInits: ['RK', 'AS', 'PG', 'NM'],
     iconBg: 'linear-gradient(135deg, #BE185D, #F43F5E)',
     iconEmoji: '🎯', tag: 'popular', subjectTag: 'all', isPublic: false, password: 'jee2026',
@@ -1435,7 +1410,7 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 6, name: 'Night Owls', emoji: '🌙', classes: 'All Classes', subject: 'All Subjects',
     desc: 'Late night study sessions. No distractions.', members: 27,
-    avatarColors: ['#1D4ED8', '#6366F1', '#8B5CF6', '#0891B2'],
+    avatarColors: ['#1D4ED8', '#7C4DFF', '#9B6CFF', '#0F99CC'],
     avatarInits: ['LD', 'VR', 'AM', 'TR'],
     iconBg: 'linear-gradient(135deg, #1E3A8A, #3B82F6)',
     iconEmoji: '💻', tag: 'all', subjectTag: 'all', isPublic: true,
@@ -1443,31 +1418,31 @@ const ROOM_DATA: RoomData[] = [
   {
     id: 7, name: 'Class 12 Board Prep', emoji: '', classes: 'Class 12', subject: 'All Subjects',
     desc: "Let's crack it together!", members: 56,
-    avatarColors: ['#7C3AED', '#059669', '#F59E0B', '#EC4899'],
+    avatarColors: ['#7C4DFF', '#0DAE86', '#F59E0B', '#EC4899'],
     avatarInits: ['HP', 'GS', 'RT', 'MV'],
-    iconBg: 'linear-gradient(135deg, #4338CA, #6366F1)',
+    iconBg: 'linear-gradient(135deg, #5835CC, #7C4DFF)',
     iconEmoji: '👥', tag: 'all', subjectTag: 'all', isPublic: true,
   },
   {
     id: 8, name: 'Productive Humans', emoji: '✨', classes: 'All Classes', subject: 'All Subjects',
     desc: 'Better habits. Bigger dreams.', members: 73,
-    avatarColors: ['#7C3AED', '#3B82F6', '#EC4899', '#34D399'],
+    avatarColors: ['#7C4DFF', '#3B82F6', '#EC4899', '#19D3A2'],
     avatarInits: ['KD', 'PS', 'YR', 'NB'],
-    iconBg: 'linear-gradient(135deg, #5B21B6, #7C3AED)',
+    iconBg: 'linear-gradient(135deg, #5C35CC, #7C4DFF)',
     iconEmoji: '✦', tag: 'all', subjectTag: 'all', isPublic: true,
   },
 ]
 
 // ─── Bot Pool ─────────────────────────────────────────────────────────────────
 const BOT_POOL = [
-  { name: 'Riya', initials: 'RI', cardGrad: 'linear-gradient(160deg,#0F1729,#1E1244,#2A1860)', accentColor: '#8B5CF6', isStudying: true },
-  { name: 'Arjun', initials: 'AR', cardGrad: 'linear-gradient(160deg,#0D2030,#0E3355,#0C4A7A)', accentColor: '#22D3EE', isStudying: true },
+  { name: 'Riya', initials: 'RI', cardGrad: 'linear-gradient(160deg,#0F1729,#1E1244,#2A1860)', accentColor: '#9B6CFF', isStudying: true },
+  { name: 'Arjun', initials: 'AR', cardGrad: 'linear-gradient(160deg,#0D2030,#0E3355,#0C4A7A)', accentColor: '#19B5E6', isStudying: true },
   { name: 'Meera', initials: 'ME', cardGrad: 'linear-gradient(160deg,#1A0F28,#2D124A,#3D155C)', accentColor: '#A855F7', isStudying: true },
-  { name: 'Dev', initials: 'DE', cardGrad: 'linear-gradient(160deg,#0F1A20,#122A38,#0E3A50)', accentColor: '#06B6D4', isStudying: true },
-  { name: 'Anshul', initials: 'AN', cardGrad: 'linear-gradient(160deg,#15101E,#251540,#1E1060)', accentColor: '#7C3AED', isStudying: true },
+  { name: 'Dev', initials: 'DE', cardGrad: 'linear-gradient(160deg,#0F1A20,#122A38,#0E3A50)', accentColor: '#19B5E6', isStudying: true },
+  { name: 'Anshul', initials: 'AN', cardGrad: 'linear-gradient(160deg,#15101E,#251540,#1E1060)', accentColor: '#7C4DFF', isStudying: true },
   { name: 'Nain', initials: 'NA', cardGrad: 'linear-gradient(160deg,#0F1520,#1B2A3C,#223650)', accentColor: '#3B82F6', isStudying: false },
   { name: 'Adarsh', initials: 'AD', cardGrad: 'linear-gradient(160deg,#1A0F15,#2E1228,#3D1535)', accentColor: '#EC4899', isStudying: true },
-  { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#A78BFA', isStudying: true },
+  { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#9B6CFF', isStudying: true },
 ]
 
 function getRoomBots(room: RoomData): BotParticipant[] {
@@ -1512,7 +1487,7 @@ function FaceAvatars({ colors, inits }: { colors: string[]; inits: string[] }) {
     <div className="flex -space-x-2">
       {colors.slice(0, 4).map((c, i) => (
         <div key={i} className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 flex-shrink-0"
-          style={{ background: c, borderColor: '#0A0D1E', zIndex: 4 - i }}>
+          style={{ background: c, borderColor: '#0B1530', zIndex: 4 - i }}>
           {inits[i]}
         </div>
       ))}
@@ -1562,9 +1537,6 @@ function MicOffIcon() {
 }
 
 // ─── Bot Card ─────────────────────────────────────────────────────────────────
-// avatarUrl: the participant's actual chosen avatar (UserAvatarCtx for "You",
-// a real profile photo/pick for a real member once rooms are backend-wired).
-// Bots in BOT_POOL have no avatarUrl, so they keep the illustrated silhouette.
 function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string }) {
   const fmtTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
@@ -1587,7 +1559,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 
   if (state === 'offline') {
     return (
-      <div className="rounded-2xl border overflow-hidden" style={{ background: '#080C1A', borderColor: 'rgba(100,116,139,0.12)' }}>
+      <div className="rounded-2xl border overflow-hidden bg-[#020615] border-[rgba(100,116,139,0.12)]">
         <div className="h-40 flex flex-col items-center justify-center gap-2"
           style={{ background: 'linear-gradient(160deg,#0A0D18,#0D1120)' }}>
           {avatarUrl ? (
@@ -1600,7 +1572,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
           )}
           <div className="text-[10px] text-slate-600 font-mono">offline</div>
         </div>
-        <div className="p-3 border-t" style={{ borderColor: 'rgba(100,116,139,0.1)' }}>
+        <div className="p-3 border-t border-[rgba(100,116,139,0.1)]">
           <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-600" /><span className="text-slate-400 font-semibold text-sm">{bot.name}</span></div>
           <div className="text-xs text-slate-500 mt-0.5">{bot.subject}</div>
         </div>
@@ -1613,7 +1585,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
   const statusLabel = isLive ? null : 'Paused'
 
   return (
-    <div className="rounded-2xl border overflow-hidden relative" style={{ background: '#080C1A', borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
+    <div className="rounded-2xl border overflow-hidden relative bg-[#020615]" style={{ borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
       {avatarUrl ? (
         <div className="relative h-40 overflow-hidden" style={{ background: bot.cardGrad }}>
           <img src={avatarUrl} alt={bot.name}
@@ -1632,7 +1604,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
       {canKick && (
         <button onClick={onKick}
           className="absolute top-2.5 left-2.5 text-[9px] px-2 py-0.5 rounded-full transition-all hover:bg-red-500/20"
-          style={{ background: 'rgba(0,0,0,0.4)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)', fontFamily: 'Poppins, sans-serif' }}>
+          style={{ background: 'rgba(0,0,0,0.4)', color: '#F87171', border: '1px solid rgba(248,113,113,0.3)' }}>
           Kick
         </button>
       )}
@@ -1717,8 +1689,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
     const newRoom: RoomData = {
       id: Date.now(), name: createForm.name.trim(), emoji: '', classes: 'All Classes',
       subject: createForm.subject.trim() || 'All Subjects', desc: createForm.desc.trim() || 'Custom study room.',
-      members: 1, avatarColors: ['#7C3AED'], avatarInits: ['AS'],
-      iconBg: 'linear-gradient(135deg, #7C3AED, #4F46E5)', iconEmoji: '✦',
+      members: 1, avatarColors: ['#7C4DFF'], avatarInits: ['AS'],
+      iconBg: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', iconEmoji: '✦',
       tag: 'myrooms', isPublic: createForm.isPublic, password: createForm.isPublic ? undefined : createForm.password,
       isUserCreated: true, isOwner: true, subjectTag: 'all',
     }
@@ -1734,17 +1706,17 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}
+    <div className="flex h-screen overflow-hidden bg-[#020615]" 
       onClick={() => setOpenMenuId(null)}>
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>STUDY ROOMS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >STUDY ROOMS</div>
             <div className="text-sm font-semibold text-slate-200">Find your people. Focus better.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
@@ -1757,17 +1729,17 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             <div>
               <div className="text-[10px] font-mono tracking-[0.22em] text-slate-500 mb-2">STUDY TOGETHER · GROW TOGETHER</div>
               <h1 className="text-4xl font-bold leading-tight mb-2 text-white">
-                Study <span style={{ background: 'linear-gradient(90deg,#7C3AED,#A855F7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Rooms</span>
+                Study <span style={{ background: 'linear-gradient(90deg,#7C4DFF,#A855F7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Rooms</span>
               </h1>
               <p className="text-slate-400 text-sm">Find your people. Focus better.</p>
             </div>
             <button onClick={() => setShowCreate(true)}
               className="flex-shrink-0 flex items-center gap-4 p-5 rounded-2xl border relative overflow-hidden hover:scale-[1.02] transition-transform"
-              style={{ background: 'linear-gradient(135deg,#2D1B69,#1E3A8A)', borderColor: 'rgba(124,58,237,0.5)', minWidth: '240px', boxShadow: '0 0 40px rgba(124,58,237,0.2)' }}>
+              style={{ background: 'linear-gradient(135deg,#2D1B69,#1E3A8A)', borderColor: '#4A3A88', minWidth: '240px', boxShadow: '0 0 40px #1A2845' }}>
               <div className="absolute top-2 right-8 text-2xl opacity-30 select-none">✦</div>
               <div className="absolute top-5 right-4 text-sm opacity-20 select-none">✦</div>
               <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.5)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px #4A3A88' }}>
                 <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <div className="flex-1 text-left">
@@ -1781,13 +1753,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
           </div>
 
           {/* Search */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border mb-5"
-            style={{ background: 'rgba(14,21,40,0.7)', borderColor: 'rgba(124,58,237,0.25)' }}>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border mb-5 bg-[#0B1530] border-[#1A2845]"
+            >
             <Ico n="search" cls="w-4 h-4 text-slate-500 flex-shrink-0" />
             <input className="flex-1 bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600"
               placeholder="Search study rooms..." value={search} onChange={e => setSearch(e.target.value)} />
-            <kbd className="text-[11px] text-slate-600 border rounded px-1.5 py-0.5"
-              style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', fontFamily: 'JetBrains Mono, monospace' }}>⌘ K</kbd>
+            <kbd className="text-[11px] text-slate-600 border rounded px-1.5 py-0.5 bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)]"
+              >⌘ K</kbd>
           </div>
 
           {/* Tabs */}
@@ -1796,10 +1768,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
                 style={{
-                  background: tab === t.id ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(14,21,40,0.7)',
-                  color: tab === t.id ? '#fff' : '#94A3B8',
-                  border: `1px solid ${tab === t.id ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.2)'}`,
-                  boxShadow: tab === t.id ? '0 0 16px rgba(124,58,237,0.35)' : 'none',
+                  background: tab === t.id ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
+                  color: tab === t.id ? '#fff' : '#8B9AC7',
+                  border: `1px solid ${tab === t.id ? '#563FA0' : '#1A2845'}`,
+                  boxShadow: tab === t.id ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
                 }}>
                 <span>{t.icon}</span>{t.label}
               </button>
@@ -1812,9 +1784,9 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                 <button key={s} onClick={() => setSubjectFilter(s)}
                   className="px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
                   style={{
-                    background: subjectFilter === s ? 'rgba(124,58,237,0.2)' : 'transparent',
-                    color: subjectFilter === s ? '#C4B5FD' : '#64748B',
-                    borderColor: subjectFilter === s ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)',
+                    background: subjectFilter === s ? '#1A2845' : 'transparent',
+                    color: subjectFilter === s ? '#C4AAFF' : '#4E5E84',
+                    borderColor: subjectFilter === s ? '#4A3A88' : 'rgba(26,40,69,0.55)',
                   }}>{s}</button>
               ))}
             </div>
@@ -1826,8 +1798,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               <div className="text-slate-300 font-semibold mb-1">No rooms yet</div>
               <div className="text-slate-500 text-sm mb-4">Create your first study room to see it here.</div>
               <button onClick={() => setShowCreate(true)}
-                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>Create Room</button>
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]"
+                >Create Room</button>
             </div>
           )}
 
@@ -1838,7 +1810,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               return (
                 <div key={room.id}
                   className="flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-violet-500/40 relative"
-                  style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                  style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
                   <RoomIcon bg={room.iconBg} emoji={room.iconEmoji} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -1852,7 +1824,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                       )}
                       {room.isPublic && !room.isUserCreated && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
-                          style={{ background: 'rgba(52,211,153,0.08)', color: '#34D399', border: '1px solid rgba(52,211,153,0.2)' }}>
+                          style={{ background: 'rgba(25,211,162,0.08)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.20)' }}>
                           Public
                         </span>
                       )}
@@ -1862,10 +1834,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                       )}
                       {room.isOwner && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
-                          style={{ background: 'rgba(124,58,237,0.15)', color: '#A78BFA', border: '1px solid rgba(124,58,237,0.3)' }}>Owner</span>
+                          style={{ background: 'rgba(26,40,69,0.55)', color: '#9B6CFF', border: '1px solid #1E3060' }}>Owner</span>
                       )}
                     </div>
-                    <div className="text-[12px] text-slate-400 mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    <div className="text-[12px] text-slate-400 mb-1" >
                       {room.classes} &nbsp;|&nbsp; {room.subject}
                     </div>
                     <div className="text-sm text-slate-300 mb-3">{room.desc}</div>
@@ -1887,7 +1859,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                       {menuOpen && (
                         <div className="absolute right-0 top-full mt-1 w-40 rounded-xl border z-20 overflow-hidden"
                           onClick={e => e.stopPropagation()}
-                          style={{ background: '#0D1428', borderColor: 'rgba(124,58,237,0.35)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                          style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                           <button onClick={() => { setInviteRoom(room); setOpenMenuId(null) }}
                             className="w-full text-left px-3 py-2.5 text-sm text-slate-300 hover:bg-violet-500/10 hover:text-violet-200 transition-colors flex items-center gap-2">
                             <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-4l2 2-2 2M14 8H7" /></svg>
@@ -1895,8 +1867,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                           </button>
                           {joined && (
                             <button onClick={() => handleLeave(room.id)}
-                              className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t"
-                              style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+                              className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-[rgba(26,40,69,0.55)]"
+                              >
                               <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M17 10H7m0 0l3-3m-3 3l3 3M3 17V3" /></svg>
                               Leave Room
                             </button>
@@ -1909,13 +1881,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
                     {joined ? (
                       <button onClick={() => onEnterRoom(room)}
                         className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', boxShadow: '0 0 18px rgba(124,58,237,0.4)' }}>
+                        style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
                         Enter →
                       </button>
                     ) : (
                       <button onClick={() => handleJoin(room)}
                         className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', boxShadow: '0 0 18px rgba(124,58,237,0.4)' }}>
+                        style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
                         {room.isPublic ? 'Join' : '🔒 Join'}
                       </button>
                     )}
@@ -1931,10 +1903,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
       {passwordRoomId !== null && (() => {
         const room = allRooms.find(r => r.id === passwordRoomId)!
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
             onClick={e => { if (e.target === e.currentTarget) setPasswordRoomId(null) }}>
             <div className="rounded-2xl border p-8 w-[360px]"
-              style={{ background: '#0A0D1E', borderColor: 'rgba(245,158,11,0.35)', boxShadow: '0 0 60px rgba(245,158,11,0.1)' }}>
+              style={{ background: '#0B1530', borderColor: 'rgba(245,158,11,0.35)', boxShadow: '0 0 60px rgba(245,158,11,0.1)' }}>
               <div className="text-center mb-5">
                 <div className="text-3xl mb-2">🔒</div>
                 <div className="text-[10px] text-amber-400 font-mono tracking-[0.2em] mb-1">PRIVATE ROOM</div>
@@ -1944,7 +1916,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               <input
                 type="password"
                 className="w-full px-4 py-3 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 mb-1 text-center tracking-widest transition-colors"
-                style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : 'rgba(124,58,237,0.3)', fontFamily: 'JetBrains Mono, monospace', fontSize: '18px', letterSpacing: '4px' }}
+                style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : '#1E3060', fontSize: '18px', letterSpacing: '4px' }}
                 placeholder="••••••"
                 value={passwordInput}
                 onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
@@ -1955,11 +1927,11 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               {!passwordError && <div className="h-4 mb-1" />}
               <div className="flex gap-3">
                 <button onClick={() => setPasswordRoomId(null)}
-                  className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                  style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                  className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                  >Cancel</button>
                 <button onClick={submitPassword}
                   className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Enter Room
                 </button>
               </div>
@@ -1970,10 +1942,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
 
       {/* Invite Modal */}
       {inviteRoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setInviteRoom(null) }}>
           <div className="rounded-2xl border p-8 w-[400px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 60px rgba(124,58,237,0.15)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
             <div className="text-center mb-5">
               <div className="text-2xl mb-2">🔗</div>
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">INVITE TO ROOM</div>
@@ -1984,21 +1956,21 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             </div>
             <div className="mb-4">
               <div className="text-[11px] text-slate-500 mb-1.5 font-mono">INVITE LINK</div>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border"
-                style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(124,58,237,0.25)' }}>
-                <span className="flex-1 text-sm text-violet-300 truncate" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-[#0B1530] border-[#1A2845]"
+                >
+                <span className="flex-1 text-sm text-violet-300 truncate" >
                   wynko.app/rooms/{inviteRoom.name.toLowerCase().replace(/\s+/g, '-')}
                 </span>
                 <button onClick={() => copyInviteLink(inviteRoom)}
                   className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all flex-shrink-0"
-                  style={{ background: copied ? 'rgba(52,211,153,0.15)' : 'rgba(124,58,237,0.15)', color: copied ? '#34D399' : '#A78BFA', border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(124,58,237,0.3)'}` }}>
+                  style={{ background: copied ? 'rgba(25,211,162,0.15)' : 'rgba(26,40,69,0.55)', color: copied ? '#19D3A2' : '#9B6CFF', border: `1px solid ${copied ? 'rgba(25,211,162,0.30)' : '#1E3060'}` }}>
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
             {!inviteRoom.isPublic && (
-              <div className="mb-4 p-3 rounded-xl border"
-                style={{ background: 'rgba(245,158,11,0.07)', borderColor: 'rgba(245,158,11,0.2)' }}>
+              <div className="mb-4 p-3 rounded-xl border bg-[rgba(245,158,11,0.07)] border-[rgba(245,158,11,0.2)]"
+                >
                 <div className="text-[11px] text-amber-400 font-mono mb-1">ROOM PASSWORD</div>
                 <div className="text-sm text-amber-300">Share the password separately with your friends.</div>
               </div>
@@ -2006,28 +1978,28 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             <div className="flex gap-2">
               {[{ icon: '💬', label: 'WhatsApp' }, { icon: '✈️', label: 'Telegram' }, { icon: '📧', label: 'Email' }].map(opt => (
                 <button key={opt.label}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors"
-                  style={{ borderColor: 'rgba(124,58,237,0.2)', background: 'rgba(14,21,40,0.5)' }}>
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors border-[#1A2845] bg-[#0B1530]"
+                  >
                   {opt.icon} {opt.label}
                 </button>
               ))}
             </div>
             <button onClick={() => setInviteRoom(null)}
-              className="w-full mt-3 py-2 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.15)' }}>Close</button>
+              className="w-full mt-3 py-2 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[rgba(26,40,69,0.55)]"
+              >Close</button>
           </div>
         </div>
       )}
 
       {/* Create Room Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowCreate(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
             <div className="text-center mb-5">
               <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.4)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(40,85,204,0.6), 0 0 40px rgba(124,77,255,0.2)' }}>
                 <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">CREATE STUDY ROOM</div>
@@ -2035,41 +2007,41 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
             </div>
             <div className="space-y-3 mb-5">
               <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Room name *" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Room name *" />
               <input value={createForm.subject} onChange={e => setCreateForm(f => ({ ...f, subject: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Subject (e.g. Physics, JEE)" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Subject (e.g. Physics, JEE)" />
               <textarea value={createForm.desc} onChange={e => setCreateForm(f => ({ ...f, desc: e.target.value }))}
-                rows={2} className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 resize-none focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Short description..." />
+                rows={2} className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 resize-none focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Short description..." />
               {/* Public / Private toggle */}
               <div className="flex gap-2">
                 <button onClick={() => setCreateForm(f => ({ ...f, isPublic: true }))}
                   className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
-                  style={{ background: createForm.isPublic ? 'rgba(52,211,153,0.1)' : 'transparent', color: createForm.isPublic ? '#34D399' : '#64748B', borderColor: createForm.isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(124,58,237,0.2)' }}>
+                  style={{ background: createForm.isPublic ? 'rgba(25,211,162,0.10)' : 'transparent', color: createForm.isPublic ? '#19D3A2' : '#4E5E84', borderColor: createForm.isPublic ? 'rgba(25,211,162,0.40)' : '#1A2845' }}>
                   🌐 Public
                 </button>
                 <button onClick={() => setCreateForm(f => ({ ...f, isPublic: false }))}
                   className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
-                  style={{ background: !createForm.isPublic ? 'rgba(245,158,11,0.1)' : 'transparent', color: !createForm.isPublic ? '#F59E0B' : '#64748B', borderColor: !createForm.isPublic ? 'rgba(245,158,11,0.4)' : 'rgba(124,58,237,0.2)' }}>
+                  style={{ background: !createForm.isPublic ? 'rgba(245,158,11,0.1)' : 'transparent', color: !createForm.isPublic ? '#F59E0B' : '#4E5E84', borderColor: !createForm.isPublic ? 'rgba(245,158,11,0.4)' : '#1A2845' }}>
                   🔒 Private
                 </button>
               </div>
               {!createForm.isPublic && (
                 <input value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
                   type="password"
-                  className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/50 transition-colors"
-                  style={{ borderColor: 'rgba(245,158,11,0.3)' }} placeholder="Set room password" />
+                  className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/50 transition-colors border-[rgba(245,158,11,0.3)]"
+                   placeholder="Set room password" />
               )}
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowCreate(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                >Cancel</button>
               <button onClick={handleCreateRoom}
                 className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                 Create Room
               </button>
             </div>
@@ -2084,6 +2056,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
 function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
   room: RoomData; onBack: () => void; onNavigate: (id: string) => void; profile?: ProfileInfo
 }) {
+  const { avatar: userAvatar } = useContext(UserAvatarCtx)
   const bots = getRoomBots(room)
   const [focusRunning, setFocusRunning] = useState(false)
   const [focusTotal] = useState(25 * 60)
@@ -2144,7 +2117,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
 
   const selfName = profile?.displayName || 'Jatin Sinsinwar'
   const selfInitials = selfName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
-  const { avatar: selfAvatar } = useContext(UserAvatarCtx)
+
   const userCard: BotParticipant = {
     id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials, subject,
     studyTimeSecs: userStudyTime,
@@ -2154,18 +2127,18 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
     isStudying: focusRunning,
     isPaused: !focusRunning && userStudyTime > 0,
     cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
-    accentColor: '#7C3AED',
+    accentColor: '#7C4DFF',
   }
 
   const allParticipants = [userCard, ...visibleBots]
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#060914', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#060914]" >
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,9,20,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0 bg-[rgba(6,9,20,0.95)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm flex-shrink-0">
             <Ico n="chevL" cls="w-4 h-4" /> Rooms
           </button>
@@ -2186,17 +2159,17 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
         <main className="flex-1 overflow-y-auto flex flex-col">
           {/* Focus timer card */}
           <div className="mx-5 mt-4 mb-3 p-5 rounded-2xl border relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0D1130,#0F1845)', borderColor: 'rgba(124,58,237,0.35)', boxShadow: '0 0 40px rgba(124,58,237,0.1)' }}>
+            style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
             {/* Background wave */}
             <div className="absolute right-0 top-0 bottom-0 w-48 opacity-20 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right center,#7C3AED,transparent 70%)' }} />
+              style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
             <div className="flex items-center gap-6 relative">
               {/* Circular ring + play/pause */}
               <div className="flex-shrink-0 relative" style={{ width: 88, height: 88 }}>
                 <svg viewBox="0 0 88 88" width="88" height="88">
                   <defs>
                     <linearGradient id="rg2" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#7C3AED" /><stop offset="100%" stopColor="#60A5FA" />
+                      <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
                     </linearGradient>
                     <filter id="rf2"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                   </defs>
@@ -2220,12 +2193,12 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
               {/* Timer info */}
               <div className="flex-1">
                 <div className="text-[11px] text-slate-400 mb-0.5 font-mono tracking-wide">Focus Time</div>
-                <div className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 20px rgba(124,58,237,0.5)' }}>
+                <div className="text-4xl font-bold text-white mb-2" style={{ textShadow: '0 0 20px #4A3A88' }}>
                   {timeStr}
                 </div>
                 {/* Subject pill */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer hover:border-violet-400/40 transition-colors"
-                  style={{ background: 'rgba(124,58,237,0.12)', borderColor: 'rgba(124,58,237,0.3)' }}>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer hover:border-violet-400/40 transition-colors bg-[rgba(26,40,69,0.55)] border-[#1E3060]"
+                  >
                   <span className="text-base">🧪</span>
                   <span className="text-sm font-medium text-slate-200">{subject}</span>
                   <Ico n="chevR" cls="w-3 h-3 text-slate-400 rotate-90" />
@@ -2236,8 +2209,10 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 <div className="text-slate-400 text-sm font-mono">{studyingCount} studying</div>
                 <div className="flex -space-x-1.5 mt-2 justify-end">
                   {allParticipants.filter(p => p.isStudying).slice(0, 5).map(p => (
-                    <div key={p.id} className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white border"
-                      style={{ background: p.accentColor, borderColor: '#0D1130', zIndex: 1 }}>{p.initials}</div>
+                    <div key={p.id} className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[8px] font-bold text-white border"
+                      style={{ background: p.accentColor, borderColor: '#0B1530', zIndex: 1 }}>
+                      {p.id === 'user' ? <img src={userAvatar} alt="You" className="w-full h-full object-contain" /> : p.initials}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2245,15 +2220,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
           </div>
 
           {/* Tabs */}
-          <div className="mx-5 mb-3 flex rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)' }}>
+          <div className="mx-5 mb-3 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
+            >
             {([['studying', '👥', 'Active Studying'], ['chat', '💬', 'Chat']] as const).map(([id, icon, label]) => (
               <button key={id} onClick={() => setActiveTab(id as 'studying' | 'chat')}
                 className="flex-1 flex items-center justify-center gap-2.5 py-3 text-sm font-semibold transition-all"
                 style={{
-                  color: activeTab === id ? '#A78BFA' : '#64748B',
-                  background: activeTab === id ? 'rgba(124,58,237,0.12)' : 'transparent',
-                  borderBottom: activeTab === id ? '2px solid #7C3AED' : '2px solid transparent',
+                  color: activeTab === id ? '#9B6CFF' : '#4E5E84',
+                  background: activeTab === id ? 'rgba(26,40,69,0.55)' : 'transparent',
+                  borderBottom: activeTab === id ? '2px solid #7C4DFF' : '2px solid transparent',
                 }}>
                 <span>{icon}</span>{label}
               </button>
@@ -2267,16 +2242,16 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
                     bot={{ ...p, studyTimeSecs: i === 0 ? userStudyTime : botTimes[i - 1] ?? p.studyTimeSecs }}
-                    avatarUrl={p.id === 'user' ? selfAvatar : undefined}
                     canKick={room.isOwner && !p.isMe && p.id !== 'user'}
                     onKick={() => setKickedIds(prev => { const s = new Set(prev); s.add(p.id); return s })}
+                    avatarUrl={p.id === 'user' ? userAvatar : undefined}
                   />
                 ))}
                 {/* Seat available card */}
                 <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-violet-500/30 transition-colors"
-                  style={{ background: 'rgba(14,21,40,0.35)', borderColor: 'rgba(124,58,237,0.18)', borderStyle: 'dashed' }}>
-                  <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3"
-                    style={{ borderColor: 'rgba(124,58,237,0.35)' }}>
+                  style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                  <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#1E3060]"
+                    >
                     <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </div>
                   <div className="text-slate-300 font-semibold text-sm">Seat Available</div>
@@ -2290,7 +2265,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                 {chatLocked ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8 py-16">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-                      style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)' }}>🔒</div>
+                      style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>🔒</div>
                     <div className="text-slate-200 font-bold text-base">Chat is locked during focus study</div>
                     <div className="text-slate-400 text-sm leading-relaxed">
                       Finish your focus time to unlock chat.<br />
@@ -2298,7 +2273,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                     </div>
                     <button onClick={() => { setFocusRunning(false) }}
                       className="mt-2 px-6 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                      style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                      style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                       Pause & Open Chat
                     </button>
                   </div>
@@ -2308,13 +2283,13 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                       {messages.map(msg => (
                         <div key={msg.id} className={`flex gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                            style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(124,58,237,0.25)' }}>
+                            style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#1A2845' }}>
                             {msg.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div className={`flex flex-col gap-0.5 max-w-[70%] ${msg.isMe ? 'items-end' : ''}`}>
                             {!msg.isMe && <span className="text-[10px] text-slate-500 font-mono">{msg.name}</span>}
                             <div className="px-3.5 py-2 rounded-2xl text-sm text-slate-200"
-                              style={{ background: msg.isMe ? 'rgba(124,58,237,0.25)' : 'rgba(14,21,40,0.7)', border: `1px solid ${msg.isMe ? 'rgba(124,58,237,0.3)' : 'rgba(124,58,237,0.1)'}` }}>
+                              style={{ background: msg.isMe ? '#1A2845' : '#0B1530', border: `1px solid ${msg.isMe ? '#1E3060' : 'rgba(26,40,69,0.55)'}` }}>
                               {msg.text}
                             </div>
                             <span className="text-[9px] text-slate-600 font-mono">{msg.time}</span>
@@ -2323,18 +2298,18 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                       ))}
                       <div ref={chatEndRef} />
                     </div>
-                    <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+                    <div className="flex items-center gap-2 pt-3 border-t border-[rgba(26,40,69,0.55)]" >
                       <input
-                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
-                        style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(124,58,237,0.2)' }}
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors bg-[#0B1530] border-[#1A2845]"
+                        
                         placeholder="Type a message..."
                         value={chatInput}
                         onChange={e => setChatInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && sendMessage()}
                       />
                       <button onClick={sendMessage}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0 bg-[#7C4DFF]"
+                        >
                         <Ico n="arrow" cls="w-4 h-4" />
                       </button>
                     </div>
@@ -2356,7 +2331,7 @@ function BattleAnimeAvatar({ color, size = 56, initials = '??' }: { color: strin
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-        <circle cx="28" cy="28" r="27" stroke={color} strokeWidth="2" fill="#0A0D1E" />
+        <circle cx="28" cy="28" r="27" stroke={color} strokeWidth="2" fill="#0B1530" />
         <circle cx="28" cy="28" r="26" stroke={color} strokeWidth="0.5" opacity="0.3" />
         {/* Glow */}
         <circle cx="28" cy="28" r="24" fill={`${color}08`} />
@@ -2432,9 +2407,9 @@ function getWeekDates(): number[] {
 }
 
 const SUBJECT_COLOR_MAP: Record<string, string> = {
-  physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#22D3EE', maths: '#22D3EE',
-  biology: '#34D399', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
-  economics: '#6366F1', computer: '#06B6D4',
+  physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#19B5E6', maths: '#19B5E6',
+  biology: '#19D3A2', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
+  economics: '#7C4DFF', computer: '#19B5E6',
 }
 function subjectColor(name: string): string {
   const key = name.toLowerCase()
@@ -2477,7 +2452,7 @@ const WEBSITE_SUGGESTIONS = [
   'twitch.tv', 'facebook.com', 'tiktok.com', 'pinterest.com', 'amazon.com',
 ]
 
-const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#22D3EE', '#34D399', '#F59E0B', '#F87171', '#EC4899']
+const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#19B5E6', '#19D3A2', '#F59E0B', '#F87171', '#EC4899']
 
 function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile }: {
   onNavigate: (id: string) => void
@@ -2607,16 +2582,16 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>SCHEDULES & BLOCKERS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
             <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
           </div>
           <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
@@ -2632,13 +2607,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── AI Assistant Banner ── */}
           <div className="rounded-2xl border p-5 relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 40px rgba(124,58,237,0.1)' }}>
+            style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: '#2855CC', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right,#7C3AED,transparent)' }} />
+              style={{ background: 'radial-gradient(ellipse at right,#7C4DFF,transparent)' }} />
             <div className="flex items-center gap-5 relative">
-              <div className="flex-shrink-0 w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
-                style={{ background: 'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(99,102,241,0.2))', border: '1px solid rgba(124,58,237,0.4)' }}>
-                🤖
+              <div className="flex-shrink-0 w-16 h-16 rounded-2xl overflow-hidden">
+                <img src={aiAssistantImg} alt="AI Assistant" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
@@ -2647,7 +2621,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </div>
               <button onClick={() => { setShowAI(true); setAiStep('form') }}
                 className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-all hover:opacity-90 active:scale-95"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 24px rgba(124,58,237,0.4)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(40,85,204,0.55), 0 0 48px rgba(124,77,255,0.2)' }}>
                 ✦ Generate with AI
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
@@ -2656,10 +2630,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Your Schedule ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>
                   <Ico n="clock" cls="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
@@ -2669,7 +2643,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </div>
               <button onClick={() => setEditMode(e => !e)}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-sm transition-all"
-                style={{ borderColor: editMode ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.25)', color: editMode ? '#A78BFA' : '#64748B', background: editMode ? 'rgba(124,58,237,0.12)' : 'transparent' }}>
+                style={{ borderColor: editMode ? '#4A3A88' : '#1A2845', color: editMode ? '#9B6CFF' : '#4E5E84', background: editMode ? 'rgba(26,40,69,0.55)' : 'transparent' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
                 {editMode ? 'Done' : 'Edit'}
               </button>
@@ -2681,12 +2655,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 <button key={i} onClick={() => setActiveDay(i)}
                   className="flex-1 flex flex-col items-center py-2.5 rounded-xl transition-all"
                   style={{
-                    background: activeDay === i ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(14,21,40,0.5)',
-                    border: `1px solid ${activeDay === i ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.15)'}`,
-                    boxShadow: activeDay === i ? '0 0 16px rgba(124,58,237,0.35)' : 'none',
+                    background: activeDay === i ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
+                    border: `1px solid ${activeDay === i ? '#563FA0' : 'rgba(26,40,69,0.55)'}`,
+                    boxShadow: activeDay === i ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
                   }}>
-                  <span className="text-[10px] font-semibold" style={{ color: activeDay === i ? 'rgba(255,255,255,0.75)' : '#64748B' }}>{day}</span>
-                  <span className="text-base font-bold leading-tight" style={{ color: activeDay === i ? '#fff' : '#475569', fontFamily: 'JetBrains Mono, monospace' }}>{weekDates[i]}</span>
+                  <span className="text-[10px] font-semibold" style={{ color: activeDay === i ? 'rgba(255,255,255,0.75)' : '#4E5E84' }}>{day}</span>
+                  <span className="text-base font-bold leading-tight" style={{ color: activeDay === i ? '#fff' : '#4E5E84' }}>{weekDates[i]}</span>
                 </button>
               ))}
             </div>
@@ -2698,12 +2672,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               )}
               {currentDaySchedule.map(session => (
                 <div key={session.id}
-                  className="flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:border-violet-500/30 group"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.15)' }}>
+                  className="flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:border-violet-500/30 group bg-[#0B1530] border-[rgba(26,40,69,0.55)]"
+                  >
                   {editMode && (
                     <button onClick={() => deleteSession(session.id)}
-                      className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
-                      style={{ background: 'rgba(248,113,113,0.15)', color: '#F87171' }}>
+                      className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors bg-[rgba(248,113,113,0.15)] text-[#F87171]"
+                      >
                       <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   )}
@@ -2715,11 +2689,11 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     <div className="text-sm font-bold text-slate-100">{session.subject}</div>
                     <div className="text-[11px] text-slate-500">{session.topic}</div>
                   </div>
-                  <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" >
                     {session.startTime} – {session.endTime}
                   </div>
                   <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 12px rgba(124,58,237,0.3)' }}>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
                     🎯 Focus Mode
                   </button>
                   <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
@@ -2729,10 +2703,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
             {/* Add new */}
             <button onClick={() => setShowAddSession(true)}
-              className="w-full flex items-center gap-3 px-5 py-4 border-t transition-all hover:bg-white/[0.02] group"
-              style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+              className="w-full flex items-center gap-3 px-5 py-4 border-t transition-all hover:bg-white/[0.02] group border-[rgba(26,40,69,0.55)]"
+              >
               <div className="w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                style={{ borderColor: 'rgba(124,58,237,0.4)', borderStyle: 'dashed' }}>
+                style={{ borderColor: '#2855CC', borderStyle: 'dashed' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <span className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">Add New Schedule</span>
@@ -2742,7 +2716,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
@@ -2769,9 +2743,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   return (
                     <button key={app.name} onClick={() => toggleApp(app.name)}
                       className="flex flex-col items-center gap-2 p-3 rounded-2xl border relative transition-all hover:scale-[1.04]"
-                      style={{ background: blocked ? 'rgba(124,58,237,0.08)' : 'rgba(14,21,40,0.5)', borderColor: blocked ? 'rgba(124,58,237,0.45)' : 'rgba(124,58,237,0.15)' }}>
+                      style={{ background: blocked ? 'rgba(124,77,255,0.08)' : '#0B1530', borderColor: blocked ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                       {blocked && (
-                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#7C3AED' }}>
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
                           <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                         </div>
                       )}
@@ -2784,8 +2758,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 })}
                 <button onClick={() => setShowMoreApps(true)}
                   className="flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all hover:scale-[1.04]"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.15)', borderStyle: 'dashed' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)' }}>
+                  style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>
                     <svg viewBox="0 0 24 24" className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </div>
                   <span className="text-[10px] text-slate-400">More</span>
@@ -2794,24 +2768,24 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
 
             {/* Website blocker */}
-            <div className="px-5 pb-5 border-t pt-4" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+            <div className="px-5 pb-5 border-t pt-4 border-[rgba(26,40,69,0.55)]" >
               <div className="text-[10px] text-slate-500 font-mono mb-3">WEBSITES</div>
               <div className="flex gap-2 mb-3">
                 <input value={websiteInput} onChange={e => setWebsiteInput(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                  style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="e.g. youtube.com, reddit.com..."
+                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                   placeholder="e.g. youtube.com, reddit.com..."
                   onKeyDown={e => e.key === 'Enter' && addBlockedWebsite()} />
                 <button onClick={addBlockedWebsite}
-                  className="px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>Block</button>
+                  className="px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#7C4DFF]"
+                  >Block</button>
               </div>
               {blockedWebsites.length === 0 ? (
                 <div className="text-[11px] text-slate-600 text-center py-2">No websites blocked yet. Add URLs above.</div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {blockedWebsites.map(w => (
-                    <div key={w} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px]"
-                      style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)', color: '#FCA5A5' }}>
+                    <div key={w} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] bg-[rgba(239,68,68,0.08)] border-[rgba(239,68,68,0.3)] text-[#FCA5A5]"
+                      >
                       🌐 {w}
                       <button onClick={() => setBlockedWebsites(prev => prev.filter(x => x !== w))}
                         className="text-slate-500 hover:text-red-400 transition-colors ml-0.5">×</button>
@@ -2824,10 +2798,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Create Focus Routine ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 py-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>⏰</div>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>⏰</div>
                 <div>
                   <div className="text-base font-bold text-white">Create Focus Routine</div>
                   <div className="text-[11px] text-slate-500">Set blocking rules once, activate like an alarm when needed.</div>
@@ -2835,7 +2809,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </div>
               <button onClick={() => setShowCreateRoutine(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 16px rgba(124,58,237,0.3)' }}>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.5)' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                 New Routine
               </button>
@@ -2847,18 +2821,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               )}
               {routines.map(routine => (
                 <div key={routine.id} className="p-4 rounded-2xl border transition-all"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: routine.enabled ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.15)' }}>
+                  style={{ background: '#0B1530', borderColor: routine.enabled ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2.5">
                       <span className="text-base font-bold text-white">{routine.name}</span>
                       {routine.enabled && (
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.25)' }}>ACTIVE</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.25)' }}>ACTIVE</span>
                       )}
                     </div>
                     <button
                       onClick={() => setRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, enabled: !r.enabled } : r))}
                       className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-                      style={{ background: routine.enabled ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(100,116,139,0.3)', boxShadow: routine.enabled ? '0 0 12px rgba(124,58,237,0.4)' : 'none' }}>
+                      style={{ background: routine.enabled ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.3)', boxShadow: routine.enabled ? '0 0 12px rgba(40,85,204,0.45)' : 'none' }}>
                       <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md"
                         style={{ left: routine.enabled ? 'calc(100% - 22px)' : '2px' }} />
                     </button>
@@ -2869,9 +2843,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     {DAYS_SHORT.map((day, i) => (
                       <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                         style={{
-                          background: routine.days.includes(i) ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)',
-                          color: routine.days.includes(i) ? '#C4B5FD' : '#475569',
-                          border: `1px solid ${routine.days.includes(i) ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.1)'}`,
+                          background: routine.days.includes(i) ? '#1A2845' : '#0B1530',
+                          color: routine.days.includes(i) ? '#C4AAFF' : '#4E5E84',
+                          border: `1px solid ${routine.days.includes(i) ? '#2855CC' : 'rgba(26,40,69,0.55)'}`,
                         }}>{day}</span>
                     ))}
                   </div>
@@ -2880,7 +2854,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div className="flex items-center gap-4 text-[11px] text-slate-400">
                     <div className="flex items-center gap-1.5">
                       <Ico n="clock" cls="w-3 h-3 text-violet-400" />
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmtTime(routine.timeFrom)} → {fmtTime(routine.timeTo)}</span>
+                      <span >{fmtTime(routine.timeFrom)} → {fmtTime(routine.timeTo)}</span>
                     </div>
                     {routine.apps.length > 0 && (
                       <div className="flex items-center gap-1.5">
@@ -2896,7 +2870,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-[rgba(26,40,69,0.55)]" >
                     <button onClick={() => setRoutines(prev => prev.filter(r => r.id !== routine.id))}
                       className="text-[11px] text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10">
                       Delete routine
@@ -2912,10 +2886,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
       {/* ── AI Modal ── */}
       {showAI && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)]" 
           onClick={e => { if (e.target === e.currentTarget && aiStep !== 'generating') setShowAI(false) }}>
           <div className="rounded-2xl border w-[460px] overflow-hidden"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.2)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 80px #1A2845' }}>
             {aiStep === 'form' && (
               <div className="p-7">
                 <div className="text-center mb-6">
@@ -2928,14 +2902,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-1 block">SUBJECTS</label>
                     <input value={aiForm.subjects} onChange={e => setAiForm(f => ({ ...f, subjects: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Physics, Chemistry, Mathematics..." />
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       placeholder="Physics, Chemistry, Mathematics..." />
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-1 block">TARGET EXAM / GOAL</label>
                     <input value={aiForm.exam} onChange={e => setAiForm(f => ({ ...f, exam: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="JEE Advanced, NEET, Board Exams..." />
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       placeholder="JEE Advanced, NEET, Board Exams..." />
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-2 block">AVAILABLE HOURS PER DAY</label>
@@ -2943,7 +2917,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                       {['4', '6', '8', '10', '12'].map(h => (
                         <button key={h} onClick={() => setAiForm(f => ({ ...f, hoursPerDay: h }))}
                           className="flex-1 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: aiForm.hoursPerDay === h ? 'rgba(124,58,237,0.2)' : 'transparent', color: aiForm.hoursPerDay === h ? '#C4B5FD' : '#64748B', borderColor: aiForm.hoursPerDay === h ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.2)' }}>
+                          style={{ background: aiForm.hoursPerDay === h ? '#1A2845' : 'transparent', color: aiForm.hoursPerDay === h ? '#C4AAFF' : '#4E5E84', borderColor: aiForm.hoursPerDay === h ? '#4A3A88' : '#1A2845' }}>
                           {h}h
                         </button>
                       ))}
@@ -2952,10 +2926,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => setShowAI(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
                   <button onClick={generateAI}
                     className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 24px rgba(124,58,237,0.3)' }}>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
                     ✦ Generate Schedule
                   </button>
                 </div>
@@ -2981,7 +2955,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div className="text-lg font-bold text-white">Schedule Ready!</div>
                   <div className="text-sm text-slate-400 mt-1">Your personalized 7-day plan is generated.</div>
                 </div>
-                <div className="rounded-xl border p-4 mb-5 space-y-2.5" style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.2)' }}>
+                <div className="rounded-xl border p-4 mb-5 space-y-2.5 bg-[#0B1530] border-[#1A2845]" >
                   {aiForm.subjects.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4).map((sub, i) => {
                     const times = [['8:00 AM', '10:00 AM'], ['11:00 AM', '1:00 PM'], ['3:00 PM', '5:00 PM'], ['6:00 PM', '7:30 PM']]
                     return (
@@ -2996,10 +2970,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => { setAiStep('form') }}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Regenerate</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Regenerate</button>
                   <button onClick={applyAISchedule}
                     className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>Apply Schedule</button>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Apply Schedule</button>
                 </div>
               </div>
             )}
@@ -3009,10 +2983,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
       {/* ── Add Session Modal ── */}
       {showAddSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowAddSession(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 60px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">NEW SESSION</div>
               <div className="text-lg font-bold text-white">Add Study Session</div>
@@ -3020,23 +2994,23 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
             <div className="space-y-3 mb-5">
               <input value={newSession.subject} onChange={e => setNewSession(s => ({ ...s, subject: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Subject (e.g. Physics)" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Subject (e.g. Physics)" />
               <input value={newSession.topic} onChange={e => setNewSession(s => ({ ...s, topic: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="Topic (e.g. Chapter 5 – Current Electricity)" />
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                 placeholder="Topic (e.g. Chapter 5 – Current Electricity)" />
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="text-[10px] text-slate-500 mb-1 block font-mono">FROM</label>
                   <input value={newSession.startTime} onChange={e => setNewSession(s => ({ ...s, startTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600"
-                    style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="9:00 AM" />
+                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600 border-[#1A2845]"
+                     placeholder="9:00 AM" />
                 </div>
                 <div className="flex-1">
                   <label className="text-[10px] text-slate-500 mb-1 block font-mono">TO</label>
                   <input value={newSession.endTime} onChange={e => setNewSession(s => ({ ...s, endTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600"
-                    style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="11:00 AM" />
+                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600 border-[#1A2845]"
+                     placeholder="11:00 AM" />
                 </div>
               </div>
               <div>
@@ -3052,10 +3026,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowAddSession(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
               <button onClick={addSession}
                 className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>Add Session</button>
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Add Session</button>
             </div>
           </div>
         </div>
@@ -3063,10 +3037,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
       {/* ── All Apps Modal ── */}
       {showMoreApps && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.75)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowMoreApps(false) }}>
           <div className="rounded-2xl border p-7 w-[480px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 60px rgba(124,58,237,0.18)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">APP BLOCKER</div>
               <div className="text-lg font-bold text-white">Manage Blocked Apps</div>
@@ -3078,9 +3052,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 return (
                   <button key={app.name} onClick={() => toggleApp(app.name)}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border relative transition-all hover:scale-105"
-                    style={{ background: blocked ? 'rgba(124,58,237,0.1)' : 'rgba(14,21,40,0.5)', borderColor: blocked ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+                    style={{ background: blocked ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: blocked ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
                     {blocked && (
-                      <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#7C3AED' }}>
+                      <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
                         <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                       </div>
                     )}
@@ -3091,17 +3065,17 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               })}
             </div>
             <button onClick={() => setShowMoreApps(false)}
-              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>Done</button>
+              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#7C4DFF]"
+              >Done</button>
           </div>
         </div>
       )}
 
       {/* ── Create Focus Routine Modal ── */}
       {showCreateRoutine && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.78)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowCreateRoutine(false) }}>
-          <div className="rounded-2xl border w-[500px] overflow-hidden" style={{ maxHeight: '90vh', background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.4)', boxShadow: '0 0 80px rgba(124,58,237,0.18)' }}>
+          <div className="rounded-2xl border w-[500px] overflow-hidden" style={{ maxHeight: '90vh', background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
             <div className="overflow-y-auto" style={{ maxHeight: '90vh' }}>
               <div className="p-7">
                 <div className="text-center mb-6">
@@ -3116,8 +3090,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div>
                     <label className="text-[11px] text-slate-500 font-mono mb-1.5 block">ROUTINE NAME</label>
                     <input value={newRoutine.name} onChange={e => setNewRoutine(r => ({ ...r, name: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} placeholder="e.g. Study Week, Morning Focus, Exam Mode..." />
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       placeholder="e.g. Study Week, Morning Focus, Exam Mode..." />
                   </div>
 
                   {/* Days */}
@@ -3129,14 +3103,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                         return (
                           <button key={i} onClick={() => toggleRoutineDay(i)}
                             className="px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all"
-                            style={{ background: sel ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', color: sel ? '#C4B5FD' : '#64748B', borderColor: sel ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+                            style={{ background: sel ? '#1A2845' : '#0B1530', color: sel ? '#C4AAFF' : '#4E5E84', borderColor: sel ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
                             {day}
                           </button>
                         )
                       })}
                       <button onClick={() => setNewRoutine(r => ({ ...r, days: r.days.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6] }))}
                         className="px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all"
-                        style={{ borderColor: 'rgba(124,58,237,0.2)', color: '#64748B', background: 'transparent' }}>
+                        style={{ borderColor: '#1A2845', color: '#4E5E84', background: 'transparent' }}>
                         {newRoutine.days.length === 7 ? 'Clear' : 'All'}
                       </button>
                     </div>
@@ -3148,11 +3122,11 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     <div className="flex gap-3 items-center">
                       <input type="time" value={newRoutine.timeFrom} onChange={e => setNewRoutine(r => ({ ...r, timeFrom: e.target.value }))}
                         className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', colorScheme: 'dark' }} />
+                        style={{ borderColor: '#1A2845', colorScheme: 'dark' }} />
                       <span className="text-slate-500">→</span>
                       <input type="time" value={newRoutine.timeTo} onChange={e => setNewRoutine(r => ({ ...r, timeTo: e.target.value }))}
                         className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', colorScheme: 'dark' }} />
+                        style={{ borderColor: '#1A2845', colorScheme: 'dark' }} />
                     </div>
                   </div>
 
@@ -3165,9 +3139,9 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                         return (
                           <button key={app.name} onClick={() => toggleRoutineApp(app.name)}
                             className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border relative transition-all hover:scale-105"
-                            style={{ background: sel ? 'rgba(124,58,237,0.1)' : 'rgba(14,21,40,0.5)', borderColor: sel ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.12)' }}>
+                            style={{ background: sel ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: sel ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                             {sel && (
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: '#7C3AED' }}>
+                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
                                 <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                               </div>
                             )}
@@ -3188,7 +3162,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                         return (
                           <button key={w} onClick={() => toggleRoutineWebsite(w)}
                             className="px-2.5 py-1 rounded-full text-[11px] transition-all border"
-                            style={{ background: sel ? 'rgba(124,58,237,0.15)' : 'rgba(14,21,40,0.5)', color: sel ? '#C4B5FD' : '#64748B', borderColor: sel ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.12)' }}>
+                            style={{ background: sel ? 'rgba(26,40,69,0.55)' : '#0B1530', color: sel ? '#C4AAFF' : '#4E5E84', borderColor: sel ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                             {sel ? '✓ ' : ''}{w}
                           </button>
                         )
@@ -3196,18 +3170,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     </div>
                     <div className="flex gap-2">
                       <input value={newRoutine.customWebsite} onChange={e => setNewRoutine(r => ({ ...r, customWebsite: e.target.value }))}
-                        className="flex-1 px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.2)' }} placeholder="Add custom URL (e.g. example.com)"
+                        className="flex-1 px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors border-[#1A2845]"
+                         placeholder="Add custom URL (e.g. example.com)"
                         onKeyDown={e => e.key === 'Enter' && addCustomWebsite()} />
                       <button onClick={addCustomWebsite}
-                        className="px-4 py-2 rounded-xl text-violet-400 border transition-colors hover:border-violet-400/40"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', background: 'rgba(124,58,237,0.08)' }}>Add</button>
+                        className="px-4 py-2 rounded-xl text-violet-400 border transition-colors hover:border-violet-400/40 border-[#1A2845] bg-[rgba(124,77,255,0.08)]"
+                        >Add</button>
                     </div>
                     {newRoutine.websites.filter(w => !WEBSITE_SUGGESTIONS.includes(w)).length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {newRoutine.websites.filter(w => !WEBSITE_SUGGESTIONS.includes(w)).map(w => (
-                          <span key={w} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border"
-                            style={{ color: '#67E8F9', background: 'rgba(34,211,238,0.06)', borderColor: 'rgba(34,211,238,0.2)' }}>
+                          <span key={w} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#7DD8F0] bg-[rgba(25,181,230,0.06)] border-[rgba(25,181,230,0.20)]"
+                            >
                             🌐 {w}
                             <button onClick={() => setNewRoutine(r => ({ ...r, websites: r.websites.filter(x => x !== w) }))}
                               className="text-slate-500 hover:text-red-400 transition-colors">×</button>
@@ -3220,10 +3194,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
                 <div className="flex gap-3 mt-6">
                   <button onClick={() => setShowCreateRoutine(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Cancel</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
                   <button onClick={createRoutine}
                     className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>Create Routine</button>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Create Routine</button>
                 </div>
               </div>
             </div>
@@ -3281,25 +3255,25 @@ function BattleAvatar({ color, variant = 0, size = 56, ringColor, glow = false }
 }
 
 const TROPHY_TIERS = [
-  { label: 'First Battle', sub: '1 win', tier: 'Bronze', emoji: '🏆', color: '#CD7F32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
-  { label: '5 Wins', sub: '5 battles', tier: 'Silver', emoji: '🏆', color: '#C0C0C0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
-  { label: '10 Wins', sub: '10 battles', tier: 'Gold', emoji: '🏆', color: '#FFD700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.4)' },
-  { label: '20 Wins', sub: '20 battles', tier: 'Diamond', emoji: '💎', color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
+  { label: 'First Battle', sub: '1 battle', tier: 'Bronze', img: trophyBronze, color: '#CD7F32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
+  { label: '10 Battles', sub: '10 battles', tier: 'Silver', img: trophySilver, color: '#C0C0C0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
+  { label: '30 Battles', sub: '30 battles', tier: 'Gold', img: trophyGold, color: '#FFD700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.4)' },
+  { label: '60 Battles', sub: '60 battles', tier: 'Diamond', img: trophyDiamond, color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
 ]
 
 const BATTLE_BOTS = [
   { name: 'Aryan', color: '#F59E0B', variant: 1 },
   { name: 'Meera', color: '#A855F7', variant: 2 },
-  { name: 'Arjun', color: '#22D3EE', variant: 1 },
-  { name: 'Dev', color: '#06B6D4', variant: 3 },
+  { name: 'Arjun', color: '#19B5E6', variant: 1 },
+  { name: 'Dev', color: '#19B5E6', variant: 3 },
   { name: 'Riya', color: '#EC4899', variant: 0 },
   { name: 'Nain', color: '#3B82F6', variant: 3 },
 ]
 
 const RECENT_BATTLES_DATA = [
-  { leftName: 'You', leftColor: '#7C3AED', leftVariant: 0, leftWon: true, rightName: 'Nain', rightColor: '#3B82F6', rightVariant: 3, time: '2h ago', pts: '+15' },
-  { leftName: 'Meera', leftColor: '#A855F7', leftVariant: 2, leftWon: true, rightName: 'Arjun', rightColor: '#22D3EE', rightVariant: 1, time: '5h ago', pts: '+12' },
-  { leftName: 'Dev', leftColor: '#06B6D4', leftVariant: 3, leftWon: true, rightName: 'Riya', rightColor: '#EC4899', rightVariant: 0, time: '1d ago', pts: '+10' },
+  { leftName: 'You', leftColor: '#7C4DFF', leftVariant: 0, leftWon: true, rightName: 'Nain', rightColor: '#3B82F6', rightVariant: 3, time: '2h ago', pts: '+15' },
+  { leftName: 'Meera', leftColor: '#A855F7', leftVariant: 2, leftWon: true, rightName: 'Arjun', rightColor: '#19B5E6', rightVariant: 1, time: '5h ago', pts: '+12' },
+  { leftName: 'Dev', leftColor: '#19B5E6', leftVariant: 3, leftWon: true, rightName: 'Riya', rightColor: '#EC4899', rightVariant: 0, time: '1d ago', pts: '+10' },
 ]
 
 const LEADERBOARD_DATA = [
@@ -3320,6 +3294,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
   const [myStudySecs, setMyStudySecs] = useState(0)
   const [oppStudySecs, setOppStudySecs] = useState(0)
   const [winner, setWinner] = useState<'you' | 'opponent' | null>(null)
+  const [userWins, setUserWins] = useState(0)
+  const [recentBattles, setRecentBattles] = useState<{ oppName: string; oppColor: string; oppVariant: number; won: boolean; time: string; pts: string }[]>([])
   const [showFullLeaderboard, setShowFullLeaderboard] = useState(false)
   const [showAllTrophies, setShowAllTrophies] = useState(false)
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([
@@ -3359,7 +3335,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     const name = inviteInput.trim()
     if (!name) return
     const bot = BATTLE_BOTS.find(b => b.name.toLowerCase() === name.toLowerCase()) ||
-      { name, color: '#7C3AED', variant: 0 }
+      { name, color: '#7C4DFF', variant: 0 }
     setOpponent(bot)
     setPhase('invite-sent')
     setInviteInput('')
@@ -3382,9 +3358,18 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     setPhase('active')
   }
 
+  function recordBattle(won: boolean) {
+    if (!opponent) return
+    const now = new Date()
+    const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`
+    setRecentBattles(prev => [{ oppName: opponent.name, oppColor: opponent.color, oppVariant: opponent.variant, won, time: timeStr, pts: won ? '+15' : '+5' }, ...prev.slice(0, 9)])
+    if (won) setUserWins(w => w + 1)
+  }
+
   function endMyTimer() {
     setPhase('finished')
     setWinner('opponent')
+    recordBattle(false)
   }
 
   function cancelInvite() {
@@ -3397,30 +3382,27 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     setBattleSecs(0); setMyStudySecs(0); setOppStudySecs(0)
   }
 
-  const TROPHY_TIERS = [
-    { label: 'First Battle', sub: '1 win', tier: 'Bronze', emoji: '🏆', color: '#CD7F32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
-    { label: '5 Wins', sub: '5 battles', tier: 'Silver', emoji: '🏆', color: '#C0C0C0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
-    { label: '10 Wins', sub: '10 battles', tier: 'Gold', emoji: '🏆', color: '#FFD700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.4)' },
-    { label: '20 Wins', sub: '20 battles', tier: 'Diamond', emoji: '💎', color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
-  ]
+  // Trophies earned by user based on battle count
+  const BATTLE_MILESTONES = [1, 10, 30, 60]
+  const earnedTrophies = TROPHY_TIERS.filter((_, i) => userWins >= BATTLE_MILESTONES[i])
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>BATTLEGROUND</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >BATTLEGROUND</div>
             <div className="text-sm font-semibold text-slate-200">Challenge. Compete. Win.</div>
           </div>
           <div className="relative p-2 text-slate-400">
             <Ico n="bell" cls="w-5 h-5" />
             {pendingInvites.length > 0 && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: '#7C3AED' }}>{pendingInvites.length}</div>
+              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]" >{pendingInvites.length}</div>
             )}
           </div>
           <UserAvatar size={32} />
@@ -3430,7 +3412,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           {/* Page title */}
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg,rgba(124,58,237,0.35),rgba(99,102,241,0.25))', border: '1px solid rgba(124,58,237,0.5)', boxShadow: '0 0 20px rgba(124,58,237,0.25)' }}>
+              style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>
               ⚔️
             </div>
             <div>
@@ -3441,15 +3423,15 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
           {/* ── Invitations Inbox ── */}
           {pendingInvites.length > 0 && (
-            <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.35)' }}>
+            <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
               <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
                 <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
                 <div className="text-sm font-bold text-white">Battle Invitations</div>
-                <div className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(124,58,237,0.2)', color: '#C4B5FD' }}>{pendingInvites.length} pending</div>
+                <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]" >{pendingInvites.length} pending</div>
               </div>
               <div className="px-4 pb-4 space-y-2">
                 {pendingInvites.map(inv => (
-                  <div key={inv.id} className="flex items-center gap-3 p-3.5 rounded-xl border" style={{ background: 'rgba(124,58,237,0.06)', borderColor: 'rgba(124,58,237,0.25)' }}>
+                  <div key={inv.id} className="flex items-center gap-3 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[#1A2845]" >
                     <BattleAvatar color={inv.color} variant={inv.variant} size={40} glow />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-bold text-white">{inv.name}</span>
@@ -3457,11 +3439,11 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <button onClick={() => rejectInvite(inv.id)}
-                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border text-slate-400 hover:text-slate-200 transition-colors"
-                        style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Reject</button>
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                        >Reject</button>
                       <button onClick={() => acceptInvite(inv)}
                         className="px-3 py-1.5 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-90"
-                        style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 12px rgba(124,58,237,0.35)' }}>Accept ⚔️</button>
+                        style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>Accept ⚔️</button>
                     </div>
                   </div>
                 ))}
@@ -3471,19 +3453,19 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
           {/* ── Active Battle Card ── */}
           <div className="rounded-2xl border overflow-hidden relative"
-            style={{ background: 'linear-gradient(160deg,#080B1A,#12083A,#080E28)', borderColor: 'rgba(124,58,237,0.5)', boxShadow: '0 0 40px rgba(124,58,237,0.15)' }}>
+            style={{ background: 'linear-gradient(160deg,#080B1A,#12083A,#080E28)', borderColor: '#4A3A88', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
             <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at 20% 50%,rgba(34,211,238,0.07),transparent 55%), radial-gradient(ellipse at 80% 50%,rgba(236,72,153,0.07),transparent 55%)' }} />
+              style={{ background: 'radial-gradient(ellipse at 20% 50%,rgba(25,181,230,0.07),transparent 55%), radial-gradient(ellipse at 80% 50%,rgba(236,72,153,0.07),transparent 55%)' }} />
 
             {/* Badge row */}
             <div className="flex items-center justify-between px-5 pt-4 pb-2 relative z-10">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-                style={{ background: phase === 'active' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)', border: `1px solid ${phase === 'active' ? 'rgba(239,68,68,0.35)' : 'rgba(124,58,237,0.3)'}`, color: phase === 'active' ? '#FCA5A5' : '#C4B5FD' }}>
+                style={{ background: phase === 'active' ? 'rgba(239,68,68,0.15)' : 'rgba(26,40,69,0.55)', border: `1px solid ${phase === 'active' ? 'rgba(239,68,68,0.35)' : '#1E3060'}`, color: phase === 'active' ? '#FCA5A5' : '#C4AAFF' }}>
                 {phase === 'active' ? '🔥 Battle Live' : phase === 'finished' ? '🏁 Battle Ended' : '⚔️ Battle Arena'}
               </div>
               {phase === 'active' && (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-                  style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', color: '#34D399' }}>
+                  style={{ background: 'rgba(25,211,162,0.10)', border: '1px solid rgba(25,211,162,0.30)', color: '#19D3A2' }}>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
                   Live Now
                 </div>
@@ -3493,16 +3475,16 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             {/* Finished overlay */}
             {phase === 'finished' && winner && (
               <div className="relative z-10 mx-5 mb-3 p-5 rounded-2xl border text-center"
-                style={{ background: winner === 'you' ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)', borderColor: winner === 'you' ? 'rgba(52,211,153,0.4)' : 'rgba(239,68,68,0.4)' }}>
+                style={{ background: winner === 'you' ? 'rgba(25,211,162,0.10)' : 'rgba(239,68,68,0.1)', borderColor: winner === 'you' ? 'rgba(25,211,162,0.40)' : 'rgba(239,68,68,0.4)' }}>
                 <div className="text-3xl mb-1">{winner === 'you' ? '🏆' : '💔'}</div>
                 <div className="text-lg font-bold text-white">{winner === 'you' ? 'You Won!' : `${opponent?.name} Won!`}</div>
                 <div className="text-sm text-slate-400 mt-0.5">
                   {winner === 'you' ? `${opponent?.name} ended their session first.` : 'You ended your session first.'}
                 </div>
-                <div className="text-[11px] font-mono mt-2" style={{ color: '#A78BFA' }}>Battle time: {fmt(battleSecs)}</div>
+                <div className="text-[11px] font-mono mt-2 text-[#9B6CFF]" >Battle time: {fmt(battleSecs)}</div>
                 <button onClick={resetBattle}
-                  className="mt-3 px-6 py-2 rounded-full text-sm font-bold text-white transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)' }}>New Battle</button>
+                  className="mt-3 px-6 py-2 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 bg-[#7C4DFF]"
+                  >New Battle</button>
               </div>
             )}
 
@@ -3510,11 +3492,23 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             <div className="flex items-center gap-3 px-5 py-4 relative z-10">
               {/* You */}
               <div className="flex-1 flex flex-col items-center gap-2">
-                <BattleAvatar color="#7C3AED" variant={0} size={68} ringColor="#22D3EE" glow />
+                <div className="relative">
+                  <BattleAvatar color="#7C4DFF" variant={0} size={68} ringColor="#19B5E6" glow />
+                  {earnedTrophies.length > 0 && (
+                    <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+                      {earnedTrophies.slice(-2).map((t, i) => (
+                        <div key={i} className="w-6 h-6 rounded-full overflow-hidden border" style={{ borderColor: '#0B1530', filter: `drop-shadow(0 0 4px ${t.color}80)` }}>
+                          <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="text-center">
                   <div className="flex items-center gap-1.5 justify-center">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     <span className="text-base font-bold text-white">You</span>
+                    {userWins > 0 && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(124,77,255,0.15)', color: '#9B6CFF', border: '1px solid rgba(124,77,255,0.3)' }}>{userWins}W</span>}
                   </div>
                   {phase === 'active' || phase === 'finished' ? (
                     <div className="text-[11px] font-mono text-violet-300 mt-0.5">{fmt(myStudySecs)} studied</div>
@@ -3523,26 +3517,33 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   )}
                 </div>
                 {phase === 'active' && (
-                  <button onClick={endMyTimer}
-                    className="px-4 py-2 rounded-full text-[11px] font-bold transition-all hover:opacity-90 active:scale-95"
-                    style={{ background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.5)', color: '#FCA5A5', boxShadow: '0 0 12px rgba(239,68,68,0.2)' }}>
-                    🛑 End Timer
-                  </button>
+                  <div className="flex flex-col gap-1.5 items-center">
+                    <button onClick={() => { setPhase('finished'); setWinner('you'); recordBattle(true) }}
+                      className="px-4 py-2 rounded-full text-[11px] font-bold transition-all hover:opacity-90 active:scale-95"
+                      style={{ background: 'rgba(25,211,162,0.15)', border: '1px solid rgba(25,211,162,0.4)', color: '#19D3A2', boxShadow: '0 0 10px rgba(25,211,162,0.15)' }}>
+                      🏆 Declare Win
+                    </button>
+                    <button onClick={endMyTimer}
+                      className="px-4 py-1.5 rounded-full text-[10px] font-bold transition-all hover:opacity-90 active:scale-95"
+                      style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#FCA5A5' }}>
+                      🛑 End Timer
+                    </button>
+                  </div>
                 )}
               </div>
 
               {/* Center — VS + invite */}
               <div className="flex flex-col items-center gap-3 flex-shrink-0">
                 <div className="text-4xl font-black"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', background: 'linear-gradient(135deg,#7C3AED,#EC4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 0 12px rgba(124,58,237,0.5))' }}>
+                  style={{ background: 'linear-gradient(135deg,#7C4DFF,#EC4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 0 12px #4A3A88)' }}>
                   VS
                 </div>
 
                 {/* Battle timer */}
                 {(phase === 'active' || phase === 'finished') && (
-                  <div className="px-4 py-2 rounded-xl text-center" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                  <div className="px-4 py-2 rounded-xl text-center" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>
                     <div className="text-[9px] text-slate-500 font-mono mb-0.5">BATTLE TIME</div>
-                    <div className="text-base font-black text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmt(battleSecs)}</div>
+                    <div className="text-base font-black text-white" >{fmt(battleSecs)}</div>
                   </div>
                 )}
 
@@ -3551,12 +3552,12 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   <div className="flex flex-col items-center gap-2 w-48">
                     <div className="text-[10px] text-slate-500 font-mono">INVITE A USER</div>
                     <input value={inviteInput} onChange={e => setInviteInput(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 text-center focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.35)' }} placeholder="Enter username..."
+                      className="w-full px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 text-center focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                       placeholder="Enter username..."
                       onKeyDown={e => e.key === 'Enter' && sendInvite()} />
                     <button onClick={sendInvite} disabled={!inviteInput.trim()}
                       className="w-full py-2 rounded-xl text-[11px] font-bold text-white transition-all hover:opacity-90 disabled:opacity-40"
-                      style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 14px rgba(124,58,237,0.35)' }}>
+                      style={{ background: '#7C4DFF', boxShadow: '0 0 14px #1E3060' }}>
                       Send Invite ⚔️
                     </button>
                   </div>
@@ -3579,7 +3580,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                     <div className="text-[11px] text-emerald-400 font-semibold">✓ {opponent?.name} accepted!</div>
                     <button onClick={startBattle}
                       className="px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
-                      style={{ background: 'linear-gradient(135deg,#7C3AED,#EC4899)', boxShadow: '0 0 20px rgba(124,58,237,0.5)' }}>
+                      style={{ background: 'linear-gradient(135deg,#7C4DFF,#EC4899)', boxShadow: '0 0 20px #4A3A88' }}>
                       ▶ Start Battle
                     </button>
                   </div>
@@ -3603,8 +3604,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                       )}
                     </div>
                     {phase === 'active' && (
-                      <div className="px-4 py-2 rounded-full text-[11px] font-bold border"
-                        style={{ background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.25)', color: '#34D399' }}>
+                      <div className="px-4 py-2 rounded-full text-[11px] font-bold border bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.25)] text-[#19D3A2]"
+                        >
                         ⏱ Studying...
                       </div>
                     )}
@@ -3612,7 +3613,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-[68px] h-[68px] rounded-full border-2 flex items-center justify-center"
-                      style={{ borderColor: 'rgba(124,58,237,0.3)', borderStyle: 'dashed', background: 'rgba(124,58,237,0.05)' }}>
+                      style={{ borderColor: '#1E3060', borderStyle: 'dashed', background: 'rgba(124,77,255,0.08)' }}>
                       <svg viewBox="0 0 24 24" className="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M20 8v6M23 11h-6" /><circle cx="9" cy="7" r="4" /></svg>
                     </div>
                     <div className="text-[11px] text-slate-600 text-center">No opponent yet</div>
@@ -3623,41 +3624,41 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
             {/* Bottom stats */}
             {(phase === 'active' || phase === 'finished') && (
-              <div className="flex items-center mx-4 mb-4 rounded-xl border overflow-hidden relative z-10"
-                style={{ borderColor: 'rgba(124,58,237,0.2)', background: 'rgba(10,13,30,0.7)' }}>
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>
+              <div className="flex items-center mx-4 mb-4 rounded-xl border overflow-hidden relative z-10 border-[#1A2845] bg-[#0B1530]"
+                >
+                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r border-[#1A2845]" >
                   <span className="text-lg">⏱️</span>
                   <div>
                     <div className="text-[10px] text-slate-500">Battle Time</div>
-                    <div className="text-sm font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmt(battleSecs)}</div>
+                    <div className="text-sm font-bold text-white" >{fmt(battleSecs)}</div>
                   </div>
                 </div>
-                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>
+                <div className="flex-1 flex items-center gap-2.5 px-4 py-3 border-r border-[#1A2845]" >
                   <span className="text-lg">🔥</span>
                   <div>
                     <div className="text-[10px] text-slate-500">Your Study Time</div>
-                    <div className="text-sm font-bold text-violet-300" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{fmt(myStudySecs)}</div>
+                    <div className="text-sm font-bold text-violet-300" >{fmt(myStudySecs)}</div>
                   </div>
                 </div>
                 <div className="flex-1 flex items-center gap-2.5 px-4 py-3">
                   <span className="text-lg">⚡</span>
                   <div>
                     <div className="text-[10px] text-slate-500">{opponent?.name || "Opp"}'s Study Time</div>
-                    <div className="text-sm font-bold" style={{ fontFamily: 'JetBrains Mono, monospace', color: opponent?.color || '#22D3EE' }}>{fmt(oppStudySecs)}</div>
+                    <div className="text-sm font-bold" style={{ color: opponent?.color || '#19B5E6' }}>{fmt(oppStudySecs)}</div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ── Trophies & Rewards ── */}
-          <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          {/* ── Trophies ── */}
+          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(255,215,0,0.12)', border: '1px solid rgba(255,215,0,0.3)' }}>🏆</div>
                 <div>
-                  <div className="text-base font-bold text-white">Trophies & Rewards</div>
-                  <div className="text-[11px] text-violet-400 mt-0.5">Study more. Earn trophies. Unlock exclusive rewards.</div>
+                  <div className="text-base font-bold text-white">Trophies</div>
+                  <div className="text-[11px] text-violet-400 mt-0.5">Study more. Earn trophies.</div>
                 </div>
               </div>
               <button onClick={() => setShowAllTrophies(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
@@ -3668,61 +3669,57 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               {TROPHY_TIERS.map(t => (
                 <div key={t.tier} className="flex-1 flex flex-col items-center p-3.5 rounded-2xl border text-center"
                   style={{ background: t.bg, borderColor: t.border, boxShadow: `0 0 16px ${t.color}20` }}>
-                  <span className="text-2xl mb-1.5" style={{ filter: `drop-shadow(0 0 8px ${t.color}80)` }}>{t.emoji}</span>
+                  <div className="w-12 h-12 mb-1.5 rounded-xl overflow-hidden" style={{ filter: `drop-shadow(0 0 8px ${t.color}60)` }}>
+                    <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+                  </div>
                   <div className="text-xs font-bold text-white">{t.label}</div>
                   <div className="text-[10px] text-slate-400 mb-2">({t.sub})</div>
                   <div className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
                     style={{ background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}44` }}>{t.tier}</div>
                 </div>
               ))}
-              <div className="flex flex-col items-start justify-between p-4 rounded-2xl border min-w-[130px]"
-                style={{ background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.3)' }}>
-                <div className="text-xs font-semibold text-slate-200 leading-snug mb-3">Win battles &<br />get exclusive<br />rewards</div>
-                <div className="flex items-center gap-1.5 w-full">
-                  {['👑','👕','🎭'].map((e, i) => (
-                    <div key={i} className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
-                      style={{ background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.25)' }}>{e}</div>
-                  ))}
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center ml-auto" style={{ background: 'rgba(124,58,237,0.15)' }}>
-                    <Ico n="chevR" cls="w-3.5 h-3.5 text-violet-400" />
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
           {/* ── Recent Battles ── */}
-          <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
             <div className="flex items-center justify-between px-5 py-4">
               <div className="text-base font-bold text-white">Recent Battles</div>
-              <button className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-                See All <Ico n="chevR" cls="w-3 h-3" />
-              </button>
             </div>
             <div className="px-4 pb-4 space-y-2">
-              {RECENT_BATTLES_DATA.map((b, i) => (
-                <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl border"
-                  style={{ background: 'rgba(14,21,40,0.5)', borderColor: 'rgba(124,58,237,0.15)' }}>
+              {recentBattles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="text-3xl mb-2">⚔️</div>
+                  <div className="text-sm font-semibold text-slate-400 mb-1">No battles yet</div>
+                  <div className="text-xs text-slate-600">Challenge someone to your first battle.<br />Your match history will appear here.</div>
+                </div>
+              ) : recentBattles.map((b, i) => (
+                <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl border bg-[#0B1530] border-[rgba(26,40,69,0.55)]"
+                  >
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <BattleAvatar color={b.leftColor} variant={b.leftVariant} size={38} />
+                    <BattleAvatar color="#7C4DFF" variant={0} size={38} />
                     <div>
-                      <div className="text-sm font-bold text-white">{b.leftName}</div>
-                      <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span>🏆</span> Won</div>
+                      <div className="text-sm font-bold text-white">You</div>
+                      <div className={`flex items-center gap-1 text-[11px] ${b.won ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span>{b.won ? '🏆' : '❤️'}</span> {b.won ? 'Won' : 'Lost'}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-xs font-black text-slate-500 flex-shrink-0" style={{ fontFamily: 'JetBrains Mono, monospace' }}>VS</div>
+                  <div className="text-xs font-black text-slate-500 flex-shrink-0">VS</div>
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <BattleAvatar color={b.rightColor} variant={b.rightVariant} size={38} />
+                    <BattleAvatar color={b.oppColor} variant={b.oppVariant} size={38} />
                     <div>
-                      <div className="text-sm font-bold text-white">{b.rightName}</div>
-                      <div className="flex items-center gap-1 text-[11px] text-red-400"><span>❤️</span> Lost</div>
+                      <div className="text-sm font-bold text-white">{b.oppName}</div>
+                      <div className={`flex items-center gap-1 text-[11px] ${b.won ? 'text-red-400' : 'text-emerald-400'}`}>
+                        <span>{b.won ? '❤️' : '🏆'}</span> {b.won ? 'Lost' : 'Won'}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <div className="text-[11px] text-slate-500">{b.time}</div>
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                      style={{ background: 'rgba(255,215,0,0.1)', color: '#FFD700', border: '1px solid rgba(255,215,0,0.25)' }}>
-                      🏆 {b.pts}
+                      style={{ background: b.won ? 'rgba(25,211,162,0.1)' : 'rgba(239,68,68,0.08)', color: b.won ? '#19D3A2' : '#FCA5A5', border: `1px solid ${b.won ? 'rgba(25,211,162,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
+                      {b.pts}
                     </div>
                   </div>
                 </div>
@@ -3731,30 +3728,57 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           </div>
 
           {/* ── Leaderboard ── */}
-          <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+          <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
             <div className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-2"><span className="text-lg">🏆</span><div className="text-base font-bold text-white">Leaderboard</div></div>
-              <button onClick={() => setShowFullLeaderboard(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
-                View Full Leaderboard <Ico n="chevR" cls="w-3 h-3" />
-              </button>
+              {userWins > 0 && <button onClick={() => setShowFullLeaderboard(true)} className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
+                View Full <Ico n="chevR" cls="w-3 h-3" />
+              </button>}
             </div>
-            <div className="flex items-end gap-3 px-5 pb-5">
-              {LEADERBOARD_DATA.map((p, i) => (
-                <div key={i} className={`flex-1 flex flex-col items-center gap-2.5 p-4 rounded-2xl border`}
-                  style={{ background: p.isFirst ? 'linear-gradient(160deg,rgba(245,158,11,0.12),rgba(251,191,36,0.06))' : 'rgba(14,21,40,0.5)', borderColor: p.isFirst ? 'rgba(245,158,11,0.5)' : 'rgba(124,58,237,0.2)', boxShadow: p.isFirst ? '0 0 24px rgba(245,158,11,0.15)' : 'none' }}>
-                  {p.isFirst && <span className="text-xl">👑</span>}
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ background: p.rank === 1 ? 'rgba(255,215,0,0.2)' : p.rank === 2 ? 'rgba(192,192,192,0.15)' : 'rgba(205,127,50,0.15)', color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : '#CD7F32', border: `1.5px solid ${p.rank === 1 ? '#FFD70060' : p.rank === 2 ? '#C0C0C060' : '#CD7F3260'}` }}>
-                    {p.rank}
-                  </div>
-                  <BattleAvatar color={p.color} variant={p.variant} size={52} glow={p.isFirst} />
-                  <div className="text-center">
-                    <div className="text-sm font-bold text-white">{p.name}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{p.wins} wins · {p.streak} streak</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {userWins === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center px-5 pb-5">
+                <div className="text-3xl mb-2">🏅</div>
+                <div className="text-sm font-semibold text-slate-400 mb-1">No rankings yet</div>
+                <div className="text-xs text-slate-600">Win your first battle to appear<br />on the leaderboard.</div>
+              </div>
+            ) : (
+              <div className="flex items-end gap-3 px-5 pb-5">
+                {(() => {
+                  const userEntry = { rank: 0, name: 'You', wins: userWins, streak: recentBattles.filter(b => b.won).length, color: '#7C4DFF', variant: 0, isMe: true }
+                  const allPlayers = [...LEADERBOARD_DATA, userEntry]
+                    .sort((a, b) => b.wins - a.wins)
+                    .map((p, i) => ({ ...p, rank: i + 1 }))
+                    .slice(0, 3)
+                  return allPlayers.map((p, i) => {
+                    const isFirst = p.rank === 1
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-2.5 p-4 rounded-2xl border"
+                        style={{ background: isFirst ? 'linear-gradient(160deg,rgba(245,158,11,0.12),rgba(251,191,36,0.06))' : '#0B1530', borderColor: isFirst ? 'rgba(245,158,11,0.5)' : '#1A2845', boxShadow: isFirst ? '0 0 24px rgba(245,158,11,0.15)' : 'none' }}>
+                        {isFirst && <span className="text-xl">👑</span>}
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ background: p.rank === 1 ? 'rgba(255,215,0,0.2)' : p.rank === 2 ? 'rgba(192,192,192,0.15)' : 'rgba(205,127,50,0.15)', color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : '#CD7F32', border: `1.5px solid ${p.rank === 1 ? '#FFD70060' : p.rank === 2 ? '#C0C0C060' : '#CD7F3260'}` }}>
+                          {p.rank}
+                        </div>
+                        <div className="relative">
+                          <BattleAvatar color={p.color} variant={p.variant} size={52} glow={isFirst} />
+                          {'isMe' in p && p.isMe && earnedTrophies.length > 0 && (
+                            <div className="absolute -bottom-1 -right-1">
+                              <div className="w-5 h-5 rounded-full overflow-hidden border border-[#0B1530]" >
+                                <img src={earnedTrophies[earnedTrophies.length - 1].img} alt="trophy" className="w-full h-full object-contain" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <div className="text-sm font-bold" style={{ color: 'isMe' in p && p.isMe ? '#C4B5FD' : 'white' }}>{p.name}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{p.wins} wins · {p.streak} streak</div>
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            )}
           </div>
           <div className="h-4" />
         </main>
@@ -3762,10 +3786,10 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
       {/* ── Full Leaderboard Modal ── */}
       {showFullLeaderboard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.78)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowFullLeaderboard(false) }}>
           <div className="rounded-2xl border p-7 w-[440px] max-h-[80vh] overflow-y-auto"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.45)', boxShadow: '0 0 60px rgba(124,58,237,0.2)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px #1A2845' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">RANKINGS</div>
               <div className="text-lg font-bold text-white">Full Leaderboard</div>
@@ -3775,15 +3799,15 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 { rank: 1, name: 'Aryan', wins: 12, streak: 8, pts: 1240, color: '#F59E0B', variant: 1 },
                 { rank: 2, name: 'Meera', wins: 10, streak: 6, pts: 1020, color: '#A855F7', variant: 2 },
                 { rank: 3, name: 'Nain', wins: 8, streak: 5, pts: 850, color: '#3B82F6', variant: 3 },
-                { rank: 4, name: 'You', wins: 5, streak: 3, pts: 620, color: '#7C3AED', variant: 0 },
-                { rank: 5, name: 'Dev', wins: 4, streak: 2, pts: 480, color: '#06B6D4', variant: 3 },
+                { rank: 4, name: 'You', wins: 5, streak: 3, pts: 620, color: '#7C4DFF', variant: 0 },
+                { rank: 5, name: 'Dev', wins: 4, streak: 2, pts: 480, color: '#19B5E6', variant: 3 },
                 { rank: 6, name: 'Riya', wins: 3, streak: 1, pts: 310, color: '#EC4899', variant: 0 },
-                { rank: 7, name: 'Arjun', wins: 2, streak: 0, pts: 200, color: '#22D3EE', variant: 1 },
+                { rank: 7, name: 'Arjun', wins: 2, streak: 0, pts: 200, color: '#19B5E6', variant: 1 },
               ].map(p => (
                 <div key={p.rank} className="flex items-center gap-3 p-3 rounded-xl border"
-                  style={{ background: p.name === 'You' ? 'rgba(124,58,237,0.1)' : 'rgba(14,21,40,0.5)', borderColor: p.name === 'You' ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.15)' }}>
+                  style={{ background: p.name === 'You' ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: p.name === 'You' ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : p.rank === 3 ? '#CD7F32' : '#64748B' }}>
+                    style={{ color: p.rank === 1 ? '#FFD700' : p.rank === 2 ? '#C0C0C0' : p.rank === 3 ? '#CD7F32' : '#4E5E84' }}>
                     {p.rank}
                   </div>
                   <BattleAvatar color={p.color} variant={p.variant} size={36} />
@@ -3792,37 +3816,36 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                     <div className="text-[10px] text-slate-400">{p.wins} wins · {p.streak} streak</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="text-sm font-bold" style={{ color: '#FFD700' }}>{p.pts}</div>
+                    <div className="text-sm font-bold text-[#FFD700]" >{p.pts}</div>
                     <div className="text-[10px] text-slate-500">pts</div>
                   </div>
                 </div>
               ))}
             </div>
             <button onClick={() => setShowFullLeaderboard(false)}
-              className="w-full mt-5 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Close</button>
+              className="w-full mt-5 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+              >Close</button>
           </div>
         </div>
       )}
 
       {/* ── All Trophies Modal ── */}
       {showAllTrophies && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.78)' }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowAllTrophies(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.45)', boxShadow: '0 0 60px rgba(124,58,237,0.2)' }}>
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px #1A2845' }}>
             <div className="text-center mb-5">
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">TROPHIES</div>
               <div className="text-lg font-bold text-white">All Trophies & Rewards</div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-5">
-              {[...TROPHY_TIERS,
-                { label: '50 Wins', sub: '50 battles', tier: 'Platinum', emoji: '🏅', color: '#67E8F9', bg: 'rgba(103,232,249,0.08)', border: 'rgba(103,232,249,0.25)' },
-                { label: '100 Wins', sub: '100 battles', tier: 'Legend', emoji: '⭐', color: '#A78BFA', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.35)' },
-              ].map(t => (
+              {TROPHY_TIERS.map(t => (
                 <div key={t.tier} className="flex items-center gap-3 p-3.5 rounded-xl border"
                   style={{ background: t.bg, borderColor: t.border }}>
-                  <span className="text-2xl">{t.emoji}</span>
+                  <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ filter: `drop-shadow(0 0 6px ${t.color}50)` }}>
+                    <img src={t.img} alt={t.label} className="w-full h-full object-contain" />
+                  </div>
                   <div>
                     <div className="text-xs font-bold text-white">{t.label}</div>
                     <div className="text-[9px] text-slate-400">{t.sub}</div>
@@ -3833,8 +3856,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               ))}
             </div>
             <button onClick={() => setShowAllTrophies(false)}
-              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-              style={{ borderColor: 'rgba(124,58,237,0.2)' }}>Close</button>
+              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+              >Close</button>
           </div>
         </div>
       )}
@@ -3881,6 +3904,11 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   const [soundEffects, setSoundEffects] = useState(true)
   const [focusMode, setFocusMode] = useState(false)
 
+  function saveProfile() {
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2200)
+  }
+
   // profile arrives asynchronously (a fresh sign-in navigating straight
   // to Settings can beat useHomeData's fetch) - resync once it lands,
   // but only if the person hasn't already typed something of their own
@@ -3889,11 +3917,6 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   useEffect(() => {
     if (!displayNameTouched && profile?.displayName) setDisplayName(profile.displayName)
   }, [profile?.displayName, displayNameTouched])
-
-  function saveProfile() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2200)
-  }
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'profile', label: 'Profile', icon: '👤' },
@@ -3908,7 +3931,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     return (
       <button onClick={() => onChange(!val)}
         className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-        style={{ background: val ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px rgba(124,58,237,0.4)' : 'none' }}>
+        style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
         <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
           style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
       </button>
@@ -3917,7 +3940,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   function SettingRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
     return (
-      <div className="flex items-center justify-between py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+      <div className="flex items-center justify-between py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
         <div>
           <div className="text-sm font-medium text-slate-200">{label}</div>
           {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
@@ -3929,7 +3952,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-      <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+      <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
         <div className="px-5 pt-5 pb-1">
           <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
           {children}
@@ -3941,25 +3964,25 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   function FieldInput({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
     return (
-      <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
         <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
         <input type={type} value={value} onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
-          style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+          className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]"
+           />
       </div>
     )
   }
 
   function SelectInput({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
     return (
-      <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
         <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
         <div className="flex flex-wrap gap-2">
           {options.map(o => (
             <button key={o} onClick={() => onChange(o)}
               className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
-              style={{ background: value === o ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', color: value === o ? '#C4B5FD' : '#64748B', borderColor: value === o ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+              style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
               {o}
             </button>
           ))}
@@ -3969,21 +3992,21 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>SETTINGS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >SETTINGS</div>
             <div className="text-sm font-semibold text-slate-200">Manage your account & preferences.</div>
           </div>
           {saved && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-              style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' }}>
+              style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
               ✓ Changes saved
             </div>
           )}
@@ -3992,21 +4015,21 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
         <div className="flex flex-1 overflow-hidden">
           {/* Settings nav sidebar */}
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3"
-            style={{ borderColor: 'rgba(124,58,237,0.15)', background: 'rgba(6,8,15,0.5)' }}>
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]"
+            >
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
                 style={{
-                  background: activeTab === tab.id ? 'rgba(124,58,237,0.15)' : 'transparent',
-                  color: activeTab === tab.id ? '#C4B5FD' : '#64748B',
-                  border: `1px solid ${activeTab === tab.id ? 'rgba(124,58,237,0.35)' : 'transparent'}`,
+                  background: activeTab === tab.id ? 'rgba(26,40,69,0.55)' : 'transparent',
+                  color: activeTab === tab.id ? '#C4AAFF' : '#4E5E84',
+                  border: `1px solid ${activeTab === tab.id ? '#1E3060' : 'transparent'}`,
                 }}>
                 <span className="text-base">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
-            <div className="pt-4 mt-4 border-t px-1" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]" >
               <button className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10">
                 <span className="text-base">🚪</span> Log Out
               </button>
@@ -4025,13 +4048,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </div>
 
                 {/* Avatar picker */}
-                <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
                   <div className="flex items-center gap-6">
                     {/* Big avatar preview */}
                     <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
                       style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
-                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-cover" />
+                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-contain" />
                     </div>
                     <div className="flex-1">
                       <div className="text-[11px] text-slate-500 mb-3">Choose avatar</div>
@@ -4040,7 +4063,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                           <button key={i} onClick={() => setSelectedAvatar(av)}
                             className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
                             style={{ borderColor: selectedAvatar === av ? '#8B5CFF' : 'transparent', boxShadow: selectedAvatar === av ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
-                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-cover bg-[rgba(26,40,69,0.4)]" />
+                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]"  />
                           </button>
                         ))}
                       </div>
@@ -4065,7 +4088,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
                 <button onClick={saveProfile}
                   className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Save Profile Changes
                 </button>
               </>
@@ -4085,23 +4108,23 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </SectionCard>
 
                 <SectionCard title="SECURITY">
-                  <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
                     <input type="password" placeholder="Enter current password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       />
                   </div>
-                  <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
                     <input type="password" placeholder="Enter new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       />
                   </div>
                   <div className="py-3.5">
                     <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
                     <input type="password" placeholder="Confirm new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                      style={{ borderColor: 'rgba(124,58,237,0.25)' }} />
+                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                       />
                   </div>
                 </SectionCard>
 
@@ -4111,16 +4134,16 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { name: 'Discord', icon: '🟣', connected: false },
                     { name: 'GitHub', icon: '⚫', connected: false },
                   ].map(acc => (
-                    <div key={acc.name} className="flex items-center justify-between py-3.5 border-b last:border-0" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <div key={acc.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{acc.icon}</span>
                         <div>
                           <div className="text-sm font-medium text-slate-200">{acc.name}</div>
-                          <div className="text-[11px]" style={{ color: acc.connected ? '#34D399' : '#64748B' }}>{acc.connected ? 'Connected' : 'Not connected'}</div>
+                          <div className="text-[11px]" style={{ color: acc.connected ? '#19D3A2' : '#4E5E84' }}>{acc.connected ? 'Connected' : 'Not connected'}</div>
                         </div>
                       </div>
                       <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40"
-                        style={{ borderColor: 'rgba(124,58,237,0.25)', color: acc.connected ? '#F87171' : '#A78BFA' }}>
+                        style={{ borderColor: '#1A2845', color: acc.connected ? '#F87171' : '#9B6CFF' }}>
                         {acc.connected ? 'Disconnect' : 'Connect'}
                       </button>
                     </div>
@@ -4129,19 +4152,19 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
                 <button onClick={saveProfile}
                   className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Save Account Changes
                 </button>
 
-                <div className="rounded-2xl border p-5" style={{ background: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.2)' }}>
+                <div className="rounded-2xl border p-5 bg-[rgba(239,68,68,0.04)] border-[rgba(239,68,68,0.2)]" >
                   <div className="text-[10px] font-mono tracking-[0.18em] text-red-400 mb-3">DANGER ZONE</div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-red-300">Delete Account</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data.</div>
                     </div>
-                    <button className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10"
-                      style={{ borderColor: 'rgba(239,68,68,0.35)' }}>Delete</button>
+                    <button className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]"
+                      >Delete</button>
                   </div>
                 </div>
               </>
@@ -4191,13 +4214,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { label: 'Download My Data', sub: 'Export all your study data and history', action: 'Download' },
                     { label: 'Clear Study History', sub: 'Remove all session and progress records', action: 'Clear' },
                   ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between py-3.5 border-b last:border-0" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <div key={item.label} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
                       <div>
                         <div className="text-sm font-medium text-slate-200">{item.label}</div>
                         <div className="text-[11px] text-slate-500 mt-0.5">{item.sub}</div>
                       </div>
-                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all"
-                        style={{ borderColor: 'rgba(124,58,237,0.3)' }}>{item.action}</button>
+                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060]"
+                        >{item.action}</button>
                     </div>
                   ))}
                 </SectionCard>
@@ -4212,13 +4235,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience.</p>
                 </div>
                 <SectionCard title="DAILY GOALS">
-                  <div className="py-3.5 border-b" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS)</div>
                     <div className="flex gap-2 flex-wrap">
                       {['2', '4', '6', '8', '10', '12'].map(h => (
                         <button key={h} onClick={() => setDailyGoal(h)}
                           className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: dailyGoal === h ? 'rgba(124,58,237,0.2)' : 'rgba(14,21,40,0.5)', color: dailyGoal === h ? '#C4B5FD' : '#64748B', borderColor: dailyGoal === h ? 'rgba(124,58,237,0.5)' : 'rgba(124,58,237,0.15)' }}>
+                          style={{ background: dailyGoal === h ? '#1A2845' : '#0B1530', color: dailyGoal === h ? '#C4AAFF' : '#4E5E84', borderColor: dailyGoal === h ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
                           {h}h
                         </button>
                       ))}
@@ -4237,13 +4260,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { name: 'Time Blocking', sub: 'Fixed time slots per subject' },
                     { name: 'Custom', sub: 'Set your own timer intervals' },
                   ].map((t, i) => (
-                    <div key={t.name} className="flex items-center justify-between py-3.5 border-b last:border-0" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <div key={t.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
                       <div>
                         <div className="text-sm font-medium text-slate-200">{t.name}</div>
                         <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
                       </div>
                       <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                        style={{ borderColor: i === 0 ? '#7C3AED' : 'rgba(124,58,237,0.3)' }}>
+                        style={{ borderColor: i === 0 ? '#7C4DFF' : '#1E3060' }}>
                         {i === 0 && <div className="w-2 h-2 rounded-full bg-violet-500" />}
                       </div>
                     </div>
@@ -4251,7 +4274,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </SectionCard>
                 <button onClick={saveProfile}
                   className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Save Study Preferences
                 </button>
               </>
@@ -4264,9 +4287,9 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   <h2 className="text-xl font-bold text-white">About Wynko</h2>
                   <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
                 </div>
-                <div className="rounded-2xl border p-8 text-center" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+                <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]" >
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
-                    style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 32px rgba(124,58,237,0.4)' }}>W</div>
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
                   <div className="text-xl font-black text-white mb-1">Wynko</div>
                   <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
                   <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
@@ -4279,7 +4302,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { label: 'Contact Support', icon: '💬' },
                     { label: 'Rate Wynko ⭐', icon: '🌟' },
                   ].map(item => (
-                    <button key={item.label} className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group" style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                    <button key={item.label} className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]" >
                       <div className="flex items-center gap-3">
                         <span className="text-base">{item.icon}</span>
                         <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
@@ -4348,38 +4371,38 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   const PACKS = [
     {
       id: 'pack_199', coins: 199, price: '₹29', priceNum: 29,
-      badge: '', color: '#7C3AED', glow: 'rgba(124,58,237,0.4)',
-      grad: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
+      badge: '', color: '#7C4DFF', glow: '#2855CC',
+      grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)',
       perCoin: '14.6p/coin', popular: false,
     },
     {
       id: 'pack_399', coins: 399, price: '₹49', priceNum: 49,
-      badge: 'BEST VALUE', color: '#06B6D4', glow: 'rgba(6,182,212,0.4)',
-      grad: 'linear-gradient(135deg,#0891B2,#0E7490)',
+      badge: 'BEST VALUE', color: '#19B5E6', glow: 'rgba(25,181,230,0.40)',
+      grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)',
       perCoin: '12.3p/coin', popular: true,
     },
   ]
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#06080F', fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="wynkoins" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: 'rgba(6,8,15,0.95)', borderColor: 'rgba(124,58,237,0.15)' }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>WYNKOINS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOINS</div>
             <div className="text-sm font-semibold text-slate-200">Buy coins. Unlock perks.</div>
           </div>
           {/* Balance pill */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border"
-            style={{ background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' }}>
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
+            >
             <img src="/wynkoin.png" alt="Wynkoin" className="w-5 h-5 object-contain flex-shrink-0" />
-            <span className="text-base font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</span>
+            <span className="text-base font-black text-amber-400" >{balance}</span>
             <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
@@ -4389,9 +4412,9 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         {toast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl transition-all"
             style={{
-              background: toast.type === 'success' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)',
-              border: `1px solid ${toast.type === 'success' ? 'rgba(52,211,153,0.4)' : 'rgba(239,68,68,0.4)'}`,
-              color: toast.type === 'success' ? '#34D399' : '#F87171',
+              background: toast.type === 'success' ? 'rgba(25,211,162,0.15)' : 'rgba(239,68,68,0.15)',
+              border: `1px solid ${toast.type === 'success' ? 'rgba(25,211,162,0.40)' : 'rgba(239,68,68,0.4)'}`,
+              color: toast.type === 'success' ? '#19D3A2' : '#F87171',
               backdropFilter: 'blur(12px)',
             }}>
             {toast.msg}
@@ -4418,7 +4441,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               </div>
               <div className="ml-auto flex-shrink-0 text-right">
                 <div className="text-[10px] text-slate-500 font-mono mb-1">YOUR BALANCE</div>
-                <div className="text-5xl font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</div>
+                <div className="text-5xl font-black text-amber-400" >{balance}</div>
                 <div className="text-[11px] text-amber-600 mt-0.5">WYNKOINS</div>
               </div>
             </div>
@@ -4435,7 +4458,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="grid grid-cols-2 gap-4">
                   {PACKS.map(pack => (
                     <div key={pack.id} className="relative rounded-2xl border overflow-hidden"
-                      style={{ borderColor: pack.popular ? pack.color + '60' : 'rgba(124,58,237,0.25)', background: '#0A0D1E', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
+                      style={{ borderColor: pack.popular ? pack.color + '60' : '#1A2845', background: '#0B1530', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
                       {pack.popular && (
                         <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: pack.grad }} />
                       )}
@@ -4448,10 +4471,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
                             style={{ background: `${pack.color}20`, border: `1.5px solid ${pack.color}50` }}>
-                            🪙
+                            <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 object-contain" />
                           </div>
                           <div>
-                            <div className="text-3xl font-black text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{pack.coins}</div>
+                            <div className="text-3xl font-black text-white" >{pack.coins}</div>
                             <div className="text-[10px] text-slate-500">WYNKOINS · {pack.perCoin}</div>
                           </div>
                         </div>
@@ -4475,18 +4498,18 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               {/* ── SPEND WYNKOINS ── */}
               <div>
                 <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">SPEND WYNKOINS</div>
-                <div className="rounded-2xl border overflow-hidden" style={{ background: '#0A0D1E', borderColor: adsFree ? 'rgba(52,211,153,0.4)' : 'rgba(124,58,237,0.25)' }}>
-                  {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#34D399,#059669)' }} />}
+                <div className="rounded-2xl border overflow-hidden" style={{ background: '#0B1530', borderColor: adsFree ? 'rgba(25,211,162,0.40)' : '#1A2845' }}>
+                  {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#19D3A2,#0DAE86)' }} />}
                   <div className="p-6 flex items-center gap-5">
                     {/* Icon */}
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                      style={{ background: adsFree ? 'rgba(52,211,153,0.12)' : 'rgba(124,58,237,0.12)', border: `1.5px solid ${adsFree ? 'rgba(52,211,153,0.4)' : 'rgba(124,58,237,0.3)'}` }}>
+                      style={{ background: adsFree ? 'rgba(25,211,162,0.12)' : 'rgba(26,40,69,0.55)', border: `1.5px solid ${adsFree ? 'rgba(25,211,162,0.40)' : '#1E3060'}` }}>
                       🚫
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="text-base font-black text-white">Remove Ads</div>
-                        {adsFree && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' }}>ACTIVE</span>}
+                        {adsFree && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(25,211,162,0.15)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>ACTIVE</span>}
                       </div>
                       <div className="text-sm text-slate-400 mb-2">Enjoy Wynko completely ad-free for <span className="text-white font-semibold">1 full month</span>.</div>
                       {adsFree && adsFreeExpiry && (
@@ -4494,7 +4517,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                       )}
                       {!adsFree && (
                         <div className="flex items-center gap-2">
-                          <span className="text-amber-400 font-black text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>199</span>
+                          <span className="text-amber-400 font-black text-lg" >199</span>
                           <span className="text-[11px] text-amber-600">WYNKOINS</span>
                           {balance < 199 && <span className="text-[10px] text-red-400 ml-1">— need {199 - balance} more</span>}
                         </div>
@@ -4506,10 +4529,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         disabled={spending || balance < 199}
                         className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                         style={{
-                          background: balance >= 199 ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'rgba(30,30,50,0.8)',
-                          color: balance >= 199 ? '#fff' : '#475569',
-                          border: balance >= 199 ? 'none' : '1px solid rgba(124,58,237,0.2)',
-                          boxShadow: balance >= 199 ? '0 0 20px rgba(124,58,237,0.35)' : 'none',
+                          background: balance >= 199 ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(30,30,50,0.8)',
+                          color: balance >= 199 ? '#fff' : '#4E5E84',
+                          border: balance >= 199 ? 'none' : '1px solid #1A2845',
+                          boxShadow: balance >= 199 ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
                         }}>
                         {spending ? 'Unlocking…' : balance >= 199 ? (<>Unlock for 199 <img src="/wynkoin.png" alt="Wynkoin" className="w-4 h-4 object-contain inline-block" style={{ verticalAlign: '-3px' }} /></>) : 'Not enough coins'}
                       </button>
@@ -4526,7 +4549,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { icon: '🏆', label: 'Exclusive Badges', coins: '???', soon: true },
                   ].map(p => (
                     <div key={p.label} className="rounded-xl border p-4 flex items-center gap-3 opacity-50"
-                      style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.15)', borderStyle: 'dashed' }}>
+                      style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
                       <span className="text-2xl">{p.icon}</span>
                       <div>
                         <div className="text-sm font-bold text-slate-300">{p.label}</div>
@@ -4542,44 +4565,44 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <div className="w-72 flex-shrink-0 space-y-4">
 
               {/* Balance card */}
-              <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(245,158,11,0.35)' }}>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.35)]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">WALLET</div>
                 <div className="flex items-end gap-2 mb-1">
-                  <div className="text-5xl font-black text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{balance}</div>
+                  <div className="text-5xl font-black text-amber-400" >{balance}</div>
                   <div className="text-[11px] text-amber-600 mb-2">WYNKOINS</div>
                 </div>
-                <div className="w-full rounded-full h-2 mb-3" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                <div className="w-full rounded-full h-2 mb-3 bg-[rgba(245,158,11,0.12)]" >
                   <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (balance / 500) * 100)}%`, background: 'linear-gradient(90deg,#F59E0B,#D97706)' }} />
                 </div>
                 <div className="text-[10px] text-slate-600 mb-4">{balance < 199 ? `${199 - balance} more coins needed to remove ads` : 'Enough to remove ads!'}</div>
                 {adsFree && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3"
-                    style={{ background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.3)' }}>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3 bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.30)]"
+                    >
                     <span>🚫</span>
                     <div className="text-[11px] text-emerald-400 font-semibold">Ad-free until {adsFreeExpiry}</div>
                   </div>
                 )}
-                <button onClick={() => onNavigate('earn')} className="w-full py-2 rounded-xl border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all"
-                  style={{ borderColor: 'rgba(124,58,237,0.3)' }}>
+                <button onClick={() => onNavigate('earn')} className="w-full py-2 rounded-xl border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]"
+                  >
                   Earn free WYNKOINS →
                 </button>
               </div>
 
               {/* Transaction history */}
-              <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.22)' }}>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">TRANSACTION HISTORY</div>
                 {history.length === 0 ? (
                   <div className="text-center py-6 text-slate-600 text-[12px]">No transactions yet</div>
                 ) : (
                   <div className="space-y-0">
                     {history.map((h, i) => (
-                      <div key={i} className="flex items-center justify-between py-2.5 border-b last:border-0"
-                        style={{ borderColor: 'rgba(124,58,237,0.1)' }}>
+                      <div key={i} className="flex items-center justify-between py-2.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]"
+                        >
                         <div>
                           <div className="text-[12px] font-medium text-slate-300">{h.label}</div>
                           <div className="text-[10px] text-slate-600 font-mono">{h.date}</div>
                         </div>
-                        <div className="text-sm font-black" style={{ color: h.type === 'credit' ? '#34D399' : '#F87171', fontFamily: 'JetBrains Mono, monospace' }}>
+                        <div className="text-sm font-black" style={{ color: h.type === 'credit' ? '#19D3A2' : '#F87171' }}>
                           {h.type === 'credit' ? '+' : '−'}{h.amount}
                         </div>
                       </div>
@@ -4589,7 +4612,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               </div>
 
               {/* How to earn free */}
-              <div className="rounded-2xl border p-5" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.18)' }}>
+              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(26,40,69,0.55)]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">EARN FREE WYNKOINS</div>
                 <div className="space-y-2.5">
                   {[
@@ -4599,7 +4622,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   ].map(e => (
                     <div key={e.label} className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                        style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>{e.icon}</div>
+                        style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>{e.icon}</div>
                       <div>
                         <div className="text-[12px] font-semibold text-slate-300">{e.label}</div>
                         <div className="text-[10px] text-slate-600">{e.sub}</div>
@@ -4675,28 +4698,28 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
     ]
     const EXAMPLE_SUB_HEADS = [
       { name: "Aryan Tiwari", code: "WYNKO-ARYAN-HEAD", members: 12, revenue: "₹18,400", myShare: "₹1,840", avatar: "#EC4899", init: "AT" },
-      { name: "Komal Singh", code: "WYNKO-KOMAL-HEAD", members: 7, revenue: "₹9,600", myShare: "₹960", avatar: "#6366F1", init: "KS" },
+      { name: "Komal Singh", code: "WYNKO-KOMAL-HEAD", members: 7, revenue: "₹9,600", myShare: "₹960", avatar: "#7C4DFF", init: "KS" },
     ]
 
     return (
-      <div className="flex h-screen overflow-hidden" style={{ background: "#06080F", fontFamily: "Poppins, sans-serif" }}>
+      <div className="flex h-screen overflow-hidden bg-[#020615]" >
         <Sidebar active="earn" setActive={onNavigate} profile={profile} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-            style={{ background: "rgba(6,8,15,0.95)", borderColor: "rgba(124,58,237,0.15)" }}>
+          <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+            >
             <button onClick={() => setInLibrary(false)} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Back
             </button>
             <div className="flex-1">
-              <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: "JetBrains Mono, monospace" }}>WYNKOHEAD LIBRARY</div>
+              <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOHEAD LIBRARY</div>
               <div className="text-sm font-semibold text-slate-200">Your community dashboard</div>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border" style={{ background: "rgba(245,158,11,0.1)", borderColor: "rgba(245,158,11,0.3)" }}>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
               <span className="text-base">🪙</span>
-              <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
+              <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
               <span className="text-[10px] text-amber-500">WYNKOINS</span>
             </div>
-            <UserAvatar size={32} />
+          <UserAvatar size={32} />
           </header>
 
           <main className="flex-1 overflow-y-auto px-6 py-5">
@@ -4705,12 +4728,12 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
               <div className="flex-1 min-w-0 space-y-4">
 
                 {/* Share link */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">YOUR WYNKOHEAD INVITE LINK</div>
                   <div className="text-[11px] text-slate-500 mb-3">Share this link — anyone who joins Wynko via this link is added to your community.</div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3" style={{ background: "rgba(14,21,40,0.6)", borderColor: "rgba(124,58,237,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
                     <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoHeadLink}</span>
+                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" >{wynkoHeadLink}</span>
                     <button onClick={copyHeadLink} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
                       {headLinkCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -4728,10 +4751,10 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Community */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400">YOUR COMMUNITY</div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border" style={{ color: "#A78BFA", background: "rgba(124,58,237,0.1)", borderColor: "rgba(124,58,237,0.3)" }}>{communityMembers.length} members</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#9B6CFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]" >{communityMembers.length} members</span>
                   </div>
                   <div className="text-[11px] text-slate-500 mb-4">Only users who joined Wynko via your link appear here.</div>
 
@@ -4744,44 +4767,44 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                   ) : (
                     <div className="space-y-2">
                       {communityMembers.map((m, i) => (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border" style={{ background: "rgba(14,21,40,0.5)", borderColor: "rgba(124,58,237,0.12)" }}>
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[#0B1530] border-[rgba(26,40,69,0.55)]" >
                           <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#7C3AED,#06B6D4)" }}>
+                            style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)" }}>
                             {m.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1">
                             <div className="text-sm font-semibold text-slate-200">{m.name}</div>
                             <div className="text-[10px] text-slate-500 font-mono">Joined {m.joined}</div>
                           </div>
-                          <div className="px-2 py-0.5 rounded-full text-[9px] font-bold border" style={{ color: "#34D399", background: "rgba(52,211,153,0.1)", borderColor: "rgba(52,211,153,0.3)" }}>ACTIVE</div>
+                          <div className="px-2 py-0.5 rounded-full text-[9px] font-bold border text-[#19D3A2] bg-[rgba(25,211,162,0.10)] border-[rgba(25,211,162,0.30)]" >ACTIVE</div>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {/* Dev helper: simulate a user joining */}
-                  <div className="mt-4 pt-4 border-t flex gap-2 items-center" style={{ borderColor: "rgba(124,58,237,0.1)" }}>
+                  <div className="mt-4 pt-4 border-t flex gap-2 items-center border-[rgba(26,40,69,0.55)]" >
                     <div className="text-[9px] text-slate-600 flex-shrink-0 font-mono">SIMULATE JOIN (DEMO)</div>
                     <input value={simName} onChange={e => setSimName(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && addSimMember()}
                       placeholder="Enter a name to simulate..."
-                      className="flex-1 px-3 py-1.5 rounded-lg border bg-transparent text-[11px] text-slate-300 outline-none placeholder-slate-700"
-                      style={{ borderColor: "rgba(124,58,237,0.2)" }} />
+                      className="flex-1 px-3 py-1.5 rounded-lg border bg-transparent text-[11px] text-slate-300 outline-none placeholder-slate-700 border-[#1A2845]"
+                       />
                     <button onClick={addSimMember}
-                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-violet-300 border hover:border-violet-500/50 transition-all"
-                      style={{ borderColor: "rgba(124,58,237,0.3)" }}>Add</button>
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-violet-300 border hover:border-violet-500/50 transition-all border-[#1E3060]"
+                      >Add</button>
                   </div>
                 </div>
 
                 {/* Sub WynkoHeads */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">SUB-WYNKOHEADS</div>
                   <div className="text-[11px] text-slate-500 mb-3">Share your WynkoHead code. If another creator registers as WynkoHead using your code, you earn 10% from their community revenue.</div>
 
                   {/* Share code */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-4" style={{ background: "rgba(14,21,40,0.6)", borderColor: "rgba(34,211,238,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-4 bg-[#0B1530] border-[rgba(25,181,230,0.25)]" >
                     <span className="text-cyan-400">👑</span>
-                    <span className="text-sm font-bold text-slate-200 flex-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{subHeadCode}</span>
+                    <span className="text-sm font-bold text-slate-200 flex-1" >{subHeadCode}</span>
                     <button onClick={copySubCode} className="text-slate-500 hover:text-cyan-400 transition-colors p-1">
                       {subCodeCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -4794,7 +4817,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
                   <div className="space-y-2">
                     {EXAMPLE_SUB_HEADS.map((sh, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl border" style={{ background: "rgba(6,182,212,0.04)", borderColor: "rgba(34,211,238,0.15)" }}>
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[rgba(25,181,230,0.04)] border-[rgba(25,181,230,0.15)]" >
                         <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
                           style={{ background: `linear-gradient(135deg,${sh.avatar},${sh.avatar}88)` }}>{sh.init}</div>
                         <div className="flex-1 min-w-0">
@@ -4811,7 +4834,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Community revenue detail */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">REVENUE BREAKDOWN — EXAMPLE</div>
                   <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
                     ⚠ THESE ARE EXAMPLE EARNINGS — YOUR ACTUAL NUMBERS WILL APPEAR AS YOUR COMMUNITY GROWS
@@ -4822,12 +4845,12 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       { icon: "🔗", label: "Sub-WynkoHead revenue", price: "₹28,000", earn: "₹2,800", note: "10% share" },
                       { icon: "📚", label: "Study Pack purchase", price: "₹500", earn: "₹250", note: "50% share" },
                     ].map(ex => (
-                      <div key={ex.label} className="flex-1 p-3.5 rounded-xl border" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
+                      <div key={ex.label} className="flex-1 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="text-xl mb-2">{ex.icon}</div>
                         <div className="text-[11px] font-bold text-slate-300 mb-0.5">{ex.label}</div>
                         <div className="text-[10px] text-slate-500">{ex.price} · {ex.note}</div>
-                        <div className="mt-2 pt-2 border-t text-[11px]" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-                          You earn: <span className="font-bold" style={{ color: "#34D399" }}>{ex.earn}</span>
+                        <div className="mt-2 pt-2 border-t text-[11px] border-[rgba(26,40,69,0.55)]" >
+                          You earn: <span className="font-bold text-[#19D3A2]" >{ex.earn}</span>
                         </div>
                       </div>
                     ))}
@@ -4838,59 +4861,59 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
               {/* Right sidebar — earnings */}
               <div className="w-68 flex-shrink-0 space-y-4" style={{ width: "268px" }}>
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
                   <div className="flex items-center gap-2 mb-4">
                     <span>👑</span>
                     <span className="text-sm font-bold text-white">Your Earnings</span>
                     <span className="text-[9px] text-amber-500 ml-1">[EXAMPLE]</span>
                   </div>
-                  <div className="text-4xl font-black text-white mb-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{totalEarned}</div>
+                  <div className="text-4xl font-black text-white mb-1" >{totalEarned}</div>
                   <div className="text-[10px] text-amber-500 mb-3 font-mono">EXAMPLE — grows as your community grows</div>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 rounded-xl border" style={{ background: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.2)" }}>
+                    <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(245,158,11,0.06)] border-[rgba(245,158,11,0.2)]" >
                       <div className="flex items-center gap-2"><span>⏱️</span><span className="text-[11px] text-slate-400">Pending confirmation</span></div>
                       <span className="text-sm font-bold text-amber-400">{pending}</span>
                     </div>
-                    <div className="flex items-center justify-between p-3 rounded-xl border" style={{ background: "rgba(52,211,153,0.06)", borderColor: "rgba(52,211,153,0.2)" }}>
+                    <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(25,211,162,0.06)] border-[rgba(25,211,162,0.20)]" >
                       <div className="flex items-center gap-2"><span>💳</span><span className="text-[11px] text-slate-400">Available to withdraw</span></div>
                       <span className="text-sm font-bold text-emerald-400">{available}</span>
                     </div>
                   </div>
                   <button className="w-full mt-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg,#7C3AED,#4F46E5)", boxShadow: "0 0 16px rgba(124,58,237,0.3)" }}>
+                    style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)", boxShadow: "0 0 16px #1E3060" }}>
                     Withdraw Earnings
                   </button>
                 </div>
 
                 {/* WYNKOINS */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(245,158,11,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">WYNKOINS</span></div>
-                  <div className="text-4xl font-black text-amber-400 mb-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</div>
+                  <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
                   <div className="text-[11px] text-slate-500 mb-3">Earned from friend invites</div>
                   <div className="space-y-1.5 text-[11px]">
                     {[
-                      { label: "Friend streak bonus", coins: "+50 (EXAMPLE)", color: "#34D399" },
-                      { label: "Welcome bonus", coins: "+100 (REAL)", color: "#A78BFA" },
+                      { label: "Friend streak bonus", coins: "+50 (EXAMPLE)", color: "#19D3A2" },
+                      { label: "Welcome bonus", coins: "+100 (REAL)", color: "#9B6CFF" },
                     ].map((e, i) => (
-                      <div key={i} className="flex items-center justify-between py-1.5 border-b" style={{ borderColor: "rgba(245,158,11,0.1)" }}>
+                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
                         <span className="text-slate-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
                   </div>
-                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10"
-                    style={{ borderColor: "rgba(245,158,11,0.3)" }}>Redeem WYNKOINS</button>
+                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
+                    >Redeem WYNKOINS</button>
                 </div>
 
-                <div className="rounded-2xl border p-4" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-4 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">COMMUNITY STATS</div>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: "Members", val: String(communityMembers.length), color: "#C4B5FD" },
-                      { label: "Sub-WynkoHeads", val: "0", color: "#67E8F9" },
+                      { label: "Members", val: String(communityMembers.length), color: "#C4AAFF" },
+                      { label: "Sub-WynkoHeads", val: "0", color: "#7DD8F0" },
                     ].map(s => (
-                      <div key={s.label} className="p-3 rounded-xl border text-center" style={{ borderColor: "rgba(124,58,237,0.15)", background: "rgba(14,21,40,0.4)" }}>
-                        <div className="text-xl font-black" style={{ color: s.color, fontFamily: "JetBrains Mono, monospace" }}>{s.val}</div>
+                      <div key={s.label} className="p-3 rounded-xl border text-center border-[rgba(26,40,69,0.55)] bg-[#0B1530]" >
+                        <div className="text-xl font-black" style={{ color: s.color }}>{s.val}</div>
                         <div className="text-[10px] text-slate-500 mt-0.5">{s.label}</div>
                       </div>
                     ))}
@@ -4906,21 +4929,21 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
   // ── Main Earn Page ──
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#06080F", fontFamily: "Poppins, sans-serif" }}>
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
       <Sidebar active="earn" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0"
-          style={{ background: "rgba(6,8,15,0.95)", borderColor: "rgba(124,58,237,0.15)" }}>
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
           <button onClick={() => onNavigate("home")} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" style={{ fontFamily: "JetBrains Mono, monospace" }}>EARN WITH WYNKO</div>
+            <div className="text-[10px] text-slate-600 mb-0.5" >EARN WITH WYNKO</div>
             <div className="text-sm font-semibold text-slate-200">Build your community. Share the revenue.</div>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border" style={{ background: "rgba(245,158,11,0.1)", borderColor: "rgba(245,158,11,0.3)" }}>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
             <span className="text-base">🪙</span>
-            <span className="text-sm font-bold text-amber-400" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</span>
+            <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
             <span className="text-[10px] text-amber-500">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
@@ -4928,11 +4951,11 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
         <main className="flex-1 overflow-y-auto">
           {/* Hero — no revenue split visual */}
-          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#080B1A 0%,#12083A 55%,#080B1A 100%)", borderBottom: "1px solid rgba(124,58,237,0.2)" }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,rgba(124,58,237,0.22),transparent 65%)" }} />
+          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#080B1A 0%,#12083A 55%,#080B1A 100%)", borderBottom: "1px solid #1A2845" }}>
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,#1A2845,transparent 65%)" }} />
             <div className="relative z-10">
               <div className="text-[10px] font-mono tracking-[0.28em] text-violet-400 mb-3">EARN WITH WYNKO</div>
-              <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C3AED,#06B6D4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
+              <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
               <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Grow your network — earn from your network's WynkoHeads too. Or simply invite friends and earn WYNKOINS together.</p>
               <div className="flex gap-6 flex-wrap">
                 {[
@@ -4942,9 +4965,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 ].map(f => (
                   <div key={f.label} className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                      style={{ background: "rgba(124,58,237,0.18)", border: "1px solid rgba(124,58,237,0.35)" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
+                      style={{ background: "rgba(26,40,69,0.55)", border: "1px solid #1E3060" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
                     <div>
-                      <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#C4B5FD,#67E8F9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
+                      <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#C4AAFF,#7DD8F0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
                       <div className="text-[10px] text-slate-500">{f.label}</div>
                     </div>
                   </div>
@@ -4954,7 +4977,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
           </div>
 
           {/* Tab switcher */}
-          <div className="flex items-center gap-1 px-6 py-3 border-b" style={{ borderColor: "rgba(124,58,237,0.12)" }}>
+          <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(26,40,69,0.55)]" >
             {([
               { id: "wynkohead" as EarnTab, icon: "👑", label: "WynkoHead Program" },
               { id: "invite" as EarnTab, icon: "🎁", label: "Invite a Friend" },
@@ -4962,9 +4985,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
                 style={{
-                  background: tab === t.id ? "rgba(124,58,237,0.15)" : "transparent",
-                  color: tab === t.id ? "#C4B5FD" : "#64748B",
-                  border: "1px solid " + (tab === t.id ? "rgba(124,58,237,0.35)" : "transparent"),
+                  background: tab === t.id ? "rgba(26,40,69,0.55)" : "transparent",
+                  color: tab === t.id ? "#C4AAFF" : "#4E5E84",
+                  border: "1px solid " + (tab === t.id ? "#1E3060" : "transparent"),
                 }}>
                 {t.icon} {t.label}
               </button>
@@ -4977,7 +5000,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             {tab === "wynkohead" && (
               <div className="space-y-4">
                 {/* How it works */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">HOW WYNKOHEAD WORKS</div>
                   <div className="grid grid-cols-3 gap-4">
                     {[
@@ -4985,10 +5008,10 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
                       { n: "3", icon: "🔗", title: "Grow Sub-WynkoHeads", desc: "Share your WynkoHead code to other creators. When they register using it, you earn 10% from their community revenue too." },
                     ].map(s => (
-                      <div key={s.n} className="p-4 rounded-xl border" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
+                      <div key={s.n} className="p-4 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#7C3AED,#4F46E5)" }}>{s.n}</div>
+                            style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)" }}>{s.n}</div>
                           <span className="text-xl">{s.icon}</span>
                         </div>
                         <div className="text-sm font-bold text-white mb-1.5">{s.title}</div>
@@ -5000,7 +5023,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
                 {/* Register / Open Library CTA */}
                 {!isWynkoHead ? (
-                  <div className="rounded-2xl border overflow-hidden" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.35)" }}>
+                  <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
                     {!registering ? (
                       <div className="p-6 flex items-center justify-between gap-6">
                         <div>
@@ -5010,7 +5033,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                         </div>
                         <button onClick={() => setRegistering(true)}
                           className="flex-shrink-0 px-6 py-3 rounded-xl text-white font-bold text-sm transition-all hover:scale-[1.03]"
-                          style={{ background: "linear-gradient(135deg,#7C3AED,#4F46E5)", boxShadow: "0 0 28px rgba(124,58,237,0.45)" }}>
+                          style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)", boxShadow: "0 0 28px #2855CC" }}>
                           👑 Register as WynkoHead
                         </button>
                       </div>
@@ -5022,23 +5045,23 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                             <div className="text-[10px] text-slate-500 mb-1.5">FULL NAME *</div>
                             <input value={regName} onChange={e => setRegName(e.target.value)}
                               placeholder="Your full name"
-                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                              style={{ borderColor: "rgba(124,58,237,0.3)" }} />
+                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                               />
                           </div>
                           <div>
                             <div className="text-[10px] text-slate-500 mb-1.5">PHONE / SOCIAL HANDLE (optional)</div>
                             <input value={regPhone} onChange={e => setRegPhone(e.target.value)}
                               placeholder="+91 or @handle"
-                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors"
-                              style={{ borderColor: "rgba(124,58,237,0.3)" }} />
+                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                               />
                           </div>
                           <div className="flex gap-3 pt-1">
                             <button onClick={() => setRegistering(false)}
-                              className="px-4 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                              style={{ borderColor: "rgba(124,58,237,0.2)" }}>Cancel</button>
+                              className="px-4 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                              >Cancel</button>
                             <button onClick={handleRegister}
                               className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
-                              style={{ background: regName.trim() ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : "rgba(14,21,40,0.7)", opacity: regName.trim() ? 1 : 0.5 }}>
+                              style={{ background: regName.trim() ? "linear-gradient(135deg,#7C4DFF,#6B44EE)" : "#0B1530", opacity: regName.trim() ? 1 : 0.5 }}>
                               Complete Registration →
                             </button>
                           </div>
@@ -5049,9 +5072,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 ) : (
                   <button onClick={() => setInLibrary(true)}
                     className="w-full flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
-                    style={{ background: "linear-gradient(135deg,rgba(124,58,237,0.18),rgba(79,70,229,0.12))", borderColor: "rgba(124,58,237,0.45)", boxShadow: "0 0 32px rgba(124,58,237,0.12)" }}>
+                    style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "rgba(124,58,237,0.25)", border: "1px solid rgba(124,58,237,0.5)" }}>👑</div>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
                       <div className="text-left">
                         <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
                         <div className="text-[11px] text-slate-400">{communityMembers.length} community members · your dashboard</div>
@@ -5067,7 +5090,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             {tab === "invite" && (
               <div className="space-y-4">
                 {/* How it works */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">HOW FRIEND INVITES WORK</div>
                   <div className="flex gap-4">
                     {[
@@ -5076,14 +5099,14 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       { icon: "🔥", title: "3-Day Streak", desc: "They study for 3 consecutive days on Wynko." },
                       { icon: "🪙", title: "Both Get WYNKOINS", desc: "You and your friend each receive WYNKOINS instantly!" },
                     ].map((s, i) => (
-                      <div key={i} className="flex-1 p-3.5 rounded-xl border text-center" style={{ background: "rgba(124,58,237,0.05)", borderColor: "rgba(124,58,237,0.18)" }}>
+                      <div key={i} className="flex-1 p-3.5 rounded-xl border text-center bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="text-2xl mb-2 flex justify-center">{s.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-7 h-7 object-contain" /> : s.icon}</div>
                         <div className="text-[12px] font-bold text-white mb-1">{s.title}</div>
                         <div className="text-[10px] text-slate-400 leading-relaxed">{s.desc}</div>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center gap-4 p-4 rounded-xl border" style={{ background: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.25)" }}>
+                  <div className="mt-4 flex items-center gap-4 p-4 rounded-xl border bg-[rgba(245,158,11,0.06)] border-[rgba(245,158,11,0.25)]" >
                     <span className="text-3xl">🪙</span>
                     <div>
                       <div className="text-sm font-bold text-amber-300">WYNKOINS Reward</div>
@@ -5093,11 +5116,11 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Referral link */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">YOUR INVITE LINK</div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3" style={{ background: "rgba(14,21,40,0.6)", borderColor: "rgba(124,58,237,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
                     <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold" style={{ fontFamily: "JetBrains Mono, monospace" }}>{friendLink}</span>
+                    <span className="text-sm text-slate-200 flex-1 font-bold" >{friendLink}</span>
                     <button onClick={copyFriend} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
                       {friendCopied ? <span className="text-[10px] text-emerald-400">✓ Copied!</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -5115,7 +5138,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* Friend tracking — clearly labeled */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(124,58,237,0.22)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400">FRIENDS YOU INVITED</div>
                   </div>
@@ -5128,26 +5151,26 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                 </div>
 
                 {/* WYNKOINS balance */}
-                <div className="rounded-2xl border p-5" style={{ background: "#0A0D1E", borderColor: "rgba(245,158,11,0.3)" }}>
+                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">Your WYNKOINS</span></div>
-                  <div className="text-4xl font-black text-amber-400 mb-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>{wynkoins}</div>
+                  <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
                   <div className="text-[11px] text-slate-500 mb-3">Earned from friend invites and bonuses</div>
                   <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
                     ⚠ BREAKDOWN BELOW IS FOR EXAMPLE — YOUR REAL HISTORY WILL APPEAR AS YOU INVITE FRIENDS
                   </div>
                   <div className="space-y-1.5 text-[11px]">
                     {[
-                      { label: "Friend streak bonus (EXAMPLE)", coins: "+50", color: "#34D399" },
-                      { label: "Welcome bonus (REAL)", coins: "+100", color: "#A78BFA" },
+                      { label: "Friend streak bonus (EXAMPLE)", coins: "+50", color: "#19D3A2" },
+                      { label: "Welcome bonus (REAL)", coins: "+100", color: "#9B6CFF" },
                     ].map((e, i) => (
-                      <div key={i} className="flex items-center justify-between py-1.5 border-b" style={{ borderColor: "rgba(245,158,11,0.1)" }}>
+                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
                         <span className="text-slate-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
                   </div>
-                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10"
-                    style={{ borderColor: "rgba(245,158,11,0.3)" }}>Redeem WYNKOINS</button>
+                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
+                    >Redeem WYNKOINS</button>
                 </div>
               </div>
             )}
@@ -5163,7 +5186,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
 function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   return (
-    <div className="flex h-screen overflow-hidden" style={{ fontFamily: 'Poppins, sans-serif' }}>
+    <div className="flex h-screen overflow-hidden" >
       <Sidebar active="3dlibrary" setActive={onNavigate} profile={profile} />
       {/* Full-screen image fill */}
       <div className="flex-1 relative overflow-hidden">
@@ -5178,14 +5201,14 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-8 text-center">
           {/* Icon */}
           <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mb-2"
-            style={{ background: 'rgba(124,58,237,0.25)', border: '1.5px solid rgba(124,58,237,0.5)', boxShadow: '0 0 48px rgba(124,58,237,0.35)', backdropFilter: 'blur(8px)' }}>
+            style={{ background: '#1A2845', border: '1.5px solid #4A3A88', boxShadow: '0 0 48px #1E3060', backdropFilter: 'blur(8px)' }}>
             🏛️
           </div>
           {/* Label */}
           <div className="text-[11px] font-mono tracking-[0.3em] text-violet-400">3D LIBRARY</div>
           {/* Heading */}
           <h1 className="text-6xl font-black text-white leading-tight"
-            style={{ textShadow: '0 0 60px rgba(124,58,237,0.8), 0 0 120px rgba(124,58,237,0.4)', letterSpacing: '-0.02em' }}>
+            style={{ textShadow: '0 0 60px #563FA0, 0 0 120px #2855CC', letterSpacing: '-0.02em' }}>
             Coming Soon
           </h1>
           {/* Sub */}
@@ -5196,14 +5219,14 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
           <div className="flex gap-3 flex-wrap justify-center mt-2">
             {['Virtual Study Rooms', 'Solo Pods', 'Discussion Corner', 'Resource Hub'].map(f => (
               <div key={f} className="px-4 py-1.5 rounded-full text-sm font-medium border"
-                style={{ background: 'rgba(124,58,237,0.15)', borderColor: 'rgba(124,58,237,0.4)', color: '#C4B5FD', backdropFilter: 'blur(8px)' }}>
+                style={{ background: 'rgba(26,40,69,0.55)', borderColor: '#2855CC', color: '#C4AAFF', backdropFilter: 'blur(8px)' }}>
                 {f}
               </div>
             ))}
           </div>
           {/* Notify button */}
           <button className="mt-2 flex items-center gap-2.5 px-8 py-3.5 rounded-full font-bold text-white text-base transition-all hover:opacity-90 active:scale-95"
-            style={{ background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', boxShadow: '0 0 32px rgba(124,58,237,0.5)', backdropFilter: 'blur(8px)' }}>
+            style={{ background: '#7C4DFF', boxShadow: '0 0 32px #4A3A88', backdropFilter: 'blur(8px)' }}>
             <Ico n="bell" cls="w-5 h-5" />
             Notify Me When It's Live
           </button>
