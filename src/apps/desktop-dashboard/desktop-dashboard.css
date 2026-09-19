@@ -18,3 +18,25 @@ html, body, #root {
 *::-webkit-scrollbar {
   display: none;
 }
+
+/* Subtle Wynko-themed scrollbar for the My Study Plan list — the only
+   place in the desktop dashboard where a visible in-panel scroll affordance
+   is wanted, so it deliberately opts back in against the rule above. */
+.wynko-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3A2E70 transparent;
+}
+.wynko-scroll::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+.wynko-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wynko-scroll::-webkit-scrollbar-thumb {
+  background: #3A2E70;
+  border-radius: 999px;
+}
+.wynko-scroll::-webkit-scrollbar-thumb:hover {
+  background: #4A3A88;
+}
