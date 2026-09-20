@@ -1762,6 +1762,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   const [fullscreen, setFullscreen] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showPomodoroSettings, setShowPomodoroSettings] = useState(false)
+  // Pause Reflection gate: clicking Pause opens this instead of pausing directly.
+  // The task id is captured at click-time so "Unlock Pause" pauses the right task
+  // even if activeTask/activeTaskId were to change while the modal is open.
+  const [pendingPauseTaskId, setPendingPauseTaskId] = useState<string | null>(null)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Latest values for the 1s interval below, which is created once per run and would otherwise see stale ones.
@@ -1961,6 +1965,15 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     await stopRemoteSession()
   }
 
+  // Gate in front of handlePauseTask: every "Pause" control opens the reflection
+  // modal instead of pausing immediately. The timer keeps running underneath -
+  // handlePauseTask only actually fires once the user unlocks it (150+ words) and
+  // clicks "Unlock Pause"; "Keep Studying" / close just dismiss with no side effect.
+  function requestPause(taskId: string) {
+    if (activeTaskId !== taskId || !running) return
+    setPendingPauseTaskId(taskId)
+  }
+
   function handleRemoveTask(taskId: string) {
     if (activeTaskId === taskId) {
       setRunning(false)
@@ -2064,7 +2077,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 
           <div className="relative z-10 h-full flex flex-col items-center justify-center gap-8 px-6">
             <button
-              onClick={() => activeTask && (running ? handlePauseTask(activeTask.id) : handleStartTask(activeTask.id))}
+              onClick={() => activeTask && (running ? requestPause(activeTask.id) : handleStartTask(activeTask.id))}
               disabled={!activeTask}
               title={activeTask ? (running ? 'Tap to pause' : 'Tap to resume') : undefined}
               className="bg-transparent border-none p-0 disabled:cursor-default"
@@ -2125,7 +2138,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
               </div>
               <div className="text-xs text-slate-500">{circleCaption}</div>
               {activeTask && (
-                <button onClick={() => (running ? handlePauseTask(activeTask.id) : handleStartTask(activeTask.id))}
+                <button onClick={() => (running ? requestPause(activeTask.id) : handleStartTask(activeTask.id))}
                   className="mt-2 h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8"
                   style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
                   {running
@@ -2161,7 +2174,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                   ) : tasks.map(task => (
                     <StudyPlanRow key={task.id} task={task} isActive={task.id === activeTaskId} running={running}
                       onStart={() => handleStartTask(task.id)}
-                      onPause={() => handlePauseTask(task.id)}
+                      onPause={() => requestPause(task.id)}
                       onRemove={() => handleRemoveTask(task.id)} />
                   ))}
                 </div>
@@ -2185,6 +2198,112 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
           onClose={() => setShowPomodoroSettings(false)}
           onSave={next => { setShowPomodoroSettings(false); void savePomo(next) }} />
       )}
+      {pendingPauseTaskId && (
+        <PauseReflectionModal
+          onClose={() => setPendingPauseTaskId(null)}
+          onUnlock={() => { const id = pendingPauseTaskId; setPendingPauseTaskId(null); handlePauseTask(id) }} />
+      )}
+    </div>
+  )
+}
+
+// ─── Pause Reflection Modal ─────────────────────────────────────────────────────
+// Shown when the user tries to pause from inside Focus Lock. Doesn't touch the
+// timer itself - it just gates the actual pause behind a short "why am I
+// pausing" reflection, so a break is a deliberate choice rather than a reflex tap.
+const PAUSE_REFLECTION_MIN_WORDS = 150
+
+function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
+  const [text, setText] = useState('')
+  const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length
+  const unlocked = wordCount >= PAUSE_REFLECTION_MIN_WORDS
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(2,6,21,0.72)', backdropFilter: 'blur(4px)' }}>
+      <div className="w-full rounded-3xl border relative flex flex-col"
+        style={{
+          maxWidth: 520,
+          background: '#0B1530',
+          borderColor: '#1E3060',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(30,72,150,0.25), 0 0 48px rgba(59,130,246,0.14)',
+        }}>
+        <button onClick={onClose} aria-label="Close"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors"
+          style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+
+        <div className="flex flex-col items-center text-center px-7 pt-8 pb-1">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid #2B4E8C', boxShadow: '0 0 24px rgba(59,130,246,0.35)' }}>
+            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5AB6FF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="6" y="10" width="12" height="9" rx="2" /><path d="M8.5 10V7a3.5 3.5 0 0 1 7 0v3" />
+            </svg>
+          </div>
+          <h2 className="mt-4 text-xl font-bold text-[#F3F4F6]">Before you pause…</h2>
+          <p className="mt-2 text-[13px] text-slate-400">Take a moment before breaking your focus.</p>
+          <p className="mt-3 text-[13px] text-slate-200">
+            Type <span className="font-semibold" style={{ color: '#5AB6FF' }}>{PAUSE_REFLECTION_MIN_WORDS} words</span> — anything on your mind.
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
+            It can be what you were studying, why you want to pause, what you're thinking about — or just random words.
+          </p>
+        </div>
+
+        <div className="px-7 pt-4">
+          <div className="flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5"
+            style={{ background: 'rgba(59,130,246,0.06)', borderColor: '#1E3060' }}>
+            <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="#5AB6FF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .8 1.7v.5h5.6v-.5c0-.7.3-1.3.8-1.7A6 6 0 0 0 12 3Z" />
+            </svg>
+            <div className="text-[12px] leading-snug">
+              <span className="font-semibold text-slate-200">Yes, random words are allowed. </span>
+              <span className="text-slate-500">This isn't an essay.</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-7 pt-3">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder={`Start typing... (min. ${PAUSE_REFLECTION_MIN_WORDS} words)`}
+            rows={5}
+            autoFocus
+            className="w-full resize-none rounded-xl border px-3.5 py-3 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none transition-colors"
+            style={{ background: 'rgba(6,13,26,0.6)', borderColor: unlocked ? '#19B5E6' : '#1A2845' }} />
+          <div className="mt-1.5 text-right text-[11px]" style={{ color: unlocked ? '#19D3A2' : '#68728A' }}>
+            {wordCount} / {PAUSE_REFLECTION_MIN_WORDS} words
+          </div>
+        </div>
+
+        <div className="px-7 pt-1 pb-7 flex flex-col sm:flex-row gap-3">
+          <button
+            disabled={!unlocked}
+            onClick={onUnlock}
+            className="flex-1 h-11 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:active:scale-100"
+            style={unlocked
+              ? { color: '#fff', background: 'linear-gradient(135deg, #19B5E6 0%, #0F86B8 100%)', boxShadow: '0 0 20px rgba(25,181,230,0.45), 0 0 40px rgba(25,181,230,0.2)' }
+              : { color: '#5A6478', background: 'rgba(255,255,255,0.04)', border: '1px solid #1A2845', cursor: 'not-allowed' }}>
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+            Unlock Pause
+          </button>
+          <button onClick={onClose}
+            className="flex-1 h-11 rounded-2xl font-semibold text-sm flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] border"
+            style={{ color: '#5AB6FF', background: 'rgba(59,130,246,0.08)', borderColor: '#2B4E8C' }}>
+            Keep Studying
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
