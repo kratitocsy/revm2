@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, createContext, useContext } from 'react'
+import { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import aiAssistantImg from './imports/ai-assistant.png'
 import trophyBronze from './imports/trophy-bronze.png'
@@ -2353,53 +2353,382 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   )
 }
 
+// ─── Room focus bar ────────────────────────────────────────────────────────────
+// Pinned timer row at the top of a study room:
+//   [ ring + time ]  [ Start / Pause ]  [ task picker ]  [ ⋮ ]
+// The picker lists the Focus Lock plan (the same persisted snapshot FocusLockPage
+// reads), so a task's subject, topic, timer type and progress are identical in
+// both places. Presentational only - the room owns the timer engine.
+function ModeBadge({ mode }: { mode: TimerMode }) {
+  return mode === 'pomodoro'
+    ? <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#F87171' }}>🍅 Pomodoro</span>
+    : <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#38BDF8' }}><Ico n="clock" cls="w-3 h-3" /> Regular</span>
+}
+
+function RoomFocusBar({ tasks, selectedTask, running, onSelectTask, onToggle, onReset, onOpenFocusLock }: {
+  tasks: StudyTask[]; selectedTask: StudyTask | null; running: boolean
+  onSelectTask: (id: string) => void; onToggle: () => void; onReset: () => void; onOpenFocusLock: () => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Outside click / Esc closes whichever popover is open.
+  useEffect(() => {
+    if (!pickerOpen && !menuOpen) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (pickerOpen && pickerRef.current && !pickerRef.current.contains(t)) setPickerOpen(false)
+      if (menuOpen && menuRef.current && !menuRef.current.contains(t)) setMenuOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setPickerOpen(false); setMenuOpen(false) }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [pickerOpen, menuOpen])
+
+  const isPomo = (selectedTask?.mode ?? 'pomodoro') === 'pomodoro'
+  const remaining = selectedTask ? selectedTask.pomodoroRemaining : POMODORO_DEFAULT_SECS
+  const elapsed = selectedTask ? selectedTask.regularElapsed : 0
+  const finished = !!selectedTask && isPomo && remaining <= 0
+  const hasProgress = isPomo ? remaining < POMODORO_DEFAULT_SECS : elapsed > 0
+  const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
+  // Ring: Pomodoro fills as it counts down; Regular has no end, so it fills once per hour as a heartbeat.
+  const progress = Math.min(1, Math.max(0, isPomo ? 1 - remaining / POMODORO_DEFAULT_SECS : (elapsed % 3600) / 3600))
+  const RING_R = 22
+  const RING_C = 2 * Math.PI * RING_R
+
+  const statusLabel = finished ? 'Completed' : running ? (isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (isPomo ? 'Focus' : 'Count up')
+  const statusColor = finished ? '#34D399' : running ? '#38BDF8' : hasProgress ? '#FBBF24' : '#60A5FA'
+  const btnLabel = running ? 'Pause' : finished ? 'Restart' : hasProgress ? 'Resume' : 'Start Focus'
+
+  const q = query.trim().toLowerCase()
+  const shown = q ? tasks.filter(t => `${t.subject} ${t.topic}`.toLowerCase().includes(q)) : tasks
+  const sel = selectedTask ? subjectVisual(selectedTask.subject) : null
+
+  return (
+    <div className="relative rounded-2xl border px-5 py-4"
+      style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.18), 0 0 80px rgba(40,85,204,0.08)' }}>
+      {/* The glow gets its own clipped layer so the card itself can stay overflow-visible for the popovers. */}
+      <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+        <div className="absolute right-0 top-0 bottom-0 w-56 opacity-20"
+          style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
+      </div>
+
+      <div className="relative flex flex-wrap items-center gap-x-5 gap-y-4">
+        {/* 1 · Timer */}
+        <div className="flex items-center gap-3.5 flex-shrink-0">
+          <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
+            <svg viewBox="0 0 52 52" className="absolute inset-0 w-full h-full">
+              <defs>
+                <linearGradient id="roomRingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
+                </linearGradient>
+              </defs>
+              <circle cx="26" cy="26" r={RING_R} fill="rgba(13,17,48,0.9)" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
+              {progress > 0.005 && (
+                <circle cx="26" cy="26" r={RING_R} fill="none" stroke="url(#roomRingGrad)" strokeWidth="3" strokeLinecap="round"
+                  strokeDasharray={`${progress * RING_C} ${RING_C}`} transform="rotate(-90 26 26)" />
+              )}
+            </svg>
+            <svg viewBox="0 0 24 24" className="absolute inset-0 m-auto w-5 h-5 text-slate-200" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="13.5" r="6.5" /><path d="M12 10.5v3.2l2 1.3M10 3h4M12 3v3.5" />
+            </svg>
+          </div>
+          <div>
+            {/* tabular-nums + a fixed min-width keep neighbouring blocks from jittering as the digits change */}
+            <div className="text-[30px] leading-none font-bold text-white tabular-nums whitespace-nowrap"
+              style={{ fontFamily: 'JetBrains Mono, monospace', minWidth: isPomo ? '5ch' : '8ch', textShadow: '0 0 20px #4A3A88' }}>
+              {timeStr}
+            </div>
+            <div className="mt-1.5 text-[11px] font-medium tracking-wide" style={{ color: statusColor }}>{statusLabel}</div>
+          </div>
+        </div>
+
+        {/* 2 · Start / Pause */}
+        <button onClick={onToggle} disabled={!selectedTask}
+          title={selectedTask ? undefined : 'Pick a task first'}
+          className="flex-shrink-0 h-[52px] px-6 rounded-2xl flex items-center justify-center gap-2.5 text-sm font-semibold text-white border transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ minWidth: 168, ...(running
+            ? { background: 'rgba(255,255,255,0.06)', borderColor: '#2A3A66' }
+            : { background: 'linear-gradient(135deg,#4F6BFF 0%,#7C4DFF 100%)', borderColor: 'transparent', boxShadow: '0 0 24px rgba(99,102,241,0.45)' }) }}>
+          {running
+            ? <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+            : <Ico n="play" cls="w-4 h-4 flex-shrink-0" />}
+          {btnLabel}
+        </button>
+
+        {/* 3 · Task picker (Focus Lock plan) */}
+        <div ref={pickerRef} className="relative flex-1 min-w-0" style={{ flexBasis: 280 }}>
+          <button onClick={() => { setQuery(''); setPickerOpen(o => !o); setMenuOpen(false) }}
+            aria-haspopup="listbox" aria-expanded={pickerOpen}
+            className="w-full h-[52px] px-3.5 rounded-2xl border flex items-center gap-3 text-left transition-colors hover:border-violet-400/40"
+            style={{ background: 'rgba(26,40,69,0.55)', borderColor: pickerOpen ? 'rgba(124,77,255,0.55)' : '#1E3060' }}>
+            {selectedTask && sel ? (
+              <>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                  style={{ background: `${sel.color}1A`, border: `1px solid ${sel.color}44` }}>{sel.emoji}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-slate-100 truncate leading-tight">{selectedTask.subject}</span>
+                  <span className="block text-[11px] text-slate-400 truncate leading-tight mt-0.5">{selectedTask.topic}</span>
+                </span>
+                <ModeBadge mode={selectedTask.mode} />
+              </>
+            ) : (
+              <span className="flex-1 text-sm text-slate-400">{tasks.length ? 'Select a task' : 'No tasks yet'}</span>
+            )}
+            <Ico n="chevR" cls={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform ${pickerOpen ? '-rotate-90' : 'rotate-90'}`} />
+          </button>
+
+          {pickerOpen && (
+            <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border p-2.5"
+              style={{ minWidth: 300, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+              <div className="px-2 pt-1 pb-2.5">
+                <div className="text-[11px] font-semibold tracking-wide text-slate-300">Focus Lock tasks</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{running ? 'Switching tasks pauses the current timer' : 'Pick what you’re studying'}</div>
+              </div>
+
+              {tasks.length > 4 && (
+                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search tasks…" autoFocus
+                  className="w-full mb-2.5 px-3 py-2 rounded-xl border bg-transparent text-[13px] text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
+                  style={{ background: 'rgba(26,40,69,0.45)', borderColor: '#1A2845' }} />
+              )}
+
+              <div role="listbox" aria-label="Focus Lock tasks" className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: 280 }}>
+                {tasks.length === 0 && (
+                  <div className="px-3 py-6 text-center">
+                    <div className="text-2xl mb-2">📝</div>
+                    <div className="text-[13px] font-semibold text-slate-200">No tasks in Focus Lock yet</div>
+                    <div className="text-[11px] text-slate-500 mt-1">Add a task there and it will show up here.</div>
+                  </div>
+                )}
+                {tasks.length > 0 && shown.length === 0 && (
+                  <div className="px-3 py-5 text-center text-[12px] text-slate-500">No tasks match “{query.trim()}”</div>
+                )}
+                {shown.map(t => {
+                  const v = subjectVisual(t.subject)
+                  const isSel = t.id === selectedTask?.id
+                  const isLive = isSel && running
+                  const tDone = t.mode === 'pomodoro' && t.pomodoroRemaining <= 0
+                  const tTime = t.mode === 'pomodoro'
+                    ? (tDone ? 'Completed' : `${formatClock(t.pomodoroRemaining)} left`)
+                    : formatClock(t.regularElapsed, true)
+                  return (
+                    <button key={t.id} role="option" aria-selected={isSel}
+                      onClick={() => { setPickerOpen(false); onSelectTask(t.id) }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors hover:bg-white/[0.04]"
+                      style={{ background: isSel ? 'rgba(124,77,255,0.12)' : 'transparent', borderColor: isSel ? 'rgba(124,77,255,0.4)' : 'transparent' }}>
+                      <span className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                        style={{ background: `${v.color}1A`, border: `1px solid ${v.color}44` }}>{v.emoji}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="text-[13px] font-semibold text-slate-100 truncate">{t.subject}</span>
+                          <ModeBadge mode={t.mode} />
+                        </span>
+                        <span className="flex items-center justify-between gap-3 mt-0.5">
+                          <span className="text-[11px] text-slate-500 truncate">{t.topic}</span>
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0" style={{ color: isLive ? '#E2E8F0' : '#8B9AC7' }}>
+                            {isLive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                            {tTime}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="w-4 flex-shrink-0 flex justify-center text-violet-300">
+                        {isSel && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(30,48,96,0.7)' }}>
+                <button onClick={() => { setPickerOpen(false); onOpenFocusLock() }}
+                  className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 transition-colors">
+                  Manage tasks in Focus Lock →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 4 · More */}
+        <div ref={menuRef} className="relative flex-shrink-0">
+          <button onClick={() => { setMenuOpen(o => !o); setPickerOpen(false) }}
+            aria-label="More options" aria-haspopup="menu" aria-expanded={menuOpen}
+            className="w-11 h-11 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 border transition-colors"
+            style={{ background: 'rgba(26,40,69,0.55)', borderColor: '#1E3060' }}>
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
+          </button>
+          {menuOpen && (
+            <div role="menu" className="absolute right-0 top-full mt-2 z-30 rounded-xl border p-1.5 whitespace-nowrap"
+              style={{ minWidth: 188, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+              <button role="menuitem" disabled={!selectedTask || !hasProgress}
+                onClick={() => { setMenuOpen(false); onReset() }}
+                className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed">
+                Reset timer
+              </button>
+              <button role="menuitem"
+                onClick={() => { setMenuOpen(false); onOpenFocusLock() }}
+                className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors">
+                Open Focus Lock
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Loads the Focus Lock plan for a room the same way FocusLockPage does - same persisted
+// snapshot, same seed-from-real-data fallback, same catch-up for time that passed while
+// neither screen was mounted - so both screens always agree on the tasks and their progress.
+function initRoomPlan(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number) {
+  const snap = loadFocusPlanSnapshot()
+  let tasks = snap?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx)
+  const activeId = snap?.activeTaskId ?? null
+  const running = !!snap?.running && !!activeId && tasks.some(t => t.id === activeId)
+  if (running && snap?.runningStartedAtMs) {
+    const away = Math.max(0, Math.floor((Date.now() - snap.runningStartedAtMs) / 1000))
+    if (away > 0) {
+      tasks = tasks.map(t => {
+        if (t.id !== activeId) return t
+        return t.mode === 'pomodoro'
+          ? { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - away) }
+          : { ...t, regularElapsed: t.regularElapsed + away }
+      })
+    }
+  }
+  const selectedTaskId = activeId && tasks.some(t => t.id === activeId) ? activeId : (tasks[0]?.id ?? null)
+  return { tasks, selectedTaskId, running }
+}
+
 // ─── Room Interior Page ────────────────────────────────────────────────────────
-function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
+function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, todayIdx }: {
   room: RoomData; onBack: () => void; onNavigate: (id: string) => void; profile?: ProfileInfo
+  units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number
 }) {
   const { avatar: userAvatar } = useContext(UserAvatarCtx)
-  const bots = getRoomBots(room)
-  const [focusRunning, setFocusRunning] = useState(false)
-  const [focusTotal] = useState(25 * 60)
-  const [focusRemaining, setFocusRemaining] = useState(25 * 60)
+  const bots = useMemo(() => getRoomBots(room), [room])
+  // The room's timer runs a Focus Lock task: same plan, same progress, same backend session.
+  const [initial] = useState(() => initRoomPlan(units, schedule, todayIdx))
+  const [planTasks, setPlanTasks] = useState<StudyTask[]>(initial.tasks)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initial.selectedTaskId)
+  const [focusRunning, setFocusRunning] = useState<boolean>(initial.running)
   const [activeTab, setActiveTab] = useState<'studying' | 'chat'>('studying')
-  const [subject, setSubject] = useState(room.subject === 'All Subjects' ? 'Physics' : room.subject)
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<ChatMsg[]>(getInitialChat(room))
   const [botTimes, setBotTimes] = useState(bots.map(b => b.studyTimeSecs))
   const [userStudyTime, setUserStudyTime] = useState(0)
   const [kickedIds, setKickedIds] = useState<Set<string>>(new Set())
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const tasksRef = useRef(planTasks)
+  tasksRef.current = planTasks
+  const togglingRef = useRef(false)
 
+  const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession()
+
+  const selectedTask = planTasks.find(t => t.id === selectedTaskId) ?? null
+
+  // Ticker. Counts real elapsed wall-clock seconds rather than "+1 per interval fire",
+  // so a throttled/backgrounded tab (or a late timer) can't make the clock run slow or
+  // stutter; it polls 4x/sec so the display flips within ~250ms of each second boundary.
+  // A Pomodoro never applies more time than it has left.
   useEffect(() => {
-    if (focusRunning) {
-      timerRef.current = setInterval(() => {
-        setFocusRemaining(prev => {
-          if (prev <= 1) { setFocusRunning(false); return 0 }
-          return prev - 1
-        })
-        setUserStudyTime(p => p + 1)
-        setBotTimes(prev => prev.map((t, i) => bots[i]?.isStudying ? t + 1 : t))
-      }, 1000)
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current)
+    if (!focusRunning || !selectedTaskId) return
+    let last = Date.now()
+    const id = setInterval(() => {
+      const now = Date.now()
+      const delta = Math.floor((now - last) / 1000)
+      if (delta < 1) return
+      last += delta * 1000
+      const t = tasksRef.current.find(x => x.id === selectedTaskId)
+      if (!t) return
+      const applied = t.mode === 'pomodoro' ? Math.min(delta, t.pomodoroRemaining) : delta
+      if (applied <= 0) return
+      setPlanTasks(prev => prev.map(x => {
+        if (x.id !== selectedTaskId) return x
+        return x.mode === 'pomodoro'
+          ? { ...x, pomodoroRemaining: Math.max(0, x.pomodoroRemaining - applied) }
+          : { ...x, regularElapsed: x.regularElapsed + applied }
+      }))
+      setUserStudyTime(p => p + applied)
+      setBotTimes(prev => prev.map((bt, i) => bots[i]?.isStudying ? bt + applied : bt))
+    }, 250)
+    return () => clearInterval(id)
+  }, [focusRunning, selectedTaskId, bots])
+
+  // A Pomodoro that reaches 0 while running completes (pauses) instead of sitting at
+  // 00:00 "running" - and closes the backend session, same as Focus Lock.
+  useEffect(() => {
+    if (!focusRunning || !selectedTask) return
+    if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
+      setFocusRunning(false)
+      stopRemoteSession()
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [focusRunning])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRunning, selectedTask?.id, selectedTask?.mode, selectedTask?.pomodoroRemaining])
+
+  // Write progress back to the shared Focus Lock snapshot so both screens stay in step.
+  // Skipped until something actually changes: an untouched room must not create an empty
+  // snapshot that would stop Focus Lock from seeding its plan from real data.
+  useEffect(() => {
+    const untouched = planTasks === initial.tasks && selectedTaskId === initial.selectedTaskId && focusRunning === initial.running
+    if (untouched) return
+    saveFocusPlanSnapshot({ tasks: planTasks, activeTaskId: selectedTaskId, running: focusRunning, runningStartedAtMs: focusRunning ? Date.now() : null })
+  }, [planTasks, selectedTaskId, focusRunning, initial])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const chatLocked = focusRunning
 
   const f2 = (n: number) => String(n).padStart(2, '0')
-  const fh = Math.floor(focusRemaining / 3600)
-  const fm = Math.floor((focusRemaining % 3600) / 60)
-  const fs = focusRemaining % 60
-  const timeStr = fh > 0 ? `${f2(fh)}:${f2(fm)}:${f2(fs)}` : `${f2(fm)}:${f2(fs)}`
   const fmtStudyTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
     return h > 0 ? `${h}h ${f2(m)}m` : `${m}m`
+  }
+
+  async function toggleFocus() {
+    if (!selectedTask || togglingRef.current) return
+    togglingRef.current = true
+    try {
+      if (focusRunning) {
+        setFocusRunning(false)
+        await stopRemoteSession()
+        return
+      }
+      if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
+        // A finished Pomodoro restarts from a fresh 25:00 instead of instantly re-completing.
+        setPlanTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, pomodoroRemaining: POMODORO_DEFAULT_SECS } : t))
+      }
+      setFocusRunning(true)
+      try { await startRemoteSession(selectedTask.subject) } catch { /* hook already falls back to a local-only clock */ }
+    } finally {
+      togglingRef.current = false
+    }
+  }
+
+  function selectTask(id: string) {
+    if (id === selectedTaskId) return
+    // Progress on the task being left is kept; the new one is ready to Start.
+    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
+    setSelectedTaskId(id)
+  }
+
+  function resetSelectedTask() {
+    if (!selectedTask) return
+    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
+    setPlanTasks(prev => prev.map(t => {
+      if (t.id !== selectedTask.id) return t
+      return t.mode === 'pomodoro' ? { ...t, pomodoroRemaining: POMODORO_DEFAULT_SECS } : { ...t, regularElapsed: 0 }
+    }))
   }
 
   const visibleBots = bots.filter(b => !kickedIds.has(b.id))
@@ -2420,7 +2749,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
   const selfInitials = selfName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
 
   const userCard: BotParticipant = {
-    id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials, subject,
+    id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials,
+    subject: selectedTask ? `${selectedTask.subject} — ${selectedTask.topic}` : (room.subject === 'All Subjects' ? 'Physics' : room.subject),
     studyTimeSecs: userStudyTime,
     // Live only while the clock is actually running; paused (not offline)
     // once time's been banked but the play/pause button has been toggled
@@ -2457,71 +2787,24 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
           <UserAvatar size={32} />
         </header>
 
-        <main className="flex-1 overflow-y-auto flex flex-col">
-          {/* Focus timer card */}
-          <div className="mx-5 mt-4 mb-3 p-5 rounded-2xl border relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
-            {/* Background wave */}
-            <div className="absolute right-0 top-0 bottom-0 w-48 opacity-20 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
-            <div className="flex items-center gap-6 relative">
-              {/* Circular ring + play/pause */}
-              <div className="flex-shrink-0 relative" style={{ width: 88, height: 88 }}>
-                <svg viewBox="0 0 88 88" width="88" height="88">
-                  <defs>
-                    <linearGradient id="rg2" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
-                    </linearGradient>
-                    <filter id="rf2"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-                  </defs>
-                  <circle cx="44" cy="44" r="36" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-                  <circle cx="44" cy="44" r="36" fill="none" stroke="url(#rg2)" strokeWidth="6"
-                    strokeLinecap="round" filter="url(#rf2)"
-                    strokeDasharray={`${(1 - focusRemaining / focusTotal) * 226.2} 226.2`}
-                    transform="rotate(-90 44 44)" />
-                  <circle cx="44" cy="44" r="30" fill="rgba(13,17,48,0.9)" />
-                </svg>
-                <button
-                  onClick={() => setFocusRunning(r => !r)}
-                  className="absolute inset-0 flex items-center justify-center rounded-full transition-all hover:scale-105">
-                  {focusRunning ? (
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>
-                  )}
-                </button>
-              </div>
-              {/* Timer info */}
-              <div className="flex-1">
-                <div className="text-[11px] text-slate-400 mb-0.5 font-mono tracking-wide">Focus Time</div>
-                <div className="text-4xl font-bold text-white mb-2" style={{ textShadow: '0 0 20px #4A3A88' }}>
-                  {timeStr}
-                </div>
-                {/* Subject pill */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer hover:border-violet-400/40 transition-colors bg-[rgba(26,40,69,0.55)] border-[#1E3060]"
-                  >
-                  <span className="text-base">🧪</span>
-                  <span className="text-sm font-medium text-slate-200">{subject}</span>
-                  <Ico n="chevR" cls="w-3 h-3 text-slate-400 rotate-90" />
-                </div>
-              </div>
-              {/* Studying count */}
-              <div className="flex-shrink-0 text-right">
-                <div className="text-slate-400 text-sm font-mono">{studyingCount} studying</div>
-                <div className="flex -space-x-1.5 mt-2 justify-end">
-                  {allParticipants.filter(p => p.isStudying).slice(0, 5).map(p => (
-                    <div key={p.id} className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[8px] font-bold text-white border"
-                      style={{ background: p.accentColor, borderColor: '#0B1530', zIndex: 1 }}>
-                      {p.id === 'user' ? <img src={userAvatar} alt="You" className="w-full h-full object-contain" /> : p.initials}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <main className="flex-1 overflow-y-auto flex flex-col px-6">
+          {/* Timer bar: pinned to the top of the scroll area so it can never scroll out of reach.
+              flex-shrink-0 matters - main is a flex column and a shrinkable overflow-hidden child
+              gets squashed to a sliver once the participant grid grows taller than the viewport. */}
+          <div className="sticky top-0 z-20 -mx-6 px-6 pt-5 pb-5 flex-shrink-0 bg-[#060914]">
+            <RoomFocusBar
+              tasks={planTasks}
+              selectedTask={selectedTask}
+              running={focusRunning}
+              onSelectTask={selectTask}
+              onToggle={toggleFocus}
+              onReset={resetSelectedTask}
+              onOpenFocusLock={() => onNavigate('focus')}
+            />
           </div>
 
           {/* Tabs */}
-          <div className="mx-5 mb-3 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
+          <div className="flex-shrink-0 mb-5 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
             >
             {([['studying', '👥', 'Active Studying'], ['chat', '💬', 'Chat']] as const).map(([id, icon, label]) => (
               <button key={id} onClick={() => setActiveTab(id as 'studying' | 'chat')}
@@ -2537,9 +2820,9 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 px-5 pb-5">
+          <div className="flex-1 pb-6">
             {activeTab === 'studying' && (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-5">
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
                     bot={{ ...p, studyTimeSecs: i === 0 ? userStudyTime : botTimes[i - 1] ?? p.studyTimeSecs }}
@@ -2572,7 +2855,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                       Finish your focus time to unlock chat.<br />
                       <span className="text-violet-400">Chat opens during breaks only.</span>
                     </div>
-                    <button onClick={() => { setFocusRunning(false) }}
+                    <button onClick={() => { if (focusRunning) toggleFocus() }}
                       className="mt-2 px-6 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
                       style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                       Pause & Open Chat
@@ -5569,7 +5852,7 @@ export default function DesktopDashboard() {
     }
     if (activeNav === 'studyrooms') {
       if (activeRoom) {
-        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} />
+        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} />
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile} />
     }
