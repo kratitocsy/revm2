@@ -977,6 +977,129 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
   )
 }
 
+// ─── Live Study Rooms + Motivational (Home preview cards) ────────────────────
+// Reuses the same room data StudyRoomsPage/RoomInteriorPage already work
+// from (ROOM_DATA + getRoomBots' deterministic per-room "studying now" bots -
+// the same computation RoomInteriorPage's own studyingCount uses) rather than
+// inventing separate numbers for this preview. No backend-persisted rooms
+// table exists yet in this codebase (Study Rooms is still local/mock data,
+// same as Schedules/Focus Lock's plan), so this is the actual current source
+// of truth for "live rooms" - not a hardcoded example list.
+function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
+  onEnterRoom: (room: RoomData) => void
+  onViewAll: () => void
+}) {
+  const publicRooms = ROOM_DATA.filter(r => r.isPublic)
+  const withLive = publicRooms.map(room => ({ room, live: getRoomBots(room).filter(b => b.isStudying).length }))
+  const totalStudying = withLive.reduce((sum, x) => sum + x.live, 0)
+  const topRooms = [...withLive].sort((a, b) => b.live - a.live).slice(0, 4)
+
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+            <Ico n="rooms" cls="w-4 h-4 text-cyan-300" />
+          </div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Live Study Rooms</div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <button onClick={onViewAll} className="text-[12px] text-slate-300 hover:text-cyan-300 transition-colors">View All</button>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] text-emerald-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{totalStudying} studying</span>
+          </div>
+        </div>
+      </div>
+
+      {topRooms.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+          <div className="text-3xl mb-2">🌙</div>
+          <div className="text-sm font-semibold text-slate-300 mb-3">No live rooms right now</div>
+          <button onClick={onViewAll} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #2979FF, #22D3EE)', boxShadow: '0 0 20px rgba(41,98,255,0.45)' }}>
+            Explore Study Rooms
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2.5 flex-1">
+          {topRooms.map(({ room, live }) => (
+            <div key={room.id} onClick={() => onEnterRoom(room)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[rgba(56,132,255,0.35)]"
+              style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                style={{ background: room.iconBg }}>{room.iconEmoji}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-200 truncate flex items-center gap-1.5">
+                  {room.name}{room.emoji && <span>{room.emoji}</span>}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{room.subject} · {live} / {room.members}</div>
+              </div>
+              <FaceAvatars colors={room.avatarColors} inits={room.avatarInits} />
+              <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 2l4 4-4 4" /></svg>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MotivationalCard({ onKeepGoing }: { onKeepGoing: () => void }) {
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col justify-between"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        minHeight: 260,
+      }}>
+      {/* Abstract night-sky/mountain illustration, blended into the card
+          background rather than a separate image - pure SVG gradients so
+          it never looks like a bolted-on ad banner. */}
+      <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.85 }}>
+        <defs>
+          <radialGradient id="mcMoonGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#22D3EE" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="mcMtnBack" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22315C" /><stop offset="100%" stopColor="#0C1631" />
+          </linearGradient>
+          <linearGradient id="mcMtnFront" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#141E42" /><stop offset="100%" stopColor="#090E20" />
+          </linearGradient>
+        </defs>
+        <circle cx="300" cy="65" r="60" fill="url(#mcMoonGlow)" />
+        <circle cx="300" cy="65" r="15" fill="#E4ECFF" opacity="0.8" />
+        <path d="M170 300 L225 185 L265 235 L305 155 L355 225 L400 185 L400 300 Z" fill="url(#mcMtnBack)" opacity="0.75" />
+        <path d="M110 300 L185 205 L235 255 L295 195 L355 255 L400 235 L400 300 Z" fill="url(#mcMtnFront)" />
+      </svg>
+
+      <div className="relative">
+        <div className="text-xl font-bold text-slate-100 leading-snug" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          Better Focus.<br />Bigger Dreams.
+        </div>
+        <div className="text-[12px] text-slate-400 mt-2">You're closer than you think.</div>
+      </div>
+
+      <button onClick={onKeepGoing}
+        className="relative self-start flex items-center gap-1.5 px-4 py-2 rounded-full text-[12px] font-semibold text-white transition-all hover:opacity-90"
+        style={{ background: 'rgba(41,98,255,0.16)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 16px rgba(41,98,255,0.3)' }}>
+        <Ico n="target" cls="w-3.5 h-3.5 text-cyan-300" />
+        Keep going
+        <Ico n="arrow" cls="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}
+
 // ─── Study Rooms ──────────────────────────────────────────────────────────────
 const ROOMS = [
   { name: 'JEE Physics — Night Grind', cat: 'JEE Advanced', cur: 12, max: 20, cam: 'Cam off', avatars: [{ bg: '#7C4DFF', init: 'RS' }, { bg: '#0F99CC', init: 'PK' }, { bg: '#EC4899', init: 'AM' }], extra: '+9' },
@@ -5940,6 +6063,20 @@ export default function DesktopDashboard() {
     setActiveNav(id)
     if (id !== 'studyrooms') setActiveRoom(null)
   }
+  // Opens a specific room's interior directly from Home's Live Study
+  // Rooms preview - same destination StudyRoomsPage's own room cards use.
+  function openRoom(room: RoomData) {
+    setActiveRoom(room)
+    setActiveNav('studyrooms')
+  }
+  // "View All" always lands on the room listing, even if a room was
+  // previously open - handleNav only clears activeRoom for OTHER ids,
+  // since it's what lets returning to 'studyrooms' normally reopen
+  // wherever you left off.
+  function viewAllRooms() {
+    setActiveRoom(null)
+    setActiveNav('studyrooms')
+  }
   // Optional task = "jump straight into a running session for this
   // task" (used by Today's Study Plan's ▶ buttons); FocusLockPage's own
   // auto-start effect consumes autoStartTask once and reports back via
@@ -6059,13 +6196,9 @@ export default function DesktopDashboard() {
                 onViewPlan={() => handleNav('schedules')}
               />
             </div>
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <StudyRooms onNavigate={handleNav} />
-              </div>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <LibraryPreview onNavigate={handleNav} />
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3.5 items-stretch">
+              <LiveStudyRoomsCard onEnterRoom={openRoom} onViewAll={viewAllRooms} />
+              <MotivationalCard onKeepGoing={() => goFocus()} />
             </div>
             <div className="h-4" />
           </main>
