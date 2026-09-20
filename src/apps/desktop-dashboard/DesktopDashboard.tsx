@@ -720,183 +720,259 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
   )
 }
 
-// ─── Review Queue ─────────────────────────────────────────────────────────────
-function ReviewQueue({ items, onDismiss }: {
-  items: ReviewItem[]
-  onDismiss: (key: string) => void
+// ─── Today's Study Plan + Today's Focus (paired Home cards) ──────────────────
+// Both cards read the SAME real sources: today's schedule (schedule[todayIdx],
+// the actual data the Schedules page manages) and the live Focus Lock plan
+// (persisted at FL_PLAN_KEY - the exact snapshot FocusLockPage itself reads
+// and writes), merged via buildTodayPlanRows/catchUpFocusPlan below. Nothing
+// here is hardcoded: with no schedule and no plan yet, both cards fall into
+// their empty states instead of showing example subjects.
+
+function parseClockToMinutes(t: string): number {
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!m) return 0
+  let h = parseInt(m[1], 10) % 12
+  const min = parseInt(m[2], 10)
+  if (/pm/i.test(m[3])) h += 12
+  return h * 60 + min
+}
+function parseTimeRangeMinutes(start: string, end: string): number {
+  const diff = parseClockToMinutes(end) - parseClockToMinutes(start)
+  return diff > 0 ? diff : diff + 24 * 60
+}
+
+// Same elapsed-time catch-up FocusLockPage applies to itself on mount -
+// run here too so a task left running while the person is elsewhere on
+// Home still shows accurate progress instead of a stale save-time value.
+function catchUpFocusPlan(snap: FocusPlanSnapshot): StudyTask[] {
+  if (!snap.running || !snap.activeTaskId || !snap.runningStartedAtMs) return snap.tasks
+  const elapsed = Math.max(0, Math.floor((Date.now() - snap.runningStartedAtMs) / 1000))
+  if (elapsed <= 0) return snap.tasks
+  return snap.tasks.map(t => {
+    if (t.id !== snap.activeTaskId) return t
+    if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - elapsed) }
+    return { ...t, regularElapsed: t.regularElapsed + elapsed }
+  })
+}
+
+interface TodayPlanRow { key: string; subject: string; topic: string; icon: string; color: string; minutes: number; mode: TimerMode }
+
+// Schedule entries (today's actual planned sessions, with real start/end
+// times) come first; anything already in the live Focus Lock plan but not
+// on today's schedule (e.g. a quick-added topic) is appended after, deduped
+// by subject::topic so nothing shows twice.
+function buildTodayPlanRows(scheduleToday: ScheduleItem[], planTasks: StudyTask[]): TodayPlanRow[] {
+  const taskByKey = new Map(planTasks.map(t => [`${t.subject}::${t.topic}`, t]))
+  const seen = new Set<string>()
+  const rows: TodayPlanRow[] = []
+
+  scheduleToday.forEach(s => {
+    const topic = s.topic || s.subject
+    const key = `${s.subject}::${topic}`
+    if (seen.has(key)) return
+    seen.add(key)
+    const matched = taskByKey.get(key)
+    rows.push({
+      key, subject: s.subject, topic,
+      icon: s.iconEmoji, color: s.color,
+      minutes: Math.max(1, parseTimeRangeMinutes(s.startTime, s.endTime)),
+      mode: matched?.mode ?? 'pomodoro',
+    })
+  })
+
+  planTasks.forEach(t => {
+    const key = `${t.subject}::${t.topic}`
+    if (seen.has(key)) return
+    seen.add(key)
+    const { emoji, color } = subjectVisual(t.subject)
+    rows.push({
+      key, subject: t.subject, topic: t.topic, icon: emoji, color,
+      minutes: Math.max(1, Math.round((t.mode === 'pomodoro' ? t.pomodoroRemaining : t.regularElapsed) / 60)),
+      mode: t.mode,
+    })
+  })
+
+  return rows
+}
+
+function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
+  rows: TodayPlanRow[]
+  onStartTask: (subject: string, topic: string) => void
+  onAddTask: () => void
 }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-
-  const tagCls = {
-    high: { text: 'text-red-400', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', label: 'Review now' },
-    medium: { text: 'text-amber-400', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', label: 'Review soon' },
-    low: { text: 'text-emerald-400', bg: 'rgba(25,211,162,0.08)', border: 'rgba(25,211,162,0.22)', label: 'Stable' },
-  }
-
-  // Group by subject
-  const grouped: Record<string, ReviewItem[]> = {}
-  for (const item of items) {
-    if (!grouped[item.subject]) grouped[item.subject] = []
-    grouped[item.subject].push(item)
-  }
-  const subjects = Object.keys(grouped)
-
-  const due = items.filter(i => i.urgency !== 'low').length
-
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="text-sm font-semibold text-slate-100">Review Queue</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Topics needing your attention</div>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
-          <div className="text-3xl mb-3">🎉</div>
-          <div className="text-sm font-semibold text-slate-300 mb-1">All clear!</div>
-          <div className="text-[12px] text-slate-500 max-w-[200px]">Add subjects to your schedule on previous days to see review items here.</div>
-        </div>
-      </div>
-    )
-  }
-
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-100">Review Queue</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Topics from previous sessions</div>
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+            <Ico n="clock" cls="w-4 h-4 text-cyan-300" />
+          </div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Study Plan</div>
         </div>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#9B6CFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]">{due} due</span>
+        <div className="text-xs text-slate-500 flex-shrink-0">{todayLabel}</div>
       </div>
 
-      {/* Grouped dropdown accordion */}
-      <div className="space-y-2 flex-1 overflow-y-auto">
-        {subjects.map(subj => {
-          const group = grouped[subj]
-          const isOpen = expanded[subj] ?? true
-          const worstRetention = Math.min(...group.map(g => g.retention))
-          const worstUrgency = group.some(g => g.urgency === 'high') ? 'high' : group.some(g => g.urgency === 'medium') ? 'medium' : 'low'
-          const t = tagCls[worstUrgency]
-          return (
-            <div key={subj} className="rounded-xl border overflow-hidden border-[rgba(26,40,69,0.55)] bg-[#0B1530]">
-              {/* Subject header — click to expand/collapse */}
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
-                onClick={() => setExpanded(prev => ({ ...prev, [subj]: !isOpen }))}>
-                <RetentionRing pct={worstRetention} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-200 truncate">{subj}</div>
-                  <div className="text-[10px] text-slate-500 font-mono">{group.length} topic{group.length > 1 ? 's' : ''} pending</div>
+      {rows.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+          <div className="text-3xl mb-2">📭</div>
+          <div className="text-sm font-semibold text-slate-300 mb-1">No tasks scheduled for today</div>
+          <div className="text-[12px] text-slate-500 max-w-[220px] mb-4">Add a task to build today's study plan.</div>
+          <button onClick={onAddTask} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #2979FF, #22D3EE)', boxShadow: '0 0 20px rgba(41,98,255,0.45)' }}>
+            + Add Task
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2 flex-1 overflow-y-auto">
+          {rows.map(r => (
+            <div key={r.key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors hover:border-[rgba(56,132,255,0.35)]"
+              style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                style={{ background: `${r.color}1A`, border: `1px solid ${r.color}44` }}>{r.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-200 truncate">{r.subject}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] text-slate-500">{r.minutes} min</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{
+                      color: r.mode === 'pomodoro' ? '#C4AAFF' : '#7DD8F0',
+                      background: r.mode === 'pomodoro' ? 'rgba(124,77,255,0.14)' : 'rgba(34,211,238,0.10)',
+                    }}>{r.mode === 'pomodoro' ? 'Pomodoro' : 'Regular'}</span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full border font-mono flex-shrink-0 mr-1" style={{ color: t.text, background: t.bg, borderColor: t.border }}>{t.label}</span>
-                <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0 transition-transform" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
+              </div>
+              <button onClick={() => onStartTask(r.subject, r.topic)}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #2979FF, #7C4DFF)', boxShadow: '0 0 14px rgba(41,98,255,0.5)' }}>
+                <Ico n="play" cls="w-3.5 h-3.5 text-white" />
               </button>
-              {/* Topic rows */}
-              {isOpen && (
-                <div className="border-t border-[rgba(26,40,69,0.55)]">
-                  {group.map(item => {
-                    const tc = tagCls[item.urgency]
-                    const daysLabel = item.daysAgo === 1 ? 'Yesterday' : `${item.daysAgo} days ago`
-                    return (
-                      <div key={item.key} className="flex items-center gap-3 px-3 py-2.5 border-b last:border-0 group hover:bg-violet-500/5 transition-colors border-[rgba(124,77,255,0.08)]">
-                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5"
-                          style={{ background: item.urgency === 'high' ? '#F87171' : item.urgency === 'medium' ? '#FBBF24' : '#19D3A2' }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[12px] font-medium text-slate-300 truncate">{item.topic}</div>
-                          <div className="text-[10px] text-slate-600 font-mono">{daysLabel} · {item.retention}% retention</div>
-                        </div>
-                        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono" style={{ color: tc.text, borderColor: tc.border, background: tc.bg }}>{tc.label}</span>
-                          <button onClick={() => onDismiss(item.key)}
-                            className="text-[11px] px-2 py-1 rounded-lg border transition-all hover:border-emerald-500/50 hover:text-emerald-300 text-[#C4AAFF] bg-[rgba(26,40,69,0.55)] border-[#1A2845]">
-                            ✓ Done
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <button onClick={onAddTask} className="mt-3 w-full py-2.5 rounded-xl text-[12px] font-semibold text-slate-300 border border-dashed transition-all hover:text-cyan-300 hover:border-cyan-500/40"
+          style={{ borderColor: 'rgba(56,132,255,0.3)' }}>
+          + Add Task
+        </button>
+      )}
     </div>
   )
 }
 
-// ─── Focus Panel ──────────────────────────────────────────────────────────────
-// sessions/gauge/streak were fully hardcoded before this pass (fixed
-// "1h 15m of 2h 30m", a fixed 3-item Mathematics/Physics/Chemistry
-// list, fixed "7-day streak"). Now driven by todayFocus from
-// useHomeData: goal + done minutes from daily_focus_goal_minutes +
-// today's study_log entry, per-subject rows from that same entry
-// (real subjects actually logged today, not a fixed planned list -
-// there's no "planned session" concept in the data, only what was
-// actually studied), and streak computed the same way tracker.html's
-// renderAnalytics() does from study_log.
-function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFocus?: TodayFocus }) {
-  const goalMinutes = todayFocus?.goalMinutes ?? 150
-  const doneMinutes = todayFocus?.doneMinutes ?? 0
-  const bySubject = todayFocus?.bySubject ?? []
-  const streakDays = todayFocus?.streakDays ?? 0
-  const pct = goalMinutes > 0 ? Math.min(1, doneMinutes / goalMinutes) : 0
-  const arcLen = Math.PI * 56
-  const fmtHM = (mins: number) => {
+function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContinueFocus, onStartFirst, onViewPlan }: {
+  plannedMinutes: number
+  completedMinutes: number
+  activeTask: StudyTask | null
+  onContinueFocus: () => void
+  onStartFirst: (() => void) | null
+  onViewPlan: () => void
+}) {
+  const remainingMinutes = Math.max(0, plannedMinutes - completedMinutes)
+  const pct = plannedMinutes > 0 ? Math.min(1, completedMinutes / plannedMinutes) : 0
+  const r = 62, circ = 2 * Math.PI * r
+  const offset = circ - pct * circ
+  const fmt = (mins: number) => {
     const h = Math.floor(mins / 60), m = Math.round(mins % 60)
     return h > 0 ? `${h}h ${m}m` : `${m}m`
   }
-  const goalLabel = goalMinutes >= 60 ? `${(goalMinutes / 60).toFixed(goalMinutes % 60 === 0 ? 0 : 1)}h` : `${goalMinutes}m`
+  const completedPct = plannedMinutes > 0 ? Math.min(100, Math.round((completedMinutes / plannedMinutes) * 100)) : 0
+  const remainingPct = 100 - completedPct
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-100">Today's Focus</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">{fmtHM(goalMinutes)} planned</div>
-        </div>
-        <div className="flex items-center gap-1.5 text-amber-400">
-          <Ico n="fire" cls="w-3.5 h-3.5" />
-          <span className="text-xs font-semibold">{streakDays}-day streak</span>
-        </div>
-      </div>
-      <div className="flex justify-center mb-3">
-        <svg width="150" height="86" viewBox="0 0 150 86">
-          <defs>
-            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#19B5E6" /></linearGradient>
-            <filter id="gaugeGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-          </defs>
-          <path d="M 19,80 A 56,56 0 0,1 131,80" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="9" strokeLinecap="round" />
-          <path d="M 19,80 A 56,56 0 0,1 131,80" fill="none" stroke="url(#gaugeGrad)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${pct * arcLen} ${arcLen}`} filter="url(#gaugeGlow)" />
-          {[0, 0.25, 0.5, 0.75, 1].map(t => {
-            const angle = Math.PI * (1 - t)
-            const x1 = 75 + 56 * Math.cos(angle), y1 = 80 - 56 * Math.sin(angle)
-            const x2 = 75 + 47 * Math.cos(angle), y2 = 80 - 47 * Math.sin(angle)
-            return <line key={t} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#1A2845" strokeWidth="1.5" />
-          })}
-          <text x="75" y="60" textAnchor="middle" fontSize="15" fontWeight="600" fill="#EEF2FF" fontFamily="JetBrains Mono, monospace">{fmtHM(doneMinutes)}</text>
-          <text x="75" y="75" textAnchor="middle" fontSize="8.5" fill="rgba(148,163,184,0.5)" fontFamily="JetBrains Mono, monospace">of {fmtHM(goalMinutes)}</text>
-          <text x="16" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">0</text>
-          <text x="134" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{goalLabel}</text>
-        </svg>
-      </div>
-      <div className="space-y-1.5 flex-1">
-        {bySubject.length === 0 ? (
-          <div className="text-[11px] text-slate-600 text-center py-4">Nothing logged yet today</div>
-        ) : bySubject.map((s) => (
-          <div key={s.subject} className="flex items-center gap-2.5 px-3 py-2 rounded-lg"
-            style={{ background: 'rgba(124,77,255,0.08)', border: '1px solid rgba(26,40,69,0.55)' }}>
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-violet-400" />
-            <span className="text-[11px] flex-1 text-slate-300">{s.subject}</span>
-            <span className="text-[10px] text-slate-500">{s.minutes} min</span>
-            <Ico n="check" cls="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+            <Ico n="target" cls="w-4 h-4 text-cyan-300" />
           </div>
-        ))}
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Focus</div>
+        </div>
+        <button onClick={onViewPlan} className="text-[11px] px-3 py-1.5 rounded-lg border text-slate-300 transition-colors hover:text-cyan-300 hover:border-cyan-500/40 flex-shrink-0"
+          style={{ borderColor: 'rgba(56,132,255,0.3)', background: 'rgba(41,98,255,0.06)' }}>
+          View Plan
+        </button>
       </div>
-      <button onClick={onGoFocus} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
-        style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #19B5E6 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
-        <Ico n="lock" cls="w-4 h-4" />Start Focus Lock
-      </button>
+
+      <div className="flex items-center gap-6 flex-1">
+        <div className="relative flex-shrink-0" style={{ width: 150, height: 150 }}>
+          <svg width="150" height="150" viewBox="0 0 150 150">
+            <defs>
+              <linearGradient id="tfGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#2979FF" /><stop offset="100%" stopColor="#22D3EE" />
+              </linearGradient>
+              <filter id="tfGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+            </defs>
+            <circle cx="75" cy="75" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+            <circle cx="75" cy="75" r={r} fill="none" stroke="url(#tfGrad)" strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={`${circ} ${circ}`} strokeDashoffset={offset} filter="url(#tfGlow)"
+              transform="rotate(-90 75 75)" />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-xl font-bold text-slate-100">{fmt(completedMinutes)}</div>
+            <div className="text-[11px] text-slate-500">/ {fmt(plannedMinutes)}</div>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-3 min-w-0">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1.5 text-[12px] text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />Completed</span>
+              <span className="text-[12px] text-slate-300">{fmt(completedMinutes)}</span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full" style={{ width: `${completedPct}%`, background: 'linear-gradient(90deg,#19D3A2,#22D3EE)' }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1.5 text-[12px] text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-slate-500 flex-shrink-0" />Remaining</span>
+              <span className="text-[12px] text-slate-300">{fmt(remainingMinutes)}</span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full" style={{ width: `${remainingPct}%`, background: 'rgba(148,163,184,0.4)' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {activeTask ? (
+        <>
+          <div className="mt-4 flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+            {(() => {
+              const { emoji, color } = subjectVisual(activeTask.subject)
+              return <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: `${color}1A`, border: `1px solid ${color}44` }}>{emoji}</div>
+            })()}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-slate-200 truncate">{activeTask.subject}</div>
+              <div className="text-[11px] text-slate-500">{activeTask.mode === 'pomodoro' ? 'Pomodoro · 25/5' : 'Regular session'}</div>
+            </div>
+            <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
+          </div>
+          <button onClick={onContinueFocus} className="mt-3 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            <Ico n="play" cls="w-4 h-4" />Continue Focus
+          </button>
+        </>
+      ) : (
+        <button onClick={onStartFirst ?? onViewPlan} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
+          style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+          <Ico n="play" cls="w-4 h-4" />Start Focus
+        </button>
+      )}
     </div>
   )
 }
@@ -1300,7 +1376,7 @@ Add a quick note for this session."
   )
 }
 
-function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void }) {
   const [snapshot] = useState(loadFocusPlanSnapshot)
   const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(snapshot?.activeTaskId ?? null)
@@ -1471,6 +1547,31 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
     setTasks(prev => [task, ...prev])
     setShowAddTask(false)
   }
+
+  // Lets Home's "Today's Study Plan" ▶ button jump straight into a running
+  // session for a specific task, instead of just landing on this page and
+  // making the person press play again. Runs once per incoming request;
+  // onAutoStartHandled clears it so it doesn't refire on later renders.
+  useEffect(() => {
+    if (!autoStartTask) return
+    const key = `${autoStartTask.subject}::${autoStartTask.topic}`
+    const existing = tasks.find(t => `${t.subject}::${t.topic}` === key)
+    if (existing) {
+      handleStartTask(existing.id)
+    } else {
+      // Not in the plan yet - add it, then start it directly (rather than
+      // via handleStartTask, whose `tasks` lookup would still see the
+      // pre-update array in this same tick and silently no-op).
+      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: 'pomodoro', pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+      setTasks(prev => [task, ...prev])
+      if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
+      setActiveTaskId(task.id)
+      setRunning(true)
+      startRemoteSession(task.subject).catch(() => { /* hook already falls back to a local-only clock */ })
+    }
+    onAutoStartHandled?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartTask])
 
   // ── Main circle: mirrors the active task while one is running/paused;
   // otherwise previews whichever mode tab is selected. ──
@@ -5812,11 +5913,59 @@ export default function DesktopDashboard() {
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
+  // Home's "Today's Study Plan" / "Today's Focus" cards read the same live
+  // Focus Lock plan FocusLockPage itself persists at FL_PLAN_KEY, so both
+  // pages always agree on what's scheduled/active/completed. Re-synced from
+  // localStorage whenever Home becomes the active page (below) rather than
+  // kept ticking live while sitting on Home - a fresh read plus the same
+  // catch-up math FocusLockPage uses is accurate enough without a second
+  // per-second timer running outside Focus Lock itself.
+  const [focusPlan, setFocusPlan] = useState<{ tasks: StudyTask[]; activeTaskId: string | null }>(() => {
+    const snap = loadFocusPlanSnapshot()
+    if (snap) return { tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId }
+    return { tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx), activeTaskId: null }
+  })
+  const [autoStartTask, setAutoStartTask] = useState<{ subject: string; topic: string } | null>(null)
+  const [showHomeAddTask, setShowHomeAddTask] = useState(false)
+
+  useEffect(() => {
+    if (activeNav !== 'home') return
+    const snap = loadFocusPlanSnapshot()
+    if (snap) setFocusPlan({ tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId })
+    else setFocusPlan({ tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx), activeTaskId: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav])
+
   function handleNav(id: string) {
     setActiveNav(id)
     if (id !== 'studyrooms') setActiveRoom(null)
   }
-  function goFocus() { setActiveNav('focus') }
+  // Optional task = "jump straight into a running session for this
+  // task" (used by Today's Study Plan's ▶ buttons); FocusLockPage's own
+  // auto-start effect consumes autoStartTask once and reports back via
+  // onAutoStartHandled.
+  function goFocus(task?: { subject: string; topic: string }) {
+    if (task) setAutoStartTask(task)
+    setActiveNav('focus')
+  }
+
+  // Adds directly to the live Focus Lock plan (same StudyTask model, same
+  // localStorage key) so it shows up in Today's Study Plan immediately -
+  // reads the freshest snapshot first so it never clobbers a session that's
+  // actually running right now.
+  function handleHomeAddTask(subject: string, topic: string, mode: TimerMode) {
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+    const existing = loadFocusPlanSnapshot()
+    const nextTasks = [task, ...(existing?.tasks ?? focusPlan.tasks)]
+    saveFocusPlanSnapshot({
+      tasks: nextTasks,
+      activeTaskId: existing?.activeTaskId ?? focusPlan.activeTaskId,
+      running: existing?.running ?? false,
+      runningStartedAtMs: existing?.runningStartedAtMs ?? null,
+    })
+    setFocusPlan(prev => ({ ...prev, tasks: nextTasks }))
+    setShowHomeAddTask(false)
+  }
 
   function handleAddUnit(u: StudyUnit) {
     addUnit(u.subject, u.topics)
@@ -5830,7 +5979,7 @@ export default function DesktopDashboard() {
 
   function renderPage() {
     if (activeNav === 'focus') {
-      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} />
+      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} />
     }
     if (activeNav === 'schedules') {
       return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
@@ -5875,12 +6024,18 @@ export default function DesktopDashboard() {
       )
     }
 
-    // Today's already-logged entries, shown as removable chips in
-    // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
-    // rather than tracked as separate local state.
-    const todaysUnits: StudyUnit[] = reviewItems
-      .filter(i => i.daysAgo === 0)
-      .map(i => ({ subject: i.subject, exam: '', topics: [i.topic] }))
+    // Today's rows/planned-vs-completed for the two cards below - real
+    // data only: schedule[todayIdx] (today's actual scheduled sessions)
+    // merged with the live Focus Lock plan, see buildTodayPlanRows.
+    // Planned time prefers today's scheduled duration; when nothing's
+    // scheduled yet it falls back to the person's own daily focus goal
+    // (todayFocus.goalMinutes, also real - daily_focus_goal_minutes)
+    // rather than showing an empty/zero ring.
+    const todaySchedule = schedule[todayIdx] || []
+    const todayPlanRows = buildTodayPlanRows(todaySchedule, focusPlan.tasks)
+    const scheduledMinutes = todaySchedule.reduce((sum, s) => sum + Math.max(1, parseTimeRangeMinutes(s.startTime, s.endTime)), 0)
+    const plannedMinutes = scheduledMinutes > 0 ? scheduledMinutes : todayFocus.goalMinutes
+    const activeFocusTask = focusPlan.activeTaskId ? focusPlan.tasks.find(t => t.id === focusPlan.activeTaskId) ?? null : null
 
     return (
       <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
@@ -5889,14 +6044,20 @@ export default function DesktopDashboard() {
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
             <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
-            <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <ReviewQueue items={reviewItems} onDismiss={markAsReviewed} />
-              </div>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <FocusPanel onGoFocus={goFocus} todayFocus={todayFocus} />
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+              <TodayStudyPlanCard
+                rows={todayPlanRows}
+                onStartTask={(subject, topic) => goFocus({ subject, topic })}
+                onAddTask={() => setShowHomeAddTask(true)}
+              />
+              <TodayFocusCard
+                plannedMinutes={plannedMinutes}
+                completedMinutes={todayFocus.doneMinutes}
+                activeTask={activeFocusTask}
+                onContinueFocus={() => goFocus()}
+                onStartFirst={todayPlanRows.length > 0 ? () => goFocus({ subject: todayPlanRows[0].subject, topic: todayPlanRows[0].topic }) : null}
+                onViewPlan={() => handleNav('schedules')}
+              />
             </div>
             <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
               <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
@@ -5909,6 +6070,7 @@ export default function DesktopDashboard() {
             <div className="h-4" />
           </main>
         </div>
+        {showHomeAddTask && <AddTaskModal onClose={() => setShowHomeAddTask(false)} onAdd={handleHomeAddTask} />}
       </div>
     )
   }
