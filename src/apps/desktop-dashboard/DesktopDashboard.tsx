@@ -312,7 +312,7 @@ const NAV = [
   { id: 'home', label: 'Home', icon: 'home' as const, group: 'HOME' },
   { id: 'focus', label: 'Focus Lock', icon: 'lock' as const, group: 'STUDY' },
   { id: 'schedules', label: 'Schedules', icon: 'clock' as const, group: 'STUDY' },
-  { id: 'studyrooms', label: 'Study Room', icon: 'rooms' as const, group: 'STUDY' },
+  { id: 'studyrooms', label: 'Community', icon: 'rooms' as const, group: 'STUDY' },
   { id: 'battleground', label: 'Battleground', icon: 'zap' as const, group: 'STUDY' },
   { id: '3dlibrary', label: '3D Library', icon: 'cube' as const, group: 'STUDY' },
   { id: 'wynkoins', label: 'WYNKOINS', icon: 'coin' as const, group: 'OTHER' },
@@ -2647,6 +2647,12 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   const [copied, setCopied] = useState(false)
   const [userRooms, setUserRooms] = useState<RoomData[]>([])
   const [createForm, setCreateForm] = useState({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+  // Parent "Community" module tabs. Everything below this — Hero, Search,
+  // the All Rooms/My Rooms/Popular/Subject Wise tabs, the room list, and
+  // all three modals — is the pre-existing Study Rooms page, completely
+  // unchanged. It's now just the "Study Rooms" tab's content; a second
+  // "Communities" tab (placeholder for now) sits alongside it.
+  const [communityTab, setCommunityTab] = useState<'rooms' | 'communities'>('rooms')
 
   const allRooms = [...ROOM_DATA, ...userRooms]
   const filtered = allRooms.filter(r => {
@@ -2728,7 +2734,31 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
           <UserAvatar size={32} />
         </header>
 
+        {/* Community module tabs */}
+        <div className="flex-shrink-0 px-6 pt-4">
+          <div className="inline-flex items-center gap-1 p-1 rounded-full border" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+            {([
+              { id: 'rooms', label: 'Study Rooms' },
+              { id: 'communities', label: 'Communities' },
+            ] as { id: 'rooms' | 'communities'; label: string }[]).map(t => (
+              <button key={t.id} onClick={() => setCommunityTab(t.id)}
+                className="px-5 py-2 rounded-full text-sm font-semibold transition-all"
+                style={{
+                  background: communityTab === t.id ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
+                  color: communityTab === t.id ? '#fff' : '#8B9AC7',
+                  boxShadow: communityTab === t.id ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <main className="flex-1 overflow-y-auto px-6 py-5">
+          {communityTab === 'communities' ? (
+            <CommunitiesTabContent />
+          ) : (
+          <>
           {/* Hero */}
           <div className="flex items-start justify-between mb-6 gap-6">
             <div>
@@ -2901,10 +2931,12 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               )
             })}
           </div>
+          </>
+          )}
         </main>
       </div>
 
-      {/* Password Modal */}
+      {/* Password Modal — Study Rooms tab only; unchanged from before */}
       {passwordRoomId !== null && (() => {
         const room = allRooms.find(r => r.id === passwordRoomId)!
         return (
@@ -3053,6 +3085,40 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Communities Tab (placeholder) ─────────────────────────────────────────────
+// Temporary content for the "Communities" tab of the Community module.
+// Just 2 simple placeholder cards for now, styled to match the existing
+// Wynko dark theme (same card bg/border/glow language used across this
+// page and Home) — real content blocks to follow later.
+function CommunitiesTabContent() {
+  const placeholders: { icon: string; title: string; desc: string }[] = [
+    { icon: '💬', title: 'Community Feed', desc: 'A shared space for discussions, doubts, and updates across all of Wynko. Coming soon.' },
+    { icon: '🌐', title: 'Subject Communities', desc: 'Join larger subject-wide communities beyond individual study rooms. Coming soon.' },
+  ]
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-8">
+      {placeholders.map(p => (
+        <div key={p.title}
+          className="p-6 rounded-2xl border relative overflow-hidden"
+          style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+          <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(124,77,255,0.10) 0%, transparent 70%)', transform: 'translate(25%,-35%)' }} />
+          <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-4"
+            style={{ background: 'rgba(124,77,255,0.10)', border: '1px solid rgba(124,77,255,0.30)', boxShadow: '0 0 20px rgba(124,77,255,0.20)' }}>
+            {p.icon}
+          </div>
+          <div className="relative text-base font-bold text-white mb-1.5">{p.title}</div>
+          <div className="relative text-sm text-slate-400 leading-relaxed">{p.desc}</div>
+          <div className="relative inline-flex items-center mt-4 px-2.5 py-1 rounded-full text-[10px] font-mono tracking-wide"
+            style={{ background: 'rgba(124,77,255,0.10)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.25)' }}>
+            COMING SOON
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
