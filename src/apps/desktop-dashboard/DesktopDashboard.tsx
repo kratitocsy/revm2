@@ -19,6 +19,7 @@ import {
   type PomodoroSettings, type PomodoroSettingsInput,
 } from '../_shared/pomodoroSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
+import { Store } from '../../lib/storage'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -3089,36 +3090,306 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   )
 }
 
-// ─── Communities Tab (placeholder) ─────────────────────────────────────────────
-// Temporary content for the "Communities" tab of the Community module.
-// Just 2 simple placeholder cards for now, styled to match the existing
-// Wynko dark theme (same card bg/border/glow language used across this
-// page and Home) — real content blocks to follow later.
+// ─── Communities Tab ────────────────────────────────────────────────────────
+// Real content for the "Communities" tab of the Community module:
+//   1. Home Community hero — the user's primary community. Picking one
+//      locks it for HOME_LOCK_DAYS; once the lock expires the same slot
+//      turns into a "Change Home Community" pill instead of resetting to
+//      empty, and whatever the user picks stays put (persisted) until they
+//      deliberately change it again. Same "no backend table yet, so
+//      localStorage is the source of truth" pattern as the Focus Lock plan
+//      and Study Rooms membership elsewhere in this file.
+//   2. "Your Communities" — every joined community other than the current
+//      home one, in the same card language as the Study Rooms cards
+//      (FaceAvatars, Joined badge, Open button). Grid wraps on its own, and
+//      the page already scrolls (see `<main className="overflow-y-auto">`
+//      in StudyRoomsPage), so a 4th/5th/6th community just flows below.
+//   3. Discover More Communities — full-width CTA.
+//   4. Join with Invite Link — full-width input + Join button.
+const HOME_LOCK_DAYS = 30
+const HOME_COMMUNITY_STORE_KEY = 'wynko_home_community_v1'
+
+interface CommunityData {
+  id: number
+  name: string
+  members: number
+  desc: string
+  emoji: string
+  iconBg: string
+  studyingNow?: number
+  avatarColors?: string[]
+  avatarInits?: string[]
+  avatarExtra?: number
+}
+
+// All communities the user currently belongs to. One of these is the "home"
+// community (default: Alpha Squad, matching first-run state below); the
+// rest render as cards in the "Your Communities" grid. A 5th entry is
+// included so the grid visibly wraps to a second row / the page scrolls,
+// same as it would once a real user has joined more than a handful.
+const ALL_COMMUNITIES: CommunityData[] = [
+  { id: 1, name: 'JEE 2026 — Alpha Squad', members: 2840, desc: 'Learn. Compete. Grow.',
+    emoji: '🏆', iconBg: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' },
+  { id: 2, name: 'JEE 2026 — Warriors', members: 1284, studyingNow: 832, desc: 'Push each other through every mock test.',
+    emoji: '🎯', iconBg: 'linear-gradient(135deg,#6D5EF5,#4C3FD6)',
+    avatarColors: ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'], avatarInits: ['RS', 'PK', 'AM', 'DJ'], avatarExtra: 42 },
+  { id: 3, name: 'NEET 2026 — Dreamers', members: 986, studyingNow: 521, desc: 'Biology-first grind squad for NEET.',
+    emoji: '🧬', iconBg: 'linear-gradient(135deg,#12B886,#0A9673)',
+    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'], avatarInits: ['AK', 'KV', 'PN', 'SR'], avatarExtra: 28 },
+  { id: 4, name: 'UPSC 2026 — Aspirants', members: 642, studyingNow: 318, desc: 'Daily current affairs + answer writing.',
+    emoji: '🏛️', iconBg: 'linear-gradient(135deg,#EC4899,#BE185D)',
+    avatarColors: ['#EC4899', '#7C4DFF', '#0F99CC', '#F59E0B'], avatarInits: ['VM', 'PR', 'SC', 'AT'], avatarExtra: 16 },
+  { id: 5, name: 'Boards 2026 — Sprinters', members: 410, studyingNow: 145, desc: 'Last-mile revision for board exams.',
+    emoji: '⚡', iconBg: 'linear-gradient(135deg,#19B5E6,#0F7FB8)',
+    avatarColors: ['#19B5E6', '#7C4DFF', '#F59E0B', '#0DAE86'], avatarInits: ['NT', 'IR', 'GP', 'MS'], avatarExtra: 9 },
+]
+
+const fmt = (n: number) => n.toLocaleString('en-US')
+
 function CommunitiesTabContent() {
-  const placeholders: { icon: string; title: string; desc: string }[] = [
-    { icon: '💬', title: 'Community Feed', desc: 'A shared space for discussions, doubts, and updates across all of Wynko. Coming soon.' },
-    { icon: '🌐', title: 'Subject Communities', desc: 'Join larger subject-wide communities beyond individual study rooms. Coming soon.' },
-  ]
+  // First-ever load: seed a default home community so the page isn't empty
+  // (Alpha Squad, locked with 12 days already remaining — mirrors the
+  // product's onboarding-assigned home community). After that, whatever is
+  // in storage always wins, so a user's own choice is never overwritten.
+  const [homeCommunityId, setHomeCommunityId] = useState<number | null>(null)
+  const [homeLockUntil, setHomeLockUntil] = useState<number | null>(null)
+  const [showPicker, setShowPicker] = useState(false)
+  const [inviteLink, setInviteLink] = useState('')
+  const [inviteMsg, setInviteMsg] = useState<string | null>(null)
+  const [exploreMsg, setExploreMsg] = useState(false)
+
+  useEffect(() => {
+    const saved = Store.get(HOME_COMMUNITY_STORE_KEY, null) as { id: number; lockUntil: number } | null
+    if (saved && saved.id) {
+      setHomeCommunityId(saved.id)
+      setHomeLockUntil(saved.lockUntil)
+    } else {
+      const seeded = { id: 1, lockUntil: Date.now() + 12 * 24 * 60 * 60 * 1000 }
+      Store.set(HOME_COMMUNITY_STORE_KEY, seeded)
+      setHomeCommunityId(seeded.id)
+      setHomeLockUntil(seeded.lockUntil)
+    }
+  }, [])
+
+  const home = ALL_COMMUNITIES.find(c => c.id === homeCommunityId) || null
+  const daysRemaining = homeLockUntil ? Math.max(0, Math.ceil((homeLockUntil - Date.now()) / (1000 * 60 * 60 * 24))) : 0
+  const isLocked = !!home && daysRemaining > 0
+  const otherCommunities = ALL_COMMUNITIES.filter(c => c.id !== homeCommunityId)
+
+  function selectHomeCommunity(id: number) {
+    const lockUntil = Date.now() + HOME_LOCK_DAYS * 24 * 60 * 60 * 1000
+    setHomeCommunityId(id)
+    setHomeLockUntil(lockUntil)
+    Store.set(HOME_COMMUNITY_STORE_KEY, { id, lockUntil })
+    setShowPicker(false)
+  }
+
+  function handleJoinInvite() {
+    if (!inviteLink.trim()) return
+    setInviteMsg('✓ Request sent — you\u2019ll be notified once approved.')
+    setInviteLink('')
+    setTimeout(() => setInviteMsg(null), 3000)
+  }
+
+  function handleExplore() {
+    setExploreMsg(true)
+    setTimeout(() => setExploreMsg(false), 2500)
+  }
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-8">
-      {placeholders.map(p => (
-        <div key={p.title}
-          className="p-6 rounded-2xl border relative overflow-hidden"
-          style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-          <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(124,77,255,0.10) 0%, transparent 70%)', transform: 'translate(25%,-35%)' }} />
-          <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-4"
-            style={{ background: 'rgba(124,77,255,0.10)', border: '1px solid rgba(124,77,255,0.30)', boxShadow: '0 0 20px rgba(124,77,255,0.20)' }}>
-            {p.icon}
+    <div className="pb-8">
+      {/* 1 · Home Community hero */}
+      <div className="relative rounded-3xl border overflow-hidden p-6 sm:p-7 mb-7"
+        style={{ borderColor: 'rgba(124,77,255,0.35)', boxShadow: '0 0 50px rgba(124,77,255,0.14)' }}>
+        {/* Purple gradient base */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 55%, #7C4DFF 78%, #4629A0 100%)' }} />
+        {/* Mountain + flag silhouette, decorative, right side */}
+        <svg viewBox="0 0 900 260" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60 pointer-events-none" aria-hidden="true">
+          <polygon points="480,260 560,150 610,190 680,110 760,180 830,140 900,200 900,260" fill="#1B0F45" opacity="0.55" />
+          <polygon points="560,260 640,170 700,205 770,135 900,220 900,260" fill="#150A36" opacity="0.75" />
+          <line x1="770" y1="135" x2="770" y2="95" stroke="#E8E2FF" strokeWidth="2" />
+          <path d="M770,95 L804,105 L770,116 Z" fill="#E8E2FF" opacity="0.9" />
+        </svg>
+        {/* Readability overlay so text always sits on solid-enough ground */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,9,42,0.55) 0%, rgba(15,9,42,0.15) 55%, rgba(15,9,42,0.05) 100%)' }} />
+
+        <div className="relative z-10">
+          <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[15px] flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)' }}>👑</div>
+            <div className="text-white font-bold text-base">Home Community</div>
+            {home && isLocked && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                style={{ background: 'rgba(245,158,11,0.16)', color: '#FCD34D', border: '1px solid rgba(245,158,11,0.35)' }}>
+                <Ico n="lock" cls="w-3 h-3" /> Locked for {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}
+              </span>
+            )}
+            {home && !isLocked && (
+              <button onClick={() => setShowPicker(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors hover:opacity-80"
+                style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: '1px solid rgba(255,255,255,0.28)' }}>
+                Change Home Community
+              </button>
+            )}
           </div>
-          <div className="relative text-base font-bold text-white mb-1.5">{p.title}</div>
-          <div className="relative text-sm text-slate-400 leading-relaxed">{p.desc}</div>
-          <div className="relative inline-flex items-center mt-4 px-2.5 py-1 rounded-full text-[10px] font-mono tracking-wide"
-            style={{ background: 'rgba(124,77,255,0.10)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.25)' }}>
-            COMING SOON
+          <div className="text-white/60 text-[13px] mb-5 max-w-md">
+            Your primary community. 50% of your study rewards go here.
+          </div>
+
+          {home ? (
+            <div className="flex items-end sm:items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+                  style={{ background: home.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{home.emoji}</div>
+                <div className="min-w-0">
+                  <div className="text-white font-bold text-xl leading-tight mb-1 truncate">{home.name}</div>
+                  <div className="flex items-center gap-1.5 text-white/75 text-[13px] mb-1">
+                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(home.members)} members
+                  </div>
+                  <div className="text-white/55 text-[13px]">{home.desc}</div>
+                </div>
+              </div>
+              <button className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm flex items-center gap-1.5 hover:opacity-90 transition-opacity flex-shrink-0">
+                View Community <Ico n="chevR" cls="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div className="text-white font-semibold text-base mb-1">No home community selected yet</div>
+                <div className="text-white/55 text-[13px] max-w-sm">Pick one community as your home base — half of your study rewards go there.</div>
+              </div>
+              <button onClick={() => setShowPicker(true)}
+                className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm hover:opacity-90 transition-opacity flex-shrink-0">
+                Select Home Community
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2 · Your Communities */}
+      <div className="mb-7">
+        <div className="text-white font-bold text-base mb-0.5">Your Communities</div>
+        <div className="text-slate-500 text-[13px] mb-4">You are part of {otherCommunities.length} {otherCommunities.length === 1 ? 'community' : 'communities'}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {otherCommunities.map(c => (
+            <div key={c.id} className="p-5 rounded-2xl border flex flex-col" style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold flex-shrink-0"
+                  style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>Joined</span>
+              </div>
+              <div className="text-white font-bold text-[15px] mb-1 leading-snug">{c.name}</div>
+              <div className="text-slate-500 text-[12px] mb-0.5">{fmt(c.members)} members</div>
+              {typeof c.studyingNow === 'number' && (
+                <div className="text-emerald-400 text-[12px] mb-4 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+                  {fmt(c.studyingNow)} studying now
+                </div>
+              )}
+              <div className="mt-auto flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  {c.avatarColors && c.avatarInits && <FaceAvatars colors={c.avatarColors} inits={c.avatarInits} />}
+                  {!!c.avatarExtra && <span className="text-[11px] text-slate-500 ml-0.5">+{c.avatarExtra}</span>}
+                </div>
+                <button className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1 flex-shrink-0 hover:opacity-90 transition-opacity"
+                  style={{ background: '#7C4DFF' }}>
+                  Open <Ico n="chevR" cls="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3 · Discover More Communities */}
+      <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-4"
+        style={{ background: '#0B1530', borderColor: '#1A2845', borderStyle: 'dashed' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.30)' }}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5 text-violet-300" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </div>
+          <div className="min-w-0">
+            <div className="text-white font-semibold text-sm">Discover More Communities</div>
+            <div className="text-slate-500 text-[12px]">Find communities that match your goals or interests.</div>
           </div>
         </div>
-      ))}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <button onClick={handleExplore} className="px-5 py-2 rounded-full text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.4)' }}>
+            Explore <Ico n="chevR" cls="w-3.5 h-3.5" />
+          </button>
+          {exploreMsg && <div className="text-[11px] text-violet-300">More communities coming soon ✨</div>}
+        </div>
+      </div>
+
+      {/* 4 · Join with Invite Link */}
+      <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap"
+        style={{ background: '#0B1530', borderColor: '#1A2845', borderStyle: 'dashed' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+            style={{ background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.30)' }}>🔗</div>
+          <div className="min-w-0">
+            <div className="text-white font-semibold text-sm">Join with Invite Link</div>
+            <div className="text-slate-500 text-[12px]">Have an invite link or code? Join a community directly.</div>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <input
+              type="text" placeholder="Enter invite link or code" value={inviteLink}
+              onChange={e => setInviteLink(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleJoinInvite()}
+              className="w-56 px-4 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
+              style={{ borderColor: '#1E3060' }} />
+            <button onClick={handleJoinInvite}
+              className="px-5 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-opacity flex-shrink-0"
+              style={{ background: '#7C4DFF' }}>
+              Join
+            </button>
+          </div>
+          {inviteMsg && <div className="text-[11px] text-emerald-400">{inviteMsg}</div>}
+        </div>
+      </div>
+
+      {/* Home Community picker modal */}
+      {showPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
+          onClick={e => { if (e.target === e.currentTarget) setShowPicker(false) }}>
+          <div className="rounded-2xl border p-7 w-[400px] max-h-[80vh] overflow-y-auto"
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            <div className="text-center mb-5">
+              <div className="text-2xl mb-2">👑</div>
+              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
+              <div className="text-lg font-bold text-white">{home ? 'Change your home community' : 'Select your home community'}</div>
+              <div className="text-slate-500 text-[12px] mt-1">You can only change this once every {HOME_LOCK_DAYS} days.</div>
+            </div>
+            <div className="space-y-2 mb-5">
+              {ALL_COMMUNITIES.map(c => (
+                <button key={c.id} onClick={() => selectHomeCommunity(c.id)}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-violet-500/40"
+                  style={{
+                    background: c.id === homeCommunityId ? 'rgba(124,77,255,0.12)' : 'rgba(14,21,40,0.55)',
+                    borderColor: c.id === homeCommunityId ? 'rgba(124,77,255,0.5)' : 'rgba(124,58,237,0.16)',
+                  }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-100 truncate">{c.name}</div>
+                    <div className="text-[11px] text-slate-500">{fmt(c.members)} members</div>
+                  </div>
+                  {c.id === homeCommunityId && <Ico n="check" cls="w-4 h-4 text-violet-300 flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowPicker(false)}
+              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
