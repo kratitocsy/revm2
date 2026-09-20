@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
-import aiAssistantImg from './imports/ai-assistant.png'
+import wynkoMascot from './imports/wynko-mascot.png'
 import trophyBronze from './imports/trophy-bronze.png'
 import trophySilver from './imports/trophy-silver.png'
 import trophyGold from './imports/trophy-gold.png'
@@ -4810,6 +4810,125 @@ const WEBSITE_SUGGESTIONS = [
 
 const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#19B5E6', '#19D3A2', '#F59E0B', '#F87171', '#EC4899']
 
+// ─── Schedule AI chat ─────────────────────────────────────────────────────────
+// "Generate with AI" on the Schedules page opens this chat dialog (it replaced
+// the old subjects / exam / hours form). UI only for now: a sent message shows
+// the student's bubble, then a typing indicator, then a placeholder reply from
+// the mascot. The one place to plug the real assistant in is send() below.
+interface AIChatMsg { id: number; from: 'bot' | 'user'; text: string }
+
+const AI_CHAT_GREETING = 'Hi! I’m your Wynko study assistant. Tell me your subjects, your target exam and how many hours you can study each day, and I’ll help you build your schedule.'
+
+// The Wynko mascot as a round avatar (header, every bot message, typing indicator).
+function MascotAvatar({ size }: { size: number }) {
+  return (
+    <div className="rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size, background: 'rgba(124,77,255,0.14)', border: '1px solid rgba(124,77,255,0.4)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
+      <img src={wynkoMascot} alt="" className="w-auto object-contain" style={{ height: '78%' }} />
+    </div>
+  )
+}
+
+function ScheduleAIChat({ onClose }: { onClose: () => void }) {
+  const [messages, setMessages] = useState<AIChatMsg[]>([{ id: 1, from: 'bot', text: AI_CHAT_GREETING }])
+  const [input, setInput] = useState('')
+  const [typing, setTyping] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nextId = useRef(2)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }) }, [messages, typing])
+  useEffect(() => () => { if (replyTimer.current) clearTimeout(replyTimer.current) }, [])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  function send() {
+    const text = input.trim()
+    if (!text || typing) return
+    setMessages(m => [...m, { id: nextId.current++, from: 'user', text }])
+    setInput('')
+    setTyping(true)
+    // TODO(backend): replace this stub with the real assistant call. Append its
+    // answer as { from: 'bot' } and setTyping(false) when it arrives.
+    replyTimer.current = setTimeout(() => {
+      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: 'I can’t build schedules just yet. I’m still being connected, so please check back soon!' }])
+      setTyping(false)
+    }, 1100)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div role="dialog" aria-modal="true" aria-label="Wynko AI assistant"
+        className="rounded-2xl border w-[520px] max-w-full h-[620px] max-h-[90vh] flex flex-col overflow-hidden"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+
+        {/* Header */}
+        <div className="flex items-center gap-3.5 px-5 py-4 border-b flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: '#1A2845' }}>
+          <MascotAvatar size={52} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
+            <div className="text-base font-bold text-white leading-tight">Create Your Study Schedule</div>
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Online
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close chat"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors flex-shrink-0">
+            <Ico n="close" cls="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+          {messages.map(m => m.from === 'bot' ? (
+            <div key={m.id} className="flex items-end gap-2.5">
+              <MascotAvatar size={34} />
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-slate-200 leading-relaxed whitespace-pre-wrap break-words border"
+                style={{ background: 'rgba(14,21,40,0.85)', borderColor: '#1A2845' }}>{m.text}</div>
+            </div>
+          ) : (
+            <div key={m.id} className="flex justify-end">
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md text-[13px] text-white leading-relaxed whitespace-pre-wrap break-words"
+                style={{ background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', boxShadow: '0 0 16px rgba(124,77,255,0.35)' }}>{m.text}</div>
+            </div>
+          ))}
+          {typing && (
+            <div className="flex items-end gap-2.5">
+              <MascotAvatar size={34} />
+              <div className="px-4 py-3.5 rounded-2xl rounded-bl-md border flex items-center gap-1.5" aria-label="Assistant is typing"
+                style={{ background: 'rgba(14,21,40,0.85)', borderColor: '#1A2845' }}>
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="flex items-center gap-2.5 px-4 py-3.5 border-t flex-shrink-0" style={{ borderColor: '#1A2845' }}>
+          <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            placeholder="Type your subjects, exam and study hours…"
+            className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]" />
+          <button onClick={send} disabled={!input.trim() || typing} aria-label="Send message"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            <Ico n="arrow" cls="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile }: {
   onNavigate: (id: string) => void
   schedule: ScheduleItem[][]
@@ -4967,15 +5086,16 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at right,#7C4DFF,transparent)' }} />
             <div className="flex items-center gap-5 relative">
-              <div className="flex-shrink-0 w-16 h-16 rounded-2xl overflow-hidden">
-                <img src={aiAssistantImg} alt="AI Assistant" className="w-full h-full object-cover" />
+              <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+                <img src={wynkoMascot} alt="Wynko mascot" className="h-full w-auto object-contain"
+                  style={{ filter: 'drop-shadow(0 0 14px rgba(124,77,255,0.45))' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
                 <div className="text-lg font-bold text-white mb-0.5">Create Your Study Schedule</div>
                 <div className="text-sm text-slate-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
               </div>
-              <button onClick={() => { setShowAI(true); setAiStep('form') }}
+              <button onClick={() => setShowAI(true)}
                 className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-all hover:opacity-90 active:scale-95"
                 style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(40,85,204,0.55), 0 0 48px rgba(124,77,255,0.2)' }}>
                 ✦ Generate with AI
@@ -5240,102 +5360,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
         </main>
       </div>
 
-      {/* ── AI Modal ── */}
-      {showAI && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)]" 
-          onClick={e => { if (e.target === e.currentTarget && aiStep !== 'generating') setShowAI(false) }}>
-          <div className="rounded-2xl border w-[460px] overflow-hidden"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 80px #1A2845' }}>
-            {aiStep === 'form' && (
-              <div className="p-7">
-                <div className="text-center mb-6">
-                  <div className="text-4xl mb-2">🤖</div>
-                  <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">AI ASSISTANT</div>
-                  <div className="text-xl font-bold text-white">Generate Your Schedule</div>
-                  <div className="text-sm text-slate-400 mt-1">Tell us about your study goals</div>
-                </div>
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-1 block">SUBJECTS</label>
-                    <input value={aiForm.subjects} onChange={e => setAiForm(f => ({ ...f, subjects: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       placeholder="Physics, Chemistry, Mathematics..." />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-1 block">TARGET EXAM / GOAL</label>
-                    <input value={aiForm.exam} onChange={e => setAiForm(f => ({ ...f, exam: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       placeholder="JEE Advanced, NEET, Board Exams..." />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-2 block">AVAILABLE HOURS PER DAY</label>
-                    <div className="flex gap-2">
-                      {['4', '6', '8', '10', '12'].map(h => (
-                        <button key={h} onClick={() => setAiForm(f => ({ ...f, hoursPerDay: h }))}
-                          className="flex-1 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: aiForm.hoursPerDay === h ? '#1A2845' : 'transparent', color: aiForm.hoursPerDay === h ? '#C4AAFF' : '#4E5E84', borderColor: aiForm.hoursPerDay === h ? '#4A3A88' : '#1A2845' }}>
-                          {h}h
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setShowAI(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
-                  <button onClick={generateAI}
-                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
-                    ✦ Generate Schedule
-                  </button>
-                </div>
-              </div>
-            )}
-            {aiStep === 'generating' && (
-              <div className="p-12 text-center">
-                <div className="text-5xl mb-4 animate-bounce">🤖</div>
-                <div className="text-lg font-bold text-white mb-2">Generating your schedule...</div>
-                <div className="text-sm text-slate-400 mb-6">Analyzing subjects and optimizing study time.</div>
-                <div className="flex justify-center gap-2">
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className="w-2.5 h-2.5 rounded-full bg-violet-500"
-                      style={{ animation: `bounce 1s ease-in-out ${i * 0.2}s infinite` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {aiStep === 'done' && (
-              <div className="p-7">
-                <div className="text-center mb-5">
-                  <div className="text-4xl mb-2">✅</div>
-                  <div className="text-lg font-bold text-white">Schedule Ready!</div>
-                  <div className="text-sm text-slate-400 mt-1">Your personalized 7-day plan is generated.</div>
-                </div>
-                <div className="rounded-xl border p-4 mb-5 space-y-2.5 bg-[#0B1530] border-[#1A2845]" >
-                  {aiForm.subjects.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4).map((sub, i) => {
-                    const times = [['8:00 AM', '10:00 AM'], ['11:00 AM', '1:00 PM'], ['3:00 PM', '5:00 PM'], ['6:00 PM', '7:30 PM']]
-                    return (
-                      <div key={i} className="flex items-center gap-3 text-sm">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${subjectColor(sub)}20` }}>{subjectEmoji(sub)}</div>
-                        <span className="text-slate-200 font-medium flex-1">{sub}</span>
-                        <span className="text-slate-500 font-mono text-[11px]">{times[i][0]} – {times[i][1]}</span>
-                      </div>
-                    )
-                  })}
-                  <div className="text-[10px] text-violet-400 text-center pt-1 font-mono">Scheduled across all 7 days</div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => { setAiStep('form') }}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Regenerate</button>
-                  <button onClick={applyAISchedule}
-                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Apply Schedule</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* ── AI assistant chat ── */}
+      {showAI && <ScheduleAIChat onClose={() => setShowAI(false)} />}
 
       {/* ── Add Session Modal ── */}
       {showAddSession && (
