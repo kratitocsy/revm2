@@ -3083,7 +3083,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
         </div>
 
         {/* 4 · More */}
-        <div ref={menuRef} className="relative flex-shrink-0">
+        <div ref={menuRef} className="relative flex-shrink-0" style={{ isolation: 'isolate' }}>
           <button onClick={() => { setMenuOpen(o => !o); setPickerOpen(false) }}
             aria-label="More options" aria-haspopup="menu" aria-expanded={menuOpen}
             className="w-11 h-11 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 border transition-colors"
@@ -3091,16 +3091,27 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
           </button>
           {menuOpen && (
-            <div role="menu" className="absolute right-0 top-full mt-2 z-30 rounded-xl border p-1.5 whitespace-nowrap"
-              style={{ minWidth: 188, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+            <div role="menu"
+              className="absolute right-0 top-full mt-2 z-40 flex flex-col rounded-xl border p-1.5 gap-0.5"
+              style={{
+                width: 'max-content',
+                minWidth: 180,
+                maxWidth: 220,
+                boxSizing: 'border-box',
+                background: '#0B1530',
+                borderColor: '#1E3060',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(30,72,150,0.25), 0 0 24px rgba(124,77,255,0.12)',
+              }}>
               <button role="menuitem" disabled={!selectedTask || !(hasProgress || onBreak)}
                 onClick={() => { setMenuOpen(false); onReset() }}
-                className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed">
+                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed whitespace-nowrap">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
                 Reset timer
               </button>
               <button role="menuitem"
                 onClick={() => { setMenuOpen(false); onOpenFocusLock() }}
-                className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors">
+                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors whitespace-nowrap">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
                 Open Focus Lock
               </button>
             </div>
