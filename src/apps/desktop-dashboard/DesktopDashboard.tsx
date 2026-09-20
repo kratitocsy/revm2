@@ -2897,7 +2897,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
 
 // ─── Room focus bar ────────────────────────────────────────────────────────────
 // Pinned timer row at the top of a study room:
-//   [ ring + time ]  [ Start / Pause ]  [ task picker ]  [ ⋮ ]
+//   [ time ]  [ Start / Pause ]  [ task picker ]  [ ⋮ ]
 // The picker lists the Focus Lock plan (the same persisted snapshot FocusLockPage
 // reads), so a task's subject, topic, timer type and progress are identical in
 // both places. Presentational only - the room owns the timer engine.
@@ -2944,10 +2944,6 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
   const finished = !!selectedTask && isPomo && remaining <= 0
   const hasProgress = isPomo ? remaining < total : elapsed > 0
   const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
-  // Ring: Pomodoro fills as it counts down; Regular has no end, so it fills once per hour as a heartbeat.
-  const progress = Math.min(1, Math.max(0, isPomo ? 1 - remaining / total : (elapsed % 3600) / 3600))
-  const RING_R = 22
-  const RING_C = 2 * Math.PI * RING_R
 
   const statusLabel = finished ? 'Completed' : running ? (onBreak ? 'Break' : isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (onBreak ? 'Break' : isPomo ? 'Focus' : 'Count up')
   const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#38BDF8') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#60A5FA')
@@ -2967,28 +2963,11 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
       </div>
 
       <div className="relative flex flex-wrap items-center gap-x-5 gap-y-4">
-        {/* 1 · Timer */}
-        <div className="flex items-center gap-3.5 flex-shrink-0">
-          <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
-            <svg viewBox="0 0 52 52" className="absolute inset-0 w-full h-full">
-              <defs>
-                <linearGradient id="roomRingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
-                </linearGradient>
-              </defs>
-              <circle cx="26" cy="26" r={RING_R} fill="rgba(13,17,48,0.9)" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
-              {progress > 0.005 && (
-                <circle cx="26" cy="26" r={RING_R} fill="none" stroke="url(#roomRingGrad)" strokeWidth="3" strokeLinecap="round"
-                  strokeDasharray={`${progress * RING_C} ${RING_C}`} transform="rotate(-90 26 26)" />
-              )}
-            </svg>
-            <svg viewBox="0 0 24 24" className="absolute inset-0 m-auto w-5 h-5 text-slate-200" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="13.5" r="6.5" /><path d="M12 10.5v3.2l2 1.3M10 3h4M12 3v3.5" />
-            </svg>
-          </div>
+        {/* 1 · Timer (no ring/clock icon - just the time, bigger) */}
+        <div className="flex items-center flex-shrink-0">
           <div>
             {/* tabular-nums + a fixed min-width keep neighbouring blocks from jittering as the digits change */}
-            <div className="text-[30px] leading-none font-bold text-white tabular-nums whitespace-nowrap"
+            <div className="text-[42px] leading-none font-bold text-white tabular-nums whitespace-nowrap"
               style={{ fontFamily: 'JetBrains Mono, monospace', minWidth: isPomo ? '5ch' : '8ch', textShadow: '0 0 20px #4A3A88' }}>
               {timeStr}
             </div>
@@ -2999,8 +2978,8 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
         {/* 2 · Start / Pause */}
         <button onClick={onToggle} disabled={!selectedTask}
           title={selectedTask ? undefined : 'Pick a task first'}
-          className="flex-shrink-0 h-[52px] px-6 rounded-2xl flex items-center justify-center gap-2.5 text-sm font-semibold text-white border transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ minWidth: 168, ...(running
+          className="flex-shrink-0 h-[52px] px-5 rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold text-white border transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ minWidth: 128, ...(running
             ? { background: 'rgba(255,255,255,0.06)', borderColor: '#2A3A66' }
             : { background: 'linear-gradient(135deg,#4F6BFF 0%,#7C4DFF 100%)', borderColor: 'transparent', boxShadow: '0 0 24px rgba(99,102,241,0.45)' }) }}>
           {running
@@ -3010,7 +2989,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
         </button>
 
         {/* 3 · Task picker (Focus Lock plan) */}
-        <div ref={pickerRef} className="relative flex-1 min-w-0" style={{ flexBasis: 280 }}>
+        <div ref={pickerRef} className="relative flex-shrink-0 min-w-0" style={{ width: 260 }}>
           <button onClick={() => { setQuery(''); setPickerOpen(o => !o); setMenuOpen(false) }}
             aria-haspopup="listbox" aria-expanded={pickerOpen}
             className="w-full h-[52px] px-3.5 rounded-2xl border flex items-center gap-3 text-left transition-colors hover:border-violet-400/40"
