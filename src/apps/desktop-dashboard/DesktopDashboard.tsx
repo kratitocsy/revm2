@@ -442,10 +442,28 @@ function buildSmoothPath(points: { x: number; y: number }[]): string {
   return d
 }
 
+// Whole-hour Y-axis ticks for the study-hours scale, derived straight from
+// the same maxMinutes the curve itself is plotted against — so a tick's
+// y position always lines up with where that many hours would fall on the
+// existing curve (no change to how the curve/points are computed).
+function buildHourTicks(maxMinutes: number, padTop: number, chartH: number): { hours: number; y: number }[] {
+  const maxHours = Math.ceil(maxMinutes / 60)
+  const step = maxHours > 6 ? Math.ceil(maxHours / 6) : 1
+  const ticks: number[] = []
+  for (let h = 0; h <= maxHours; h += step) ticks.push(h)
+  if (ticks[ticks.length - 1] !== maxHours) ticks.push(maxHours)
+  return ticks.map(h => ({
+    hours: h,
+    y: Math.max(padTop, padTop + (1 - (h * 60) / maxMinutes) * chartH),
+  }))
+}
+
 function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   weeklyStudy: WeeklyStudyDay[]; totalMinutes: number; avgMinutes: number; streakDays: number
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  // Original curve geometry — untouched. padX/H/stepX/pts are computed
+  // exactly as before, so the curve's shape and point spacing don't change.
   const W = 920, H = 190, padX = 22, padTop = 22, padBottom = 32
 
   const maxMinutes = Math.max(60, ...weeklyStudy.map(d => d.minutes))
@@ -458,6 +476,15 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   const areaPath = pts.length
     ? `${linePath} L ${pts[pts.length - 1].x.toFixed(1)},${(H - padBottom).toFixed(1)} L ${pts[0].x.toFixed(1)},${(H - padBottom).toFixed(1)} Z`
     : ''
+
+  // New: extra canvas width added on the LEFT only, purely to give the
+  // hour labels + gridlines somewhere to live. Achieved with a <g
+  // transform> around all the original (unchanged) chart markup below,
+  // rather than altering padX/stepX/pts — so the curve itself is the
+  // exact same path, just shifted right as a whole to make room.
+  const padLeft = 34
+  const viewW = W + padLeft
+  const hourTicks = buildHourTicks(maxMinutes, padTop, H - padTop - padBottom)
 
   const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
     { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied' },
@@ -504,7 +531,7 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
       </div>
 
       <div className="relative" style={{ height: H }}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
+        <svg viewBox={`0 0 ${viewW} ${H}`} className="w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="spLine" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#7C4DFF" />
@@ -525,38 +552,54 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
             </filter>
           </defs>
 
-          <path d={areaPath} fill="url(#spArea)" />
-          <path d={linePath} fill="none" stroke="url(#spLine)" strokeWidth="2.5" strokeLinecap="round" filter="url(#spGlow)" />
-
-          {pts.map((p, i) => {
-            const d = weeklyStudy[i]
-            return (
-              <g key={i}
-                onMouseEnter={() => setHoverIdx(i)}
-                onMouseLeave={() => setHoverIdx(null)}
-                onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
-                style={{ cursor: 'pointer' }}>
-                <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
-                {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
-                <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
-                {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
-              </g>
-            )
-          })}
-
-          {pts.map((p, i) => (
-            <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
-              fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
-              fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
-              {weeklyStudy[i].label}
-            </text>
+          {/* Y-axis: study-hours scale + very subtle horizontal guide lines,
+              drawn in the new left margin. Purely additive — doesn't touch
+              the curve, dots, day labels, or tooltip below. */}
+          {hourTicks.map((t, i) => (
+            <g key={`hr-${i}`}>
+              <line x1={padLeft} y1={t.y} x2={viewW - padX} y2={t.y}
+                stroke="rgba(148,163,184,0.08)" strokeWidth="1" />
+              <text x={padLeft - 8} y={t.y + 3} textAnchor="end" fontSize="9"
+                fill="rgba(148,163,184,0.40)" fontFamily="Poppins, sans-serif">
+                {t.hours}h
+              </text>
+            </g>
           ))}
+
+          <g transform={`translate(${padLeft},0)`}>
+            <path d={areaPath} fill="url(#spArea)" />
+            <path d={linePath} fill="none" stroke="url(#spLine)" strokeWidth="2.5" strokeLinecap="round" filter="url(#spGlow)" />
+
+            {pts.map((p, i) => {
+              const d = weeklyStudy[i]
+              return (
+                <g key={i}
+                  onMouseEnter={() => setHoverIdx(i)}
+                  onMouseLeave={() => setHoverIdx(null)}
+                  onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
+                  style={{ cursor: 'pointer' }}>
+                  <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+                  {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
+                  <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
+                  {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
+                </g>
+              )
+            })}
+
+            {pts.map((p, i) => (
+              <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
+                fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
+                fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
+                {weeklyStudy[i].label}
+              </text>
+            ))}
+          </g>
         </svg>
 
         {hoverIdx !== null && (
           <div className="absolute px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-100 pointer-events-none z-10"
             style={{
-              left: `${(pts[hoverIdx].x / W) * 100}%`,
+              left: `${((pts[hoverIdx].x + padLeft) / viewW) * 100}%`,
               top: `${(pts[hoverIdx].y / H) * 100}%`,
               transform: 'translate(-50%, -135%)',
               background: '#0F1B3D',
