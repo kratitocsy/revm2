@@ -14,6 +14,10 @@ import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
+import {
+  usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
+  type PomodoroSettings, type PomodoroSettingsInput,
+} from '../_shared/pomodoroSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
@@ -1227,7 +1231,8 @@ function formatClock(totalSecs: number, alwaysHours = false): string {
 // ─── Focus Lock Page ──────────────────────────────────────────────────────────
 // Redesigned around per-task (subject + topic) timers instead of one global
 // countdown. Two independent timer "modes" a task can run in:
-//   - Pomodoro: counts DOWN from 25:00.
+//   - Pomodoro: counts DOWN from the user's saved focus length (25:00 until they change it),
+//     then runs their saved break - see the Pomodoro engine below.
 //   - Regular: counts UP from 00:00:00, no limit.
 // Only one task can actually be "live" against the backend at a time
 // (study_sessions enforces a single open row per user - see
@@ -1237,13 +1242,17 @@ function formatClock(totalSecs: number, alwaysHours = false): string {
 // navigating away and back) never silently resets someone else's progress.
 const FL_PLAN_KEY = 'wynko_focus_plan_v1'
 type TimerMode = 'pomodoro' | 'regular'
+type PomodoroPhase = 'focus' | 'break'
 interface StudyTask {
   id: string
   subject: string
   topic: string
   mode: TimerMode
-  pomodoroRemaining: number // seconds left, meaningful when mode === 'pomodoro'
+  pomodoroRemaining: number // seconds left in the current Pomodoro phase, meaningful when mode === 'pomodoro'
   regularElapsed: number    // seconds elapsed, meaningful when mode === 'regular'
+  // Both optional so plans saved before Pomodoro was customizable (which have neither) still load.
+  pomodoroPhase?: PomodoroPhase // 'focus' unless the task is currently in its break
+  pomodoroTotal?: number        // full length (s) of the phase now counting - a session finishes at the length it started with
 }
 interface FocusPlanSnapshot {
   tasks: StudyTask[]
@@ -1251,7 +1260,71 @@ interface FocusPlanSnapshot {
   running: boolean
   runningStartedAtMs: number | null // Date.now() snapshot for offline/away catch-up
 }
-const POMODORO_DEFAULT_SECS = 25 * 60
+
+// ─── Pomodoro engine (pure) ─────────────────────────────────────────────────────
+// Focus Lock and Study Rooms both run their Pomodoro tasks through these, so the
+// user's saved focus/break/repeat/auto-start settings mean the same thing in both.
+//
+//   focus ──(reaches 0)──▶ break ──(reaches 0)──▶ fresh focus
+//     • Auto-start breaks OFF: the clock stops when focus ends, with the break ready to start.
+//     • Repeat OFF:            the clock stops when the break ends, with a fresh focus ready to start.
+//
+// Plans saved before customizable Pomodoro always used 25:00.
+const LEGACY_POMODORO_SECS = 25 * 60
+const pomoPhase = (t: StudyTask): PomodoroPhase => t.pomodoroPhase ?? 'focus'
+const pomoTotal = (t: StudyTask): number => t.pomodoroTotal ?? LEGACY_POMODORO_SECS
+const focusSecsOf = (s: PomodoroSettings) => s.focusMinutes * 60
+const breakSecsOf = (s: PomodoroSettings) => s.breakMinutes * 60
+
+// Fields of a brand-new (or reset) Pomodoro session, at the user's saved focus length.
+function pomodoroFields(s: PomodoroSettings) {
+  return { pomodoroPhase: 'focus' as const, pomodoroRemaining: focusSecsOf(s), pomodoroTotal: focusSecsOf(s) }
+}
+
+// Untouched Pomodoro sessions (nothing counted yet) always follow the saved settings, so
+// changing 25/5 to 50/10 makes every waiting task read 50:00 straight away. A session
+// that's already under way (running or paused mid-way) keeps the length it started with -
+// nobody's progress is rewritten - and the new lengths apply from its next phase.
+function applyPomodoroSettings(tasks: StudyTask[], s: PomodoroSettings, liveTaskId: string | null): StudyTask[] {
+  let changed = false
+  const next = tasks.map(t => {
+    if (t.mode !== 'pomodoro' || t.id === liveTaskId) return t
+    if (t.pomodoroRemaining !== pomoTotal(t)) return t
+    const total = pomoPhase(t) === 'break' ? breakSecsOf(s) : focusSecsOf(s)
+    if (t.pomodoroRemaining === total && t.pomodoroTotal === total) return t
+    changed = true
+    return { ...t, pomodoroRemaining: total, pomodoroTotal: total }
+  })
+  return changed ? next : tasks
+}
+
+// Advances a Pomodoro task by `delta` real seconds, crossing focus/break boundaries as needed
+// (so a long catch-up after being away lands on the right phase, not on a frozen 00:00).
+//   running - whether the clock should keep going after this step
+//   studied - seconds of that step that were focus time (breaks aren't study time)
+function tickPomodoro(task: StudyTask, delta: number, s: PomodoroSettings): { task: StudyTask; running: boolean; studied: number } {
+  let t = task
+  let left = Math.max(0, Math.floor(delta))
+  let running = true
+  let studied = 0
+  for (let guard = 0; left > 0 && guard < 20000; guard++) {
+    const phase = pomoPhase(t)
+    const step = Math.min(left, Math.max(0, t.pomodoroRemaining))
+    left -= step
+    if (phase === 'focus') studied += step
+    const remaining = Math.max(0, t.pomodoroRemaining - step)
+    t = { ...t, pomodoroRemaining: remaining }
+    if (remaining > 0) break
+    if (phase === 'focus') {
+      t = { ...t, pomodoroPhase: 'break', pomodoroRemaining: breakSecsOf(s), pomodoroTotal: breakSecsOf(s) }
+      if (!s.autoStartBreaks) { running = false; break }
+    } else {
+      t = { ...t, ...pomodoroFields(s) }
+      if (!s.repeat) { running = false; break }
+    }
+  }
+  return { task: t, running, studied }
+}
 
 function loadFocusPlanSnapshot(): FocusPlanSnapshot | null {
   try {
@@ -1274,14 +1347,14 @@ function makeTaskId(): string {
 // same de-dup key (subject::topic) the old TasksPanel used — rather than
 // ever hard-coding example subjects. Starts empty if there's genuinely
 // nothing yet; the empty state below invites adding a task instead.
-function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number): StudyTask[] {
+function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number, pomo: PomodoroSettings): StudyTask[] {
   const tasks: StudyTask[] = []
   const seen = new Set<string>()
   const addTask = (subject: string, topic: string) => {
     const key = `${subject}::${topic}`
     if (seen.has(key)) return
     seen.add(key)
-    tasks.push({ id: makeTaskId(), subject, topic, mode: 'pomodoro', pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 })
+    tasks.push({ id: makeTaskId(), subject, topic, mode: 'pomodoro', ...pomodoroFields(pomo), regularElapsed: 0 })
   }
   units.forEach(u => u.topics.forEach(t => addTask(u.subject, t)))
   const todaySchedule = schedule[todayIdx] || []
@@ -1316,6 +1389,7 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
   const { emoji, color } = subjectVisual(task.subject)
   const [menuOpen, setMenuOpen] = useState(false)
   const displaySecs = task.mode === 'pomodoro' ? task.pomodoroRemaining : task.regularElapsed
+  const onBreak = task.mode === 'pomodoro' && pomoPhase(task) === 'break'
   const timeStr = formatClock(displaySecs, task.mode === 'regular')
   const isLiveRunning = isActive && running
 
@@ -1335,8 +1409,8 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
 
       <div className="text-right flex-shrink-0 hidden sm:block" style={{ width: 96 }}>
         <div className="text-[11px] font-medium flex items-center justify-end gap-1"
-          style={{ color: task.mode === 'pomodoro' ? '#F87171' : '#38BDF8' }}>
-          {task.mode === 'pomodoro' ? <>🍅 Pomodoro</> : <><Ico n="clock" cls="w-3 h-3" /> Regular</>}
+          style={{ color: onBreak ? '#34D399' : task.mode === 'pomodoro' ? '#F87171' : '#38BDF8' }}>
+          {onBreak ? <>☕ Break</> : task.mode === 'pomodoro' ? <>🍅 Pomodoro</> : <><Ico n="clock" cls="w-3 h-3" /> Regular</>}
         </div>
         <div className="text-[12px] font-mono mt-0.5" style={{ color: isLiveRunning ? '#E2E8F0' : '#8B9AC7' }}>{timeStr}</div>
       </div>
@@ -1444,6 +1518,183 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
   )
 }
 
+// ─── Customize Pomodoro modal ───────────────────────────────────────────────────
+// Opened by clicking the "Pomodoro Timer" card in Focus Lock. Saving stores the values as
+// the user's default (see _shared/pomodoroSettings.ts) - it is not a one-off for this session.
+const FOCUS_PRESETS = [15, 25, 30, 45, 50, 60]
+const BREAK_PRESETS = [5, 10, 15]
+
+function parseMinutes(text: string, lim: { min: number; max: number }): number | null {
+  if (!/^\d{1,3}$/.test(text.trim())) return null
+  const n = Number(text)
+  return n >= lim.min && n <= lim.max ? n : null
+}
+
+function PomodoroToggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}
+      className="relative flex-shrink-0 rounded-full transition-colors"
+      style={{
+        width: 44, height: 24,
+        background: checked ? 'linear-gradient(135deg,#3B82F6,#7C4DFF)' : '#1A2845',
+        border: `1px solid ${checked ? 'rgba(124,77,255,0.7)' : '#2A3A66'}`,
+        boxShadow: checked ? '0 0 14px rgba(99,102,241,0.55)' : 'none',
+      }}>
+      <span className="absolute rounded-full bg-white transition-all" style={{ width: 18, height: 18, top: 2, left: checked ? 22 : 2 }} />
+    </button>
+  )
+}
+
+function PomodoroDurationCard({ icon, title, text, onText, lim, step, presets, onEnter }: {
+  icon: React.ReactNode; title: string; text: string; onText: (t: string) => void
+  lim: { min: number; max: number }; step: number; presets: number[]; onEnter: () => void
+}) {
+  const value = parseMinutes(text, lim)
+  const bump = (d: number) => {
+    const cur = value ?? (Number(text.replace(/\D/g, '')) || lim.min)
+    onText(String(Math.min(lim.max, Math.max(lim.min, cur + d))))
+  }
+  const stepBtn = 'w-10 h-10 rounded-full flex items-center justify-center text-lg text-slate-100 border transition-all hover:opacity-90 active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed flex-shrink-0'
+  const stepStyle = { background: 'rgba(59,91,255,0.22)', borderColor: 'rgba(96,130,255,0.55)', boxShadow: '0 0 12px rgba(59,91,255,0.25)' }
+  return (
+    <div className="rounded-2xl border p-4" style={{ background: 'rgba(26,40,69,0.35)', borderColor: '#1E3060' }}>
+      <div className="flex items-center gap-2 mb-3 text-slate-200">
+        <span className="text-sky-300 flex items-center">{icon}</span>
+        <span className="text-[13px] font-semibold">{title}</span>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <button type="button" aria-label={`Decrease ${title}`} onClick={() => bump(-step)}
+          disabled={value !== null && value <= lim.min} className={stepBtn} style={stepStyle}>−</button>
+        <div className="flex-1 min-w-0 h-11 rounded-xl border flex items-center justify-center gap-1.5 transition-colors"
+          style={{ background: 'rgba(6,13,26,0.6)', borderColor: value === null ? '#F87171' : '#1E3060' }}>
+          <input value={text} inputMode="numeric" maxLength={3} aria-label={title}
+            onChange={e => onText(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={e => { if (e.key === 'Enter') onEnter() }}
+            className="w-12 bg-transparent outline-none text-center text-xl font-semibold text-white tabular-nums" />
+          <span className="text-sm text-slate-400">min</span>
+        </div>
+        <button type="button" aria-label={`Increase ${title}`} onClick={() => bump(step)}
+          disabled={value !== null && value >= lim.max} className={stepBtn} style={stepStyle}>+</button>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mt-3.5">
+        {presets.map(p => {
+          const on = value === p
+          return (
+            <button key={p} type="button" onClick={() => onText(String(p))}
+              className="min-w-[38px] h-8 px-2.5 rounded-full border text-[12px] font-medium transition-all"
+              style={{
+                background: on ? 'rgba(59,91,255,0.28)' : 'rgba(6,13,26,0.5)',
+                borderColor: on ? '#6082FF' : '#1E3060',
+                color: on ? '#FFFFFF' : '#8B9AC7',
+                boxShadow: on ? '0 0 14px rgba(96,130,255,0.55)' : 'none',
+              }}>{p}</button>
+          )
+        })}
+      </div>
+      <div className="mt-2.5 text-[10px] h-3 text-right" style={{ color: value === null ? '#F87171' : '#5B6A8F' }}>
+        {value === null ? `Enter ${lim.min}–${lim.max} min` : 'min'}
+      </div>
+    </div>
+  )
+}
+
+function PomodoroSettingsModal({ initial, inProgress, onClose, onSave }: {
+  initial: PomodoroSettings; inProgress: boolean; onClose: () => void; onSave: (s: PomodoroSettingsInput) => void
+}) {
+  const [focusText, setFocusText] = useState(String(initial.focusMinutes))
+  const [breakText, setBreakText] = useState(String(initial.breakMinutes))
+  const [repeat, setRepeat] = useState(initial.repeat)
+  const [autoStart, setAutoStart] = useState(initial.autoStartBreaks)
+  const focusMin = parseMinutes(focusText, POMODORO_LIMITS.focus)
+  const breakMin = parseMinutes(breakText, POMODORO_LIMITS.break)
+  const canSave = focusMin !== null && breakMin !== null
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function submit() {
+    if (focusMin === null || breakMin === null) return
+    onSave({ focusMinutes: focusMin, breakMinutes: breakMin, repeat, autoStartBreaks: autoStart })
+  }
+
+  const toggleCard = 'rounded-2xl border px-4 py-3.5 flex items-center gap-3'
+  const toggleStyle = { background: 'rgba(26,40,69,0.35)', borderColor: '#1E3060' }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[rgba(0,0,0,0.75)]"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="pomo-modal-title"
+        className="w-[660px] max-w-full max-h-[94vh] overflow-y-auto rounded-2xl border p-6"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="flex items-center justify-between mb-5">
+          <div id="pomo-modal-title" className="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span className="text-2xl leading-none">🍅</span>Customize Pomodoro
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors text-xl leading-none">×</button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <PomodoroDurationCard title="Focus Duration" text={focusText} onText={setFocusText} lim={POMODORO_LIMITS.focus}
+            step={5} presets={FOCUS_PRESETS} onEnter={submit} icon={<Ico n="target" cls="w-[18px] h-[18px]" />} />
+          <PomodoroDurationCard title="Break Duration" text={breakText} onText={setBreakText} lim={POMODORO_LIMITS.break}
+            step={1} presets={BREAK_PRESETS} onEnter={submit}
+            icon={<svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h12v5a4 4 0 01-4 4H8a4 4 0 01-4-4V9zM16 10h1.5a2.5 2.5 0 010 5H16M7 3.5v2M10 3.5v2M13 3.5v2" /></svg>} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div className={toggleCard} style={toggleStyle}>
+            <span className="text-sky-300 flex-shrink-0"><Ico n="clock" cls="w-[18px] h-[18px]" /></span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-slate-100">Auto-start breaks</div>
+              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Automatically start break after focus ends</div>
+            </div>
+            <PomodoroToggle checked={autoStart} onChange={setAutoStart} label="Auto-start breaks" />
+          </div>
+          <div className={toggleCard} style={toggleStyle}>
+            <span className="text-sky-300 flex-shrink-0">
+              <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12a8 8 0 0113.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 01-13.7 5.6L4 16M4 20v-4h4" /></svg>
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-slate-100">Repeat</div>
+              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Keep repeating for next session</div>
+            </div>
+            <PomodoroToggle checked={repeat} onChange={setRepeat} label="Repeat" />
+          </div>
+        </div>
+
+        <div className="mt-5 py-3 border-y flex items-center justify-center gap-2 text-[13px] text-slate-300" style={{ borderColor: 'rgba(30,48,96,0.8)' }}>
+          <span className="text-sky-300"><Ico n="zap" cls="w-4 h-4" /></span>
+          <span data-testid="pomo-summary">{focusMin ?? '–'} min focus · {breakMin ?? '–'} min break</span>
+        </div>
+
+        {inProgress && (
+          <div className="mt-3 text-[11px] text-slate-500 text-center leading-relaxed">
+            A Pomodoro already under way finishes at the length it started with — these apply to every new one.
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-5 justify-end">
+          <button type="button" onClick={onClose}
+            className="min-w-[110px] px-5 py-2.5 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors"
+            style={{ borderColor: '#1E3060', background: 'rgba(26,40,69,0.5)' }}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={!canSave}
+            className="min-w-[150px] px-6 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #3B5BFF, #7C4DFF)', boxShadow: '0 0 24px rgba(99,102,241,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Current Focus panel ────────────────────────────────────────────────────────
 function CurrentFocusPanel({ task }: { task: StudyTask | null }) {
   return (
@@ -1500,15 +1751,24 @@ Add a quick note for this session."
 }
 
 function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void }) {
+  // The user's saved Pomodoro configuration (25/5/Repeat until they change it). Same store the
+  // Study Room reads, so a change here is the new default everywhere.
+  const { settings: pomo, save: savePomo } = usePomodoroSettings()
   const [snapshot] = useState(loadFocusPlanSnapshot)
-  const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx))
+  const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx, getPomodoroSettings()))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(snapshot?.activeTaskId ?? null)
   const [running, setRunning] = useState<boolean>(!!snapshot?.running)
   const [selectedMode, setSelectedMode] = useState<TimerMode>('pomodoro')
   const [fullscreen, setFullscreen] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
+  const [showPomodoroSettings, setShowPomodoroSettings] = useState(false)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Latest values for the 1s interval below, which is created once per run and would otherwise see stale ones.
+  const tasksRef = useRef(tasks)
+  tasksRef.current = tasks
+  const pomoRef = useRef(pomo)
+  pomoRef.current = pomo
 
   // True browser Fullscreen API when available (desktop + most mobile
   // browsers), with the always-on CSS overlay below as the visual
@@ -1574,6 +1834,22 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     stop: stopRemoteSession,
   } = useFocusSession()
 
+  // Side effects of a Pomodoro tick, kept out of the state updater. Reassigned every render so it
+  // always sees the current start/stop closures even though the 1s interval is created only once.
+  const afterPomodoroTickRef = useRef<(before: StudyTask, r: { task: StudyTask; running: boolean }) => void>(() => {})
+  afterPomodoroTickRef.current = (before, r) => {
+    if (!r.running) {
+      // Waiting on the user (Auto-start breaks off / Repeat off): stop the clock and close the study session.
+      setRunning(false)
+      stopRemoteSession()
+      return
+    }
+    const from = pomoPhase(before), to = pomoPhase(r.task)
+    if (from === to) return
+    if (to === 'break') stopRemoteSession()          // focus finished: closes + logs the session - a break isn't study time
+    else void startRemoteSession(before.subject)     // Repeat: the next focus round is study time again
+  }
+
   // One-time catch-up: if the plan was left running and the tab/app was
   // closed or backgrounded, fast-forward the active task by real elapsed
   // time instead of silently losing (or freezing) its progress.
@@ -1583,13 +1859,27 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     if (!snapshot?.running || !snapshot.activeTaskId || !snapshot.runningStartedAtMs) return
     const elapsed = Math.max(0, Math.floor((Date.now() - snapshot.runningStartedAtMs) / 1000))
     if (elapsed <= 0) return
+    const away = tasksRef.current.find(t => t.id === snapshot.activeTaskId)
+    if (away && away.mode === 'pomodoro') {
+      // Through the engine: time spent away can cross focus/break boundaries.
+      const r = tickPomodoro(away, elapsed, pomoRef.current)
+      setTasks(prev => prev.map(t => t.id === away.id ? r.task : t))
+      if (!r.running) setRunning(false)
+      return
+    }
     setTasks(prev => prev.map(t => {
       if (t.id !== snapshot.activeTaskId) return t
-      if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - elapsed) }
       return { ...t, regularElapsed: t.regularElapsed + elapsed }
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Untouched Pomodoro sessions follow the saved settings (see applyPomodoroSettings): covers the
+  // user saving new values, and saved values arriving from the backend after the first render.
+  useEffect(() => {
+    setTasks(prev => applyPomodoroSettings(prev, pomo, running ? activeTaskId : null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomo.focusMinutes, pomo.breakMinutes])
 
   // Keep the segmented mode tab in sync with whichever task is actually
   // active, so it always reflects reality rather than a stale click.
@@ -1604,9 +1894,16 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   useEffect(() => {
     if (running && activeTaskId) {
       tickRef.current = setInterval(() => {
+        const cur = tasksRef.current.find(t => t.id === activeTaskId)
+        if (cur && cur.mode === 'pomodoro') {
+          // Pomodoro goes through the shared engine, so focus -> break -> next focus follows the saved settings.
+          setTasks(prev => prev.map(t => t.id === cur.id ? tickPomodoro(t, 1, pomoRef.current).task : t))
+          afterPomodoroTickRef.current(cur, tickPomodoro(cur, 1, pomoRef.current))
+          return
+        }
+        // Regular timer: unchanged - count up one second.
         setTasks(prev => prev.map(t => {
-          if (t.id !== activeTaskId) return t
-          if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - 1) }
+          if (t.id !== activeTaskId || t.mode !== 'regular') return t
           return { ...t, regularElapsed: t.regularElapsed + 1 }
         }))
       }, 1000)
@@ -1645,9 +1942,17 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       // task means stopping (and logging) whatever was running before.
       await stopRemoteSession()
     }
+    // A Pomodoro left sitting at 00:00 (from before breaks existed) starts over fresh.
+    if (task.mode === 'pomodoro' && task.pomodoroRemaining <= 0) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...pomodoroFields(pomo) } : t))
+    }
     setActiveTaskId(taskId)
     setRunning(true)
-    try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
+    // A break isn't study time: only focus phases (and Regular) open a backend study session.
+    const startingBreak = task.mode === 'pomodoro' && pomoPhase(task) === 'break'
+    if (!startingBreak) {
+      try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
+    }
   }
 
   async function handlePauseTask(taskId: string) {
@@ -1666,7 +1971,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   }
 
   function handleAddTask(subject: string, topic: string, mode: TimerMode) {
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, ...pomodoroFields(pomo), regularElapsed: 0 }
     setTasks(prev => [task, ...prev])
     setShowAddTask(false)
   }
@@ -1685,7 +1990,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       // Not in the plan yet - add it, then start it directly (rather than
       // via handleStartTask, whose `tasks` lookup would still see the
       // pre-update array in this same tick and silently no-op).
-      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: 'pomodoro', pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: 'pomodoro', ...pomodoroFields(pomo), regularElapsed: 0 }
       setTasks(prev => [task, ...prev])
       if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
       setActiveTaskId(task.id)
@@ -1703,7 +2008,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   if (activeTask) {
     if (activeTask.mode === 'pomodoro') {
       circleRemaining = activeTask.pomodoroRemaining
-      circleTotal = POMODORO_DEFAULT_SECS
+      circleTotal = pomoTotal(activeTask)
       circleTimeStr = formatClock(activeTask.pomodoroRemaining)
     } else {
       // No fixed max for Regular - fill the ring once per hour purely as
@@ -1714,20 +2019,24 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       circleTimeStr = formatClock(activeTask.regularElapsed, true)
     }
   } else if (selectedMode === 'pomodoro') {
-    circleRemaining = POMODORO_DEFAULT_SECS
-    circleTotal = POMODORO_DEFAULT_SECS
-    circleTimeStr = formatClock(POMODORO_DEFAULT_SECS)
+    circleRemaining = focusSecsOf(pomo)
+    circleTotal = focusSecsOf(pomo)
+    circleTimeStr = formatClock(focusSecsOf(pomo))
   } else {
     circleRemaining = 0
     circleTotal = 0 // TimerCircle treats total<=0 as "no progress yet" - an empty ring preview
     circleTimeStr = '00:00:00'
   }
-  const circleCaption = activeTask ? (activeTask.mode === 'pomodoro' ? 'Study Time' : 'Studying') : (selectedMode === 'pomodoro' ? 'Focus • 25/5 • Repeat' : 'Count Up • No Limit')
+  const activeOnBreak = !!activeTask && activeTask.mode === 'pomodoro' && pomoPhase(activeTask) === 'break'
+  const waitingToStartBreak = activeOnBreak && !running && activeTask!.pomodoroRemaining === pomoTotal(activeTask!)
+  const circleCaption = activeTask
+    ? (activeTask.mode === 'pomodoro' ? (activeOnBreak ? 'Break Time' : 'Study Time') : 'Studying')
+    : (selectedMode === 'pomodoro' ? pomodoroSummaryLabel(pomo) : 'Count Up • No Limit')
 
   const headerStatus = sessionLoading
     ? 'Syncing…'
     : activeTask
-      ? (running ? `● ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')
+      ? (running ? `${activeOnBreak ? '☕ Break' : '●'} ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')
       : 'Smarter focus. Bigger dreams.'
 
   const TimerModeIcon = ({ mode }: { mode: TimerMode }) => mode === 'pomodoro'
@@ -1797,8 +2106,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 
             {/* ── Timer mode selector ── */}
             <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <ModeTab active={selectedMode === 'pomodoro'} onClick={() => !activeTask && setSelectedMode('pomodoro')}
-                icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub="Focus • 25/5 • Repeat" />
+              {/* Clicking anywhere on this card opens Customize Pomodoro (the circular timer stays Start/Pause). */}
+              <ModeTab active={selectedMode === 'pomodoro'}
+                onClick={() => { if (!activeTask) setSelectedMode('pomodoro'); setShowPomodoroSettings(true) }}
+                icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub={pomodoroSummaryLabel(pomo)} />
               <ModeTab active={selectedMode === 'regular'} onClick={() => !activeTask && setSelectedMode('regular')}
                 icon={<TimerModeIcon mode="regular" />} title="Regular Timer" sub="Count Up • No Limit" />
             </div>
@@ -1819,7 +2130,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                   style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
                   {running
                     ? <><svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
-                    : <><Ico n="play" cls="w-4 h-4 flex-shrink-0" />Resume</>}
+                    : <><Ico n="play" cls="w-4 h-4 flex-shrink-0" />{waitingToStartBreak ? 'Start Break' : 'Resume'}</>}
                 </button>
               )}
             </div>
@@ -1867,6 +2178,13 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       </div>
 
       {showAddTask && <AddTaskModal onClose={() => setShowAddTask(false)} onAdd={handleAddTask} />}
+      {showPomodoroSettings && (
+        <PomodoroSettingsModal
+          initial={pomo}
+          inProgress={tasks.some(t => t.mode === 'pomodoro' && t.pomodoroRemaining > 0 && t.pomodoroRemaining !== pomoTotal(t))}
+          onClose={() => setShowPomodoroSettings(false)}
+          onSave={next => { setShowPomodoroSettings(false); void savePomo(next) }} />
+      )}
     </div>
   )
 }
@@ -2589,8 +2907,8 @@ function ModeBadge({ mode }: { mode: TimerMode }) {
     : <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#38BDF8' }}><Ico n="clock" cls="w-3 h-3" /> Regular</span>
 }
 
-function RoomFocusBar({ tasks, selectedTask, running, onSelectTask, onToggle, onReset, onOpenFocusLock }: {
-  tasks: StudyTask[]; selectedTask: StudyTask | null; running: boolean
+function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, onToggle, onReset, onOpenFocusLock }: {
+  tasks: StudyTask[]; selectedTask: StudyTask | null; running: boolean; focusSecs: number
   onSelectTask: (id: string) => void; onToggle: () => void; onReset: () => void; onOpenFocusLock: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -2619,19 +2937,21 @@ function RoomFocusBar({ tasks, selectedTask, running, onSelectTask, onToggle, on
   }, [pickerOpen, menuOpen])
 
   const isPomo = (selectedTask?.mode ?? 'pomodoro') === 'pomodoro'
-  const remaining = selectedTask ? selectedTask.pomodoroRemaining : POMODORO_DEFAULT_SECS
+  const onBreak = !!selectedTask && isPomo && pomoPhase(selectedTask) === 'break'
+  const total = selectedTask ? pomoTotal(selectedTask) : focusSecs
+  const remaining = selectedTask ? selectedTask.pomodoroRemaining : focusSecs
   const elapsed = selectedTask ? selectedTask.regularElapsed : 0
   const finished = !!selectedTask && isPomo && remaining <= 0
-  const hasProgress = isPomo ? remaining < POMODORO_DEFAULT_SECS : elapsed > 0
+  const hasProgress = isPomo ? remaining < total : elapsed > 0
   const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
   // Ring: Pomodoro fills as it counts down; Regular has no end, so it fills once per hour as a heartbeat.
-  const progress = Math.min(1, Math.max(0, isPomo ? 1 - remaining / POMODORO_DEFAULT_SECS : (elapsed % 3600) / 3600))
+  const progress = Math.min(1, Math.max(0, isPomo ? 1 - remaining / total : (elapsed % 3600) / 3600))
   const RING_R = 22
   const RING_C = 2 * Math.PI * RING_R
 
-  const statusLabel = finished ? 'Completed' : running ? (isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (isPomo ? 'Focus' : 'Count up')
-  const statusColor = finished ? '#34D399' : running ? '#38BDF8' : hasProgress ? '#FBBF24' : '#60A5FA'
-  const btnLabel = running ? 'Pause' : finished ? 'Restart' : hasProgress ? 'Resume' : 'Start Focus'
+  const statusLabel = finished ? 'Completed' : running ? (onBreak ? 'Break' : isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (onBreak ? 'Break' : isPomo ? 'Focus' : 'Count up')
+  const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#38BDF8') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#60A5FA')
+  const btnLabel = running ? 'Pause' : finished ? 'Restart' : hasProgress ? 'Resume' : onBreak ? 'Start Break' : 'Start Focus'
 
   const q = query.trim().toLowerCase()
   const shown = q ? tasks.filter(t => `${t.subject} ${t.topic}`.toLowerCase().includes(q)) : tasks
@@ -2741,8 +3061,9 @@ function RoomFocusBar({ tasks, selectedTask, running, onSelectTask, onToggle, on
                   const isSel = t.id === selectedTask?.id
                   const isLive = isSel && running
                   const tDone = t.mode === 'pomodoro' && t.pomodoroRemaining <= 0
+                  const tBreak = t.mode === 'pomodoro' && pomoPhase(t) === 'break'
                   const tTime = t.mode === 'pomodoro'
-                    ? (tDone ? 'Completed' : `${formatClock(t.pomodoroRemaining)} left`)
+                    ? (tDone ? 'Completed' : tBreak ? `Break ${formatClock(t.pomodoroRemaining)}` : `${formatClock(t.pomodoroRemaining)} left`)
                     : formatClock(t.regularElapsed, true)
                   return (
                     <button key={t.id} role="option" aria-selected={isSel}
@@ -2793,7 +3114,7 @@ function RoomFocusBar({ tasks, selectedTask, running, onSelectTask, onToggle, on
           {menuOpen && (
             <div role="menu" className="absolute right-0 top-full mt-2 z-30 rounded-xl border p-1.5 whitespace-nowrap"
               style={{ minWidth: 188, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
-              <button role="menuitem" disabled={!selectedTask || !hasProgress}
+              <button role="menuitem" disabled={!selectedTask || !(hasProgress || onBreak)}
                 onClick={() => { setMenuOpen(false); onReset() }}
                 className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed">
                 Reset timer
@@ -2815,18 +3136,23 @@ function RoomFocusBar({ tasks, selectedTask, running, onSelectTask, onToggle, on
 // snapshot, same seed-from-real-data fallback, same catch-up for time that passed while
 // neither screen was mounted - so both screens always agree on the tasks and their progress.
 function initRoomPlan(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number) {
+  const pomo = getPomodoroSettings()
   const snap = loadFocusPlanSnapshot()
-  let tasks = snap?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx)
+  let tasks = snap?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx, pomo)
   const activeId = snap?.activeTaskId ?? null
-  const running = !!snap?.running && !!activeId && tasks.some(t => t.id === activeId)
+  let running = !!snap?.running && !!activeId && tasks.some(t => t.id === activeId)
   if (running && snap?.runningStartedAtMs) {
     const away = Math.max(0, Math.floor((Date.now() - snap.runningStartedAtMs) / 1000))
     if (away > 0) {
       tasks = tasks.map(t => {
         if (t.id !== activeId) return t
-        return t.mode === 'pomodoro'
-          ? { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - away) }
-          : { ...t, regularElapsed: t.regularElapsed + away }
+        if (t.mode === 'pomodoro') {
+          // Through the engine: time spent away can cross focus/break boundaries.
+          const r = tickPomodoro(t, away, pomo)
+          if (!r.running) running = false
+          return r.task
+        }
+        return { ...t, regularElapsed: t.regularElapsed + away }
       })
     }
   }
@@ -2841,6 +3167,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 }) {
   const { avatar: userAvatar } = useContext(UserAvatarCtx)
   const bots = useMemo(() => getRoomBots(room), [room])
+  const { settings: pomo } = usePomodoroSettings()
   // The room's timer runs a Focus Lock task: same plan, same progress, same backend session.
   const [initial] = useState(() => initRoomPlan(units, schedule, todayIdx))
   const [planTasks, setPlanTasks] = useState<StudyTask[]>(initial.tasks)
@@ -2855,9 +3182,26 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const tasksRef = useRef(planTasks)
   tasksRef.current = planTasks
+  const pomoRef = useRef(pomo)
+  pomoRef.current = pomo
   const togglingRef = useRef(false)
 
   const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession()
+
+  // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
+  // reassigned every render so the interval below always calls the current start/stop closures.
+  const afterPomodoroTickRef = useRef<(before: StudyTask, r: { task: StudyTask; running: boolean }) => void>(() => {})
+  afterPomodoroTickRef.current = (before, r) => {
+    if (!r.running) {
+      setFocusRunning(false)
+      stopRemoteSession()
+      return
+    }
+    const from = pomoPhase(before), to = pomoPhase(r.task)
+    if (from === to) return
+    if (to === 'break') stopRemoteSession()
+    else void startRemoteSession(before.subject)
+  }
 
   const selectedTask = planTasks.find(t => t.id === selectedTaskId) ?? null
 
@@ -2875,22 +3219,25 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       last += delta * 1000
       const t = tasksRef.current.find(x => x.id === selectedTaskId)
       if (!t) return
-      const applied = t.mode === 'pomodoro' ? Math.min(delta, t.pomodoroRemaining) : delta
-      if (applied <= 0) return
-      setPlanTasks(prev => prev.map(x => {
-        if (x.id !== selectedTaskId) return x
-        return x.mode === 'pomodoro'
-          ? { ...x, pomodoroRemaining: Math.max(0, x.pomodoroRemaining - applied) }
-          : { ...x, regularElapsed: x.regularElapsed + applied }
-      }))
-      setUserStudyTime(p => p + applied)
-      setBotTimes(prev => prev.map((bt, i) => bots[i]?.isStudying ? bt + applied : bt))
+      if (t.mode === 'pomodoro') {
+        // Shared Pomodoro engine: focus -> break -> next focus per the saved settings. Only focus
+        // seconds count as this person's study time in the room.
+        const r = tickPomodoro(t, delta, pomoRef.current)
+        setPlanTasks(prev => prev.map(x => x.id === t.id ? tickPomodoro(x, delta, pomoRef.current).task : x))
+        if (r.studied > 0) setUserStudyTime(p => p + r.studied)
+        setBotTimes(prev => prev.map((bt, i) => bots[i]?.isStudying ? bt + delta : bt))
+        afterPomodoroTickRef.current(t, r)
+        return
+      }
+      setPlanTasks(prev => prev.map(x => x.id === selectedTaskId && x.mode === 'regular' ? { ...x, regularElapsed: x.regularElapsed + delta } : x))
+      setUserStudyTime(p => p + delta)
+      setBotTimes(prev => prev.map((bt, i) => bots[i]?.isStudying ? bt + delta : bt))
     }, 250)
     return () => clearInterval(id)
   }, [focusRunning, selectedTaskId, bots])
 
-  // A Pomodoro that reaches 0 while running completes (pauses) instead of sitting at
-  // 00:00 "running" - and closes the backend session, same as Focus Lock.
+  // Safety net for a Pomodoro left sitting at 00:00 by the pre-breaks engine: pause instead of
+  // sitting there "running", and close the backend session. (Current tasks roll into their break.)
   useEffect(() => {
     if (!focusRunning || !selectedTask) return
     if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
@@ -2899,6 +3246,12 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRunning, selectedTask?.id, selectedTask?.mode, selectedTask?.pomodoroRemaining])
+
+  // Untouched Pomodoro sessions follow the saved settings (also when they arrive from the backend late).
+  useEffect(() => {
+    setPlanTasks(prev => applyPomodoroSettings(prev, pomo, focusRunning ? selectedTaskId : null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomo.focusMinutes, pomo.breakMinutes])
 
   // Write progress back to the shared Focus Lock snapshot so both screens stay in step.
   // Skipped until something actually changes: an untouched room must not create an empty
@@ -2929,11 +3282,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
         return
       }
       if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
-        // A finished Pomodoro restarts from a fresh 25:00 instead of instantly re-completing.
-        setPlanTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, pomodoroRemaining: POMODORO_DEFAULT_SECS } : t))
+        // A Pomodoro left sitting at 00:00 (from before breaks existed) starts over fresh.
+        setPlanTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, ...pomodoroFields(pomo) } : t))
       }
       setFocusRunning(true)
-      try { await startRemoteSession(selectedTask.subject) } catch { /* hook already falls back to a local-only clock */ }
+      // A break isn't study time: only focus phases (and Regular) open a backend study session.
+      const startingBreak = selectedTask.mode === 'pomodoro' && pomoPhase(selectedTask) === 'break'
+      if (!startingBreak) {
+        try { await startRemoteSession(selectedTask.subject) } catch { /* hook already falls back to a local-only clock */ }
+      }
     } finally {
       togglingRef.current = false
     }
@@ -2951,7 +3308,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
     setPlanTasks(prev => prev.map(t => {
       if (t.id !== selectedTask.id) return t
-      return t.mode === 'pomodoro' ? { ...t, pomodoroRemaining: POMODORO_DEFAULT_SECS } : { ...t, regularElapsed: 0 }
+      return t.mode === 'pomodoro' ? { ...t, ...pomodoroFields(pomo) } : { ...t, regularElapsed: 0 }
     }))
   }
 
@@ -3020,6 +3377,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
               tasks={planTasks}
               selectedTask={selectedTask}
               running={focusRunning}
+              focusSecs={focusSecsOf(pomo)}
               onSelectTask={selectTask}
               onToggle={toggleFocus}
               onReset={resetSelectedTask}
@@ -6091,7 +6449,7 @@ export default function DesktopDashboard() {
   // reads the freshest snapshot first so it never clobbers a session that's
   // actually running right now.
   function handleHomeAddTask(subject: string, topic: string, mode: TimerMode) {
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, ...pomodoroFields(getPomodoroSettings()), regularElapsed: 0 }
     const existing = loadFocusPlanSnapshot()
     const nextTasks = [task, ...(existing?.tasks ?? focusPlan.tasks)]
     saveFocusPlanSnapshot({
