@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>WYNKO — Battle Arena</title>
+<title>WYNKO — Battleground</title>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="src/styles/pages/battle.css">
 </head>
 <body>
-<div class="app-layout">
+<div class="app-layout" id="shell">
 
   <!-- SIDEBAR -->
 <aside class="sidebar">
@@ -25,6 +25,7 @@
   <div class="nav-item" onclick="go('blocks.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20M5 20V10l7-6 7 6v10"/><path d="M9 20v-4h6v4"/></svg></span>3D Library</div>
   <div class="nav-item" onclick="go('store.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Materials</div>
   <div class="nav-section">Social</div>
+  <div class="nav-item active" onclick="go('battle.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg></span>Battleground<span class="nav-badge" id="navBadge" hidden>0</span></div>
   <div class="nav-item" onclick="go('partners.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>Partners</div>
   <div class="nav-item" onclick="go('revhead.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Community</div>
   <div class="nav-item" onclick="go('chat.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>Group Chat</div>
@@ -45,78 +46,579 @@
     <!-- TOPBAR -->
     <div class="topbar">
       <button class="hamburger-btn" onclick="openMobileSidebar()" aria-label="Open menu">☰</button>
-      <div><div class="topbar-title">Battle Arena</div><div class="topbar-sub">Challenge your friends, climb the leaderboard</div></div>
-      <div class="topbar-right">
-        <button class="btn btn-sm btn-gold" onclick="newChallenge()">+ New challenge</button>
-      </div>
+      <div><div class="topbar-title">Battleground</div><div class="topbar-sub">Challenge a friend. Stay focused. Don't pause.</div></div>
+      <div class="topbar-right"></div>
     </div>
 
-    <div class="ba-wrap">
-
-      <!-- SCOREBOARD CARD -->
-      <div class="ba-scoreboard">
-        <div class="ba-scoreboard-col ba-you">
-          <div class="ba-avatar ba-avatar--you">AN</div>
-          <div class="ba-score ba-score--you">86</div>
-          <div class="ba-player-name">You</div>
-        </div>
-        <div class="ba-vs">VS</div>
-        <div class="ba-scoreboard-col ba-opponent">
-          <div class="ba-avatar ba-avatar--opp">KR</div>
-          <div class="ba-score ba-score--opp">74</div>
-          <div class="ba-player-name">Karan</div>
-        </div>
-      </div>
-
-      <!-- CHALLENGES SECTION -->
-      <div class="ba-challenges">
-        <div class="ba-section-header">
-          <h3 class="ba-section-title">CHALLENGES</h3>
-        </div>
-
-        <div class="ba-challenge-list">
-          <!-- Challenge 1: Live -->
-          <div class="ba-challenge-card">
-            <div class="ba-challenge-info">
-              <div class="ba-challenge-name">Organic Chem sprint</div>
-              <div class="ba-challenge-desc">150 MCQs</div>
-            </div>
-            <span class="ba-badge ba-badge--live">LIVE</span>
-            <button class="ba-challenge-btn ba-challenge-btn--join">Join</button>
-          </div>
-
-          <!-- Challenge 2: Time left -->
-          <div class="ba-challenge-card">
-            <div class="ba-challenge-info">
-              <div class="ba-challenge-name">Weekly focus-hours duel</div>
-              <div class="ba-challenge-desc">Track your study hours against Karan this week</div>
-            </div>
-            <span class="ba-badge ba-badge--time">2d LEFT</span>
-            <button class="ba-challenge-btn ba-challenge-btn--view">View</button>
-          </div>
-        </div>
-      </div>
-
-    </div>
+    <main id="view" class="ba-wrap">
+      <div class="ba-empty" style="padding:4rem 1rem;">Loading…</div>
+    </main>
   </div>
 </div>
+
+<!-- FULL-SCREEN ARENA: get-ready / live / result -->
+<div id="arena" class="arena" hidden></div>
+
+<!-- CHALLENGE PICKER MODAL -->
+<div class="modal-overlay" id="pickerOverlay">
+  <div class="modal ba-picker" role="dialog" aria-modal="true" aria-labelledby="pk-h" id="pickerModal"></div>
+</div>
+
+<div id="announce" class="sr-only" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);"></div>
 
 <script src="shared.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+'use strict';
 const sb = window.supabase.createClient(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON);
 let me = null;
 
-async function init() {
+/* ── CONSTANTS ─────────────────────────────────────────────────────── */
+const TIERS = [
+  {n:'Rookie',min:0}, {n:'Challenger',min:100}, {n:'Focused',min:300},
+  {n:'Warrior',min:700}, {n:'Elite',min:1500}, {n:'Unstoppable',min:3000}
+];
+const I = {
+  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+  flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  check:'<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  trophy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3a2 2 0 0 1 2 2 4 4 0 0 1-4 4M7 5H4a2 2 0 0 0-2 2 4 4 0 0 0 4 4"/></svg>'
+};
+
+/* ── STATE ─────────────────────────────────────────────────────────── */
+let hub = null;         // last snapshot from get_battleground_state()
+let friendsCache = null; // list_friends() result, cached for the picker + leaderboard
+let arenaTimerIv = null;
+let liveStartedAt = null;
+let lastResult = null;  // ephemeral, shown once after pause_battle() resolves
+let shownResultForBattleId = null; // guards against showing the same result twice
+let pickSel = null;
+let toastTO = null;
+
+/* ── HELPERS ───────────────────────────────────────────────────────── */
+function esc(s){ return escHtml(String(s == null ? '' : s)); }
+function pad(n){ return String(n).padStart(2,'0'); }
+function fmtClock(s){ s=Math.max(0,Math.round(s)); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return h?h+':'+pad(m)+':'+pad(x):pad(m)+':'+pad(x); }
+function fmtTotal(s){ s=Math.max(0,Math.round(s)); return Math.floor(s/3600)+'h '+pad(Math.floor(s%3600/60))+'m'; }
+function fmtXP(n){ return Number(n||0).toLocaleString('en-US'); }
+function tierInfo(xp){
+  let i=0; TIERS.forEach((t,k)=>{ if(xp>=t.min) i=k; });
+  const cur=TIERS[i], nxt=TIERS[i+1]||null;
+  const frac = nxt ? (xp-cur.min)/(nxt.min-cur.min) : 1;
+  return { i, cur, nxt, pct: Math.min(100, frac*100), need: nxt ? nxt.min-xp : 0 };
+}
+function tierChip(xp, cls){ const t=tierInfo(xp); return `<span class="tier t${t.i}${cls?' '+cls:''}">${t.cur.n}</span>`; }
+function tierChipFromTitle(title, cls){
+  const i = Math.max(0, TIERS.findIndex(t => t.n === title));
+  return `<span class="tier t${i}${cls?' '+cls:''}">${title}</span>`;
+}
+function avatarHtml(user, size, variant, extra){
+  const initials = (user.username||'?').slice(0,2).toUpperCase();
+  const img = user.avatar_url ? `<img src="${esc(user.avatar_url)}" alt="">` : initials;
+  return `<span class="av ${variant||''} ${extra||''}" style="--sz:${size}px" aria-hidden="true">${img}</span>`;
+}
+function announce(m){ const el=document.getElementById('announce'); if(el) el.textContent=m; }
+function toast(m){
+  let t=document.getElementById('baToast');
+  if(!t){ t=document.createElement('div'); t.id='baToast'; t.setAttribute('role','status');
+    t.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(8px);background:var(--s3);border:1px solid var(--border2);color:var(--white);padding:10px 18px;border-radius:999px;font-size:0.82rem;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;';
+    document.body.appendChild(t);
+  }
+  t.textContent = m;
+  t.style.opacity='1'; t.style.transform='translateX(-50%)';
+  clearTimeout(toastTO);
+  toastTO = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(8px)'; }, 2600);
+}
+
+/* ── DATA LOADING ──────────────────────────────────────────────────── */
+async function loadFriends(){
+  if(friendsCache) return friendsCache;
+  try{
+    const { data } = await sb.rpc('list_friends');
+    friendsCache = (data||[]).map(f => ({
+      id: f.id || f.user_id || f.friend_id || f.peer_id,
+      friendship_id: f.friendship_id,
+      username: f.username, avatar_url: f.avatar_url, track: f.track
+    })).filter(f => f.id);
+  }catch(e){ friendsCache = []; }
+  return friendsCache;
+}
+
+async function refresh(){
+  try{
+    const { data, error } = await sb.rpc('get_battleground_state');
+    if(error) throw error;
+    hub = data;
+  }catch(e){
+    console.error('Battleground state failed to load', e);
+    document.getElementById('view').innerHTML = `<div class="ba-empty" style="padding:4rem 1rem;">Couldn't load Battleground right now. <button class="btn btn-ghost btn-sm" style="margin-top:0.75rem;" onclick="refresh()">Retry</button></div>`;
+    return;
+  }
+  render();
+}
+
+/* ── RENDER: ROUTER ────────────────────────────────────────────────── */
+function render(){
+  if(!hub) return;
+  const badge = document.getElementById('navBadge');
+  const incoming = hub.incoming_invites || [];
+  badge.hidden = incoming.length === 0;
+  badge.textContent = incoming.length;
+
+  // Arena (full-screen takeover) covers: pending battle (ready-up), active battle (live),
+  // and a transient result screen. Everything else renders into the normal page view.
+  const view = document.getElementById('view');
+  const arena = document.getElementById('arena');
+
+  if(lastResult){
+    showArena();
+    arena.className = 'arena ' + (lastResult.won ? 'res-win' : 'res-loss');
+    arena.innerHTML = resultHTML(lastResult);
+    return;
+  }
+
+  if(hub.active && hub.active.status === 'active'){
+    showArena();
+    arena.className = 'arena';
+    startLiveTimer(hub.active.started_at);
+    arena.innerHTML = liveHTML(hub.active);
+    return;
+  }
+
+  if(hub.active && hub.active.status === 'pending'){
+    showArena();
+    arena.className = 'arena';
+    stopLiveTimer();
+    arena.innerHTML = readyHTML(hub.active);
+    return;
+  }
+
+  stopLiveTimer();
+  hideArena();
+
+  if(hub.outgoing_invite){
+    view.innerHTML = waitingHTML(hub.outgoing_invite);
+    return;
+  }
+
+  view.innerHTML = homeHTML();
+  loadLeaderboard();
+}
+
+function showArena(){ document.getElementById('arena').hidden=false; document.getElementById('shell').setAttribute('inert',''); }
+function hideArena(){ document.getElementById('arena').hidden=true; document.getElementById('shell').removeAttribute('inert'); }
+
+/* ── HOME ──────────────────────────────────────────────────────────── */
+function identityHTML(){
+  const me_ = hub.me;
+  const t = tierInfo(me_.xp);
+  if(me_.xp <= 0){
+    return `<div class="identity"><span class="id-cap">Your battle title</span>
+      <p class="ba-empty-sub" style="margin-top:0.3rem;">Win your first battle to earn a title and Battle XP.</p></div>`;
+  }
+  return `<div class="identity">
+    <span class="id-cap">Your battle title</span>
+    <span class="id-row"><span class="id-title t${t.i}">${t.cur.n}</span><span class="id-xp">${fmtXP(me_.xp)} <small>XP</small></span></span>
+    <span class="bar"><i style="width:${t.pct}%"></i></span>
+    <span class="id-foot">${t.nxt ? `<b>${fmtXP(t.need)} XP</b> to ${t.nxt.n}` : 'Top title reached'}</span>
+  </div>`;
+}
+function ctaHTML(){
+  return `<section class="pcard cta" aria-labelledby="cta-h">
+    <div class="cta-body">
+      <div class="cta-copy">
+        <h2 id="cta-h">Ready for a challenge?</h2>
+        <p class="lead">Challenge a friend and see who can stay focused longer. First to pause loses.</p>
+        <button class="btn btn-primary btn-xl" onclick="openPicker()">⚔️ Challenge friend</button>
+      </div>
+      <div class="cta-art" aria-hidden="true">${avatarHtml({username:'you'},64,'you')}<span>VS</span><span class="av ghost" style="--sz:64px">?</span></div>
+    </div>
+    <ul class="rules">
+      <li>${I.flag}<span>You both start together</span></li>
+      <li>${I.shield}<span>Focus Lock stays on</span></li>
+      <li>${I.pause}<span>First to pause loses</span></li>
+    </ul>
+  </section>`;
+}
+function invitesHTML(){
+  const invites = hub.incoming_invites || [];
+  if(!invites.length) return '';
+  return `<section class="card" aria-labelledby="inv-h">
+    <div class="card-h"><h2 id="inv-h">Battle invitations<span class="count">${invites.length}</span></h2></div>
+    ${invites.map(inv => `<div class="inv-row">
+      ${avatarHtml(inv,36)}
+      <div class="inv-main"><b>@${esc(inv.username)}</b> challenged you<small>${tierChipFromTitle(inv.title||'Rookie')}<span>${timeAgo(inv.created_at)}</span></small></div>
+      <div class="inv-act">
+        <button class="btn btn-primary btn-sm" onclick="respondInvite('${inv.id}',true,this)">Accept</button>
+        <button class="btn btn-ghost btn-sm" onclick="respondInvite('${inv.id}',false,this)">Decline</button>
+      </div>
+    </div>`).join('')}
+  </section>`;
+}
+function statsHTML(){
+  const s = hub.stats || {total:0,wins:0,losses:0,total_focus_seconds:0};
+  if(!s.total){
+    return `<section class="card" aria-labelledby="st-h">
+      <div class="card-h"><h2 id="st-h">Your battle stats</h2></div>
+      <div class="ba-newstat">No battles yet. Your first result will show up here.</div>
+    </section>`;
+  }
+  const wr = Math.round((s.wins/s.total)*100);
+  return `<section class="card" aria-labelledby="st-h">
+    <div class="card-h"><h2 id="st-h">Your battle stats</h2></div>
+    <div class="stats-grid ba-stats-grid">
+      <div class="stat-box"><div class="stat-label">Total battles</div><div class="stat-val">${s.total}</div></div>
+      <div class="stat-box"><div class="stat-label">Wins</div><div class="stat-val c-success">${s.wins}</div><div class="stat-sub">${wr}% win rate</div></div>
+      <div class="stat-box"><div class="stat-label">Losses</div><div class="stat-val c-danger">${s.losses}</div></div>
+      <div class="stat-box"><div class="stat-label">Focus time</div><div class="stat-val">${fmtTotal(s.total_focus_seconds)}</div><div class="stat-sub">In battles</div></div>
+      <div class="stat-box"><div class="stat-label">Battle XP</div><div class="stat-val c-violet">${fmtXP(hub.me.xp)}</div></div>
+      <div class="stat-box"><div class="stat-label">Title</div><div class="stat-val" style="font-size:1rem;">${tierChip(hub.me.xp,'lg')}</div></div>
+    </div>
+  </section>`;
+}
+function ladderHTML(){
+  const t = tierInfo(hub.me.xp);
+  const p = Math.min(1, (t.i + (t.nxt ? (hub.me.xp-t.cur.min)/(t.nxt.min-t.cur.min) : 0)) / (TIERS.length-1));
+  return `<section class="card" aria-labelledby="ld-h">
+    <div class="card-h"><h2 id="ld-h">Battle titles</h2><span class="note">Earned with Battle XP</span></div>
+    <ol class="ladder" style="--p:${p};list-style:none;">
+      <div class="ladder-line" aria-hidden="true"></div>
+      ${TIERS.map((x,k)=>{
+        const cls = k<t.i ? 'done' : k===t.i ? 'cur' : '';
+        return `<li class="rung ${cls}"><span class="node" aria-hidden="true">${k<t.i?I.check:''}</span><b>${x.n}</b><small>${fmtXP(x.min)} XP</small></li>`;
+      }).join('')}
+    </ol>
+  </section>`;
+}
+function boardShellHTML(){
+  return `<section class="card" aria-labelledby="lb-h">
+    <div class="card-h"><h2 id="lb-h">${I.trophy} Friends leaderboard</h2><span class="note">Ranked by Battle XP</span></div>
+    <div id="lbBody" class="ba-empty">Loading…</div>
+  </section>`;
+}
+async function loadLeaderboard(){
+  const el = document.getElementById('lbBody');
+  if(!el) return;
+  const friends = await loadFriends();
+  if(!friends.length){
+    el.outerHTML = `<div id="lbBody" class="ba-empty">No friends yet. Add study partners to start a friends leaderboard.</div>`;
+    return;
+  }
+  let rows = [];
+  try{
+    const { data } = await sb.rpc('get_friends_battle_xp', { p_friend_ids: friends.map(f=>f.id) });
+    rows = data || [];
+  }catch(e){ rows = []; }
+
+  if(hub.me.xp > 0) rows.push({ id: me.id, username: 'You', avatar_url: null, battle_xp: hub.me.xp, title: hub.me.title, me: true });
+
+  if(!rows.length){
+    el.outerHTML = `<div id="lbBody" class="ba-empty">No one on your friends list has Battle XP yet — be the first to start a streak.</div>`;
+    return;
+  }
+  rows.sort((a,b) => b.battle_xp - a.battle_xp);
+  const friendMap = {}; friends.forEach(f => friendMap[f.id] = f);
+  el.outerHTML = `<ol id="lbBody" style="list-style:none;">${rows.map((r,i) => {
+    const isMe = r.id === me.id;
+    const meta = isMe ? { username:'You', avatar_url: null } : (friendMap[r.id] || { username: r.username, avatar_url: r.avatar_url });
+    return `<li class="lb-row${isMe?' me':''}">
+      <span class="lb-rank">${i+1}</span>
+      ${avatarHtml(meta, 32, isMe?'you':'')}
+      <span class="lb-name"><b>${isMe?'You':'@'+esc(meta.username)}</b>${tierChip(r.battle_xp)}</span>
+      <span class="lb-xp">${fmtXP(r.battle_xp)} <small>XP</small></span>
+    </li>`;
+  }).join('')}</ol>`;
+}
+function homeHTML(){
+  return `<header class="ba-head">
+    <div><h1 class="ba-h1"><span aria-hidden="true">⚔️</span> Battleground</h1><p class="ba-sub">Challenge your friends. Stay focused. Don't pause.</p></div>
+    ${identityHTML()}
+  </header>
+  <div class="ba-grid">
+    <div class="col-l">
+      <div>${ctaHTML()}</div>
+      ${invitesHTML()}
+      ${statsHTML()}
+    </div>
+    <div>${boardShellHTML()}${ladderHTML()}</div>
+  </div>`;
+}
+
+/* ── WAITING (challenge sent, not yet accepted) ───────────────────── */
+function waitingHTML(inv){
+  return `<section class="wait" aria-labelledby="w-h">
+    <div class="wait-pair">${avatarHtml({username:'you'},64,'you')}<span class="wait-link" aria-hidden="true"><i></i><i></i><i></i></span>${avatarHtml(inv,64,'opp','pulse')}</div>
+    <h2 id="w-h">Waiting for @${esc(inv.username)} to accept</h2>
+    <p>Once they accept, you'll both ready up and the battle begins.</p>
+    <div class="wait-meta">Invitation expires <b id="waitExp" data-expires="${inv.expires_at}">${countdownText(inv.expires_at)}</b></div>
+    <div class="wait-actions"><button class="btn btn-ghost" onclick="cancelChallenge('${inv.id}')">Cancel challenge</button></div>
+  </section>`;
+}
+function countdownText(iso){
+  const s = Math.max(0, Math.round((new Date(iso) - Date.now())/1000));
+  return fmtClock(s);
+}
+
+/* ── ARENA: READY ──────────────────────────────────────────────────── */
+function readyHTML(active){
+  return `<div class="arena-top"><span class="logo">WYN<span style="color:var(--violet)">KO</span></span>
+    <button class="arena-close" onclick="offerLeaveReady('${active.id}')">Cancel</button></div>
+  <div class="ready">
+    <h1>Get ready to battle @${esc(active.opponent_username)}</h1>
+    <p>Both of you need to start before the battle begins. First person to pause afterwards loses.</p>
+    <div class="ready-pair" aria-hidden="true">${avatarHtml({username:'you'},64,'you')}<span style="color:var(--muted);font-weight:800;letter-spacing:.12em;font-size:.72rem;">VS</span>${avatarHtml(active,64,'opp')}</div>
+    <div class="ready-status">
+      <div class="ready-row"><span>You</span><span class="ready-chip ${active.i_am_ready?'on':'off'}"><i></i>${active.i_am_ready?'Ready':'Not ready'}</span></div>
+      <div class="ready-row"><span>@${esc(active.opponent_username)}</span><span class="ready-chip ${active.opponent_ready?'on':'off'}"><i></i>${active.opponent_ready?'Ready':'Waiting'}</span></div>
+    </div>
+    ${active.i_am_ready
+      ? `<p style="color:var(--soft);font-size:0.82rem;">Waiting for @${esc(active.opponent_username)} to start…</p>`
+      : `<button class="btn btn-primary btn-xl" onclick="readyUp('${active.id}')">${I.shield} Start Focus Lock &amp; ready up</button>`}
+  </div>`;
+}
+
+/* ── ARENA: LIVE ───────────────────────────────────────────────────── */
+function startLiveTimer(startedAt){
+  liveStartedAt = new Date(startedAt).getTime();
+  if(arenaTimerIv) return;
+  arenaTimerIv = setInterval(() => {
+    const el = document.querySelectorAll('[data-timer]');
+    if(!el.length || !liveStartedAt) return;
+    const secs = (Date.now() - liveStartedAt)/1000;
+    el.forEach(e => e.textContent = fmtClock(secs));
+  }, 1000);
+}
+function stopLiveTimer(){ if(arenaTimerIv){ clearInterval(arenaTimerIv); arenaTimerIv=null; } liveStartedAt=null; }
+
+function liveHTML(active){
+  return `<div class="arena-top"><span class="logo">WYN<span style="color:var(--violet)">KO</span></span><span class="fl-on">${I.shield}Focus Lock on</span></div>
+  <div class="live">
+    <div class="live-badge" role="status"><i></i>BATTLE ACTIVE</div>
+    <div class="duel">
+      <div class="pl you">${avatarHtml({username:'you'},88,'you')}<div class="name">You</div><div class="cap">Your focus time</div><div class="time" data-timer role="timer">00:00</div><div class="status"><i></i>Focusing</div></div>
+      <div class="vs" aria-hidden="true"><span>VS</span></div>
+      <div class="pl opp">${avatarHtml(active,88,'opp')}<div class="name">@${esc(active.opponent_username)}</div><div class="cap">Their focus time</div><div class="time" data-timer>00:00</div><div class="status"><i></i>Focusing</div></div>
+    </div>
+    <p class="rule">First person to pause loses.</p>
+    <button class="pause" id="pauseBtn" onclick="openPauseConfirm()">${I.pause}PAUSE</button>
+    <p class="live-foot">Pausing here ends the battle immediately.</p>
+  </div>`;
+}
+function openPauseConfirm(){
+  const wrap = document.createElement('div');
+  wrap.className = 'confirm-wrap'; wrap.id = 'confirmWrap';
+  wrap.innerHTML = `<div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cf-h">
+    <h2 id="cf-h">Pause and lose the battle?</h2>
+    <p>Your opponent wins the moment you pause. Your focus time so far is still saved to your stats.</p>
+    <div class="cf-actions">
+      <button class="btn btn-primary btn-xl" onclick="document.getElementById('confirmWrap').remove()">Keep focusing</button>
+      <button class="btn btn-danger" onclick="confirmPause()">Pause and lose</button>
+    </div>
+  </div>`;
+  document.getElementById('arena').appendChild(wrap);
+}
+async function confirmPause(){
+  const battleId = hub.active && hub.active.id;
+  document.getElementById('confirmWrap')?.remove();
+  const btn = document.getElementById('pauseBtn'); if(btn) btn.disabled = true;
+  try{
+    const { data, error } = await sb.rpc('pause_battle', { p_battle_id: battleId });
+    if(error) throw error;
+    stopLiveTimer();
+    shownResultForBattleId = data.id;
+    lastResult = { won:false, opponentUsername: hub.active.opponent_username, opponentAvatar: hub.active.opponent_avatar,
+      focusSeconds: Math.max(0,Math.round((new Date(data.ended_at)-new Date(data.started_at))/1000)),
+      xp: data.loser_xp_awarded, beforeXp: hub.me.xp, afterXp: hub.me.xp + data.loser_xp_awarded };
+    announce('Defeat. You paused first.');
+    await refresh();
+  }catch(e){ toast("Couldn't pause — try again."); if(btn) btn.disabled=false; }
+}
+async function offerLeaveReady(battleId){
+  if(!confirm('Leave before the battle starts? This cancels the challenge for both of you.')) return;
+  try{ await sb.rpc('cancel_pending_battle', { p_battle_id: battleId }); }catch(e){}
+  await refresh();
+}
+async function readyUp(battleId){
+  try{
+    const { error } = await sb.rpc('ready_battle', { p_battle_id: battleId });
+    if(error) throw error;
+    await refresh();
+  }catch(e){ toast("Couldn't ready up — try again."); }
+}
+
+/* ── ARENA: RESULT ─────────────────────────────────────────────────── */
+function resultHTML(r){
+  const before = tierInfo(r.beforeXp), after = tierInfo(r.afterXp);
+  const promoted = after.i > before.i;
+  return `<div class="arena-top"><span class="logo">WYN<span style="color:var(--violet)">KO</span></span></div>
+  <div class="res" role="status">
+    <div class="res-badge" aria-hidden="true">${r.won?'🏆':'💀'}</div>
+    <h1 class="res-h">${r.won?'YOU WIN':'DEFEAT'}</h1>
+    <p class="res-sub">${r.won?'Your opponent paused first.':'You paused first.'}</p>
+    <p class="res-vs">You vs @${esc(r.opponentUsername)}</p>
+    <div class="res-stats">
+      <div><small>Focus time</small><b>${fmtClock(r.focusSeconds)}</b></div>
+      <div><small>Battle XP · ${r.won?'Victory':'Participation'}</small><b class="xp">+${r.xp}</b></div>
+    </div>
+    <div class="res-prog">
+      <div class="row"><span class="tier t${after.i}">${after.cur.n}</span><span class="mono">${fmtXP(r.afterXp)} XP</span></div>
+      <span class="bar"><i style="width:${promoted?after.pct:before.pct}%"></i></span>
+      ${promoted ? `<p class="promo">New title unlocked: ${after.cur.n}</p>` : `<p class="promo" style="color:var(--soft)">${after.nxt?fmtXP(after.need)+' XP to '+after.nxt.n:'Top title reached'}</p>`}
+    </div>
+    <button class="btn btn-primary btn-xl" onclick="dismissResult()">Back to Battleground</button>
+  </div>`;
+}
+async function dismissResult(){
+  lastResult = null;
+  await refresh();
+}
+
+/* ── ACTIONS ───────────────────────────────────────────────────────── */
+async function respondInvite(id, accept, btn){
+  if(btn) btn.closest('.inv-row').style.opacity = '0.5';
+  try{
+    const { data, error } = await sb.rpc('respond_battle_challenge', { p_invitation_id: id, p_accept: accept });
+    if(error) throw error;
+    toast(accept ? 'Challenge accepted' : 'Invitation declined');
+  }catch(e){ toast('Something went wrong — try again.'); }
+  await refresh();
+}
+async function cancelChallenge(id){
+  try{ await sb.rpc('cancel_battle_challenge', { p_invitation_id: id }); toast('Challenge cancelled'); }catch(e){}
+  await refresh();
+}
+function timeAgo(iso){
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso))/1000));
+  if(s < 60) return 'just now';
+  if(s < 3600) return Math.floor(s/60)+' min ago';
+  return Math.floor(s/3600)+'h ago';
+}
+
+/* ── CHALLENGE PICKER ──────────────────────────────────────────────── */
+async function openPicker(){
+  pickSel = null;
+  const overlay = document.getElementById('pickerOverlay');
+  const modal = document.getElementById('pickerModal');
+  overlay.classList.add('show');
+  modal.innerHTML = `<div class="pk-head"><h3 id="pk-h">Challenge a friend</h3><p>Search by username or pick from your friends.</p></div>
+    <div class="pk-search field"><input id="pkq" type="search" placeholder="Search username" autocomplete="off" aria-label="Search friends by username"></div>
+    <div class="pk-list" id="pkl"><div class="pk-empty">Loading…</div></div>
+    <div class="pk-rule">${I.info}<span>First person to pause loses. Focus Lock turns on for both of you.</span></div>
+    <div class="pk-foot"><button class="btn btn-ghost" onclick="closePicker()">Cancel</button><button class="btn btn-primary" id="pkSend" disabled onclick="sendChallenge()">Send challenge</button></div>`;
+  document.getElementById('pkq').addEventListener('input', e => renderPickList(e.target.value));
+  document.getElementById('pkq').focus();
+  const friends = await loadFriends();
+  renderPickList('', friends);
+}
+function closePicker(){ document.getElementById('pickerOverlay').classList.remove('show'); }
+function renderPickList(q, friendsArg){
+  const friends = friendsArg || friendsCache || [];
+  const list = document.getElementById('pkl');
+  if(!list) return;
+  const query = (q||'').trim().toLowerCase().replace(/^@/,'');
+  const filtered = friends.filter(f => !query || (f.username||'').toLowerCase().includes(query));
+  if(!friends.length){
+    list.innerHTML = `<div class="pk-empty">You don't have any friends yet.<br>Add study partners first, then come back to challenge them.</div>`;
+    return;
+  }
+  if(!filtered.length){
+    list.innerHTML = `<div class="pk-empty">No friends match "${esc(q)}".</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(f => `<button class="pk-row" role="radio" aria-checked="${pickSel===f.id}" onclick="selectPick('${f.id}')">
+    ${avatarHtml(f,40)}
+    <span class="pk-main"><b>@${esc(f.username)}</b><small>${esc(f.track||'')}</small></span>
+    <span class="pk-check">${I.check}</span>
+  </button>`).join('');
+}
+function selectPick(id){
+  pickSel = id;
+  renderPickList(document.getElementById('pkq').value);
+  const btn = document.getElementById('pkSend');
+  btn.disabled = false;
+  const f = (friendsCache||[]).find(x=>x.id===id);
+  btn.textContent = f ? `Challenge @${f.username}` : 'Send challenge';
+}
+async function sendChallenge(){
+  if(!pickSel) return;
+  const btn = document.getElementById('pkSend');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const { error } = await sb.rpc('send_battle_challenge', { p_to_user: pickSel });
+    if(error) throw error;
+    closePicker();
+    await refresh();
+  }catch(e){
+    toast(e.message && e.message.includes('already') ? e.message : "Couldn't send that challenge.");
+    btn.disabled = false; btn.textContent = 'Send challenge';
+  }
+}
+
+/* ── REALTIME ──────────────────────────────────────────────────────── */
+// A battle can finish because the OPPONENT paused, not just because we did.
+// In that case get_battleground_state() will simply stop returning an
+// "active" battle (it only reports pending/active rows) — so without this,
+// the winner would silently drop back to the home screen instead of seeing
+// a result. We read the finished row straight off the realtime payload and
+// build the result screen from it.
+async function handleBattleRow(row){
+  if(!row){ refresh(); return; }
+  if(row.status === 'finished' && row.id !== shownResultForBattleId){
+    shownResultForBattleId = row.id;
+    stopLiveTimer();
+    const won = row.winner_id === me.id;
+    const xp = won ? row.winner_xp_awarded : row.loser_xp_awarded;
+    const focusSeconds = (row.started_at && row.ended_at)
+      ? Math.max(0, Math.round((new Date(row.ended_at) - new Date(row.started_at))/1000)) : 0;
+    const opponentId = row.player_a === me.id ? row.player_b : row.player_a;
+    let opp = (hub && hub.active && hub.active.opponent_id === opponentId)
+      ? { username: hub.active.opponent_username, avatar_url: hub.active.opponent_avatar } : null;
+    if(!opp){
+      const { data } = await sb.from('user_profiles').select('username,avatar_url').eq('id', opponentId).single();
+      opp = data || { username: 'opponent', avatar_url: null };
+    }
+    const beforeXp = hub ? hub.me.xp : 0;
+    lastResult = { won, opponentUsername: opp.username, opponentAvatar: opp.avatar_url, focusSeconds, xp, beforeXp, afterXp: beforeXp + xp };
+    announce(won ? 'You win. Your opponent paused first.' : 'Defeat. You paused first.');
+  }
+  refresh();
+}
+function subscribeRealtime(uid){
+  sb.channel('battleground-'+uid)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'battle_invitations', filter: `to_user=eq.${uid}` }, () => refresh())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'battle_invitations', filter: `from_user=eq.${uid}` }, () => refresh())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'battles', filter: `player_a=eq.${uid}` }, p => handleBattleRow(p.new))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'battles', filter: `player_b=eq.${uid}` }, p => handleBattleRow(p.new))
+    .subscribe();
+}
+
+/* ── LIGHT POLLING (backstop for waiting/ready screens) ───────────── */
+setInterval(() => {
+  const waitEl = document.getElementById('waitExp');
+  if(waitEl){
+    const secs = Math.round((new Date(waitEl.getAttribute('data-expires')) - Date.now())/1000);
+    if(secs <= 0){ refresh(); } else { waitEl.textContent = fmtClock(secs); }
+  }
+  if((hub && hub.outgoing_invite) || (hub && hub.active && hub.active.status==='pending')) refresh();
+}, 4000);
+
+/* ── INIT ──────────────────────────────────────────────────────────── */
+async function init(){
   const session = await requireAuth();
-  if (!session) return;
+  if(!session) return;
   me = session.user;
   RevM2Calls.init(sb, me.id);
   RevM2Notifications.init(sb, me.id);
-}
 
-function newChallenge() {
-  alert('New challenge creation — coming soon. Pick a friend, set a subject, and go head-to-head.');
+  const cfg = Store.get('revm2_config', {});
+  document.getElementById('sTrack').textContent = cfg.track || '—';
+  document.getElementById('sExam').textContent = cfg.exam || '—';
+
+  subscribeRealtime(me.id);
+  await refresh();
 }
 
 init();

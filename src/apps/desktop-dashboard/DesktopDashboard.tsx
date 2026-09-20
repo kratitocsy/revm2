@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, createContext, useContext } from 'react'
+import { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import aiAssistantImg from './imports/ai-assistant.png'
 import trophyBronze from './imports/trophy-bronze.png'
@@ -12,8 +12,12 @@ import avatar9 from './imports/avatar-9.png'
 import avatar10 from './imports/avatar-10.png'
 import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
-import { useHomeData, type TodayFocus, type ProfileInfo } from './lib/useHomeData'
+import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
 import { useFocusSession } from '../_shared/useFocusSession'
+import {
+  usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
+  type PomodoroSettings, type PomodoroSettingsInput,
+} from '../_shared/pomodoroSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
@@ -401,56 +405,168 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
   )
 }
 
-// ─── Today Hero ───────────────────────────────────────────────────────────────
-function TodayHero({ onGoFocus, atRisk, due, stable, curveData }: { onGoFocus: () => void; atRisk: number; due: number; stable: number; curveData: MultiRecallCurveData | null }) {
-  const today = new Date()
-  const dateLabel = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()
+// ─── Study Progress ───────────────────────────────────────────────────────────
+// Replaces the old "Memory at Risk" hero as the first block on Home. Built to
+// match the reference design pixel-for-pixel in spirit: deep navy card with a
+// subtle blue gradient, thin electric-blue border + soft outer glow, a
+// violet→royal-blue→cyan curved line with its own glow, a faint gradient fill
+// beneath it, and a brighter cyan glow on today's point. Everything plotted
+// (the three stats + all 7 points) comes from weeklyStudy/totalWeekMinutes/
+// avgWeekMinutes in useHomeData — real per-day totals from study_log, the
+// same column tracker.html/timer.html write to. Nothing here is hardcoded.
+function formatStudyDuration(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60)
+  const m = Math.round(totalMinutes % 60)
+  if (h <= 0) return `${m}m`
+  if (m <= 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
+// Catmull-Rom → cubic-bezier conversion so the line is a smooth curve
+// through every point rather than sharp angular segments.
+function buildSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x},${points[0].y}`
+  let d = `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1]
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`
+  }
+  return d
+}
+
+function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
+  weeklyStudy: WeeklyStudyDay[]; totalMinutes: number; avgMinutes: number; streakDays: number
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const W = 920, H = 190, padX = 22, padTop = 22, padBottom = 32
+
+  const maxMinutes = Math.max(60, ...weeklyStudy.map(d => d.minutes))
+  const stepX = weeklyStudy.length > 1 ? (W - padX * 2) / (weeklyStudy.length - 1) : 0
+  const pts = weeklyStudy.map((d, i) => ({
+    x: padX + i * stepX,
+    y: padTop + (1 - d.minutes / maxMinutes) * (H - padTop - padBottom),
+  }))
+  const linePath = buildSmoothPath(pts)
+  const areaPath = pts.length
+    ? `${linePath} L ${pts[pts.length - 1].x.toFixed(1)},${(H - padBottom).toFixed(1)} L ${pts[0].x.toFixed(1)},${(H - padBottom).toFixed(1)} Z`
+    : ''
+
+  const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
+    { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied' },
+    { icon: 'progress', value: formatStudyDuration(avgMinutes), label: 'Daily Average' },
+    { icon: 'fire', value: `${streakDays} day${streakDays === 1 ? '' : 's'}`, label: 'Current Streak' },
+  ]
+
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border"
-      style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: '0 0 60px rgba(124,77,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-      <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(26,40,69,0.55) 0%, transparent 65%)', transform: 'translate(25%,-30%)' }} />
-      <div className="absolute bottom-0 left-1/3 w-56 h-56 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(25,181,230,0.06) 0%, transparent 65%)', transform: 'translate(-50%,40%)' }} />
-      <div className="relative flex gap-6 items-stretch">
-        <div className="flex-shrink-0 w-44 flex flex-col justify-between">
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.30)',
+        boxShadow: '0 0 70px rgba(41,98,255,0.14), 0 0 140px rgba(124,77,255,0.07), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="absolute top-0 right-0 w-80 h-80 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(41,98,255,0.12) 0%, transparent 65%)', transform: 'translate(20%,-35%)' }} />
+      <div className="absolute bottom-0 left-1/4 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 65%)', transform: 'translate(-40%,45%)' }} />
+
+      <div className="relative flex items-start justify-between mb-5 flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.45)', boxShadow: '0 0 18px rgba(41,98,255,0.4)' }}>
+            <Ico n="progress" cls="w-4 h-4 text-cyan-300" />
+          </div>
           <div>
-            <div className="text-[9px] font-mono text-violet-400 tracking-[0.2em] mb-2">TODAY · {dateLabel}</div>
-            <div className="text-[22px] font-bold text-slate-100 leading-tight mb-2">Memory<br />at Risk</div>
-            <div className="text-xs text-slate-400 mb-4 leading-relaxed">
-              {atRisk > 0 ? `${atRisk} topic${atRisk > 1 ? 's' : ''} below critical retention threshold` : 'All topics above critical threshold'}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(248,113,113,0.07)] border-[rgba(248,113,113,0.2)]">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
-              <span className="text-[11px] text-red-300">{atRisk} topic{atRisk !== 1 ? 's' : ''} at risk</span>
-            </div>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(124,77,255,0.08)] border-[#1A2845]">
-              <Ico n="wave" cls="w-3 h-3 text-violet-400 flex-shrink-0" />
-              <span className="text-[11px] text-violet-300">{due} review{due !== 1 ? 's' : ''} due</span>
-            </div>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-[rgba(25,211,162,0.07)] border-[rgba(25,211,162,0.20)]">
-              <Ico n="check" cls="w-3 h-3 text-emerald-400 flex-shrink-0" />
-              <span className="text-[11px] text-emerald-300">{stable} stable</span>
-            </div>
-            <button onClick={onGoFocus} className="mt-3 w-full py-2 rounded-lg text-[11px] font-semibold text-white flex items-center justify-center gap-1.5 transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C4DFF, #5C35CC)', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-              <Ico n="play" cls="w-3 h-3" />Start Review
-            </button>
+            <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Your Study Progress</div>
+            <div className="text-xs text-slate-500">Study time · Last 7 days</div>
           </div>
         </div>
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[9px] font-mono text-slate-500 tracking-wide uppercase">
-              RECALL CURVE{curveData && curveData.series.length === 1 ? ` — ${curveData.series[0].subject.toUpperCase()} · ${curveData.series[0].topic}` : curveData && curveData.series.length > 1 ? ` — ${curveData.series.length} TOPICS` : ''}
+
+        <div className="flex items-center gap-6">
+          {stats.map(s => (
+            <div key={s.label} className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 12px rgba(41,98,255,0.35)' }}>
+                <Ico n={s.icon} cls="w-3.5 h-3.5 text-cyan-300" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-100 leading-tight">{s.value}</div>
+                <div className="text-[10px] text-slate-500 leading-tight">{s.label}</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[9px] font-mono text-slate-500">
-              <div className="flex items-center gap-1.5"><div className="w-4 h-[2px] rounded" style={{ background: 'linear-gradient(90deg,#7C4DFF,#19B5E6)' }} />actual</div>
-              <div className="flex items-center gap-1.5"><div className="w-4 border-t border-amber-400 border-dashed" />projected</div>
-              <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-cyan-400 opacity-80" />review</div>
-            </div>
-          </div>
-          <div className="flex-1" style={{ minHeight: '170px' }}><RecallCurve data={curveData} /></div>
+          ))}
         </div>
+      </div>
+
+      <div className="relative" style={{ height: H }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="spLine" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#7C4DFF" />
+              <stop offset="55%" stopColor="#2979FF" />
+              <stop offset="100%" stopColor="#22D3EE" />
+            </linearGradient>
+            <linearGradient id="spArea" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2979FF" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#2979FF" stopOpacity="0" />
+            </linearGradient>
+            <filter id="spGlow" x="-20%" y="-60%" width="140%" height="220%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <filter id="spDotGlow" x="-200%" y="-200%" width="500%" height="500%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+
+          <path d={areaPath} fill="url(#spArea)" />
+          <path d={linePath} fill="none" stroke="url(#spLine)" strokeWidth="2.5" strokeLinecap="round" filter="url(#spGlow)" />
+
+          {pts.map((p, i) => {
+            const d = weeklyStudy[i]
+            return (
+              <g key={i}
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx(null)}
+                onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
+                style={{ cursor: 'pointer' }}>
+                <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+                {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
+                <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
+                {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
+              </g>
+            )
+          })}
+
+          {pts.map((p, i) => (
+            <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
+              fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
+              fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
+              {weeklyStudy[i].label}
+            </text>
+          ))}
+        </svg>
+
+        {hoverIdx !== null && (
+          <div className="absolute px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-100 pointer-events-none z-10"
+            style={{
+              left: `${(pts[hoverIdx].x / W) * 100}%`,
+              top: `${(pts[hoverIdx].y / H) * 100}%`,
+              transform: 'translate(-50%, -135%)',
+              background: '#0F1B3D',
+              border: '1px solid rgba(56,132,255,0.45)',
+              boxShadow: '0 0 16px rgba(41,98,255,0.4)',
+              whiteSpace: 'nowrap',
+            }}>
+            {weeklyStudy[hoverIdx].label} · {formatStudyDuration(weeklyStudy[hoverIdx].minutes)}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -608,182 +724,381 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
   )
 }
 
-// ─── Review Queue ─────────────────────────────────────────────────────────────
-function ReviewQueue({ items, onDismiss }: {
-  items: ReviewItem[]
-  onDismiss: (key: string) => void
+// ─── Today's Study Plan + Today's Focus (paired Home cards) ──────────────────
+// Both cards read the SAME real sources: today's schedule (schedule[todayIdx],
+// the actual data the Schedules page manages) and the live Focus Lock plan
+// (persisted at FL_PLAN_KEY - the exact snapshot FocusLockPage itself reads
+// and writes), merged via buildTodayPlanRows/catchUpFocusPlan below. Nothing
+// here is hardcoded: with no schedule and no plan yet, both cards fall into
+// their empty states instead of showing example subjects.
+
+function parseClockToMinutes(t: string): number {
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!m) return 0
+  let h = parseInt(m[1], 10) % 12
+  const min = parseInt(m[2], 10)
+  if (/pm/i.test(m[3])) h += 12
+  return h * 60 + min
+}
+function parseTimeRangeMinutes(start: string, end: string): number {
+  const diff = parseClockToMinutes(end) - parseClockToMinutes(start)
+  return diff > 0 ? diff : diff + 24 * 60
+}
+
+// Same elapsed-time catch-up FocusLockPage applies to itself on mount -
+// run here too so a task left running while the person is elsewhere on
+// Home still shows accurate progress instead of a stale save-time value.
+function catchUpFocusPlan(snap: FocusPlanSnapshot): StudyTask[] {
+  if (!snap.running || !snap.activeTaskId || !snap.runningStartedAtMs) return snap.tasks
+  const elapsed = Math.max(0, Math.floor((Date.now() - snap.runningStartedAtMs) / 1000))
+  if (elapsed <= 0) return snap.tasks
+  return snap.tasks.map(t => {
+    if (t.id !== snap.activeTaskId) return t
+    if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - elapsed) }
+    return { ...t, regularElapsed: t.regularElapsed + elapsed }
+  })
+}
+
+interface TodayPlanRow { key: string; subject: string; topic: string; icon: string; color: string; minutes: number; mode: TimerMode }
+
+// Schedule entries (today's actual planned sessions, with real start/end
+// times) come first; anything already in the live Focus Lock plan but not
+// on today's schedule (e.g. a quick-added topic) is appended after, deduped
+// by subject::topic so nothing shows twice.
+function buildTodayPlanRows(scheduleToday: ScheduleItem[], planTasks: StudyTask[]): TodayPlanRow[] {
+  const taskByKey = new Map(planTasks.map(t => [`${t.subject}::${t.topic}`, t]))
+  const seen = new Set<string>()
+  const rows: TodayPlanRow[] = []
+
+  scheduleToday.forEach(s => {
+    const topic = s.topic || s.subject
+    const key = `${s.subject}::${topic}`
+    if (seen.has(key)) return
+    seen.add(key)
+    const matched = taskByKey.get(key)
+    rows.push({
+      key, subject: s.subject, topic,
+      icon: s.iconEmoji, color: s.color,
+      minutes: Math.max(1, parseTimeRangeMinutes(s.startTime, s.endTime)),
+      mode: matched?.mode ?? 'pomodoro',
+    })
+  })
+
+  planTasks.forEach(t => {
+    const key = `${t.subject}::${t.topic}`
+    if (seen.has(key)) return
+    seen.add(key)
+    const { emoji, color } = subjectVisual(t.subject)
+    rows.push({
+      key, subject: t.subject, topic: t.topic, icon: emoji, color,
+      minutes: Math.max(1, Math.round((t.mode === 'pomodoro' ? t.pomodoroRemaining : t.regularElapsed) / 60)),
+      mode: t.mode,
+    })
+  })
+
+  return rows
+}
+
+function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
+  rows: TodayPlanRow[]
+  onStartTask: (subject: string, topic: string) => void
+  onAddTask: () => void
 }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-
-  const tagCls = {
-    high: { text: 'text-red-400', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', label: 'Review now' },
-    medium: { text: 'text-amber-400', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', label: 'Review soon' },
-    low: { text: 'text-emerald-400', bg: 'rgba(25,211,162,0.08)', border: 'rgba(25,211,162,0.22)', label: 'Stable' },
-  }
-
-  // Group by subject
-  const grouped: Record<string, ReviewItem[]> = {}
-  for (const item of items) {
-    if (!grouped[item.subject]) grouped[item.subject] = []
-    grouped[item.subject].push(item)
-  }
-  const subjects = Object.keys(grouped)
-
-  const due = items.filter(i => i.urgency !== 'low').length
-
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="text-sm font-semibold text-slate-100">Review Queue</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Topics needing your attention</div>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
-          <div className="text-3xl mb-3">🎉</div>
-          <div className="text-sm font-semibold text-slate-300 mb-1">All clear!</div>
-          <div className="text-[12px] text-slate-500 max-w-[200px]">Add subjects to your schedule on previous days to see review items here.</div>
-        </div>
-      </div>
-    )
-  }
-
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-100">Review Queue</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Topics from previous sessions</div>
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+            <Ico n="clock" cls="w-4 h-4 text-cyan-300" />
+          </div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Study Plan</div>
         </div>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#9B6CFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]">{due} due</span>
+        <div className="text-xs text-slate-500 flex-shrink-0">{todayLabel}</div>
       </div>
 
-      {/* Grouped dropdown accordion */}
-      <div className="space-y-2 flex-1 overflow-y-auto">
-        {subjects.map(subj => {
-          const group = grouped[subj]
-          const isOpen = expanded[subj] ?? true
-          const worstRetention = Math.min(...group.map(g => g.retention))
-          const worstUrgency = group.some(g => g.urgency === 'high') ? 'high' : group.some(g => g.urgency === 'medium') ? 'medium' : 'low'
-          const t = tagCls[worstUrgency]
-          return (
-            <div key={subj} className="rounded-xl border overflow-hidden border-[rgba(26,40,69,0.55)] bg-[#0B1530]">
-              {/* Subject header — click to expand/collapse */}
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
-                onClick={() => setExpanded(prev => ({ ...prev, [subj]: !isOpen }))}>
-                <RetentionRing pct={worstRetention} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-200 truncate">{subj}</div>
-                  <div className="text-[10px] text-slate-500 font-mono">{group.length} topic{group.length > 1 ? 's' : ''} pending</div>
+      {rows.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+          <div className="text-3xl mb-2">📭</div>
+          <div className="text-sm font-semibold text-slate-300 mb-1">No tasks scheduled for today</div>
+          <div className="text-[12px] text-slate-500 max-w-[220px] mb-4">Add a task to build today's study plan.</div>
+          <button onClick={onAddTask} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #2979FF, #22D3EE)', boxShadow: '0 0 20px rgba(41,98,255,0.45)' }}>
+            + Add Task
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2 flex-1 overflow-y-auto">
+          {rows.map(r => (
+            <div key={r.key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors hover:border-[rgba(56,132,255,0.35)]"
+              style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                style={{ background: `${r.color}1A`, border: `1px solid ${r.color}44` }}>{r.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-200 truncate">{r.subject}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] text-slate-500">{r.minutes} min</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{
+                      color: r.mode === 'pomodoro' ? '#C4AAFF' : '#7DD8F0',
+                      background: r.mode === 'pomodoro' ? 'rgba(124,77,255,0.14)' : 'rgba(34,211,238,0.10)',
+                    }}>{r.mode === 'pomodoro' ? 'Pomodoro' : 'Regular'}</span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full border font-mono flex-shrink-0 mr-1" style={{ color: t.text, background: t.bg, borderColor: t.border }}>{t.label}</span>
-                <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0 transition-transform" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
+              </div>
+              <button onClick={() => onStartTask(r.subject, r.topic)}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #2979FF, #7C4DFF)', boxShadow: '0 0 14px rgba(41,98,255,0.5)' }}>
+                <Ico n="play" cls="w-3.5 h-3.5 text-white" />
               </button>
-              {/* Topic rows */}
-              {isOpen && (
-                <div className="border-t border-[rgba(26,40,69,0.55)]">
-                  {group.map(item => {
-                    const tc = tagCls[item.urgency]
-                    const daysLabel = item.daysAgo === 1 ? 'Yesterday' : `${item.daysAgo} days ago`
-                    return (
-                      <div key={item.key} className="flex items-center gap-3 px-3 py-2.5 border-b last:border-0 group hover:bg-violet-500/5 transition-colors border-[rgba(124,77,255,0.08)]">
-                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5"
-                          style={{ background: item.urgency === 'high' ? '#F87171' : item.urgency === 'medium' ? '#FBBF24' : '#19D3A2' }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[12px] font-medium text-slate-300 truncate">{item.topic}</div>
-                          <div className="text-[10px] text-slate-600 font-mono">{daysLabel} · {item.retention}% retention</div>
-                        </div>
-                        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono" style={{ color: tc.text, borderColor: tc.border, background: tc.bg }}>{tc.label}</span>
-                          <button onClick={() => onDismiss(item.key)}
-                            className="text-[11px] px-2 py-1 rounded-lg border transition-all hover:border-emerald-500/50 hover:text-emerald-300 text-[#C4AAFF] bg-[rgba(26,40,69,0.55)] border-[#1A2845]">
-                            ✓ Done
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <button onClick={onAddTask} className="mt-3 w-full py-2.5 rounded-xl text-[12px] font-semibold text-slate-300 border border-dashed transition-all hover:text-cyan-300 hover:border-cyan-500/40"
+          style={{ borderColor: 'rgba(56,132,255,0.3)' }}>
+          + Add Task
+        </button>
+      )}
     </div>
   )
 }
 
-// ─── Focus Panel ──────────────────────────────────────────────────────────────
-// sessions/gauge/streak were fully hardcoded before this pass (fixed
-// "1h 15m of 2h 30m", a fixed 3-item Mathematics/Physics/Chemistry
-// list, fixed "7-day streak"). Now driven by todayFocus from
-// useHomeData: goal + done minutes from daily_focus_goal_minutes +
-// today's study_log entry, per-subject rows from that same entry
-// (real subjects actually logged today, not a fixed planned list -
-// there's no "planned session" concept in the data, only what was
-// actually studied), and streak computed the same way tracker.html's
-// renderAnalytics() does from study_log.
-function FocusPanel({ onGoFocus, todayFocus }: { onGoFocus: () => void; todayFocus?: TodayFocus }) {
-  const goalMinutes = todayFocus?.goalMinutes ?? 150
-  const doneMinutes = todayFocus?.doneMinutes ?? 0
-  const bySubject = todayFocus?.bySubject ?? []
-  const streakDays = todayFocus?.streakDays ?? 0
-  const pct = goalMinutes > 0 ? Math.min(1, doneMinutes / goalMinutes) : 0
-  const arcLen = Math.PI * 56
-  const fmtHM = (mins: number) => {
+function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContinueFocus, onStartFirst, onViewPlan }: {
+  plannedMinutes: number
+  completedMinutes: number
+  activeTask: StudyTask | null
+  onContinueFocus: () => void
+  onStartFirst: (() => void) | null
+  onViewPlan: () => void
+}) {
+  const remainingMinutes = Math.max(0, plannedMinutes - completedMinutes)
+  const pct = plannedMinutes > 0 ? Math.min(1, completedMinutes / plannedMinutes) : 0
+  const r = 62, circ = 2 * Math.PI * r
+  const offset = circ - pct * circ
+  const fmt = (mins: number) => {
     const h = Math.floor(mins / 60), m = Math.round(mins % 60)
     return h > 0 ? `${h}h ${m}m` : `${m}m`
   }
-  const goalLabel = goalMinutes >= 60 ? `${(goalMinutes / 60).toFixed(goalMinutes % 60 === 0 ? 0 : 1)}h` : `${goalMinutes}m`
+  const completedPct = plannedMinutes > 0 ? Math.min(100, Math.round((completedMinutes / plannedMinutes) * 100)) : 0
+  const remainingPct = 100 - completedPct
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-100">Today's Focus</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">{fmtHM(goalMinutes)} planned</div>
-        </div>
-        <div className="flex items-center gap-1.5 text-amber-400">
-          <Ico n="fire" cls="w-3.5 h-3.5" />
-          <span className="text-xs font-semibold">{streakDays}-day streak</span>
-        </div>
-      </div>
-      <div className="flex justify-center mb-3">
-        <svg width="150" height="86" viewBox="0 0 150 86">
-          <defs>
-            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#19B5E6" /></linearGradient>
-            <filter id="gaugeGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-          </defs>
-          <path d="M 19,80 A 56,56 0 0,1 131,80" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="9" strokeLinecap="round" />
-          <path d="M 19,80 A 56,56 0 0,1 131,80" fill="none" stroke="url(#gaugeGrad)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${pct * arcLen} ${arcLen}`} filter="url(#gaugeGlow)" />
-          {[0, 0.25, 0.5, 0.75, 1].map(t => {
-            const angle = Math.PI * (1 - t)
-            const x1 = 75 + 56 * Math.cos(angle), y1 = 80 - 56 * Math.sin(angle)
-            const x2 = 75 + 47 * Math.cos(angle), y2 = 80 - 47 * Math.sin(angle)
-            return <line key={t} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#1A2845" strokeWidth="1.5" />
-          })}
-          <text x="75" y="60" textAnchor="middle" fontSize="15" fontWeight="600" fill="#EEF2FF" fontFamily="JetBrains Mono, monospace">{fmtHM(doneMinutes)}</text>
-          <text x="75" y="75" textAnchor="middle" fontSize="8.5" fill="rgba(148,163,184,0.5)" fontFamily="JetBrains Mono, monospace">of {fmtHM(goalMinutes)}</text>
-          <text x="16" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">0</text>
-          <text x="134" y="84" fontSize="8" fill="rgba(148,163,184,0.3)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{goalLabel}</text>
-        </svg>
-      </div>
-      <div className="space-y-1.5 flex-1">
-        {bySubject.length === 0 ? (
-          <div className="text-[11px] text-slate-600 text-center py-4">Nothing logged yet today</div>
-        ) : bySubject.map((s) => (
-          <div key={s.subject} className="flex items-center gap-2.5 px-3 py-2 rounded-lg"
-            style={{ background: 'rgba(124,77,255,0.08)', border: '1px solid rgba(26,40,69,0.55)' }}>
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-violet-400" />
-            <span className="text-[11px] flex-1 text-slate-300">{s.subject}</span>
-            <span className="text-[10px] text-slate-500">{s.minutes} min</span>
-            <Ico n="check" cls="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+            <Ico n="target" cls="w-4 h-4 text-cyan-300" />
           </div>
-        ))}
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Focus</div>
+        </div>
+        <button onClick={onViewPlan} className="text-[11px] px-3 py-1.5 rounded-lg border text-slate-300 transition-colors hover:text-cyan-300 hover:border-cyan-500/40 flex-shrink-0"
+          style={{ borderColor: 'rgba(56,132,255,0.3)', background: 'rgba(41,98,255,0.06)' }}>
+          View Plan
+        </button>
       </div>
-      <button onClick={onGoFocus} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
-        style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #19B5E6 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
-        <Ico n="lock" cls="w-4 h-4" />Start Focus Lock
+
+      <div className="flex items-center gap-6 flex-1">
+        <div className="relative flex-shrink-0" style={{ width: 150, height: 150 }}>
+          <svg width="150" height="150" viewBox="0 0 150 150">
+            <defs>
+              <linearGradient id="tfGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#2979FF" /><stop offset="100%" stopColor="#22D3EE" />
+              </linearGradient>
+              <filter id="tfGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+            </defs>
+            <circle cx="75" cy="75" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+            <circle cx="75" cy="75" r={r} fill="none" stroke="url(#tfGrad)" strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={`${circ} ${circ}`} strokeDashoffset={offset} filter="url(#tfGlow)"
+              transform="rotate(-90 75 75)" />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-xl font-bold text-slate-100">{fmt(completedMinutes)}</div>
+            <div className="text-[11px] text-slate-500">/ {fmt(plannedMinutes)}</div>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-3 min-w-0">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1.5 text-[12px] text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />Completed</span>
+              <span className="text-[12px] text-slate-300">{fmt(completedMinutes)}</span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full" style={{ width: `${completedPct}%`, background: 'linear-gradient(90deg,#19D3A2,#22D3EE)' }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1.5 text-[12px] text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-slate-500 flex-shrink-0" />Remaining</span>
+              <span className="text-[12px] text-slate-300">{fmt(remainingMinutes)}</span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full" style={{ width: `${remainingPct}%`, background: 'rgba(148,163,184,0.4)' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {activeTask ? (
+        <>
+          <div className="mt-4 flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+            {(() => {
+              const { emoji, color } = subjectVisual(activeTask.subject)
+              return <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: `${color}1A`, border: `1px solid ${color}44` }}>{emoji}</div>
+            })()}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-slate-200 truncate">{activeTask.subject}</div>
+              <div className="text-[11px] text-slate-500">{activeTask.mode === 'pomodoro' ? 'Pomodoro · 25/5' : 'Regular session'}</div>
+            </div>
+            <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
+          </div>
+          <button onClick={onContinueFocus} className="mt-3 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            <Ico n="play" cls="w-4 h-4" />Continue Focus
+          </button>
+        </>
+      ) : (
+        <button onClick={onStartFirst ?? onViewPlan} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
+          style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+          <Ico n="play" cls="w-4 h-4" />Start Focus
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Live Study Rooms + Motivational (Home preview cards) ────────────────────
+// Reuses the same room data StudyRoomsPage/RoomInteriorPage already work
+// from (ROOM_DATA + getRoomBots' deterministic per-room "studying now" bots -
+// the same computation RoomInteriorPage's own studyingCount uses) rather than
+// inventing separate numbers for this preview. No backend-persisted rooms
+// table exists yet in this codebase (Study Rooms is still local/mock data,
+// same as Schedules/Focus Lock's plan), so this is the actual current source
+// of truth for "live rooms" - not a hardcoded example list.
+function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
+  onEnterRoom: (room: RoomData) => void
+  onViewAll: () => void
+}) {
+  const publicRooms = ROOM_DATA.filter(r => r.isPublic)
+  const withLive = publicRooms.map(room => ({ room, live: getRoomBots(room).filter(b => b.isStudying).length }))
+  const totalStudying = withLive.reduce((sum, x) => sum + x.live, 0)
+  const topRooms = [...withLive].sort((a, b) => b.live - a.live).slice(0, 4)
+
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+            <Ico n="rooms" cls="w-4 h-4 text-cyan-300" />
+          </div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Live Study Rooms</div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <button onClick={onViewAll} className="text-[12px] text-slate-300 hover:text-cyan-300 transition-colors">View All</button>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] text-emerald-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{totalStudying} studying</span>
+          </div>
+        </div>
+      </div>
+
+      {topRooms.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+          <div className="text-3xl mb-2">🌙</div>
+          <div className="text-sm font-semibold text-slate-300 mb-3">No live rooms right now</div>
+          <button onClick={onViewAll} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #2979FF, #22D3EE)', boxShadow: '0 0 20px rgba(41,98,255,0.45)' }}>
+            Explore Study Rooms
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2.5 flex-1">
+          {topRooms.map(({ room, live }) => (
+            <div key={room.id} onClick={() => onEnterRoom(room)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[rgba(56,132,255,0.35)]"
+              style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                style={{ background: room.iconBg }}>{room.iconEmoji}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-200 truncate flex items-center gap-1.5">
+                  {room.name}{room.emoji && <span>{room.emoji}</span>}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{room.subject} · {live} / {room.members}</div>
+              </div>
+              <FaceAvatars colors={room.avatarColors} inits={room.avatarInits} />
+              <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 2l4 4-4 4" /></svg>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MotivationalCard({ onKeepGoing }: { onKeepGoing: () => void }) {
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col justify-between"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        minHeight: 260,
+      }}>
+      {/* Abstract night-sky/mountain illustration, blended into the card
+          background rather than a separate image - pure SVG gradients so
+          it never looks like a bolted-on ad banner. */}
+      <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.85 }}>
+        <defs>
+          <radialGradient id="mcMoonGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#22D3EE" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="mcMtnBack" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22315C" /><stop offset="100%" stopColor="#0C1631" />
+          </linearGradient>
+          <linearGradient id="mcMtnFront" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#141E42" /><stop offset="100%" stopColor="#090E20" />
+          </linearGradient>
+        </defs>
+        <circle cx="300" cy="65" r="60" fill="url(#mcMoonGlow)" />
+        <circle cx="300" cy="65" r="15" fill="#E4ECFF" opacity="0.8" />
+        <path d="M170 300 L225 185 L265 235 L305 155 L355 225 L400 185 L400 300 Z" fill="url(#mcMtnBack)" opacity="0.75" />
+        <path d="M110 300 L185 205 L235 255 L295 195 L355 255 L400 235 L400 300 Z" fill="url(#mcMtnFront)" />
+      </svg>
+
+      <div className="relative">
+        <div className="text-xl font-bold text-slate-100 leading-snug" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          Better Focus.<br />Bigger Dreams.
+        </div>
+        <div className="text-[12px] text-slate-400 mt-2">You're closer than you think.</div>
+      </div>
+
+      <button onClick={onKeepGoing}
+        className="relative self-start flex items-center gap-1.5 px-4 py-2 rounded-full text-[12px] font-semibold text-white transition-all hover:opacity-90"
+        style={{ background: 'rgba(41,98,255,0.16)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 16px rgba(41,98,255,0.3)' }}>
+        <Ico n="target" cls="w-3.5 h-3.5 text-cyan-300" />
+        Keep going
+        <Ico n="arrow" cls="w-3.5 h-3.5" />
       </button>
     </div>
   )
@@ -916,7 +1231,8 @@ function formatClock(totalSecs: number, alwaysHours = false): string {
 // ─── Focus Lock Page ──────────────────────────────────────────────────────────
 // Redesigned around per-task (subject + topic) timers instead of one global
 // countdown. Two independent timer "modes" a task can run in:
-//   - Pomodoro: counts DOWN from 25:00.
+//   - Pomodoro: counts DOWN from the user's saved focus length (25:00 until they change it),
+//     then runs their saved break - see the Pomodoro engine below.
 //   - Regular: counts UP from 00:00:00, no limit.
 // Only one task can actually be "live" against the backend at a time
 // (study_sessions enforces a single open row per user - see
@@ -926,13 +1242,17 @@ function formatClock(totalSecs: number, alwaysHours = false): string {
 // navigating away and back) never silently resets someone else's progress.
 const FL_PLAN_KEY = 'wynko_focus_plan_v1'
 type TimerMode = 'pomodoro' | 'regular'
+type PomodoroPhase = 'focus' | 'break'
 interface StudyTask {
   id: string
   subject: string
   topic: string
   mode: TimerMode
-  pomodoroRemaining: number // seconds left, meaningful when mode === 'pomodoro'
+  pomodoroRemaining: number // seconds left in the current Pomodoro phase, meaningful when mode === 'pomodoro'
   regularElapsed: number    // seconds elapsed, meaningful when mode === 'regular'
+  // Both optional so plans saved before Pomodoro was customizable (which have neither) still load.
+  pomodoroPhase?: PomodoroPhase // 'focus' unless the task is currently in its break
+  pomodoroTotal?: number        // full length (s) of the phase now counting - a session finishes at the length it started with
 }
 interface FocusPlanSnapshot {
   tasks: StudyTask[]
@@ -940,7 +1260,71 @@ interface FocusPlanSnapshot {
   running: boolean
   runningStartedAtMs: number | null // Date.now() snapshot for offline/away catch-up
 }
-const POMODORO_DEFAULT_SECS = 25 * 60
+
+// ─── Pomodoro engine (pure) ─────────────────────────────────────────────────────
+// Focus Lock and Study Rooms both run their Pomodoro tasks through these, so the
+// user's saved focus/break/repeat/auto-start settings mean the same thing in both.
+//
+//   focus ──(reaches 0)──▶ break ──(reaches 0)──▶ fresh focus
+//     • Auto-start breaks OFF: the clock stops when focus ends, with the break ready to start.
+//     • Repeat OFF:            the clock stops when the break ends, with a fresh focus ready to start.
+//
+// Plans saved before customizable Pomodoro always used 25:00.
+const LEGACY_POMODORO_SECS = 25 * 60
+const pomoPhase = (t: StudyTask): PomodoroPhase => t.pomodoroPhase ?? 'focus'
+const pomoTotal = (t: StudyTask): number => t.pomodoroTotal ?? LEGACY_POMODORO_SECS
+const focusSecsOf = (s: PomodoroSettings) => s.focusMinutes * 60
+const breakSecsOf = (s: PomodoroSettings) => s.breakMinutes * 60
+
+// Fields of a brand-new (or reset) Pomodoro session, at the user's saved focus length.
+function pomodoroFields(s: PomodoroSettings) {
+  return { pomodoroPhase: 'focus' as const, pomodoroRemaining: focusSecsOf(s), pomodoroTotal: focusSecsOf(s) }
+}
+
+// Untouched Pomodoro sessions (nothing counted yet) always follow the saved settings, so
+// changing 25/5 to 50/10 makes every waiting task read 50:00 straight away. A session
+// that's already under way (running or paused mid-way) keeps the length it started with -
+// nobody's progress is rewritten - and the new lengths apply from its next phase.
+function applyPomodoroSettings(tasks: StudyTask[], s: PomodoroSettings, liveTaskId: string | null): StudyTask[] {
+  let changed = false
+  const next = tasks.map(t => {
+    if (t.mode !== 'pomodoro' || t.id === liveTaskId) return t
+    if (t.pomodoroRemaining !== pomoTotal(t)) return t
+    const total = pomoPhase(t) === 'break' ? breakSecsOf(s) : focusSecsOf(s)
+    if (t.pomodoroRemaining === total && t.pomodoroTotal === total) return t
+    changed = true
+    return { ...t, pomodoroRemaining: total, pomodoroTotal: total }
+  })
+  return changed ? next : tasks
+}
+
+// Advances a Pomodoro task by `delta` real seconds, crossing focus/break boundaries as needed
+// (so a long catch-up after being away lands on the right phase, not on a frozen 00:00).
+//   running - whether the clock should keep going after this step
+//   studied - seconds of that step that were focus time (breaks aren't study time)
+function tickPomodoro(task: StudyTask, delta: number, s: PomodoroSettings): { task: StudyTask; running: boolean; studied: number } {
+  let t = task
+  let left = Math.max(0, Math.floor(delta))
+  let running = true
+  let studied = 0
+  for (let guard = 0; left > 0 && guard < 20000; guard++) {
+    const phase = pomoPhase(t)
+    const step = Math.min(left, Math.max(0, t.pomodoroRemaining))
+    left -= step
+    if (phase === 'focus') studied += step
+    const remaining = Math.max(0, t.pomodoroRemaining - step)
+    t = { ...t, pomodoroRemaining: remaining }
+    if (remaining > 0) break
+    if (phase === 'focus') {
+      t = { ...t, pomodoroPhase: 'break', pomodoroRemaining: breakSecsOf(s), pomodoroTotal: breakSecsOf(s) }
+      if (!s.autoStartBreaks) { running = false; break }
+    } else {
+      t = { ...t, ...pomodoroFields(s) }
+      if (!s.repeat) { running = false; break }
+    }
+  }
+  return { task: t, running, studied }
+}
 
 function loadFocusPlanSnapshot(): FocusPlanSnapshot | null {
   try {
@@ -963,14 +1347,14 @@ function makeTaskId(): string {
 // same de-dup key (subject::topic) the old TasksPanel used — rather than
 // ever hard-coding example subjects. Starts empty if there's genuinely
 // nothing yet; the empty state below invites adding a task instead.
-function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number): StudyTask[] {
+function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number, pomo: PomodoroSettings): StudyTask[] {
   const tasks: StudyTask[] = []
   const seen = new Set<string>()
   const addTask = (subject: string, topic: string) => {
     const key = `${subject}::${topic}`
     if (seen.has(key)) return
     seen.add(key)
-    tasks.push({ id: makeTaskId(), subject, topic, mode: 'pomodoro', pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 })
+    tasks.push({ id: makeTaskId(), subject, topic, mode: 'pomodoro', ...pomodoroFields(pomo), regularElapsed: 0 })
   }
   units.forEach(u => u.topics.forEach(t => addTask(u.subject, t)))
   const todaySchedule = schedule[todayIdx] || []
@@ -1005,6 +1389,7 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
   const { emoji, color } = subjectVisual(task.subject)
   const [menuOpen, setMenuOpen] = useState(false)
   const displaySecs = task.mode === 'pomodoro' ? task.pomodoroRemaining : task.regularElapsed
+  const onBreak = task.mode === 'pomodoro' && pomoPhase(task) === 'break'
   const timeStr = formatClock(displaySecs, task.mode === 'regular')
   const isLiveRunning = isActive && running
 
@@ -1024,8 +1409,8 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
 
       <div className="text-right flex-shrink-0 hidden sm:block" style={{ width: 96 }}>
         <div className="text-[11px] font-medium flex items-center justify-end gap-1"
-          style={{ color: task.mode === 'pomodoro' ? '#F87171' : '#38BDF8' }}>
-          {task.mode === 'pomodoro' ? <>🍅 Pomodoro</> : <><Ico n="clock" cls="w-3 h-3" /> Regular</>}
+          style={{ color: onBreak ? '#34D399' : task.mode === 'pomodoro' ? '#F87171' : '#38BDF8' }}>
+          {onBreak ? <>☕ Break</> : task.mode === 'pomodoro' ? <>🍅 Pomodoro</> : <><Ico n="clock" cls="w-3 h-3" /> Regular</>}
         </div>
         <div className="text-[12px] font-mono mt-0.5" style={{ color: isLiveRunning ? '#E2E8F0' : '#8B9AC7' }}>{timeStr}</div>
       </div>
@@ -1088,7 +1473,7 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
 
         <label className="block text-[11px] text-slate-500 mb-1.5">Subject</label>
         <input autoFocus value={subject} onChange={e => setSubject(e.target.value)}
-          placeholder="e.g. Fundamental Nursing"
+          placeholder="e.g. Physics"
           list="focus-subject-suggestions"
           className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
           style={{ borderColor: '#1A2845' }} />
@@ -1099,7 +1484,7 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
         <label className="block text-[11px] text-slate-500 mb-1.5">Topic</label>
         <input value={topic} onChange={e => setTopic(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
-          placeholder="e.g. Infection Control"
+          placeholder="e.g. Electricity"
           className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
           style={{ borderColor: '#1A2845' }} />
 
@@ -1126,6 +1511,183 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
             className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40"
             style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
             Add Task
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Customize Pomodoro modal ───────────────────────────────────────────────────
+// Opened by clicking the "Pomodoro Timer" card in Focus Lock. Saving stores the values as
+// the user's default (see _shared/pomodoroSettings.ts) - it is not a one-off for this session.
+const FOCUS_PRESETS = [15, 25, 30, 45, 50, 60]
+const BREAK_PRESETS = [5, 10, 15]
+
+function parseMinutes(text: string, lim: { min: number; max: number }): number | null {
+  if (!/^\d{1,3}$/.test(text.trim())) return null
+  const n = Number(text)
+  return n >= lim.min && n <= lim.max ? n : null
+}
+
+function PomodoroToggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}
+      className="relative flex-shrink-0 rounded-full transition-colors"
+      style={{
+        width: 44, height: 24,
+        background: checked ? 'linear-gradient(135deg,#3B82F6,#7C4DFF)' : '#1A2845',
+        border: `1px solid ${checked ? 'rgba(124,77,255,0.7)' : '#2A3A66'}`,
+        boxShadow: checked ? '0 0 14px rgba(99,102,241,0.55)' : 'none',
+      }}>
+      <span className="absolute rounded-full bg-white transition-all" style={{ width: 18, height: 18, top: 2, left: checked ? 22 : 2 }} />
+    </button>
+  )
+}
+
+function PomodoroDurationCard({ icon, title, text, onText, lim, step, presets, onEnter }: {
+  icon: React.ReactNode; title: string; text: string; onText: (t: string) => void
+  lim: { min: number; max: number }; step: number; presets: number[]; onEnter: () => void
+}) {
+  const value = parseMinutes(text, lim)
+  const bump = (d: number) => {
+    const cur = value ?? (Number(text.replace(/\D/g, '')) || lim.min)
+    onText(String(Math.min(lim.max, Math.max(lim.min, cur + d))))
+  }
+  const stepBtn = 'w-10 h-10 rounded-full flex items-center justify-center text-lg text-slate-100 border transition-all hover:opacity-90 active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed flex-shrink-0'
+  const stepStyle = { background: 'rgba(59,91,255,0.22)', borderColor: 'rgba(96,130,255,0.55)', boxShadow: '0 0 12px rgba(59,91,255,0.25)' }
+  return (
+    <div className="rounded-2xl border p-4" style={{ background: 'rgba(26,40,69,0.35)', borderColor: '#1E3060' }}>
+      <div className="flex items-center gap-2 mb-3 text-slate-200">
+        <span className="text-sky-300 flex items-center">{icon}</span>
+        <span className="text-[13px] font-semibold">{title}</span>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <button type="button" aria-label={`Decrease ${title}`} onClick={() => bump(-step)}
+          disabled={value !== null && value <= lim.min} className={stepBtn} style={stepStyle}>−</button>
+        <div className="flex-1 min-w-0 h-11 rounded-xl border flex items-center justify-center gap-1.5 transition-colors"
+          style={{ background: 'rgba(6,13,26,0.6)', borderColor: value === null ? '#F87171' : '#1E3060' }}>
+          <input value={text} inputMode="numeric" maxLength={3} aria-label={title}
+            onChange={e => onText(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={e => { if (e.key === 'Enter') onEnter() }}
+            className="w-12 bg-transparent outline-none text-center text-xl font-semibold text-white tabular-nums" />
+          <span className="text-sm text-slate-400">min</span>
+        </div>
+        <button type="button" aria-label={`Increase ${title}`} onClick={() => bump(step)}
+          disabled={value !== null && value >= lim.max} className={stepBtn} style={stepStyle}>+</button>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mt-3.5">
+        {presets.map(p => {
+          const on = value === p
+          return (
+            <button key={p} type="button" onClick={() => onText(String(p))}
+              className="min-w-[38px] h-8 px-2.5 rounded-full border text-[12px] font-medium transition-all"
+              style={{
+                background: on ? 'rgba(59,91,255,0.28)' : 'rgba(6,13,26,0.5)',
+                borderColor: on ? '#6082FF' : '#1E3060',
+                color: on ? '#FFFFFF' : '#8B9AC7',
+                boxShadow: on ? '0 0 14px rgba(96,130,255,0.55)' : 'none',
+              }}>{p}</button>
+          )
+        })}
+      </div>
+      <div className="mt-2.5 text-[10px] h-3 text-right" style={{ color: value === null ? '#F87171' : '#5B6A8F' }}>
+        {value === null ? `Enter ${lim.min}–${lim.max} min` : 'min'}
+      </div>
+    </div>
+  )
+}
+
+function PomodoroSettingsModal({ initial, inProgress, onClose, onSave }: {
+  initial: PomodoroSettings; inProgress: boolean; onClose: () => void; onSave: (s: PomodoroSettingsInput) => void
+}) {
+  const [focusText, setFocusText] = useState(String(initial.focusMinutes))
+  const [breakText, setBreakText] = useState(String(initial.breakMinutes))
+  const [repeat, setRepeat] = useState(initial.repeat)
+  const [autoStart, setAutoStart] = useState(initial.autoStartBreaks)
+  const focusMin = parseMinutes(focusText, POMODORO_LIMITS.focus)
+  const breakMin = parseMinutes(breakText, POMODORO_LIMITS.break)
+  const canSave = focusMin !== null && breakMin !== null
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function submit() {
+    if (focusMin === null || breakMin === null) return
+    onSave({ focusMinutes: focusMin, breakMinutes: breakMin, repeat, autoStartBreaks: autoStart })
+  }
+
+  const toggleCard = 'rounded-2xl border px-4 py-3.5 flex items-center gap-3'
+  const toggleStyle = { background: 'rgba(26,40,69,0.35)', borderColor: '#1E3060' }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[rgba(0,0,0,0.75)]"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="pomo-modal-title"
+        className="w-[660px] max-w-full max-h-[94vh] overflow-y-auto rounded-2xl border p-6"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="flex items-center justify-between mb-5">
+          <div id="pomo-modal-title" className="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span className="text-2xl leading-none">🍅</span>Customize Pomodoro
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors text-xl leading-none">×</button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <PomodoroDurationCard title="Focus Duration" text={focusText} onText={setFocusText} lim={POMODORO_LIMITS.focus}
+            step={5} presets={FOCUS_PRESETS} onEnter={submit} icon={<Ico n="target" cls="w-[18px] h-[18px]" />} />
+          <PomodoroDurationCard title="Break Duration" text={breakText} onText={setBreakText} lim={POMODORO_LIMITS.break}
+            step={1} presets={BREAK_PRESETS} onEnter={submit}
+            icon={<svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h12v5a4 4 0 01-4 4H8a4 4 0 01-4-4V9zM16 10h1.5a2.5 2.5 0 010 5H16M7 3.5v2M10 3.5v2M13 3.5v2" /></svg>} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div className={toggleCard} style={toggleStyle}>
+            <span className="text-sky-300 flex-shrink-0"><Ico n="clock" cls="w-[18px] h-[18px]" /></span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-slate-100">Auto-start breaks</div>
+              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Automatically start break after focus ends</div>
+            </div>
+            <PomodoroToggle checked={autoStart} onChange={setAutoStart} label="Auto-start breaks" />
+          </div>
+          <div className={toggleCard} style={toggleStyle}>
+            <span className="text-sky-300 flex-shrink-0">
+              <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12a8 8 0 0113.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 01-13.7 5.6L4 16M4 20v-4h4" /></svg>
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-slate-100">Repeat</div>
+              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Keep repeating for next session</div>
+            </div>
+            <PomodoroToggle checked={repeat} onChange={setRepeat} label="Repeat" />
+          </div>
+        </div>
+
+        <div className="mt-5 py-3 border-y flex items-center justify-center gap-2 text-[13px] text-slate-300" style={{ borderColor: 'rgba(30,48,96,0.8)' }}>
+          <span className="text-sky-300"><Ico n="zap" cls="w-4 h-4" /></span>
+          <span data-testid="pomo-summary">{focusMin ?? '–'} min focus · {breakMin ?? '–'} min break</span>
+        </div>
+
+        {inProgress && (
+          <div className="mt-3 text-[11px] text-slate-500 text-center leading-relaxed">
+            A Pomodoro already under way finishes at the length it started with — these apply to every new one.
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-5 justify-end">
+          <button type="button" onClick={onClose}
+            className="min-w-[110px] px-5 py-2.5 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors"
+            style={{ borderColor: '#1E3060', background: 'rgba(26,40,69,0.5)' }}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={!canSave}
+            className="min-w-[150px] px-6 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #3B5BFF, #7C4DFF)', boxShadow: '0 0 24px rgba(99,102,241,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
+            Save Settings
           </button>
         </div>
       </div>
@@ -1188,30 +1750,45 @@ Add a quick note for this session."
   )
 }
 
-function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void }) {
+  // The user's saved Pomodoro configuration (25/5/Repeat until they change it). Same store the
+  // Study Room reads, so a change here is the new default everywhere.
+  const { settings: pomo, save: savePomo } = usePomodoroSettings()
   const [snapshot] = useState(loadFocusPlanSnapshot)
-  const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx))
+  const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx, getPomodoroSettings()))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(snapshot?.activeTaskId ?? null)
   const [running, setRunning] = useState<boolean>(!!snapshot?.running)
   const [selectedMode, setSelectedMode] = useState<TimerMode>('pomodoro')
   const [fullscreen, setFullscreen] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
+  const [showPomodoroSettings, setShowPomodoroSettings] = useState(false)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const fullscreenRef = useRef<HTMLDivElement | null>(null)
+  // Latest values for the 1s interval below, which is created once per run and would otherwise see stale ones.
+  const tasksRef = useRef(tasks)
+  tasksRef.current = tasks
+  const pomoRef = useRef(pomo)
+  pomoRef.current = pomo
 
   // True browser Fullscreen API when available (desktop + most mobile
   // browsers), with the always-on CSS overlay below as the visual
   // fallback for browsers that refuse/lack it (notably iOS Safari for
   // non-<video> elements) - either way the distraction-free overlay
   // renders, so "fullscreen" always works even without OS-level support.
-  async function enterFullscreen() {
+  //
+  // The native request targets <html>, NOT the overlay element: setFullscreen(true)
+  // only *schedules* the overlay's render, so an overlay ref is still null at
+  // this point and the request silently never fired (no native fullscreen =>
+  // nothing for Esc to exit). <html> always exists, and the request must run
+  // synchronously inside the click to keep the browser's user-gesture grant.
+  function enterFullscreen() {
     setFullscreen(true)
     try {
-      const el = fullscreenRef.current as any
-      if (el?.requestFullscreen) await el.requestFullscreen()
-      else if (el?.webkitRequestFullscreen) await el.webkitRequestFullscreen()
-    } catch { /* CSS overlay above already covers this - native API is a bonus, not a requirement */ }
+      const el = document.documentElement as any
+      const req = el.requestFullscreen || el.webkitRequestFullscreen
+      const res = req ? req.call(el) : null
+      if (res && typeof res.catch === 'function') res.catch(() => { /* denied - CSS overlay still covers it */ })
+    } catch { /* CSS overlay already covers this - native API is a bonus, not a requirement */ }
   }
   async function exitFullscreen() {
     setFullscreen(false)
@@ -1221,6 +1798,19 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
       else if (doc.webkitFullscreenElement && doc.webkitExitFullscreen) await doc.webkitExitFullscreen()
     } catch { /* nothing to exit, or already exited (e.g. via Esc) */ }
   }
+  // Esc closes the overlay even when native fullscreen isn't active (iOS
+  // Safari, a denied request, embedded webviews) - in real fullscreen the
+  // browser consumes Esc itself and the fullscreenchange listener below
+  // takes over, so this is harmless there.
+  useEffect(() => {
+    if (!fullscreen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') exitFullscreen()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [fullscreen])
+
   // Keeps our state in sync if the browser's own fullscreen is dismissed
   // some other way (Esc key, swipe-down, OS gesture) so the overlay
   // doesn't stay stuck open behind a non-fullscreen window.
@@ -1244,6 +1834,22 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
     stop: stopRemoteSession,
   } = useFocusSession()
 
+  // Side effects of a Pomodoro tick, kept out of the state updater. Reassigned every render so it
+  // always sees the current start/stop closures even though the 1s interval is created only once.
+  const afterPomodoroTickRef = useRef<(before: StudyTask, r: { task: StudyTask; running: boolean }) => void>(() => {})
+  afterPomodoroTickRef.current = (before, r) => {
+    if (!r.running) {
+      // Waiting on the user (Auto-start breaks off / Repeat off): stop the clock and close the study session.
+      setRunning(false)
+      stopRemoteSession()
+      return
+    }
+    const from = pomoPhase(before), to = pomoPhase(r.task)
+    if (from === to) return
+    if (to === 'break') stopRemoteSession()          // focus finished: closes + logs the session - a break isn't study time
+    else void startRemoteSession(before.subject)     // Repeat: the next focus round is study time again
+  }
+
   // One-time catch-up: if the plan was left running and the tab/app was
   // closed or backgrounded, fast-forward the active task by real elapsed
   // time instead of silently losing (or freezing) its progress.
@@ -1253,13 +1859,27 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
     if (!snapshot?.running || !snapshot.activeTaskId || !snapshot.runningStartedAtMs) return
     const elapsed = Math.max(0, Math.floor((Date.now() - snapshot.runningStartedAtMs) / 1000))
     if (elapsed <= 0) return
+    const away = tasksRef.current.find(t => t.id === snapshot.activeTaskId)
+    if (away && away.mode === 'pomodoro') {
+      // Through the engine: time spent away can cross focus/break boundaries.
+      const r = tickPomodoro(away, elapsed, pomoRef.current)
+      setTasks(prev => prev.map(t => t.id === away.id ? r.task : t))
+      if (!r.running) setRunning(false)
+      return
+    }
     setTasks(prev => prev.map(t => {
       if (t.id !== snapshot.activeTaskId) return t
-      if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - elapsed) }
       return { ...t, regularElapsed: t.regularElapsed + elapsed }
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Untouched Pomodoro sessions follow the saved settings (see applyPomodoroSettings): covers the
+  // user saving new values, and saved values arriving from the backend after the first render.
+  useEffect(() => {
+    setTasks(prev => applyPomodoroSettings(prev, pomo, running ? activeTaskId : null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomo.focusMinutes, pomo.breakMinutes])
 
   // Keep the segmented mode tab in sync with whichever task is actually
   // active, so it always reflects reality rather than a stale click.
@@ -1274,9 +1894,16 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   useEffect(() => {
     if (running && activeTaskId) {
       tickRef.current = setInterval(() => {
+        const cur = tasksRef.current.find(t => t.id === activeTaskId)
+        if (cur && cur.mode === 'pomodoro') {
+          // Pomodoro goes through the shared engine, so focus -> break -> next focus follows the saved settings.
+          setTasks(prev => prev.map(t => t.id === cur.id ? tickPomodoro(t, 1, pomoRef.current).task : t))
+          afterPomodoroTickRef.current(cur, tickPomodoro(cur, 1, pomoRef.current))
+          return
+        }
+        // Regular timer: unchanged - count up one second.
         setTasks(prev => prev.map(t => {
-          if (t.id !== activeTaskId) return t
-          if (t.mode === 'pomodoro') return { ...t, pomodoroRemaining: Math.max(0, t.pomodoroRemaining - 1) }
+          if (t.id !== activeTaskId || t.mode !== 'regular') return t
           return { ...t, regularElapsed: t.regularElapsed + 1 }
         }))
       }, 1000)
@@ -1315,9 +1942,17 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
       // task means stopping (and logging) whatever was running before.
       await stopRemoteSession()
     }
+    // A Pomodoro left sitting at 00:00 (from before breaks existed) starts over fresh.
+    if (task.mode === 'pomodoro' && task.pomodoroRemaining <= 0) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...pomodoroFields(pomo) } : t))
+    }
     setActiveTaskId(taskId)
     setRunning(true)
-    try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
+    // A break isn't study time: only focus phases (and Regular) open a backend study session.
+    const startingBreak = task.mode === 'pomodoro' && pomoPhase(task) === 'break'
+    if (!startingBreak) {
+      try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
+    }
   }
 
   async function handlePauseTask(taskId: string) {
@@ -1336,10 +1971,35 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   }
 
   function handleAddTask(subject: string, topic: string, mode: TimerMode) {
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, pomodoroRemaining: POMODORO_DEFAULT_SECS, regularElapsed: 0 }
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, ...pomodoroFields(pomo), regularElapsed: 0 }
     setTasks(prev => [task, ...prev])
     setShowAddTask(false)
   }
+
+  // Lets Home's "Today's Study Plan" ▶ button jump straight into a running
+  // session for a specific task, instead of just landing on this page and
+  // making the person press play again. Runs once per incoming request;
+  // onAutoStartHandled clears it so it doesn't refire on later renders.
+  useEffect(() => {
+    if (!autoStartTask) return
+    const key = `${autoStartTask.subject}::${autoStartTask.topic}`
+    const existing = tasks.find(t => `${t.subject}::${t.topic}` === key)
+    if (existing) {
+      handleStartTask(existing.id)
+    } else {
+      // Not in the plan yet - add it, then start it directly (rather than
+      // via handleStartTask, whose `tasks` lookup would still see the
+      // pre-update array in this same tick and silently no-op).
+      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: 'pomodoro', ...pomodoroFields(pomo), regularElapsed: 0 }
+      setTasks(prev => [task, ...prev])
+      if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
+      setActiveTaskId(task.id)
+      setRunning(true)
+      startRemoteSession(task.subject).catch(() => { /* hook already falls back to a local-only clock */ })
+    }
+    onAutoStartHandled?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartTask])
 
   // ── Main circle: mirrors the active task while one is running/paused;
   // otherwise previews whichever mode tab is selected. ──
@@ -1348,7 +2008,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
   if (activeTask) {
     if (activeTask.mode === 'pomodoro') {
       circleRemaining = activeTask.pomodoroRemaining
-      circleTotal = POMODORO_DEFAULT_SECS
+      circleTotal = pomoTotal(activeTask)
       circleTimeStr = formatClock(activeTask.pomodoroRemaining)
     } else {
       // No fixed max for Regular - fill the ring once per hour purely as
@@ -1359,20 +2019,24 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
       circleTimeStr = formatClock(activeTask.regularElapsed, true)
     }
   } else if (selectedMode === 'pomodoro') {
-    circleRemaining = POMODORO_DEFAULT_SECS
-    circleTotal = POMODORO_DEFAULT_SECS
-    circleTimeStr = formatClock(POMODORO_DEFAULT_SECS)
+    circleRemaining = focusSecsOf(pomo)
+    circleTotal = focusSecsOf(pomo)
+    circleTimeStr = formatClock(focusSecsOf(pomo))
   } else {
     circleRemaining = 0
     circleTotal = 0 // TimerCircle treats total<=0 as "no progress yet" - an empty ring preview
     circleTimeStr = '00:00:00'
   }
-  const circleCaption = activeTask ? (activeTask.mode === 'pomodoro' ? 'Study Time' : 'Studying') : (selectedMode === 'pomodoro' ? 'Focus • 25/5 • Repeat' : 'Count Up • No Limit')
+  const activeOnBreak = !!activeTask && activeTask.mode === 'pomodoro' && pomoPhase(activeTask) === 'break'
+  const waitingToStartBreak = activeOnBreak && !running && activeTask!.pomodoroRemaining === pomoTotal(activeTask!)
+  const circleCaption = activeTask
+    ? (activeTask.mode === 'pomodoro' ? (activeOnBreak ? 'Break Time' : 'Study Time') : 'Studying')
+    : (selectedMode === 'pomodoro' ? pomodoroSummaryLabel(pomo) : 'Count Up • No Limit')
 
   const headerStatus = sessionLoading
     ? 'Syncing…'
     : activeTask
-      ? (running ? `● ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')
+      ? (running ? `${activeOnBreak ? '☕ Break' : '●'} ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')
       : 'Smarter focus. Bigger dreams.'
 
   const TimerModeIcon = ({ mode }: { mode: TimerMode }) => mode === 'pomodoro'
@@ -1387,11 +2051,14 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
           topic, and an icon-only exit control. Clicking/tapping the timer
           itself toggles pause/resume - no extra button chrome on top. */}
       {fullscreen && (
-        <div ref={fullscreenRef} className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
           <MountainBackdrop />
 
-          <button onClick={exitFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen"
-            className="absolute top-6 right-6 z-10 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
+          {/* z-20 (not z-10): the content layer below is `relative z-10 h-full`, i.e.
+              it covers the whole overlay and, with an equal z-index, paints OVER this
+              button because it comes later in the DOM - swallowing every click. */}
+          <button onClick={exitFullscreen} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen"
+            className="absolute top-6 right-6 z-20 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
             <Ico n="compress" cls="w-5 h-5" />
           </button>
 
@@ -1439,8 +2106,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
 
             {/* ── Timer mode selector ── */}
             <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <ModeTab active={selectedMode === 'pomodoro'} onClick={() => !activeTask && setSelectedMode('pomodoro')}
-                icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub="Focus • 25/5 • Repeat" />
+              {/* Clicking anywhere on this card opens Customize Pomodoro (the circular timer stays Start/Pause). */}
+              <ModeTab active={selectedMode === 'pomodoro'}
+                onClick={() => { if (!activeTask) setSelectedMode('pomodoro'); setShowPomodoroSettings(true) }}
+                icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub={pomodoroSummaryLabel(pomo)} />
               <ModeTab active={selectedMode === 'regular'} onClick={() => !activeTask && setSelectedMode('regular')}
                 icon={<TimerModeIcon mode="regular" />} title="Regular Timer" sub="Count Up • No Limit" />
             </div>
@@ -1461,7 +2130,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
                   style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #6B44EE 100%)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(40,85,204,0.25)' }}>
                   {running
                     ? <><svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Pause</>
-                    : <><Ico n="play" cls="w-4 h-4 flex-shrink-0" />Resume</>}
+                    : <><Ico n="play" cls="w-4 h-4 flex-shrink-0" />{waitingToStartBreak ? 'Start Break' : 'Resume'}</>}
                 </button>
               )}
             </div>
@@ -1509,6 +2178,13 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile }: { uni
       </div>
 
       {showAddTask && <AddTaskModal onClose={() => setShowAddTask(false)} onAdd={handleAddTask} />}
+      {showPomodoroSettings && (
+        <PomodoroSettingsModal
+          initial={pomo}
+          inProgress={tasks.some(t => t.mode === 'pomodoro' && t.pomodoroRemaining > 0 && t.pomodoroRemaining !== pomoTotal(t))}
+          onClose={() => setShowPomodoroSettings(false)}
+          onSave={next => { setShowPomodoroSettings(false); void savePomo(next) }} />
+      )}
     </div>
   )
 }
@@ -2219,53 +2895,421 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   )
 }
 
+// ─── Room focus bar ────────────────────────────────────────────────────────────
+// Pinned timer row at the top of a study room:
+//   [ ring + time ]  [ Start / Pause ]  [ task picker ]  [ ⋮ ]
+// The picker lists the Focus Lock plan (the same persisted snapshot FocusLockPage
+// reads), so a task's subject, topic, timer type and progress are identical in
+// both places. Presentational only - the room owns the timer engine.
+function ModeBadge({ mode }: { mode: TimerMode }) {
+  return mode === 'pomodoro'
+    ? <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#F87171' }}>🍅 Pomodoro</span>
+    : <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#38BDF8' }}><Ico n="clock" cls="w-3 h-3" /> Regular</span>
+}
+
+function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, onToggle, onReset, onOpenFocusLock }: {
+  tasks: StudyTask[]; selectedTask: StudyTask | null; running: boolean; focusSecs: number
+  onSelectTask: (id: string) => void; onToggle: () => void; onReset: () => void; onOpenFocusLock: () => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Outside click / Esc closes whichever popover is open.
+  useEffect(() => {
+    if (!pickerOpen && !menuOpen) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (pickerOpen && pickerRef.current && !pickerRef.current.contains(t)) setPickerOpen(false)
+      if (menuOpen && menuRef.current && !menuRef.current.contains(t)) setMenuOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setPickerOpen(false); setMenuOpen(false) }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [pickerOpen, menuOpen])
+
+  const isPomo = (selectedTask?.mode ?? 'pomodoro') === 'pomodoro'
+  const onBreak = !!selectedTask && isPomo && pomoPhase(selectedTask) === 'break'
+  const total = selectedTask ? pomoTotal(selectedTask) : focusSecs
+  const remaining = selectedTask ? selectedTask.pomodoroRemaining : focusSecs
+  const elapsed = selectedTask ? selectedTask.regularElapsed : 0
+  const finished = !!selectedTask && isPomo && remaining <= 0
+  const hasProgress = isPomo ? remaining < total : elapsed > 0
+  const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
+  // Ring: Pomodoro fills as it counts down; Regular has no end, so it fills once per hour as a heartbeat.
+  const progress = Math.min(1, Math.max(0, isPomo ? 1 - remaining / total : (elapsed % 3600) / 3600))
+  const RING_R = 22
+  const RING_C = 2 * Math.PI * RING_R
+
+  const statusLabel = finished ? 'Completed' : running ? (onBreak ? 'Break' : isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (onBreak ? 'Break' : isPomo ? 'Focus' : 'Count up')
+  const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#38BDF8') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#60A5FA')
+  const btnLabel = running ? 'Pause' : finished ? 'Restart' : hasProgress ? 'Resume' : onBreak ? 'Start Break' : 'Start Focus'
+
+  const q = query.trim().toLowerCase()
+  const shown = q ? tasks.filter(t => `${t.subject} ${t.topic}`.toLowerCase().includes(q)) : tasks
+  const sel = selectedTask ? subjectVisual(selectedTask.subject) : null
+
+  return (
+    <div className="relative rounded-2xl border px-5 py-4"
+      style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.18), 0 0 80px rgba(40,85,204,0.08)' }}>
+      {/* The glow gets its own clipped layer so the card itself can stay overflow-visible for the popovers. */}
+      <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+        <div className="absolute right-0 top-0 bottom-0 w-56 opacity-20"
+          style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
+      </div>
+
+      <div className="relative flex flex-wrap items-center gap-x-5 gap-y-4">
+        {/* 1 · Timer */}
+        <div className="flex items-center gap-3.5 flex-shrink-0">
+          <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
+            <svg viewBox="0 0 52 52" className="absolute inset-0 w-full h-full">
+              <defs>
+                <linearGradient id="roomRingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
+                </linearGradient>
+              </defs>
+              <circle cx="26" cy="26" r={RING_R} fill="rgba(13,17,48,0.9)" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
+              {progress > 0.005 && (
+                <circle cx="26" cy="26" r={RING_R} fill="none" stroke="url(#roomRingGrad)" strokeWidth="3" strokeLinecap="round"
+                  strokeDasharray={`${progress * RING_C} ${RING_C}`} transform="rotate(-90 26 26)" />
+              )}
+            </svg>
+            <svg viewBox="0 0 24 24" className="absolute inset-0 m-auto w-5 h-5 text-slate-200" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="13.5" r="6.5" /><path d="M12 10.5v3.2l2 1.3M10 3h4M12 3v3.5" />
+            </svg>
+          </div>
+          <div>
+            {/* tabular-nums + a fixed min-width keep neighbouring blocks from jittering as the digits change */}
+            <div className="text-[30px] leading-none font-bold text-white tabular-nums whitespace-nowrap"
+              style={{ fontFamily: 'JetBrains Mono, monospace', minWidth: isPomo ? '5ch' : '8ch', textShadow: '0 0 20px #4A3A88' }}>
+              {timeStr}
+            </div>
+            <div className="mt-1.5 text-[11px] font-medium tracking-wide" style={{ color: statusColor }}>{statusLabel}</div>
+          </div>
+        </div>
+
+        {/* 2 · Start / Pause */}
+        <button onClick={onToggle} disabled={!selectedTask}
+          title={selectedTask ? undefined : 'Pick a task first'}
+          className="flex-shrink-0 h-[52px] px-6 rounded-2xl flex items-center justify-center gap-2.5 text-sm font-semibold text-white border transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ minWidth: 168, ...(running
+            ? { background: 'rgba(255,255,255,0.06)', borderColor: '#2A3A66' }
+            : { background: 'linear-gradient(135deg,#4F6BFF 0%,#7C4DFF 100%)', borderColor: 'transparent', boxShadow: '0 0 24px rgba(99,102,241,0.45)' }) }}>
+          {running
+            ? <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+            : <Ico n="play" cls="w-4 h-4 flex-shrink-0" />}
+          {btnLabel}
+        </button>
+
+        {/* 3 · Task picker (Focus Lock plan) */}
+        <div ref={pickerRef} className="relative flex-1 min-w-0" style={{ flexBasis: 280 }}>
+          <button onClick={() => { setQuery(''); setPickerOpen(o => !o); setMenuOpen(false) }}
+            aria-haspopup="listbox" aria-expanded={pickerOpen}
+            className="w-full h-[52px] px-3.5 rounded-2xl border flex items-center gap-3 text-left transition-colors hover:border-violet-400/40"
+            style={{ background: 'rgba(26,40,69,0.55)', borderColor: pickerOpen ? 'rgba(124,77,255,0.55)' : '#1E3060' }}>
+            {selectedTask && sel ? (
+              <>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                  style={{ background: `${sel.color}1A`, border: `1px solid ${sel.color}44` }}>{sel.emoji}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-slate-100 truncate leading-tight">{selectedTask.subject}</span>
+                  <span className="block text-[11px] text-slate-400 truncate leading-tight mt-0.5">{selectedTask.topic}</span>
+                </span>
+                <ModeBadge mode={selectedTask.mode} />
+              </>
+            ) : (
+              <span className="flex-1 text-sm text-slate-400">{tasks.length ? 'Select a task' : 'No tasks yet'}</span>
+            )}
+            <Ico n="chevR" cls={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform ${pickerOpen ? '-rotate-90' : 'rotate-90'}`} />
+          </button>
+
+          {pickerOpen && (
+            <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border p-2.5"
+              style={{ minWidth: 300, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+              <div className="px-2 pt-1 pb-2.5">
+                <div className="text-[11px] font-semibold tracking-wide text-slate-300">Focus Lock tasks</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{running ? 'Switching tasks pauses the current timer' : 'Pick what you’re studying'}</div>
+              </div>
+
+              {tasks.length > 4 && (
+                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search tasks…" autoFocus
+                  className="w-full mb-2.5 px-3 py-2 rounded-xl border bg-transparent text-[13px] text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
+                  style={{ background: 'rgba(26,40,69,0.45)', borderColor: '#1A2845' }} />
+              )}
+
+              <div role="listbox" aria-label="Focus Lock tasks" className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: 280 }}>
+                {tasks.length === 0 && (
+                  <div className="px-3 py-6 text-center">
+                    <div className="text-2xl mb-2">📝</div>
+                    <div className="text-[13px] font-semibold text-slate-200">No tasks in Focus Lock yet</div>
+                    <div className="text-[11px] text-slate-500 mt-1">Add a task there and it will show up here.</div>
+                  </div>
+                )}
+                {tasks.length > 0 && shown.length === 0 && (
+                  <div className="px-3 py-5 text-center text-[12px] text-slate-500">No tasks match “{query.trim()}”</div>
+                )}
+                {shown.map(t => {
+                  const v = subjectVisual(t.subject)
+                  const isSel = t.id === selectedTask?.id
+                  const isLive = isSel && running
+                  const tDone = t.mode === 'pomodoro' && t.pomodoroRemaining <= 0
+                  const tBreak = t.mode === 'pomodoro' && pomoPhase(t) === 'break'
+                  const tTime = t.mode === 'pomodoro'
+                    ? (tDone ? 'Completed' : tBreak ? `Break ${formatClock(t.pomodoroRemaining)}` : `${formatClock(t.pomodoroRemaining)} left`)
+                    : formatClock(t.regularElapsed, true)
+                  return (
+                    <button key={t.id} role="option" aria-selected={isSel}
+                      onClick={() => { setPickerOpen(false); onSelectTask(t.id) }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors hover:bg-white/[0.04]"
+                      style={{ background: isSel ? 'rgba(124,77,255,0.12)' : 'transparent', borderColor: isSel ? 'rgba(124,77,255,0.4)' : 'transparent' }}>
+                      <span className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                        style={{ background: `${v.color}1A`, border: `1px solid ${v.color}44` }}>{v.emoji}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="text-[13px] font-semibold text-slate-100 truncate">{t.subject}</span>
+                          <ModeBadge mode={t.mode} />
+                        </span>
+                        <span className="flex items-center justify-between gap-3 mt-0.5">
+                          <span className="text-[11px] text-slate-500 truncate">{t.topic}</span>
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0" style={{ color: isLive ? '#E2E8F0' : '#8B9AC7' }}>
+                            {isLive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                            {tTime}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="w-4 flex-shrink-0 flex justify-center text-violet-300">
+                        {isSel && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(30,48,96,0.7)' }}>
+                <button onClick={() => { setPickerOpen(false); onOpenFocusLock() }}
+                  className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 transition-colors">
+                  Manage tasks in Focus Lock →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 4 · More */}
+        <div ref={menuRef} className="relative flex-shrink-0">
+          <button onClick={() => { setMenuOpen(o => !o); setPickerOpen(false) }}
+            aria-label="More options" aria-haspopup="menu" aria-expanded={menuOpen}
+            className="w-11 h-11 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 border transition-colors"
+            style={{ background: 'rgba(26,40,69,0.55)', borderColor: '#1E3060' }}>
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
+          </button>
+          {menuOpen && (
+            <div role="menu" className="absolute right-0 top-full mt-2 z-30 rounded-xl border p-1.5 whitespace-nowrap"
+              style={{ minWidth: 188, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+              <button role="menuitem" disabled={!selectedTask || !(hasProgress || onBreak)}
+                onClick={() => { setMenuOpen(false); onReset() }}
+                className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed">
+                Reset timer
+              </button>
+              <button role="menuitem"
+                onClick={() => { setMenuOpen(false); onOpenFocusLock() }}
+                className="w-full text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors">
+                Open Focus Lock
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Loads the Focus Lock plan for a room the same way FocusLockPage does - same persisted
+// snapshot, same seed-from-real-data fallback, same catch-up for time that passed while
+// neither screen was mounted - so both screens always agree on the tasks and their progress.
+function initRoomPlan(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: number) {
+  const pomo = getPomodoroSettings()
+  const snap = loadFocusPlanSnapshot()
+  let tasks = snap?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx, pomo)
+  const activeId = snap?.activeTaskId ?? null
+  let running = !!snap?.running && !!activeId && tasks.some(t => t.id === activeId)
+  if (running && snap?.runningStartedAtMs) {
+    const away = Math.max(0, Math.floor((Date.now() - snap.runningStartedAtMs) / 1000))
+    if (away > 0) {
+      tasks = tasks.map(t => {
+        if (t.id !== activeId) return t
+        if (t.mode === 'pomodoro') {
+          // Through the engine: time spent away can cross focus/break boundaries.
+          const r = tickPomodoro(t, away, pomo)
+          if (!r.running) running = false
+          return r.task
+        }
+        return { ...t, regularElapsed: t.regularElapsed + away }
+      })
+    }
+  }
+  const selectedTaskId = activeId && tasks.some(t => t.id === activeId) ? activeId : (tasks[0]?.id ?? null)
+  return { tasks, selectedTaskId, running }
+}
+
 // ─── Room Interior Page ────────────────────────────────────────────────────────
-function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
+function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, todayIdx }: {
   room: RoomData; onBack: () => void; onNavigate: (id: string) => void; profile?: ProfileInfo
+  units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number
 }) {
   const { avatar: userAvatar } = useContext(UserAvatarCtx)
-  const bots = getRoomBots(room)
-  const [focusRunning, setFocusRunning] = useState(false)
-  const [focusTotal] = useState(25 * 60)
-  const [focusRemaining, setFocusRemaining] = useState(25 * 60)
+  const bots = useMemo(() => getRoomBots(room), [room])
+  const { settings: pomo } = usePomodoroSettings()
+  // The room's timer runs a Focus Lock task: same plan, same progress, same backend session.
+  const [initial] = useState(() => initRoomPlan(units, schedule, todayIdx))
+  const [planTasks, setPlanTasks] = useState<StudyTask[]>(initial.tasks)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initial.selectedTaskId)
+  const [focusRunning, setFocusRunning] = useState<boolean>(initial.running)
   const [activeTab, setActiveTab] = useState<'studying' | 'chat'>('studying')
-  const [subject, setSubject] = useState(room.subject === 'All Subjects' ? 'Physics' : room.subject)
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<ChatMsg[]>(getInitialChat(room))
   const [botTimes, setBotTimes] = useState(bots.map(b => b.studyTimeSecs))
   const [userStudyTime, setUserStudyTime] = useState(0)
   const [kickedIds, setKickedIds] = useState<Set<string>>(new Set())
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const tasksRef = useRef(planTasks)
+  tasksRef.current = planTasks
+  const pomoRef = useRef(pomo)
+  pomoRef.current = pomo
+  const togglingRef = useRef(false)
 
-  useEffect(() => {
-    if (focusRunning) {
-      timerRef.current = setInterval(() => {
-        setFocusRemaining(prev => {
-          if (prev <= 1) { setFocusRunning(false); return 0 }
-          return prev - 1
-        })
-        setUserStudyTime(p => p + 1)
-        setBotTimes(prev => prev.map((t, i) => bots[i]?.isStudying ? t + 1 : t))
-      }, 1000)
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current)
+  const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession()
+
+  // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
+  // reassigned every render so the interval below always calls the current start/stop closures.
+  const afterPomodoroTickRef = useRef<(before: StudyTask, r: { task: StudyTask; running: boolean }) => void>(() => {})
+  afterPomodoroTickRef.current = (before, r) => {
+    if (!r.running) {
+      setFocusRunning(false)
+      stopRemoteSession()
+      return
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [focusRunning])
+    const from = pomoPhase(before), to = pomoPhase(r.task)
+    if (from === to) return
+    if (to === 'break') stopRemoteSession()
+    else void startRemoteSession(before.subject)
+  }
+
+  const selectedTask = planTasks.find(t => t.id === selectedTaskId) ?? null
+
+  // Ticker. Counts real elapsed wall-clock seconds rather than "+1 per interval fire",
+  // so a throttled/backgrounded tab (or a late timer) can't make the clock run slow or
+  // stutter; it polls 4x/sec so the display flips within ~250ms of each second boundary.
+  // A Pomodoro never applies more time than it has left.
+  useEffect(() => {
+    if (!focusRunning || !selectedTaskId) return
+    let last = Date.now()
+    const id = setInterval(() => {
+      const now = Date.now()
+      const delta = Math.floor((now - last) / 1000)
+      if (delta < 1) return
+      last += delta * 1000
+      const t = tasksRef.current.find(x => x.id === selectedTaskId)
+      if (!t) return
+      if (t.mode === 'pomodoro') {
+        // Shared Pomodoro engine: focus -> break -> next focus per the saved settings. Only focus
+        // seconds count as this person's study time in the room.
+        const r = tickPomodoro(t, delta, pomoRef.current)
+        setPlanTasks(prev => prev.map(x => x.id === t.id ? tickPomodoro(x, delta, pomoRef.current).task : x))
+        if (r.studied > 0) setUserStudyTime(p => p + r.studied)
+        setBotTimes(prev => prev.map((bt, i) => bots[i]?.isStudying ? bt + delta : bt))
+        afterPomodoroTickRef.current(t, r)
+        return
+      }
+      setPlanTasks(prev => prev.map(x => x.id === selectedTaskId && x.mode === 'regular' ? { ...x, regularElapsed: x.regularElapsed + delta } : x))
+      setUserStudyTime(p => p + delta)
+      setBotTimes(prev => prev.map((bt, i) => bots[i]?.isStudying ? bt + delta : bt))
+    }, 250)
+    return () => clearInterval(id)
+  }, [focusRunning, selectedTaskId, bots])
+
+  // Safety net for a Pomodoro left sitting at 00:00 by the pre-breaks engine: pause instead of
+  // sitting there "running", and close the backend session. (Current tasks roll into their break.)
+  useEffect(() => {
+    if (!focusRunning || !selectedTask) return
+    if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
+      setFocusRunning(false)
+      stopRemoteSession()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRunning, selectedTask?.id, selectedTask?.mode, selectedTask?.pomodoroRemaining])
+
+  // Untouched Pomodoro sessions follow the saved settings (also when they arrive from the backend late).
+  useEffect(() => {
+    setPlanTasks(prev => applyPomodoroSettings(prev, pomo, focusRunning ? selectedTaskId : null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomo.focusMinutes, pomo.breakMinutes])
+
+  // Write progress back to the shared Focus Lock snapshot so both screens stay in step.
+  // Skipped until something actually changes: an untouched room must not create an empty
+  // snapshot that would stop Focus Lock from seeding its plan from real data.
+  useEffect(() => {
+    const untouched = planTasks === initial.tasks && selectedTaskId === initial.selectedTaskId && focusRunning === initial.running
+    if (untouched) return
+    saveFocusPlanSnapshot({ tasks: planTasks, activeTaskId: selectedTaskId, running: focusRunning, runningStartedAtMs: focusRunning ? Date.now() : null })
+  }, [planTasks, selectedTaskId, focusRunning, initial])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const chatLocked = focusRunning
 
   const f2 = (n: number) => String(n).padStart(2, '0')
-  const fh = Math.floor(focusRemaining / 3600)
-  const fm = Math.floor((focusRemaining % 3600) / 60)
-  const fs = focusRemaining % 60
-  const timeStr = fh > 0 ? `${f2(fh)}:${f2(fm)}:${f2(fs)}` : `${f2(fm)}:${f2(fs)}`
   const fmtStudyTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
     return h > 0 ? `${h}h ${f2(m)}m` : `${m}m`
+  }
+
+  async function toggleFocus() {
+    if (!selectedTask || togglingRef.current) return
+    togglingRef.current = true
+    try {
+      if (focusRunning) {
+        setFocusRunning(false)
+        await stopRemoteSession()
+        return
+      }
+      if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
+        // A Pomodoro left sitting at 00:00 (from before breaks existed) starts over fresh.
+        setPlanTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, ...pomodoroFields(pomo) } : t))
+      }
+      setFocusRunning(true)
+      // A break isn't study time: only focus phases (and Regular) open a backend study session.
+      const startingBreak = selectedTask.mode === 'pomodoro' && pomoPhase(selectedTask) === 'break'
+      if (!startingBreak) {
+        try { await startRemoteSession(selectedTask.subject) } catch { /* hook already falls back to a local-only clock */ }
+      }
+    } finally {
+      togglingRef.current = false
+    }
+  }
+
+  function selectTask(id: string) {
+    if (id === selectedTaskId) return
+    // Progress on the task being left is kept; the new one is ready to Start.
+    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
+    setSelectedTaskId(id)
+  }
+
+  function resetSelectedTask() {
+    if (!selectedTask) return
+    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
+    setPlanTasks(prev => prev.map(t => {
+      if (t.id !== selectedTask.id) return t
+      return t.mode === 'pomodoro' ? { ...t, ...pomodoroFields(pomo) } : { ...t, regularElapsed: 0 }
+    }))
   }
 
   const visibleBots = bots.filter(b => !kickedIds.has(b.id))
@@ -2286,7 +3330,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
   const selfInitials = selfName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'JS'
 
   const userCard: BotParticipant = {
-    id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials, subject,
+    id: 'user', name: `You (${selfName.split(/\s+/)[0]})`, initials: selfInitials,
+    subject: selectedTask ? `${selectedTask.subject} — ${selectedTask.topic}` : (room.subject === 'All Subjects' ? 'Physics' : room.subject),
     studyTimeSecs: userStudyTime,
     // Live only while the clock is actually running; paused (not offline)
     // once time's been banked but the play/pause button has been toggled
@@ -2323,71 +3368,25 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
           <UserAvatar size={32} />
         </header>
 
-        <main className="flex-1 overflow-y-auto flex flex-col">
-          {/* Focus timer card */}
-          <div className="mx-5 mt-4 mb-3 p-5 rounded-2xl border relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
-            {/* Background wave */}
-            <div className="absolute right-0 top-0 bottom-0 w-48 opacity-20 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
-            <div className="flex items-center gap-6 relative">
-              {/* Circular ring + play/pause */}
-              <div className="flex-shrink-0 relative" style={{ width: 88, height: 88 }}>
-                <svg viewBox="0 0 88 88" width="88" height="88">
-                  <defs>
-                    <linearGradient id="rg2" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#60A5FA" />
-                    </linearGradient>
-                    <filter id="rf2"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-                  </defs>
-                  <circle cx="44" cy="44" r="36" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-                  <circle cx="44" cy="44" r="36" fill="none" stroke="url(#rg2)" strokeWidth="6"
-                    strokeLinecap="round" filter="url(#rf2)"
-                    strokeDasharray={`${(1 - focusRemaining / focusTotal) * 226.2} 226.2`}
-                    transform="rotate(-90 44 44)" />
-                  <circle cx="44" cy="44" r="30" fill="rgba(13,17,48,0.9)" />
-                </svg>
-                <button
-                  onClick={() => setFocusRunning(r => !r)}
-                  className="absolute inset-0 flex items-center justify-center rounded-full transition-all hover:scale-105">
-                  {focusRunning ? (
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>
-                  )}
-                </button>
-              </div>
-              {/* Timer info */}
-              <div className="flex-1">
-                <div className="text-[11px] text-slate-400 mb-0.5 font-mono tracking-wide">Focus Time</div>
-                <div className="text-4xl font-bold text-white mb-2" style={{ textShadow: '0 0 20px #4A3A88' }}>
-                  {timeStr}
-                </div>
-                {/* Subject pill */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer hover:border-violet-400/40 transition-colors bg-[rgba(26,40,69,0.55)] border-[#1E3060]"
-                  >
-                  <span className="text-base">🧪</span>
-                  <span className="text-sm font-medium text-slate-200">{subject}</span>
-                  <Ico n="chevR" cls="w-3 h-3 text-slate-400 rotate-90" />
-                </div>
-              </div>
-              {/* Studying count */}
-              <div className="flex-shrink-0 text-right">
-                <div className="text-slate-400 text-sm font-mono">{studyingCount} studying</div>
-                <div className="flex -space-x-1.5 mt-2 justify-end">
-                  {allParticipants.filter(p => p.isStudying).slice(0, 5).map(p => (
-                    <div key={p.id} className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[8px] font-bold text-white border"
-                      style={{ background: p.accentColor, borderColor: '#0B1530', zIndex: 1 }}>
-                      {p.id === 'user' ? <img src={userAvatar} alt="You" className="w-full h-full object-contain" /> : p.initials}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <main className="flex-1 overflow-y-auto flex flex-col px-6">
+          {/* Timer bar: pinned to the top of the scroll area so it can never scroll out of reach.
+              flex-shrink-0 matters - main is a flex column and a shrinkable overflow-hidden child
+              gets squashed to a sliver once the participant grid grows taller than the viewport. */}
+          <div className="sticky top-0 z-20 -mx-6 px-6 pt-5 pb-5 flex-shrink-0 bg-[#060914]">
+            <RoomFocusBar
+              tasks={planTasks}
+              selectedTask={selectedTask}
+              running={focusRunning}
+              focusSecs={focusSecsOf(pomo)}
+              onSelectTask={selectTask}
+              onToggle={toggleFocus}
+              onReset={resetSelectedTask}
+              onOpenFocusLock={() => onNavigate('focus')}
+            />
           </div>
 
           {/* Tabs */}
-          <div className="mx-5 mb-3 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
+          <div className="flex-shrink-0 mb-5 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
             >
             {([['studying', '👥', 'Active Studying'], ['chat', '💬', 'Chat']] as const).map(([id, icon, label]) => (
               <button key={id} onClick={() => setActiveTab(id as 'studying' | 'chat')}
@@ -2403,9 +3402,9 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 px-5 pb-5">
+          <div className="flex-1 pb-6">
             {activeTab === 'studying' && (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-5">
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
                     bot={{ ...p, studyTimeSecs: i === 0 ? userStudyTime : botTimes[i - 1] ?? p.studyTimeSecs }}
@@ -2438,7 +3437,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile }: {
                       Finish your focus time to unlock chat.<br />
                       <span className="text-violet-400">Chat opens during breaks only.</span>
                     </div>
-                    <button onClick={() => { setFocusRunning(false) }}
+                    <button onClick={() => { if (focusRunning) toggleFocus() }}
                       className="mt-2 px-6 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
                       style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                       Pause & Open Chat
@@ -5383,7 +6382,7 @@ export default function DesktopDashboard() {
   // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
   // Library) still runs on the local mock state above until their
   // own module pass.
-  const { authState, reviewItems, recallCurves, profile, todayFocus, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  const { authState, reviewItems, profile, todayFocus, weeklyStudy, totalWeekMinutes, avgWeekMinutes, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
 
   // A real uploaded photo wins over the 6 illustrated presets, same
   // "resync until touched" pattern as Settings' displayName field -
@@ -5395,11 +6394,73 @@ export default function DesktopDashboard() {
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
+  // Home's "Today's Study Plan" / "Today's Focus" cards read the same live
+  // Focus Lock plan FocusLockPage itself persists at FL_PLAN_KEY, so both
+  // pages always agree on what's scheduled/active/completed. Re-synced from
+  // localStorage whenever Home becomes the active page (below) rather than
+  // kept ticking live while sitting on Home - a fresh read plus the same
+  // catch-up math FocusLockPage uses is accurate enough without a second
+  // per-second timer running outside Focus Lock itself.
+  const [focusPlan, setFocusPlan] = useState<{ tasks: StudyTask[]; activeTaskId: string | null }>(() => {
+    const snap = loadFocusPlanSnapshot()
+    if (snap) return { tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId }
+    return { tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx), activeTaskId: null }
+  })
+  const [autoStartTask, setAutoStartTask] = useState<{ subject: string; topic: string } | null>(null)
+  const [showHomeAddTask, setShowHomeAddTask] = useState(false)
+
+  useEffect(() => {
+    if (activeNav !== 'home') return
+    const snap = loadFocusPlanSnapshot()
+    if (snap) setFocusPlan({ tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId })
+    else setFocusPlan({ tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx), activeTaskId: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav])
+
   function handleNav(id: string) {
     setActiveNav(id)
     if (id !== 'studyrooms') setActiveRoom(null)
   }
-  function goFocus() { setActiveNav('focus') }
+  // Opens a specific room's interior directly from Home's Live Study
+  // Rooms preview - same destination StudyRoomsPage's own room cards use.
+  function openRoom(room: RoomData) {
+    setActiveRoom(room)
+    setActiveNav('studyrooms')
+  }
+  // "View All" always lands on the room listing, even if a room was
+  // previously open - handleNav only clears activeRoom for OTHER ids,
+  // since it's what lets returning to 'studyrooms' normally reopen
+  // wherever you left off.
+  function viewAllRooms() {
+    setActiveRoom(null)
+    setActiveNav('studyrooms')
+  }
+  // Optional task = "jump straight into a running session for this
+  // task" (used by Today's Study Plan's ▶ buttons); FocusLockPage's own
+  // auto-start effect consumes autoStartTask once and reports back via
+  // onAutoStartHandled.
+  function goFocus(task?: { subject: string; topic: string }) {
+    if (task) setAutoStartTask(task)
+    setActiveNav('focus')
+  }
+
+  // Adds directly to the live Focus Lock plan (same StudyTask model, same
+  // localStorage key) so it shows up in Today's Study Plan immediately -
+  // reads the freshest snapshot first so it never clobbers a session that's
+  // actually running right now.
+  function handleHomeAddTask(subject: string, topic: string, mode: TimerMode) {
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, ...pomodoroFields(getPomodoroSettings()), regularElapsed: 0 }
+    const existing = loadFocusPlanSnapshot()
+    const nextTasks = [task, ...(existing?.tasks ?? focusPlan.tasks)]
+    saveFocusPlanSnapshot({
+      tasks: nextTasks,
+      activeTaskId: existing?.activeTaskId ?? focusPlan.activeTaskId,
+      running: existing?.running ?? false,
+      runningStartedAtMs: existing?.runningStartedAtMs ?? null,
+    })
+    setFocusPlan(prev => ({ ...prev, tasks: nextTasks }))
+    setShowHomeAddTask(false)
+  }
 
   function handleAddUnit(u: StudyUnit) {
     addUnit(u.subject, u.topics)
@@ -5413,7 +6474,7 @@ export default function DesktopDashboard() {
 
   function renderPage() {
     if (activeNav === 'focus') {
-      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} />
+      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} />
     }
     if (activeNav === 'schedules') {
       return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
@@ -5435,7 +6496,7 @@ export default function DesktopDashboard() {
     }
     if (activeNav === 'studyrooms') {
       if (activeRoom) {
-        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} />
+        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} />
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile} />
     }
@@ -5458,16 +6519,18 @@ export default function DesktopDashboard() {
       )
     }
 
-    const atRisk = reviewItems.filter(i => i.urgency === 'high').length
-    const due = reviewItems.filter(i => i.urgency !== 'low').length
-    const stable = reviewItems.filter(i => i.urgency === 'low').length
-
-    // Today's already-logged entries, shown as removable chips in
-    // QuickAddUnit — derived from real reviewItems (daysAgo === 0)
-    // rather than tracked as separate local state.
-    const todaysUnits: StudyUnit[] = reviewItems
-      .filter(i => i.daysAgo === 0)
-      .map(i => ({ subject: i.subject, exam: '', topics: [i.topic] }))
+    // Today's rows/planned-vs-completed for the two cards below - real
+    // data only: schedule[todayIdx] (today's actual scheduled sessions)
+    // merged with the live Focus Lock plan, see buildTodayPlanRows.
+    // Planned time prefers today's scheduled duration; when nothing's
+    // scheduled yet it falls back to the person's own daily focus goal
+    // (todayFocus.goalMinutes, also real - daily_focus_goal_minutes)
+    // rather than showing an empty/zero ring.
+    const todaySchedule = schedule[todayIdx] || []
+    const todayPlanRows = buildTodayPlanRows(todaySchedule, focusPlan.tasks)
+    const scheduledMinutes = todaySchedule.reduce((sum, s) => sum + Math.max(1, parseTimeRangeMinutes(s.startTime, s.endTime)), 0)
+    const plannedMinutes = scheduledMinutes > 0 ? scheduledMinutes : todayFocus.goalMinutes
+    const activeFocusTask = focusPlan.activeTaskId ? focusPlan.tasks.find(t => t.id === focusPlan.activeTaskId) ?? null : null
 
     return (
       <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
@@ -5475,28 +6538,30 @@ export default function DesktopDashboard() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
-            <TodayHero onGoFocus={goFocus} atRisk={atRisk} due={due} stable={stable} curveData={recallCurves} />
-            <QuickActions onGoFocus={goFocus} onNavigate={handleNav} />
-            <QuickAddUnit added={todaysUnits} onAdd={handleAddUnit} onRemove={handleRemoveUnit} />
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <ReviewQueue items={reviewItems} onDismiss={markAsReviewed} />
-              </div>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <FocusPanel onGoFocus={goFocus} todayFocus={todayFocus} />
-              </div>
+            <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+              <TodayStudyPlanCard
+                rows={todayPlanRows}
+                onStartTask={(subject, topic) => goFocus({ subject, topic })}
+                onAddTask={() => setShowHomeAddTask(true)}
+              />
+              <TodayFocusCard
+                plannedMinutes={plannedMinutes}
+                completedMinutes={todayFocus.doneMinutes}
+                activeTask={activeFocusTask}
+                onContinueFocus={() => goFocus()}
+                onStartFirst={todayPlanRows.length > 0 ? () => goFocus({ subject: todayPlanRows[0].subject, topic: todayPlanRows[0].topic }) : null}
+                onViewPlan={() => handleNav('schedules')}
+              />
             </div>
-            <div className="grid gap-3.5" style={{ gridTemplateColumns: '3fr 2fr' }}>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <StudyRooms onNavigate={handleNav} />
-              </div>
-              <div className="p-4 rounded-2xl border" style={{ background: '#0A0D1E', borderColor: 'rgba(124,58,237,0.2)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                <LibraryPreview onNavigate={handleNav} />
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3.5 items-stretch">
+              <LiveStudyRoomsCard onEnterRoom={openRoom} onViewAll={viewAllRooms} />
+              <MotivationalCard onKeepGoing={() => goFocus()} />
             </div>
             <div className="h-4" />
           </main>
         </div>
+        {showHomeAddTask && <AddTaskModal onClose={() => setShowHomeAddTask(false)} onAdd={handleHomeAddTask} />}
       </div>
     )
   }
