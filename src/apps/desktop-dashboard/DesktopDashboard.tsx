@@ -18,6 +18,7 @@ import {
   usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
   type PomodoroSettings, type PomodoroSettingsInput,
 } from '../_shared/pomodoroSettings'
+import { useTimerMode, getTimerMode, setTimerMode } from '../_shared/timerModeSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 import { Store } from '../../lib/storage'
 import { getCommunityDetail, type CommunityAnnouncement, type CommunityDetail, type CommunityHead, type CommunityScheduleSlot } from './lib/communityData'
@@ -901,11 +902,6 @@ function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
                 <div className="text-sm font-semibold text-slate-200 truncate">{r.subject}</div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[11px] text-slate-500">{r.minutes} min</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                    style={{
-                      color: r.mode === 'pomodoro' ? '#C4AAFF' : '#7DD8F0',
-                      background: r.mode === 'pomodoro' ? 'rgba(124,77,255,0.14)' : 'rgba(34,211,238,0.10)',
-                    }}>{r.mode === 'pomodoro' ? 'Pomodoro' : 'Regular'}</span>
                 </div>
               </div>
               <button onClick={() => onStartTask(r.subject, r.topic)}
@@ -1519,10 +1515,10 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
       </div>
 
       <div className="text-right flex-shrink-0 hidden sm:block" style={{ width: 96 }}>
-        <div className="text-[11px] font-medium flex items-center justify-end gap-1"
-          style={{ color: onBreak ? '#34D399' : task.mode === 'pomodoro' ? '#F87171' : '#38BDF8' }}>
-          {onBreak ? <>☕ Break</> : task.mode === 'pomodoro' ? <>🍅 Pomodoro</> : <><Ico n="clock" cls="w-3 h-3" /> Regular</>}
-        </div>
+        {/* Current phase only (e.g. on a break) - the timer type itself isn't shown on the card. */}
+        {onBreak && (
+          <div className="text-[11px] font-medium flex items-center justify-end gap-1" style={{ color: '#34D399' }}>☕ Break</div>
+        )}
         <div className="text-[12px] font-mono mt-0.5" style={{ color: isLiveRunning ? '#E2E8F0' : '#8B9AC7' }}>{timeStr}</div>
       </div>
 
@@ -1561,15 +1557,17 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove }: {
 }
 
 // ─── Add Task modal ─────────────────────────────────────────────────────────────
-function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject: string, topic: string, mode: TimerMode) => void }) {
+// Timer mode is deliberately NOT asked here - the task starts in whichever
+// mode the user last selected from the Pomodoro/Regular blocks (see
+// timerModeSettings.ts), so adding a task stays a single-step action.
+function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject: string, topic: string) => void }) {
   const [subject, setSubject] = useState('')
   const [topic, setTopic] = useState('')
-  const [mode, setMode] = useState<TimerMode>('pomodoro')
   const canAdd = subject.trim().length > 0 && topic.trim().length > 0
 
   function submit() {
     if (!canAdd) return
-    onAdd(subject.trim(), topic.trim(), mode)
+    onAdd(subject.trim(), topic.trim())
   }
 
   return (
@@ -1598,20 +1596,6 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
           placeholder="e.g. Electricity"
           className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
           style={{ borderColor: '#1A2845' }} />
-
-        <label className="block text-[11px] text-slate-500 mb-1.5">Timer mode</label>
-        <div className="flex gap-2 mb-6">
-          <button onClick={() => setMode('pomodoro')}
-            className="flex-1 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all"
-            style={{ background: mode === 'pomodoro' ? 'rgba(124,77,255,0.18)' : 'transparent', borderColor: mode === 'pomodoro' ? '#6B44EE' : '#1A2845', color: mode === 'pomodoro' ? '#C4AAFF' : '#8B9AC7' }}>
-            🍅 Pomodoro
-          </button>
-          <button onClick={() => setMode('regular')}
-            className="flex-1 px-3 py-2 rounded-xl border text-[12px] font-medium transition-all"
-            style={{ background: mode === 'regular' ? 'rgba(25,181,230,0.18)' : 'transparent', borderColor: mode === 'regular' ? '#19B5E6' : '#1A2845', color: mode === 'regular' ? '#7DD8F0' : '#8B9AC7' }}>
-            🕐 Regular
-          </button>
-        </div>
 
         <div className="flex gap-3">
           <button onClick={onClose}
@@ -1869,7 +1853,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   const [tasks, setTasks] = useState<StudyTask[]>(() => snapshot?.tasks ?? seedTasksFromRealData(units, schedule, todayIdx, getPomodoroSettings()))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(snapshot?.activeTaskId ?? null)
   const [running, setRunning] = useState<boolean>(!!snapshot?.running)
-  const [selectedMode, setSelectedMode] = useState<TimerMode>('pomodoro')
+  // Persisted last-picked timer mode (Pomodoro is the default for a user who
+  // has never picked one) - shared with Home/the task picker, so it stays the
+  // same choice everywhere until the user taps the other block themselves.
+  const selectedMode = useTimerMode()
   const [fullscreen, setFullscreen] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showPomodoroSettings, setShowPomodoroSettings] = useState(false)
@@ -1996,13 +1983,11 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomo.focusMinutes, pomo.breakMinutes])
 
-  // Keep the segmented mode tab in sync with whichever task is actually
-  // active, so it always reflects reality rather than a stale click.
-  useEffect(() => {
-    if (!activeTaskId) return
-    const t = tasks.find(x => x.id === activeTaskId)
-    if (t) setSelectedMode(t.mode)
-  }, [activeTaskId, tasks])
+  // NOTE: the segmented mode tab intentionally does NOT follow whichever
+  // task happens to be active/running. selectedMode is the user's saved
+  // default for the *next* task they add and start - per the requirement
+  // that it "persists until they manually change it" - not a live mirror
+  // of the currently running task's mode.
 
   // Local 1s ticker for the active task only - Pomodoro counts down,
   // Regular counts up indefinitely.
@@ -2094,8 +2079,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     setTasks(prev => prev.filter(t => t.id !== taskId))
   }
 
-  function handleAddTask(subject: string, topic: string, mode: TimerMode) {
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, ...pomodoroFields(pomo), regularElapsed: 0 }
+  function handleAddTask(subject: string, topic: string) {
+    // No mode prompt: the task starts in whichever mode the user selected
+    // last (the Pomodoro/Regular blocks above), same store Start reads from.
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0 }
     setTasks(prev => [task, ...prev])
     setShowAddTask(false)
   }
@@ -2114,7 +2101,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       // Not in the plan yet - add it, then start it directly (rather than
       // via handleStartTask, whose `tasks` lookup would still see the
       // pre-update array in this same tick and silently no-op).
-      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: 'pomodoro', ...pomodoroFields(pomo), regularElapsed: 0 }
+      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0 }
       setTasks(prev => [task, ...prev])
       if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
       setActiveTaskId(task.id)
@@ -2229,12 +2216,22 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
           <div className="max-w-6xl mx-auto flex flex-col gap-8">
 
             {/* ── Timer mode selector ── */}
+            {/* Clicking a block just selects that mode (and it sticks until the
+                other block is tapped) - it no longer opens the Pomodoro settings
+                dialog. That dialog now has its own gear icon, to the left of the
+                Pomodoro block. */}
             <div className="flex flex-col sm:flex-row justify-center gap-3">
-              {/* Clicking anywhere on this card opens Customize Pomodoro (the circular timer stays Start/Pause). */}
-              <ModeTab active={selectedMode === 'pomodoro'}
-                onClick={() => { if (!activeTask) setSelectedMode('pomodoro'); setShowPomodoroSettings(true) }}
-                icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub={pomodoroSummaryLabel(pomo)} />
-              <ModeTab active={selectedMode === 'regular'} onClick={() => !activeTask && setSelectedMode('regular')}
+              <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                <button onClick={() => setShowPomodoroSettings(true)}
+                  title="Customize Pomodoro" aria-label="Customize Pomodoro settings"
+                  className="w-11 h-11 rounded-2xl border flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90 active:scale-95"
+                  style={{ background: '#0B1530', borderColor: '#1A2845', color: '#8B9AC7' }}>
+                  <Ico n="cog" cls="w-4 h-4" />
+                </button>
+                <ModeTab active={selectedMode === 'pomodoro'} onClick={() => setTimerMode('pomodoro')}
+                  icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub={pomodoroSummaryLabel(pomo)} />
+              </div>
+              <ModeTab active={selectedMode === 'regular'} onClick={() => setTimerMode('regular')}
                 icon={<TimerModeIcon mode="regular" />} title="Regular Timer" sub="Count Up • No Limit" />
             </div>
 
@@ -5053,12 +5050,6 @@ function ScheduleNotificationCard({ communityName, published, onAccept, onCreate
 // The picker lists the Focus Lock plan (the same persisted snapshot FocusLockPage
 // reads), so a task's subject, topic, timer type and progress are identical in
 // both places. Presentational only - the room owns the timer engine.
-function ModeBadge({ mode }: { mode: TimerMode }) {
-  return mode === 'pomodoro'
-    ? <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#F87171' }}>🍅 Pomodoro</span>
-    : <span className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap" style={{ color: '#38BDF8' }}><Ico n="clock" cls="w-3 h-3" /> Regular</span>
-}
-
 function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, onToggle, onReset, onOpenFocusLock }: {
   tasks: StudyTask[]; selectedTask: StudyTask | null; running: boolean; focusSecs: number
   onSelectTask: (id: string) => void; onToggle: () => void; onReset: () => void; onOpenFocusLock: () => void
@@ -5154,7 +5145,6 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                   <span className="block text-sm font-semibold text-slate-100 truncate leading-tight">{selectedTask.subject}</span>
                   <span className="block text-[11px] text-slate-400 truncate leading-tight mt-0.5">{selectedTask.topic}</span>
                 </span>
-                <ModeBadge mode={selectedTask.mode} />
               </>
             ) : (
               <span className="flex-1 text-sm text-slate-400">{tasks.length ? 'Select a task' : 'No tasks yet'}</span>
@@ -5206,7 +5196,6 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                       <span className="flex-1 min-w-0">
                         <span className="flex items-center justify-between gap-3">
                           <span className="text-[13px] font-semibold text-slate-100 truncate">{t.subject}</span>
-                          <ModeBadge mode={t.mode} />
                         </span>
                         <span className="flex items-center justify-between gap-3 mt-0.5">
                           <span className="text-[11px] text-slate-500 truncate">{t.topic}</span>
@@ -9012,8 +9001,10 @@ export default function DesktopDashboard() {
   // localStorage key) so it shows up in Today's Study Plan immediately -
   // reads the freshest snapshot first so it never clobbers a session that's
   // actually running right now.
-  function handleHomeAddTask(subject: string, topic: string, mode: TimerMode) {
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode, ...pomodoroFields(getPomodoroSettings()), regularElapsed: 0 }
+  function handleHomeAddTask(subject: string, topic: string) {
+    // Same rule as Focus Lock: no mode prompt here either - use whichever
+    // mode the user last picked from the Pomodoro/Regular blocks.
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode: getTimerMode(), ...pomodoroFields(getPomodoroSettings()), regularElapsed: 0 }
     const existing = loadFocusPlanSnapshot()
     const nextTasks = [task, ...(existing?.tasks ?? focusPlan.tasks)]
     saveFocusPlanSnapshot({
