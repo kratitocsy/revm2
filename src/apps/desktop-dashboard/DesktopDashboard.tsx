@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
-import aiAssistantImg from './imports/ai-assistant.png'
+import wynkoMascot from './imports/wynko-mascot.png'
 import trophyBronze from './imports/trophy-bronze.png'
 import trophySilver from './imports/trophy-silver.png'
 import trophyGold from './imports/trophy-gold.png'
@@ -19,6 +19,10 @@ import {
   type PomodoroSettings, type PomodoroSettingsInput,
 } from '../_shared/pomodoroSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
+import { Store } from '../../lib/storage'
+import { getCommunityDetail, type CommunityAnnouncement, type CommunityDetail, type CommunityHead, type CommunityScheduleSlot } from './lib/communityData'
+import { loadAnnouncements, saveAnnouncements, loadPublishedSchedules, savePublishedSchedule, loadNotifSeen, markNotifSeen, loadHeadDraft, saveHeadDraft, STORE_KEYS, type PublishedSchedule } from './lib/communityStore'
+import { HEAD_COMMUNITY_ID, HEAD_STUDENTS, HEAD_JOIN_REQUESTS, buildEarnings, payoutInfo, type EarningsRange } from './lib/wynkoHeadData'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -63,6 +67,16 @@ const IP: Record<string, string[]> = {
   compress: ['M9 9L3.75 3.75M9 9H4.5M9 9V4.5M15 9l5.25-5.25M15 9h4.5M15 9V4.5M9 15l-5.25 5.25M9 15H4.5M9 15v4.5M15 15l5.25 5.25M15 15h4.5M15 15v4.5'],
   target: ['M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z'],
   coin: ['M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
+  megaphone: ['M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46'],
+  calendar: ['M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5'],
+  bullseye: ['M21 12a9 9 0 11-18 0 9 9 0 0118 0z', 'M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z', 'M12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z'],
+  alert: ['M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z'],
+  pin: ['M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z'],
+  dots: ['M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z'],
+  close: ['M6 18L18 6M6 6l12 12'],
+  send: ['M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5'],
+  copy: ['M8 7h8a2 2 0 012 2v10a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2z', 'M16 7V5a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2h2'],
+  trash: ['M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0l-.8 12a2 2 0 01-2 2H9.8a2 2 0 01-2-2L7 7M10 11v6M14 11v6'],
 }
 
 function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; style?: React.CSSProperties }) {
@@ -312,7 +326,7 @@ const NAV = [
   { id: 'home', label: 'Home', icon: 'home' as const, group: 'HOME' },
   { id: 'focus', label: 'Focus Lock', icon: 'lock' as const, group: 'STUDY' },
   { id: 'schedules', label: 'Schedules', icon: 'clock' as const, group: 'STUDY' },
-  { id: 'studyrooms', label: 'Study Room', icon: 'rooms' as const, group: 'STUDY' },
+  { id: 'studyrooms', label: 'Community', icon: 'rooms' as const, group: 'STUDY' },
   { id: 'battleground', label: 'Battleground', icon: 'zap' as const, group: 'STUDY' },
   { id: '3dlibrary', label: '3D Library', icon: 'cube' as const, group: 'STUDY' },
   { id: 'wynkoins', label: 'WYNKOINS', icon: 'coin' as const, group: 'OTHER' },
@@ -442,10 +456,28 @@ function buildSmoothPath(points: { x: number; y: number }[]): string {
   return d
 }
 
+// Whole-hour Y-axis ticks for the study-hours scale, derived straight from
+// the same maxMinutes the curve itself is plotted against — so a tick's
+// y position always lines up with where that many hours would fall on the
+// existing curve (no change to how the curve/points are computed).
+function buildHourTicks(maxMinutes: number, padTop: number, chartH: number): { hours: number; y: number }[] {
+  const maxHours = Math.ceil(maxMinutes / 60)
+  const step = maxHours > 6 ? Math.ceil(maxHours / 6) : 1
+  const ticks: number[] = []
+  for (let h = 0; h <= maxHours; h += step) ticks.push(h)
+  if (ticks[ticks.length - 1] !== maxHours) ticks.push(maxHours)
+  return ticks.map(h => ({
+    hours: h,
+    y: Math.max(padTop, padTop + (1 - (h * 60) / maxMinutes) * chartH),
+  }))
+}
+
 function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   weeklyStudy: WeeklyStudyDay[]; totalMinutes: number; avgMinutes: number; streakDays: number
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  // Original curve geometry — untouched. padX/H/stepX/pts are computed
+  // exactly as before, so the curve's shape and point spacing don't change.
   const W = 920, H = 190, padX = 22, padTop = 22, padBottom = 32
 
   const maxMinutes = Math.max(60, ...weeklyStudy.map(d => d.minutes))
@@ -458,6 +490,15 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   const areaPath = pts.length
     ? `${linePath} L ${pts[pts.length - 1].x.toFixed(1)},${(H - padBottom).toFixed(1)} L ${pts[0].x.toFixed(1)},${(H - padBottom).toFixed(1)} Z`
     : ''
+
+  // New: extra canvas width added on the LEFT only, purely to give the
+  // hour labels + gridlines somewhere to live. Achieved with a <g
+  // transform> around all the original (unchanged) chart markup below,
+  // rather than altering padX/stepX/pts — so the curve itself is the
+  // exact same path, just shifted right as a whole to make room.
+  const padLeft = 34
+  const viewW = W + padLeft
+  const hourTicks = buildHourTicks(maxMinutes, padTop, H - padTop - padBottom)
 
   const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
     { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied' },
@@ -504,7 +545,7 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
       </div>
 
       <div className="relative" style={{ height: H }}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
+        <svg viewBox={`0 0 ${viewW} ${H}`} className="w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="spLine" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#7C4DFF" />
@@ -525,38 +566,54 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
             </filter>
           </defs>
 
-          <path d={areaPath} fill="url(#spArea)" />
-          <path d={linePath} fill="none" stroke="url(#spLine)" strokeWidth="2.5" strokeLinecap="round" filter="url(#spGlow)" />
-
-          {pts.map((p, i) => {
-            const d = weeklyStudy[i]
-            return (
-              <g key={i}
-                onMouseEnter={() => setHoverIdx(i)}
-                onMouseLeave={() => setHoverIdx(null)}
-                onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
-                style={{ cursor: 'pointer' }}>
-                <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
-                {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
-                <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
-                {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
-              </g>
-            )
-          })}
-
-          {pts.map((p, i) => (
-            <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
-              fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
-              fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
-              {weeklyStudy[i].label}
-            </text>
+          {/* Y-axis: study-hours scale + very subtle horizontal guide lines,
+              drawn in the new left margin. Purely additive — doesn't touch
+              the curve, dots, day labels, or tooltip below. */}
+          {hourTicks.map((t, i) => (
+            <g key={`hr-${i}`}>
+              <line x1={padLeft} y1={t.y} x2={viewW - padX} y2={t.y}
+                stroke="rgba(148,163,184,0.08)" strokeWidth="1" />
+              <text x={padLeft - 8} y={t.y + 3} textAnchor="end" fontSize="9"
+                fill="rgba(148,163,184,0.40)" fontFamily="Poppins, sans-serif">
+                {t.hours}h
+              </text>
+            </g>
           ))}
+
+          <g transform={`translate(${padLeft},0)`}>
+            <path d={areaPath} fill="url(#spArea)" />
+            <path d={linePath} fill="none" stroke="url(#spLine)" strokeWidth="2.5" strokeLinecap="round" filter="url(#spGlow)" />
+
+            {pts.map((p, i) => {
+              const d = weeklyStudy[i]
+              return (
+                <g key={i}
+                  onMouseEnter={() => setHoverIdx(i)}
+                  onMouseLeave={() => setHoverIdx(null)}
+                  onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
+                  style={{ cursor: 'pointer' }}>
+                  <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+                  {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
+                  <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
+                  {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
+                </g>
+              )
+            })}
+
+            {pts.map((p, i) => (
+              <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
+                fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
+                fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
+                {weeklyStudy[i].label}
+              </text>
+            ))}
+          </g>
         </svg>
 
         {hoverIdx !== null && (
           <div className="absolute px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-100 pointer-events-none z-10"
             style={{
-              left: `${(pts[hoverIdx].x / W) * 100}%`,
+              left: `${((pts[hoverIdx].x + padLeft) / viewW) * 100}%`,
               top: `${(pts[hoverIdx].y / H) * 100}%`,
               transform: 'translate(-50%, -135%)',
               background: '#0F1B3D',
@@ -977,6 +1034,60 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
           <Ico n="play" cls="w-4 h-4" />Start Focus
         </button>
       )}
+    </div>
+  )
+}
+
+// ─── Home Focus Entry (two options) ───────────────────────────────────────────
+// Replaces the old single "Today's Focus" ring card on Home with a plain
+// choice between the two ways to focus: Focus Lock (task-based, tracked -
+// unchanged, lives entirely in FocusLockPage) and Quick Timer (a standalone
+// countdown - unchanged, lives entirely in QuickTimerPage). This card is just
+// the entry point picker; it doesn't own any focus/timer logic itself.
+function HomeFocusEntryCard({ onGoFocus, onGoQuickTimer }: { onGoFocus: () => void; onGoQuickTimer: () => void }) {
+  const options = [
+    {
+      id: 'focus', label: 'Focus Lock', sub: 'Task-based sessions, tracked over time',
+      icon: 'lock' as const, grad: 'linear-gradient(135deg, rgba(124,77,255,0.18), rgba(107,68,238,0.08))',
+      border: 'rgba(124,77,255,0.35)', iconBg: 'rgba(124,77,255,0.18)', iconColor: '#C4AAFF',
+      onClick: onGoFocus,
+    },
+    {
+      id: 'quicktimer', label: 'Quick Timer', sub: 'Instant countdown, no setup needed',
+      icon: 'clock' as const, grad: 'linear-gradient(135deg, rgba(41,98,255,0.18), rgba(34,211,238,0.08))',
+      border: 'rgba(56,132,255,0.35)', iconBg: 'rgba(41,98,255,0.18)', iconColor: '#7DD8F0',
+      onClick: onGoQuickTimer,
+    },
+  ]
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+          <Ico n="target" cls="w-4 h-4 text-cyan-300" />
+        </div>
+        <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Start Focusing</div>
+      </div>
+      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {options.map(o => (
+          <button key={o.id} onClick={o.onClick}
+            className="flex flex-col items-start gap-3 p-4 rounded-xl border text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{ background: o.grad, borderColor: o.border }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: o.iconBg }}>
+              <Ico n={o.icon} cls="w-5 h-5" style={{ color: o.iconColor }} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-slate-100">{o.label}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{o.sub}</div>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -2586,10 +2697,16 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 }
 
 // ─── Study Rooms List Page ─────────────────────────────────────────────────────
-function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
+function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, leftCommunityIds }: {
   onNavigate: (id: string) => void
   onEnterRoom: (room: RoomData) => void
   profile?: ProfileInfo
+  // Owned by the App root (not local state) so that coming Back from a
+  // community's page lands on the Communities tab again, not Study Rooms.
+  communityTab: 'rooms' | 'communities'
+  onCommunityTabChange: (t: 'rooms' | 'communities') => void
+  onOpenCommunity: (c: CommunityData) => void
+  leftCommunityIds: number[]
 }) {
   const [tab, setTab] = useState<RoomTab>('all')
   const [subjectFilter, setSubjectFilter] = useState('All Subjects')
@@ -2604,6 +2721,12 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
   const [copied, setCopied] = useState(false)
   const [userRooms, setUserRooms] = useState<RoomData[]>([])
   const [createForm, setCreateForm] = useState({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+  // Parent "Community" module tabs. Everything below this — Hero, Search,
+  // the All Rooms/My Rooms/Popular/Subject Wise tabs, the room list, and
+  // all three modals — is the pre-existing Study Rooms page, completely
+  // unchanged. It's now just the "Study Rooms" tab's content; a second
+  // "Communities" tab (placeholder for now) sits alongside it.
+  const setCommunityTab = onCommunityTabChange
 
   const allRooms = [...ROOM_DATA, ...userRooms]
   const filtered = allRooms.filter(r => {
@@ -2685,7 +2808,31 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
           <UserAvatar size={32} />
         </header>
 
+        {/* Community module tabs */}
+        <div className="flex-shrink-0 px-6 pt-4">
+          <div className="inline-flex items-center gap-1 p-1 rounded-full border" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+            {([
+              { id: 'rooms', label: 'Study Rooms' },
+              { id: 'communities', label: 'Communities' },
+            ] as { id: 'rooms' | 'communities'; label: string }[]).map(t => (
+              <button key={t.id} onClick={() => setCommunityTab(t.id)}
+                className="px-5 py-2 rounded-full text-sm font-semibold transition-all"
+                style={{
+                  background: communityTab === t.id ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
+                  color: communityTab === t.id ? '#fff' : '#8B9AC7',
+                  boxShadow: communityTab === t.id ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <main className="flex-1 overflow-y-auto px-6 py-5">
+          {communityTab === 'communities' ? (
+            <CommunitiesTabContent onOpenCommunity={onOpenCommunity} leftIds={leftCommunityIds} />
+          ) : (
+          <>
           {/* Hero */}
           <div className="flex items-start justify-between mb-6 gap-6">
             <div>
@@ -2858,10 +3005,12 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
               )
             })}
           </div>
+          </>
+          )}
         </main>
       </div>
 
-      {/* Password Modal */}
+      {/* Password Modal — Study Rooms tab only; unchanged from before */}
       {passwordRoomId !== null && (() => {
         const room = allRooms.find(r => r.id === passwordRoomId)!
         return (
@@ -3010,6 +3159,1890 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile }: {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Communities Tab ────────────────────────────────────────────────────────
+// Real content for the "Communities" tab of the Community module:
+//   1. Home Community hero — the user's primary community. Picking one
+//      locks it for HOME_LOCK_DAYS; once the lock expires the same slot
+//      turns into a "Change Home Community" pill instead of resetting to
+//      empty, and whatever the user picks stays put (persisted) until they
+//      deliberately change it again. Same "no backend table yet, so
+//      localStorage is the source of truth" pattern as the Focus Lock plan
+//      and Study Rooms membership elsewhere in this file.
+//   2. "Your Communities" — every joined community other than the current
+//      home one, in the same card language as the Study Rooms cards
+//      (FaceAvatars, Joined badge, Open button). Grid wraps on its own, and
+//      the page already scrolls (see `<main className="overflow-y-auto">`
+//      in StudyRoomsPage), so a 4th/5th/6th community just flows below.
+//   3. Discover More Communities — full-width CTA.
+//   4. Join with Invite Link — full-width input + Join button.
+const HOME_LOCK_DAYS = 30
+const HOME_COMMUNITY_STORE_KEY = 'wynko_home_community_v1'
+
+interface CommunityData {
+  id: number
+  name: string
+  members: number
+  desc: string
+  emoji: string
+  iconBg: string
+  studyingNow?: number
+  avatarColors?: string[]
+  avatarInits?: string[]
+  avatarExtra?: number
+}
+
+// All communities the user currently belongs to. One of these is the "home"
+// community (default: Alpha Squad, matching first-run state below); the
+// rest render as cards in the "Your Communities" grid. A 5th entry is
+// included so the grid visibly wraps to a second row / the page scrolls,
+// same as it would once a real user has joined more than a handful.
+const ALL_COMMUNITIES: CommunityData[] = [
+  { id: 1, name: 'JEE 2026 — Alpha Squad', members: 2840, desc: 'Learn. Compete. Grow.',
+    emoji: '🏆', iconBg: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' },
+  { id: 2, name: 'JEE 2026 — Warriors', members: 1284, studyingNow: 832, desc: 'Push each other through every mock test.',
+    emoji: '🎯', iconBg: 'linear-gradient(135deg,#6D5EF5,#4C3FD6)',
+    avatarColors: ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'], avatarInits: ['RS', 'PK', 'AM', 'DJ'], avatarExtra: 42 },
+  { id: 3, name: 'NEET 2026 — Dreamers', members: 986, studyingNow: 521, desc: 'Biology-first grind squad for NEET.',
+    emoji: '🧬', iconBg: 'linear-gradient(135deg,#12B886,#0A9673)',
+    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'], avatarInits: ['AK', 'KV', 'PN', 'SR'], avatarExtra: 28 },
+  { id: 4, name: 'UPSC 2026 — Aspirants', members: 642, studyingNow: 318, desc: 'Daily current affairs + answer writing.',
+    emoji: '🏛️', iconBg: 'linear-gradient(135deg,#EC4899,#BE185D)',
+    avatarColors: ['#EC4899', '#7C4DFF', '#0F99CC', '#F59E0B'], avatarInits: ['VM', 'PR', 'SC', 'AT'], avatarExtra: 16 },
+  { id: 5, name: 'Boards 2026 — Sprinters', members: 410, studyingNow: 145, desc: 'Last-mile revision for board exams.',
+    emoji: '⚡', iconBg: 'linear-gradient(135deg,#19B5E6,#0F7FB8)',
+    avatarColors: ['#19B5E6', '#7C4DFF', '#F59E0B', '#0DAE86'], avatarInits: ['NT', 'IR', 'GP', 'MS'], avatarExtra: 9 },
+]
+
+const fmt = (n: number) => n.toLocaleString('en-US')
+
+function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
+  onOpenCommunity: (c: CommunityData) => void
+  leftIds: number[]
+}) {
+  // First-ever load: seed a default home community so the page isn't empty
+  // (Alpha Squad, locked with 12 days already remaining — mirrors the
+  // product's onboarding-assigned home community). After that, whatever is
+  // in storage always wins, so a user's own choice is never overwritten.
+  const [homeCommunityId, setHomeCommunityId] = useState<number | null>(null)
+  const [homeLockUntil, setHomeLockUntil] = useState<number | null>(null)
+  const [showPicker, setShowPicker] = useState(false)
+  const [inviteLink, setInviteLink] = useState('')
+  const [inviteMsg, setInviteMsg] = useState<string | null>(null)
+  const [exploreMsg, setExploreMsg] = useState(false)
+
+  useEffect(() => {
+    const saved = Store.get(HOME_COMMUNITY_STORE_KEY, null) as { id: number; lockUntil: number } | null
+    if (saved && saved.id) {
+      setHomeCommunityId(saved.id)
+      setHomeLockUntil(saved.lockUntil)
+    } else {
+      const seeded = { id: 1, lockUntil: Date.now() + 12 * 24 * 60 * 60 * 1000 }
+      Store.set(HOME_COMMUNITY_STORE_KEY, seeded)
+      setHomeCommunityId(seeded.id)
+      setHomeLockUntil(seeded.lockUntil)
+    }
+  }, [])
+
+  // Communities the student has left this session (see leaveCommunity in the
+  // App root) drop out of every list below.
+  const joinedCommunities = ALL_COMMUNITIES.filter(c => !leftIds.includes(c.id))
+  const home = joinedCommunities.find(c => c.id === homeCommunityId) || null
+  const daysRemaining = homeLockUntil ? Math.max(0, Math.ceil((homeLockUntil - Date.now()) / (1000 * 60 * 60 * 24))) : 0
+  const isLocked = !!home && daysRemaining > 0
+  const otherCommunities = joinedCommunities.filter(c => c.id !== homeCommunityId)
+
+  function selectHomeCommunity(id: number) {
+    const lockUntil = Date.now() + HOME_LOCK_DAYS * 24 * 60 * 60 * 1000
+    setHomeCommunityId(id)
+    setHomeLockUntil(lockUntil)
+    Store.set(HOME_COMMUNITY_STORE_KEY, { id, lockUntil })
+    setShowPicker(false)
+  }
+
+  function handleJoinInvite() {
+    if (!inviteLink.trim()) return
+    setInviteMsg('✓ Request sent — you\u2019ll be notified once approved.')
+    setInviteLink('')
+    setTimeout(() => setInviteMsg(null), 3000)
+  }
+
+  function handleExplore() {
+    setExploreMsg(true)
+    setTimeout(() => setExploreMsg(false), 2500)
+  }
+
+  return (
+    <div className="pb-8">
+      {/* 1 · Home Community hero */}
+      <div className="relative rounded-3xl border overflow-hidden p-6 sm:p-7 mb-7"
+        style={{ borderColor: 'rgba(124,77,255,0.35)', boxShadow: '0 0 50px rgba(124,77,255,0.14)' }}>
+        {/* Purple gradient base */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 55%, #7C4DFF 78%, #4629A0 100%)' }} />
+        {/* Mountain + flag silhouette, decorative, right side */}
+        <svg viewBox="0 0 900 260" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60 pointer-events-none" aria-hidden="true">
+          <polygon points="480,260 560,150 610,190 680,110 760,180 830,140 900,200 900,260" fill="#1B0F45" opacity="0.55" />
+          <polygon points="560,260 640,170 700,205 770,135 900,220 900,260" fill="#150A36" opacity="0.75" />
+          <line x1="770" y1="135" x2="770" y2="95" stroke="#E8E2FF" strokeWidth="2" />
+          <path d="M770,95 L804,105 L770,116 Z" fill="#E8E2FF" opacity="0.9" />
+        </svg>
+        {/* Readability overlay so text always sits on solid-enough ground */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,9,42,0.55) 0%, rgba(15,9,42,0.15) 55%, rgba(15,9,42,0.05) 100%)' }} />
+
+        <div className="relative z-10">
+          <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[15px] flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)' }}>👑</div>
+            <div className="text-white font-bold text-base">Home Community</div>
+            {home && isLocked && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                style={{ background: 'rgba(245,158,11,0.16)', color: '#FCD34D', border: '1px solid rgba(245,158,11,0.35)' }}>
+                <Ico n="lock" cls="w-3 h-3" /> Locked for {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}
+              </span>
+            )}
+            {home && !isLocked && (
+              <button onClick={() => setShowPicker(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors hover:opacity-80"
+                style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: '1px solid rgba(255,255,255,0.28)' }}>
+                Change Home Community
+              </button>
+            )}
+          </div>
+          <div className="text-white/60 text-[13px] mb-5 max-w-md">
+            Your primary community. 50% of your study rewards go here.
+          </div>
+
+          {home ? (
+            <div className="flex items-end sm:items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+                  style={{ background: home.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{home.emoji}</div>
+                <div className="min-w-0">
+                  <div className="text-white font-bold text-xl leading-tight mb-1 truncate">{home.name}</div>
+                  <div className="flex items-center gap-1.5 text-white/75 text-[13px] mb-1">
+                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(home.members)} members
+                  </div>
+                  <div className="text-white/55 text-[13px]">{home.desc}</div>
+                </div>
+              </div>
+              <button onClick={() => onOpenCommunity(home)}
+                className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm flex items-center gap-1.5 hover:opacity-90 transition-opacity flex-shrink-0">
+                View Community <Ico n="chevR" cls="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div className="text-white font-semibold text-base mb-1">No home community selected yet</div>
+                <div className="text-white/55 text-[13px] max-w-sm">Pick one community as your home base — half of your study rewards go there.</div>
+              </div>
+              <button onClick={() => setShowPicker(true)}
+                className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm hover:opacity-90 transition-opacity flex-shrink-0">
+                Select Home Community
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2 · Your Communities */}
+      <div className="mb-7">
+        <div className="text-white font-bold text-base mb-0.5">Your Communities</div>
+        <div className="text-slate-500 text-[13px] mb-4">You are part of {otherCommunities.length} {otherCommunities.length === 1 ? 'community' : 'communities'}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {otherCommunities.map(c => (
+            <div key={c.id} className="p-5 rounded-2xl border flex flex-col" style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold flex-shrink-0"
+                  style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>Joined</span>
+              </div>
+              <div className="text-white font-bold text-[15px] mb-1 leading-snug">{c.name}</div>
+              <div className="text-slate-500 text-[12px] mb-0.5">{fmt(c.members)} members</div>
+              {typeof c.studyingNow === 'number' && (
+                <div className="text-emerald-400 text-[12px] mb-4 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+                  {fmt(c.studyingNow)} studying now
+                </div>
+              )}
+              <div className="mt-auto flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  {c.avatarColors && c.avatarInits && <FaceAvatars colors={c.avatarColors} inits={c.avatarInits} />}
+                  {!!c.avatarExtra && <span className="text-[11px] text-slate-500 ml-0.5">+{c.avatarExtra}</span>}
+                </div>
+                <button onClick={() => onOpenCommunity(c)}
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1 flex-shrink-0 hover:opacity-90 transition-opacity"
+                  style={{ background: '#7C4DFF' }}>
+                  Open <Ico n="chevR" cls="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3 · Discover More Communities */}
+      <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-4"
+        style={{ background: '#0B1530', borderColor: '#1A2845', borderStyle: 'dashed' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.30)' }}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5 text-violet-300" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </div>
+          <div className="min-w-0">
+            <div className="text-white font-semibold text-sm">Discover More Communities</div>
+            <div className="text-slate-500 text-[12px]">Find communities that match your goals or interests.</div>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <button onClick={handleExplore} className="px-5 py-2 rounded-full text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.4)' }}>
+            Explore <Ico n="chevR" cls="w-3.5 h-3.5" />
+          </button>
+          {exploreMsg && <div className="text-[11px] text-violet-300">More communities coming soon ✨</div>}
+        </div>
+      </div>
+
+      {/* 4 · Join with Invite Link */}
+      <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap"
+        style={{ background: '#0B1530', borderColor: '#1A2845', borderStyle: 'dashed' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+            style={{ background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.30)' }}>🔗</div>
+          <div className="min-w-0">
+            <div className="text-white font-semibold text-sm">Join with Invite Link</div>
+            <div className="text-slate-500 text-[12px]">Have an invite link or code? Join a community directly.</div>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <input
+              type="text" placeholder="Enter invite link or code" value={inviteLink}
+              onChange={e => setInviteLink(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleJoinInvite()}
+              className="w-56 px-4 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
+              style={{ borderColor: '#1E3060' }} />
+            <button onClick={handleJoinInvite}
+              className="px-5 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-opacity flex-shrink-0"
+              style={{ background: '#7C4DFF' }}>
+              Join
+            </button>
+          </div>
+          {inviteMsg && <div className="text-[11px] text-emerald-400">{inviteMsg}</div>}
+        </div>
+      </div>
+
+      {/* Home Community picker modal */}
+      {showPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
+          onClick={e => { if (e.target === e.currentTarget) setShowPicker(false) }}>
+          <div className="rounded-2xl border p-7 w-[400px] max-h-[80vh] overflow-y-auto"
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            <div className="text-center mb-5">
+              <div className="text-2xl mb-2">👑</div>
+              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
+              <div className="text-lg font-bold text-white">{home ? 'Change your home community' : 'Select your home community'}</div>
+              <div className="text-slate-500 text-[12px] mt-1">You can only change this once every {HOME_LOCK_DAYS} days.</div>
+            </div>
+            <div className="space-y-2 mb-5">
+              {joinedCommunities.map(c => (
+                <button key={c.id} onClick={() => selectHomeCommunity(c.id)}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-violet-500/40"
+                  style={{
+                    background: c.id === homeCommunityId ? 'rgba(124,77,255,0.12)' : 'rgba(14,21,40,0.55)',
+                    borderColor: c.id === homeCommunityId ? 'rgba(124,77,255,0.5)' : 'rgba(124,58,237,0.16)',
+                  }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-100 truncate">{c.name}</div>
+                    <div className="text-[11px] text-slate-500">{fmt(c.members)} members</div>
+                  </div>
+                  {c.id === homeCommunityId && <Ico n="check" cls="w-4 h-4 text-violet-300 flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowPicker(false)}
+              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Community · Student View ────────────────────────────────────────────────
+// What a student sees after opening a community from the Communities tab
+// ("View Community" / "Open"): a focused study space run by that community's
+// WynkoHead — header, four tabs (Home · Schedule · My Progress · Announcements)
+// and nothing else. No revenue/earnings anywhere on this page by design.
+//
+// Data comes from getCommunityDetail() (lib/communityData.ts — typed mock data
+// until community tables exist). The one piece of real state is the student's
+// Accept / Reject decision on the WynkoHead's schedule: the decision lives in
+// the App root (it has to write the student's actual schedule), is persisted in
+// localStorage under COMMUNITY_SCHEDULE_STORE_KEY, and is passed in here.
+type CommunityStudentTab = 'home' | 'schedule' | 'progress' | 'announcements'
+type CommunityScheduleChoice = 'accepted' | 'rejected'
+const COMMUNITY_SCHEDULE_STORE_KEY = 'wynko_community_schedule_v1'
+
+// Shared look for every block on this page — the same gradient card, icon tile
+// and inner row already used by Home's Today's Study Plan.
+const CM_CARD: React.CSSProperties = {
+  background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+  borderColor: 'rgba(56,132,255,0.26)',
+  boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+}
+const CM_TILE: React.CSSProperties = {
+  background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))',
+  border: '1px solid rgba(56,132,255,0.4)',
+  boxShadow: '0 0 14px rgba(41,98,255,0.3)',
+}
+const CM_ROW: React.CSSProperties = { background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }
+
+function formatPostedStamp(ts: number): string {
+  const d = new Date(ts), now = new Date()
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const dayDiff = Math.round((dayStart(now) - dayStart(d)) / 86400000)
+  if (dayDiff === 0) return `Today, ${time}`
+  if (dayDiff === 1) return `Yesterday, ${time}`
+  const date = d.toLocaleDateString('en-US', d.getFullYear() === now.getFullYear()
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${date}, ${time}`
+}
+
+function formatPostedAgo(ts: number): string {
+  const mins = Math.floor(Math.max(0, Date.now() - ts) / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
+  return formatPostedStamp(ts)
+}
+
+const slotMinutes = (s: CommunityScheduleSlot) => parseTimeRangeMinutes(s.start, s.end)
+
+// The WynkoHead's schedule is one daily template; the student's own schedule
+// is Mon–Sun, so an accepted schedule repeats on every day of the week.
+function communitySlotsToWeek(slots: CommunityScheduleSlot[]): ScheduleItem[][] {
+  return Array.from({ length: 7 }, (_, dayI) => slots.map(s => ({
+    id: `cm_${dayI}_${s.id}`, subject: s.subject, topic: s.topic,
+    startTime: s.start, endTime: s.end,
+    color: subjectColor(s.subject), iconEmoji: subjectEmoji(s.subject),
+  })))
+}
+
+const weekSessionMins = (day: ScheduleItem[]) => day.reduce((n, s) => n + parseTimeRangeMinutes(s.startTime, s.endTime), 0)
+
+// True when every weekday has the same sessions (the seed schedule repeats daily).
+function weekIsUniform(week: ScheduleItem[][]): boolean {
+  const sig = (d: ScheduleItem[]) => d.map(s => `${s.subject}|${s.topic}|${s.startTime}|${s.endTime}`).join(';')
+  return week.every(d => sig(d) === sig(week[0]))
+}
+
+// "4h 30m/day · 3 sessions", or per week when the days differ.
+function weekSummary(week: ScheduleItem[][]): string {
+  const uniform = weekIsUniform(week)
+  const sessions = uniform ? week[0].length : week.reduce((n, d) => n + d.length, 0)
+  const mins = uniform ? weekSessionMins(week[0]) : week.reduce((n, d) => n + weekSessionMins(d), 0)
+  return `${formatStudyDuration(mins)}/${uniform ? 'day' : 'week'} · ${sessions} session${sessions === 1 ? '' : 's'}${uniform ? '' : '/week'}`
+}
+
+// Purple gradient + mountain/flag art shared by the student and WynkoHead
+// community headers, faded in from the right so the text side stays on the card colour.
+function CommunityBannerArt() {
+  return (
+    <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+      <div className="absolute inset-y-0 right-0 w-[62%]"
+        style={{
+          background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 58%, #7C4DFF 85%, #4629A0 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
+          maskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
+        }}>
+        <svg viewBox="0 0 700 132" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60" aria-hidden="true">
+          <polygon points="140,132 230,62 285,96 380,40 470,86 545,58 700,104 700,132" fill="#1B0F45" opacity="0.55" />
+          <polygon points="250,132 340,78 405,104 490,54 700,112 700,132" fill="#150A36" opacity="0.75" />
+          <line x1="490" y1="54" x2="490" y2="22" stroke="#E8E2FF" strokeWidth="2" />
+          <path d="M490,22 L522,30 L490,39 Z" fill="#E8E2FF" opacity="0.9" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+// A community's shared study room, in the shape the room interior expects.
+function communityStudyRoom(community: CommunityData): RoomData {
+  const shortName = community.name.split('—').pop()!.trim()
+  return {
+    id: 1000 + community.id, name: `${shortName} Study Room`, emoji: '', classes: 'Community',
+    subject: 'All Subjects', desc: community.desc, members: community.members,
+    avatarColors: community.avatarColors ?? ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'],
+    avatarInits: community.avatarInits ?? ['RS', 'PK', 'AM', 'DJ'],
+    iconBg: community.iconBg, iconEmoji: community.emoji,
+    tag: 'all', isPublic: true, subjectTag: 'all',
+  }
+}
+
+function CommunityHeadAvatar({ head, size = 40 }: { head: CommunityHead; size?: number }) {
+  return (
+    <div className="rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 select-none"
+      style={{
+        width: size, height: size, background: head.color, fontSize: Math.round(size * 0.34),
+        border: '1.5px solid rgba(124,77,255,0.45)', boxShadow: '0 0 14px rgba(124,77,255,0.35)',
+      }}>
+      {head.initials}
+    </div>
+  )
+}
+
+function WynkoHeadTag() {
+  return (
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0"
+      style={{ background: 'rgba(124,77,255,0.14)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
+      👑 WynkoHead
+    </span>
+  )
+}
+
+function AnnouncementBadges({ pinned, important }: { pinned?: boolean; important?: boolean }) {
+  if (!pinned && !important) return null
+  return (
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      {pinned && (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
+          style={{ background: 'rgba(56,132,255,0.12)', color: '#7FB0FF', border: '1px solid rgba(56,132,255,0.30)' }}>
+          <Ico n="pin" cls="w-3 h-3" /> Pinned
+        </span>
+      )}
+      {important && (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
+          style={{ background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.30)' }}>
+          <Ico n="alert" cls="w-3 h-3" /> Important
+        </span>
+      )}
+    </div>
+  )
+}
+
+function CmCardTitle({ icon, title, sub, right }: { icon: keyof typeof IP; title: string; sub?: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}>
+          <Ico n={icon} cls="w-4 h-4 text-cyan-300" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-base font-bold text-slate-100 leading-tight" style={{ fontFamily: 'Poppins, sans-serif' }}>{title}</div>
+          {sub && <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{sub}</div>}
+        </div>
+      </div>
+      {right}
+    </div>
+  )
+}
+
+// One icon + value + label cell, used for the Your Progress strip and the
+// community statistics strip.
+function CmStat({ icon, value, label }: { icon: keyof typeof IP; value: string; label: string }) {
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 12px rgba(41,98,255,0.35)' }}>
+        <Ico n={icon} cls="w-4 h-4 text-cyan-300" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-xl font-bold text-slate-100 leading-tight">{value}</div>
+        <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{label}</div>
+      </div>
+    </div>
+  )
+}
+
+const compactCount = (n: number) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+
+function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy, onBack, onNavigate, onJoinRoom, onLeave, profile, scheduleChoice, onAcceptSchedule, onRejectSchedule }: {
+  community: CommunityData
+  isHome: boolean
+  isOwner?: boolean // the WynkoHead previewing their own community
+  week: ScheduleItem[][] // the schedule students see: the WynkoHead's published one, else the seed
+  weekBy: string | null // who published it (null = the community's seed schedule)
+  onBack: () => void
+  onNavigate: (id: string) => void
+  onJoinRoom: (room: RoomData) => void
+  onLeave: () => void
+  profile?: ProfileInfo
+  scheduleChoice: CommunityScheduleChoice | null
+  onAcceptSchedule: () => void
+  onRejectSchedule: () => void
+}) {
+  // Announcements the WynkoHead has posted replace the seed list.
+  const detail = useMemo(() => {
+    const d = getCommunityDetail(community.id)
+    return d ? { ...d, announcements: loadAnnouncements(community.id, d.announcements) } : null
+  }, [community.id])
+  const [tab, setTab] = useState<CommunityStudentTab>('home')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmLeave, setConfirmLeave] = useState(false)
+
+  const TABS: { id: CommunityStudentTab; label: string; icon: keyof typeof IP }[] = [
+    { id: 'home', label: 'Home', icon: 'home' },
+    { id: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { id: 'progress', label: 'My Progress', icon: 'progress' },
+    { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
+  ]
+
+  const studyingNow = community.studyingNow ?? detail?.studyingNow ?? 0
+  const memberAvatars = [0, 1, 2, 3].map(i => AVATAR_OPTIONS[(community.id + i) % AVATAR_OPTIONS.length])
+  const roomAvatars = [0, 1, 2].map(i => AVATAR_OPTIONS[(community.id + 4 + i) % AVATAR_OPTIONS.length])
+
+  // The community's shared study room opens in the same room interior every
+  // other Study Room uses.
+  function joinCommunityRoom() { onJoinRoom(communityStudyRoom(community)) }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
+      <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+          <div className="flex-1">
+            <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
+            <div className="text-sm font-semibold text-slate-200">Student View</div>
+          </div>
+          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <UserAvatar size={32} />
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-4 pb-6">
+            {/* 1 · Community header */}
+            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(56,132,255,0.30)', boxShadow: '0 0 70px rgba(41,98,255,0.14), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+              <CommunityBannerArt />
+
+              <div className="relative z-10 p-5 flex items-center gap-4">
+                <button onClick={onBack} aria-label="Back to communities"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-slate-300 hover:text-white transition-colors"
+                  style={{ background: 'rgba(14,21,40,0.7)', border: '1px solid rgba(56,132,255,0.30)' }}>
+                  <Ico n="chevL" cls="w-4 h-4" />
+                </button>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
+                  style={{ background: community.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{community.emoji}</div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl font-bold text-white leading-tight truncate">{community.name}</h1>
+                  <div className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: '#A5B4FC' }}>
+                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(community.members)} members
+                  </div>
+                  <div className="flex items-center gap-2 mt-2.5">
+                    <div className="flex -space-x-2 flex-shrink-0">
+                      {memberAvatars.map((src, i) => (
+                        <img key={i} src={src} alt="" className="w-8 h-8 rounded-full object-cover border-2 flex-shrink-0"
+                          style={{ borderColor: '#0B1530', zIndex: 4 - i }} />
+                      ))}
+                    </div>
+                    {community.members > memberAvatars.length && (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold text-slate-200"
+                        style={{ background: 'rgba(14,21,40,0.7)', border: '1px solid rgba(56,132,255,0.30)' }}>
+                        +{compactCount(community.members - memberAvatars.length)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="relative self-start flex-shrink-0">
+                  <button onClick={() => setMenuOpen(o => !o)} aria-label="Community options" aria-haspopup="menu" aria-expanded={menuOpen}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-200 hover:text-white transition-colors"
+                    style={{ background: 'rgba(14,21,40,0.55)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                    <Ico n="dots" cls="w-5 h-5" />
+                  </button>
+                  {menuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                      <div role="menu" className="absolute right-0 top-full mt-2 w-60 rounded-xl border p-1.5 z-40"
+                        style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 12px 40px rgba(0,0,0,0.5), 0 0 30px rgba(41,98,255,0.15)' }}>
+                        <button role="menuitem" disabled={isHome || isOwner}
+                          onClick={() => { setMenuOpen(false); setConfirmLeave(true) }}
+                          className="w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors enabled:hover:bg-red-500/10 disabled:cursor-not-allowed"
+                          style={{ color: isHome || isOwner ? '#4E5E84' : '#F87171' }}>
+                          Leave community
+                          {isOwner
+                            ? <div className="text-[11px] font-normal text-slate-500 mt-0.5">You manage this community.</div>
+                            : isHome && <div className="text-[11px] font-normal text-slate-500 mt-0.5">This is your Home Community. Change it first.</div>}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 2 · Tabs */}
+            <div role="tablist" className="grid grid-cols-4 gap-1 p-1 rounded-2xl border" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+              {TABS.map(t => {
+                const active = tab === t.id
+                return (
+                  <button key={t.id} role="tab" aria-selected={active} onClick={() => setTab(t.id)}
+                    className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all"
+                    style={{
+                      background: active ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
+                      color: active ? '#fff' : '#8B9AC7',
+                      boxShadow: active ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                    }}>
+                    <Ico n={t.icon} cls="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{t.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* 3 · Tab content */}
+            {!detail ? (
+              <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
+                <div className="text-sm font-semibold text-slate-300 mb-1">Nothing here yet</div>
+                <div className="text-[12px] text-slate-500">This community’s WynkoHead hasn’t set anything up yet.</div>
+              </div>
+            ) : tab === 'home' ? (
+              <CommunityHomeTab detail={detail} studyingNow={studyingNow} roomAvatars={roomAvatars}
+                onViewAll={() => setTab('announcements')} onJoinRoom={joinCommunityRoom} />
+            ) : tab === 'schedule' ? (
+              <CommunityScheduleTab week={week} head={detail.head} by={weekBy ?? detail.head.name} choice={scheduleChoice}
+                onAccept={onAcceptSchedule} onReject={onRejectSchedule} onCreateOwn={() => onNavigate('schedules')} />
+            ) : tab === 'progress' ? (
+              <CommunityProgressTab detail={detail} />
+            ) : (
+              <CommunityAnnouncementsTab detail={detail} />
+            )}
+          </div>
+        </main>
+      </div>
+
+      {confirmLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
+          onClick={e => { if (e.target === e.currentTarget) setConfirmLeave(false) }}>
+          <div className="rounded-2xl border p-7 w-[380px]"
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            <div className="text-lg font-bold text-white mb-1.5">Leave {community.name}?</div>
+            <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">
+              You’ll lose access to this community’s schedule, study room and announcements. You can rejoin later with an invite link.
+            </div>
+            <div className="flex gap-2.5">
+              <button onClick={() => setConfirmLeave(false)}
+                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+              <button onClick={() => { setConfirmLeave(false); onLeave() }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                style={{ background: '#DC2626' }}>Leave</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Home tab: latest announcement + study room, then this community's progress ──
+function CommunityHomeTab({ detail, studyingNow, roomAvatars, onViewAll, onJoinRoom }: {
+  detail: CommunityDetail
+  studyingNow: number
+  roomAvatars: string[]
+  onViewAll: () => void
+  onJoinRoom: () => void
+}) {
+  const latest = [...detail.announcements].sort((a, b) => b.postedAt - a.postedAt)[0]
+  const p = detail.progress
+  return (
+    <div className="space-y-3.5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+        {/* Announcements */}
+        <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
+          <CmCardTitle icon="megaphone" title="Announcements"
+            right={
+              <button onClick={onViewAll} className="flex items-center gap-1 text-[12px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors flex-shrink-0">
+                View All <Ico n="arrow" cls="w-3.5 h-3.5" />
+              </button>
+            } />
+          {latest ? (
+            <div className="flex-1 flex flex-col">
+              <div className="flex items-center gap-3 mb-3.5">
+                <CommunityHeadAvatar head={detail.head} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-slate-100">{detail.head.name}</span>
+                    <WynkoHeadTag />
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+                    <Ico n="clock" cls="w-3 h-3" /> {formatPostedAgo(latest.postedAt)}
+                  </div>
+                </div>
+                <AnnouncementBadges pinned={latest.pinned} important={latest.important} />
+              </div>
+              <div className="rounded-xl border p-4 flex-1" style={CM_ROW}>
+                <div className="text-sm font-semibold text-slate-100 mb-1">{latest.title}</div>
+                <div className="text-[13px] text-slate-400 leading-relaxed">{latest.message}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-[13px] text-slate-500 py-8">No announcements yet.</div>
+          )}
+        </div>
+
+        {/* Community Study Room */}
+        <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
+          <CmCardTitle icon="rooms" title="Community Study Room"
+            right={studyingNow > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+                style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Live
+              </span>
+            ) : undefined} />
+          <div className="flex-1 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex -space-x-2 flex-shrink-0">
+                  {roomAvatars.map((src, i) => (
+                    <img key={i} src={src} alt="" className="w-9 h-9 rounded-full object-cover border-2 flex-shrink-0"
+                      style={{ borderColor: '#0B1530', zIndex: 3 - i }} />
+                  ))}
+                </div>
+                <div className="text-[13px] text-slate-300 font-medium">
+                  <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students studying
+                </div>
+              </div>
+              <p className="text-[13px] text-slate-400 leading-relaxed max-w-[280px]">
+                Join the common study room and stay focused together with your community.
+              </p>
+            </div>
+            <div className="hidden xl:flex w-24 h-24 rounded-full items-center justify-center flex-shrink-0"
+              style={{ border: '1px dashed rgba(124,77,255,0.35)', background: 'radial-gradient(circle, rgba(124,77,255,0.14) 0%, transparent 70%)' }}>
+              <div className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 20px rgba(41,98,255,0.35)' }}>
+                <Ico n="rooms" cls="w-6 h-6 text-cyan-300" />
+              </div>
+            </div>
+          </div>
+          <button onClick={onJoinRoom}
+            className="mt-5 w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            Join Room <Ico n="arrow" cls="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Your Progress (This Community) */}
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="progress" title="Your Progress" sub="This community" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(26,40,69,0.9)]">
+          <div className="sm:pr-6"><CmStat icon="clock" value={formatStudyDuration(p.todayMinutes)} label="Study Time Today" /></div>
+          <div className="sm:px-6"><CmStat icon="bullseye" value={String(p.todaySessions)} label="Focus Sessions" /></div>
+          <div className="sm:pl-6"><CmStat icon="check" value={`${p.adherencePct}%`} label="Schedule Adherence" /></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Schedule tab: the WynkoHead's schedule + the student's accept / reject decision ──
+function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCreateOwn }: {
+  week: ScheduleItem[][]
+  head: CommunityHead
+  by: string
+  choice: CommunityScheduleChoice | null
+  onAccept: () => void
+  onReject: () => void
+  onCreateOwn: () => void
+}) {
+  const uniform = weekIsUniform(week)
+  const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
+  const [day, setDay] = useState(todayIdx)
+  const shown = uniform ? (week[0] ?? []) : (week[day] ?? [])
+  const shownMins = weekSessionMins(shown)
+  const ghostBtn = 'px-5 py-2.5 rounded-xl text-[13px] font-semibold flex items-center gap-2 transition-colors border'
+  return (
+    <div className="space-y-3.5">
+      {/* Decision card */}
+      <div className="p-5 rounded-2xl border relative overflow-hidden"
+        style={{ ...CM_CARD, borderColor: choice === 'accepted' ? 'rgba(25,211,162,0.35)' : 'rgba(56,132,255,0.30)' }}>
+        <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
+          style={{ background: `radial-gradient(circle, ${choice === 'accepted' ? 'rgba(25,211,162,0.10)' : 'rgba(41,98,255,0.12)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
+        <div className="relative flex items-start gap-4 flex-wrap">
+          <CommunityHeadAvatar head={{ ...head, name: by, initials: initialsOf(by) }} size={48} />
+          <div className="flex-1 min-w-[260px]">
+            <div className="flex items-center gap-2.5 flex-wrap mb-1">
+              <div className="text-lg font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Community Schedule</div>
+              {choice === 'accepted' && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold"
+                  style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.35)' }}>
+                  <Ico n="check" cls="w-3.5 h-3.5" /> Following Community Schedule
+                </span>
+              )}
+              {choice === 'rejected' && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold"
+                  style={{ background: 'rgba(124,77,255,0.14)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
+                  You’re using your own schedule
+                </span>
+              )}
+            </div>
+            <div className="text-[13px] text-slate-400 leading-relaxed">
+              {choice === 'accepted'
+                ? 'This is now your study schedule. It also shows up in Schedules and Today’s Study Plan.'
+                : choice === 'rejected'
+                  ? 'You’re not following this community’s schedule. You can change your mind any time.'
+                  : 'Your WynkoHead has created a study schedule for this community.'}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1.5">By {by} · {weekSummary(week)}</div>
+          </div>
+        </div>
+
+        <div className="relative flex items-center gap-3 flex-wrap mt-5">
+          {choice === null && (
+            <>
+              <button onClick={onAccept}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
+                style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)', boxShadow: '0 0 20px rgba(25,211,162,0.35)' }}>
+                <Ico n="check" cls="w-4 h-4" /> Accept Schedule
+              </button>
+              <button onClick={onReject}
+                className={`${ghostBtn} text-slate-200 hover:text-white hover:border-[rgba(56,132,255,0.6)]`}
+                style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+                <Ico n="close" cls="w-4 h-4" /> Reject &amp; Create My Own
+              </button>
+            </>
+          )}
+          {choice === 'accepted' && (
+            <button onClick={onReject}
+              className={`${ghostBtn} text-slate-300 hover:text-white hover:border-[rgba(56,132,255,0.6)]`}
+              style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+              <Ico n="close" cls="w-4 h-4" /> Reject &amp; Create My Own
+            </button>
+          )}
+          {choice === 'rejected' && (
+            <>
+              <button onClick={onCreateOwn}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
+                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+                Create My Schedule <Ico n="arrow" cls="w-4 h-4" />
+              </button>
+              <button onClick={onAccept}
+                className={`${ghostBtn} text-slate-300 hover:text-white hover:border-[rgba(25,211,162,0.6)]`}
+                style={{ background: 'rgba(25,211,162,0.06)', borderColor: 'rgba(25,211,162,0.30)' }}>
+                <Ico n="check" cls="w-4 h-4" /> Accept Schedule instead
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* The schedule itself: time + subject */}
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="calendar" title="Schedule" sub={uniform ? 'Repeats every day' : 'Weekly schedule'}
+          right={<div className="text-xs text-slate-500 flex-shrink-0">{formatStudyDuration(shownMins)} {uniform ? 'total' : `on ${DAYS_SHORT[day]}`}</div>} />
+        {!uniform && (
+          <div className="flex gap-1.5 mb-3.5">
+            {DAYS_SHORT.map((d, i) => (
+              <button key={d} onClick={() => setDay(i)} aria-pressed={day === i}
+                className="flex-1 flex flex-col items-center py-2 rounded-xl transition-all"
+                style={{
+                  background: day === i ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
+                  border: `1px solid ${day === i ? '#563FA0' : 'rgba(26,40,69,0.55)'}`,
+                  boxShadow: day === i ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                }}>
+                <span className="text-[11px] font-semibold" style={{ color: day === i ? '#fff' : '#8B9AC7' }}>{d}</span>
+                <span className="text-[10px]" style={{ color: day === i ? 'rgba(255,255,255,0.75)' : '#4E5E84' }}>{week[i]?.length ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {shown.length === 0 ? (
+          <div className="py-6 text-center text-[13px] text-slate-500">No sessions on {DAYS_SHORT[day]}.</div>
+        ) : (
+          <div className="space-y-2">
+            {shown.map(s => (
+              <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={CM_ROW}>
+                <div className="w-[150px] flex-shrink-0 text-[12px] font-semibold text-slate-300 whitespace-nowrap" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  {s.startTime} – {s.endTime}
+                </div>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                  style={{ background: `${s.color}1A`, border: `1px solid ${s.color}44` }}>{s.iconEmoji}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-100 truncate">{s.subject}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{s.topic}</div>
+                </div>
+                <div className="text-[11px] text-slate-500 flex-shrink-0">{formatStudyDuration(parseTimeRangeMinutes(s.startTime, s.endTime))}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Last-7-days bars for this community only. Y-axis in whole hours, same
+// scale rule as the Home study-progress graph (ticks derived from the data).
+function CommunityWeeklyBars({ minutes }: { minutes: number[] }) {
+  const days = useMemo(() => minutes.map((_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (minutes.length - 1 - i))
+    return { label: d.toLocaleDateString('en-US', { weekday: 'short' }), isToday: i === minutes.length - 1 }
+  }), [minutes])
+  const maxHours = Math.max(1, Math.ceil(Math.max(...minutes, 60) / 60))
+  const step = Math.max(1, Math.ceil(maxHours / 4))
+  const topHours = Math.ceil(maxHours / step) * step
+  const yMax = topHours * 60
+  const ticks: number[] = []
+  for (let h = 0; h <= topHours; h += step) ticks.push(h)
+
+  return (
+    <div>
+      <div className="pt-6">
+        <div className="relative h-44">
+          {ticks.map(h => (
+            <div key={h} className="absolute left-0 right-0 flex items-center" style={{ bottom: `${(h / topHours) * 100}%`, transform: 'translateY(50%)' }}>
+              <span className="w-10 text-[10px] text-slate-600 text-right pr-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{h}h</span>
+              <div className="flex-1 h-px" style={{ background: 'rgba(139,154,199,0.10)' }} />
+            </div>
+          ))}
+          <div className="absolute top-0 bottom-0 left-10 right-0 flex items-end gap-3">
+            {minutes.map((m, i) => (
+              <div key={i} className="flex-1 h-full flex items-end justify-center">
+                <div className="relative w-full max-w-[44px] rounded-t-lg"
+                  title={`${days[i].label}: ${formatStudyDuration(m)}`}
+                  style={{
+                    height: `${(m / yMax) * 100}%`, minHeight: m > 0 ? 4 : 0,
+                    background: days[i].isToday ? 'linear-gradient(180deg,#22D3EE,#2979FF)' : 'linear-gradient(180deg,#7C4DFF,#3B2FA8)',
+                    boxShadow: days[i].isToday ? '0 0 18px rgba(34,211,238,0.35)' : 'none',
+                  }}>
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 whitespace-nowrap">{formatStudyDuration(m)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-3 pl-10 mt-2">
+        {days.map((d, i) => (
+          <div key={i} className="flex-1 text-center text-[11px]" style={{ color: d.isToday ? '#67E8F9' : '#64748B', fontWeight: d.isToday ? 600 : 400 }}>{d.label}</div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── My Progress tab: this community only ──
+function CommunityProgressTab({ detail }: { detail: CommunityDetail }) {
+  const p = detail.progress
+  const weekTotal = p.weeklyMinutes.reduce((a, b) => a + b, 0)
+  return (
+    <div className="space-y-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {([
+          { icon: 'clock', value: formatStudyDuration(p.totalMinutes), label: 'Total Study Time' },
+          { icon: 'bullseye', value: String(p.totalSessions), label: 'Focus Sessions' },
+          { icon: 'check', value: `${p.adherencePct}%`, label: 'Schedule Adherence' },
+        ] as { icon: keyof typeof IP; value: string; label: string }[]).map(s => (
+          <div key={s.label} className="p-5 rounded-2xl border" style={CM_CARD}>
+            <CmStat icon={s.icon} value={s.value} label={s.label} />
+          </div>
+        ))}
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="progress" title="Weekly Study Activity" sub="Last 7 days · this community"
+          right={<div className="text-right flex-shrink-0"><div className="text-sm font-bold text-slate-100">{formatStudyDuration(weekTotal)}</div><div className="text-[10px] text-slate-500">this week</div></div>} />
+        <CommunityWeeklyBars minutes={p.weeklyMinutes} />
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="rooms" title="Community Statistics" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(26,40,69,0.9)]">
+          <div className="sm:pr-6"><CmStat icon="clock" value={formatStudyDuration(p.community.avgDailyMinutes)} label="Avg. Study Time / Day" /></div>
+          <div className="sm:px-6"><CmStat icon="library" value={String(p.community.activeSubjects)} label="Active Subjects" /></div>
+          <div className="sm:pl-6"><CmStat icon="check" value={`${p.community.avgAdherencePct}%`} label="Avg. Schedule Adherence" /></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Announcements tab: the WynkoHead's feed, pinned first then newest → oldest ──
+function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
+  const feed = [...detail.announcements].sort((a, b) =>
+    (Number(!!b.pinned) - Number(!!a.pinned)) || (b.postedAt - a.postedAt))
+  if (feed.length === 0) {
+    return (
+      <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
+        <div className="text-sm font-semibold text-slate-300 mb-1">No announcements yet</div>
+        <div className="text-[12px] text-slate-500">Announcements from {detail.head.name} will show up here.</div>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      {feed.map(a => (
+        <div key={a.id} className="p-5 rounded-2xl border" style={CM_CARD}>
+          <div className="flex items-start gap-3.5">
+            <CommunityHeadAvatar head={detail.head} size={40} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="text-sm font-semibold text-slate-100">{detail.head.name}</span>
+                  <WynkoHeadTag />
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <AnnouncementBadges pinned={a.pinned} important={a.important} />
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+                    <Ico n="clock" cls="w-3 h-3" /> {formatPostedStamp(a.postedAt)}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[15px] font-semibold text-slate-100 mt-2.5 mb-1">{a.title}</div>
+              <div className="text-[13px] text-slate-400 leading-relaxed">{a.message}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── WynkoHead · Community management ────────────────────────────────────────
+// What a registered WynkoHead sees when they open Community from the sidebar,
+// instead of the student's Study Rooms / Communities module: a management
+// dashboard for the community they run. Tabs: Overview · Schedule ·
+// Announcements · Student Analytics · Earnings · Manage Community.
+//
+// The student side of the same flows lives in CommunityStudentPage above:
+// a schedule published here reaches students as a notification card
+// (ScheduleNotificationCard) and announcements posted here appear in their
+// feed. Both go through lib/communityStore.ts until there is a backend.
+type HeadTab = 'overview' | 'schedule' | 'announcements' | 'analytics' | 'earnings' | 'manage'
+const HEAD_SETTINGS_KEY = 'wynko_head_community_v1'
+
+interface HeadCommunitySettings {
+  name: string
+  description: string
+  requireApproval: boolean
+  handledRequests: string[] // join-request ids already approved / declined
+  approvedCount: number // members added through approved requests
+}
+
+const HEAD_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
+
+function initialsOf(name: string): string {
+  return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'W'
+}
+
+function loadHeadSettings(community: CommunityData): HeadCommunitySettings {
+  const saved = Store.get(HEAD_SETTINGS_KEY, null) as Partial<HeadCommunitySettings> | null
+  return { name: community.name, description: community.desc, requireApproval: true, handledRequests: [], approvedCount: 0, ...(saved ?? {}) }
+}
+
+function HeadBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+      style={{ background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>
+      👑 WynkoHead
+    </span>
+  )
+}
+
+// Same segmented tab bar the student view uses, for any number of tabs.
+function CmTabBar<T extends string>({ tabs, active, onChange }: {
+  tabs: { id: T; label: string; icon: keyof typeof IP }[]
+  active: T
+  onChange: (t: T) => void
+}) {
+  return (
+    <div role="tablist" className="grid gap-1 p-1 rounded-2xl border"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, background: '#0B1530', borderColor: '#1A2845' }}>
+      {tabs.map(t => {
+        const on = active === t.id
+        return (
+          <button key={t.id} role="tab" aria-selected={on} onClick={() => onChange(t.id)} title={t.label}
+            className="flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-sm font-semibold transition-all"
+            style={{
+              background: on ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
+              color: on ? '#fff' : '#8B9AC7',
+              boxShadow: on ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+            }}>
+            <Ico n={t.icon} cls="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{t.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function HeadConfirmDialog({ title, body, confirmLabel, confirmStyle, onConfirm, onCancel }: {
+  title: string
+  body: React.ReactNode
+  confirmLabel: string
+  confirmStyle: React.CSSProperties
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="rounded-2xl border p-7 w-[420px] max-w-full"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-lg font-bold text-white mb-1.5">{title}</div>
+        <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">{body}</div>
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity" style={confirmStyle}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onViewAsStudent, onEnterStudyRoom, headSchedule, setHeadSchedule, headUnits, setHeadUnits, published, onPublish }: {
+  community: CommunityData
+  headName: string
+  profile?: ProfileInfo
+  onNavigate: (id: string) => void
+  onViewAsStudent: () => void
+  onEnterStudyRoom: (room: RoomData) => void
+  headSchedule: ScheduleItem[][]
+  setHeadSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
+  headUnits: StudyUnit[]
+  setHeadUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
+  published: PublishedSchedule | undefined
+  onPublish: () => void
+}) {
+  const [tab, setTab] = useState<HeadTab>('overview')
+  const [settings, setSettings] = useState<HeadCommunitySettings>(() => loadHeadSettings(community))
+  const [announcements, setAnnouncements] = useState<CommunityAnnouncement[]>(
+    () => loadAnnouncements(community.id, getCommunityDetail(community.id)?.announcements ?? []))
+
+  function updateSettings(patch: Partial<HeadCommunitySettings>) {
+    setSettings(prev => { const next = { ...prev, ...patch }; Store.set(HEAD_SETTINGS_KEY, next); return next })
+  }
+  function updateAnnouncements(next: CommunityAnnouncement[]) {
+    setAnnouncements(next)
+    saveAnnouncements(community.id, next)
+  }
+
+  const members = community.members + settings.approvedCount
+  const studyingNow = community.studyingNow ?? 128
+
+  const TABS: { id: HeadTab; label: string; icon: keyof typeof IP }[] = [
+    { id: 'overview', label: 'Overview', icon: 'home' },
+    { id: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
+    { id: 'analytics', label: 'Student Analytics', icon: 'progress' },
+    { id: 'earnings', label: 'Earnings', icon: 'coin' },
+    { id: 'manage', label: 'Manage Community', icon: 'cog' },
+  ]
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
+      <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <Ico n="chevL" cls="w-4 h-4" /> Home
+          </button>
+          <div className="flex-1">
+            <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
+            <div className="text-sm font-semibold text-slate-200">Manage your community, guide your students, and track their progress.</div>
+          </div>
+          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <UserAvatar size={32} />
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-4 pb-6">
+            {/* Community header */}
+            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(56,132,255,0.30)', boxShadow: '0 0 70px rgba(41,98,255,0.14), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+              <CommunityBannerArt />
+              <div className="relative z-10 p-5 flex items-center gap-5 flex-wrap">
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
+                  style={{ background: community.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{community.emoji}</div>
+                <div className="min-w-0 flex-1 basis-[280px]">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-2xl font-bold text-white leading-tight">{settings.name}</h1>
+                    <HeadBadge />
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[13px] mt-1.5" style={{ color: '#A5B4FC' }}>
+                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(members)} Members
+                  </div>
+                  <div className="flex items-center gap-2 text-[13px] text-slate-300 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> {fmt(studyingNow)} active students
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <button onClick={() => setTab('manage')}
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+                    <Ico n="cog" cls="w-4 h-4" /> Manage Community
+                  </button>
+                  <button onClick={onViewAsStudent}
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-100 hover:text-white transition-colors border"
+                    style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(56,132,255,0.40)' }}>
+                    View Community
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <CmTabBar tabs={TABS} active={tab} onChange={setTab} />
+
+            {tab === 'overview' && (
+              <HeadOverviewTab community={community} members={members} studyingNow={studyingNow} announcements={announcements}
+                onViewAnnouncements={() => setTab('announcements')} onEnterRoom={() => onEnterStudyRoom(communityStudyRoom(community))} />
+            )}
+            {tab === 'schedule' && (
+              <HeadScheduleTab members={members} headSchedule={headSchedule} setHeadSchedule={setHeadSchedule}
+                headUnits={headUnits} setHeadUnits={setHeadUnits} published={published} onPublish={onPublish} />
+            )}
+            {tab === 'announcements' && (
+              <HeadAnnouncementsTab headName={headName} announcements={announcements} onChange={updateAnnouncements} />
+            )}
+            {tab === 'analytics' && <HeadAnalyticsTab />}
+            {tab === 'earnings' && <HeadEarningsTab />}
+            {tab === 'manage' && <HeadManageTab settings={settings} onChange={updateSettings} />}
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+// ── Overview: the numbers that matter, the study room, latest announcements ──
+function HeadOverviewTab({ community, members, studyingNow, announcements, onViewAnnouncements, onEnterRoom }: {
+  community: CommunityData
+  members: number
+  studyingNow: number
+  announcements: CommunityAnnouncement[]
+  onViewAnnouncements: () => void
+  onEnterRoom: () => void
+}) {
+  const progress = getCommunityDetail(community.id)?.progress.community
+  const recent = [...announcements].sort((a, b) => b.postedAt - a.postedAt).slice(0, 3)
+  const roomAvatars = [0, 1, 2].map(i => AVATAR_OPTIONS[(community.id + i) % AVATAR_OPTIONS.length])
+  const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
+    { icon: 'rooms', value: fmt(members), label: 'Total Students' },
+    { icon: 'bullseye', value: fmt(Math.round(members * 0.4)), label: 'Active Today' },
+    { icon: 'clock', value: formatStudyDuration(progress?.avgDailyMinutes ?? 0), label: 'Avg. Study Time / Day' },
+    { icon: 'check', value: `${progress?.avgAdherencePct ?? 0}%`, label: 'Avg. Schedule Adherence' },
+  ]
+  return (
+    <div className="space-y-3.5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3.5">
+        {stats.map(s => (
+          <div key={s.label} className="p-5 rounded-2xl border" style={CM_CARD}>
+            <CmStat icon={s.icon} value={s.value} label={s.label} />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+        {/* Community Study Room */}
+        <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
+          <CmCardTitle icon="rooms" title="Community Study Room"
+            right={
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+                style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Live
+              </span>
+            } />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex -space-x-2 flex-shrink-0">
+              {roomAvatars.map((src, i) => (
+                <img key={i} src={src} alt="" className="w-9 h-9 rounded-full object-cover border-2 flex-shrink-0" style={{ borderColor: '#0B1530', zIndex: 3 - i }} />
+              ))}
+            </div>
+            <div className="text-[13px] text-slate-300 font-medium">
+              <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students online
+            </div>
+          </div>
+          <div className="rounded-xl border p-4 mb-5" style={CM_ROW}>
+            <div className="text-[11px] text-slate-500 mb-1">Currently studying</div>
+            <div className="text-sm font-semibold text-slate-100">Mathematics · Integration</div>
+          </div>
+          <button onClick={onEnterRoom}
+            className="mt-auto w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            <Ico n="play" cls="w-4 h-4" /> Enter Study Room
+          </button>
+        </div>
+
+        {/* Recent announcements */}
+        <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
+          <CmCardTitle icon="megaphone" title="Recent Announcements"
+            right={
+              <button onClick={onViewAnnouncements} className="flex items-center gap-1 text-[12px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors flex-shrink-0">
+                View All <Ico n="arrow" cls="w-3.5 h-3.5" />
+              </button>
+            } />
+          {recent.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-[13px] text-slate-500 py-8">No announcements yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {recent.map(a => (
+                <div key={a.id} className="rounded-xl border px-4 py-3" style={CM_ROW}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-100 truncate">{a.title}</div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <AnnouncementBadges pinned={a.pinned} important={a.important} />
+                      <span className="text-[11px] text-slate-500 whitespace-nowrap">{formatPostedAgo(a.postedAt)}</span>
+                    </div>
+                  </div>
+                  <div className="text-[12px] text-slate-500 truncate mt-0.5">{a.message}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Schedule: the existing schedule editor + "publish to students" ──
+function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, setHeadUnits, published, onPublish }: {
+  members: number
+  headSchedule: ScheduleItem[][]
+  setHeadSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
+  headUnits: StudyUnit[]
+  setHeadUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
+  published: PublishedSchedule | undefined
+  onPublish: () => void
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [justPublished, setJustPublished] = useState(false)
+  const publishedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (publishedTimer.current) clearTimeout(publishedTimer.current) }, [])
+
+  const hasSessions = headSchedule.some(d => d.length > 0)
+  const unpublishedChanges = !!published && JSON.stringify(published.week) !== JSON.stringify(headSchedule)
+
+  function confirmPublish() {
+    setConfirming(false)
+    onPublish()
+    setJustPublished(true)
+    if (publishedTimer.current) clearTimeout(publishedTimer.current)
+    publishedTimer.current = setTimeout(() => setJustPublished(false), 5000)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="p-5 rounded-2xl border relative overflow-hidden"
+        style={{ ...CM_CARD, borderColor: justPublished ? 'rgba(25,211,162,0.35)' : 'rgba(56,132,255,0.30)' }}>
+        <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
+          style={{ background: `radial-gradient(circle, ${justPublished ? 'rgba(25,211,162,0.10)' : 'rgba(124,77,255,0.14)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
+        <div className="relative flex items-center gap-4 flex-wrap">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}>
+            <Ico n="send" cls="w-5 h-5 text-cyan-300" />
+          </div>
+          <div className="flex-1 min-w-[260px]">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Publish to your students</div>
+              {unpublishedChanges && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                  style={{ background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>Unpublished changes</span>
+              )}
+            </div>
+            <div className="text-[13px] text-slate-400 leading-relaxed mt-0.5">
+              Build the schedule below, then publish it. Students get a notification and choose whether to follow it or create their own.
+            </div>
+            <div className="text-[11px] mt-1.5" style={{ color: justPublished ? '#19D3A2' : '#64748B' }}>
+              {justPublished
+                ? `Published. ${fmt(members)} students have been notified.`
+                : published ? `Last published ${formatPostedStamp(published.publishedAt)}` : 'Not published yet'}
+            </div>
+          </div>
+          <button onClick={() => setConfirming(true)} disabled={!hasSessions}
+            title={hasSessions ? undefined : 'Add at least one session first'}
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            <Ico n="send" cls="w-4 h-4" /> Publish Schedule
+          </button>
+        </div>
+      </div>
+
+      <SchedulesPage embedded title="Community Schedule" subtitle="The schedule your students will receive."
+        onNavigate={() => {}} schedule={headSchedule} setSchedule={setHeadSchedule}
+        sharedUnits={headUnits} setSharedUnits={setHeadUnits} />
+
+      {confirming && (
+        <HeadConfirmDialog title="Publish this schedule?"
+          body={<>{fmt(members)} students will get a notification with this schedule ({weekSummary(headSchedule)}). Each student can accept it or keep their own schedule.</>}
+          confirmLabel="Publish" confirmStyle={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}
+          onConfirm={confirmPublish} onCancel={() => setConfirming(false)} />
+      )}
+    </div>
+  )
+}
+
+// ── Announcements: post to the community, manage the feed ──
+function HeadAnnouncementsTab({ headName, announcements, onChange }: {
+  headName: string
+  announcements: CommunityAnnouncement[]
+  onChange: (next: CommunityAnnouncement[]) => void
+}) {
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [important, setImportant] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const feed = [...announcements].sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (b.postedAt - a.postedAt))
+  const canPost = title.trim().length > 0 && message.trim().length > 0
+
+  function post() {
+    if (!canPost) return
+    onChange([{ id: `hp_${Date.now()}`, title: title.trim(), message: message.trim(), postedAt: Date.now(), important, pinned }, ...announcements])
+    setTitle(''); setMessage(''); setImportant(false); setPinned(false)
+  }
+
+  const toggle = (on: boolean, set: (v: boolean) => void, label: string, icon: keyof typeof IP, accent: string) => (
+    <button type="button" onClick={() => set(!on)} aria-pressed={on}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
+      style={{ background: on ? `${accent}1F` : 'transparent', color: on ? accent : '#64748B', borderColor: on ? `${accent}66` : '#1A2845' }}>
+      <Ico n={icon} cls="w-3.5 h-3.5" /> {label}
+    </button>
+  )
+
+  return (
+    <div className="space-y-3.5">
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="megaphone" title="New Announcement" sub="Visible to every student in your community" />
+        <div className="space-y-3">
+          <input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="Title" className={HEAD_INPUT} />
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} maxLength={400} placeholder="Write your announcement…"
+            className={`${HEAD_INPUT} resize-none`} />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              {toggle(important, setImportant, 'Important', 'alert', '#F87171')}
+              {toggle(pinned, setPinned, 'Pin to top', 'pin', '#7FB0FF')}
+            </div>
+            <button onClick={post} disabled={!canPost}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+              <Ico n="send" cls="w-4 h-4" /> Post Announcement
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {feed.length === 0 ? (
+        <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
+          <div className="text-sm font-semibold text-slate-300 mb-1">No announcements yet</div>
+          <div className="text-[12px] text-slate-500">Post your first announcement above.</div>
+        </div>
+      ) : feed.map(a => (
+        <div key={a.id} className="p-5 rounded-2xl border" style={CM_CARD}>
+          <div className="flex items-start gap-3.5">
+            <CommunityHeadAvatar head={{ name: headName, initials: initialsOf(headName), color: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' }} size={40} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="text-sm font-semibold text-slate-100">{headName}</span>
+                  <WynkoHeadTag />
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <AnnouncementBadges pinned={a.pinned} important={a.important} />
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+                    <Ico n="clock" cls="w-3 h-3" /> {formatPostedStamp(a.postedAt)}
+                  </span>
+                  {deleting === a.id ? (
+                    <span className="flex items-center gap-1.5 text-[11px]">
+                      <button onClick={() => { onChange(announcements.filter(x => x.id !== a.id)); setDeleting(null) }}
+                        className="font-semibold text-red-400 hover:text-red-300 transition-colors">Delete</button>
+                      <span className="text-slate-700">·</span>
+                      <button onClick={() => setDeleting(null)} className="text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setDeleting(a.id)} aria-label={`Delete announcement: ${a.title}`}
+                      className="text-slate-600 hover:text-red-400 transition-colors"><Ico n="trash" cls="w-4 h-4" /></button>
+                  )}
+                </div>
+              </div>
+              <div className="text-[15px] font-semibold text-slate-100 mt-2.5 mb-1">{a.title}</div>
+              <div className="text-[13px] text-slate-400 leading-relaxed whitespace-pre-wrap break-words">{a.message}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Student Analytics: how every student is doing ──
+function HeadAnalyticsTab() {
+  type Filter = 'all' | 'active' | 'inactive' | 'low'
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
+  const [showAll, setShowAll] = useState(false)
+
+  const rows = HEAD_STUDENTS
+    .filter(s => s.name.toLowerCase().includes(query.trim().toLowerCase()))
+    .filter(s => filter === 'all' ? true
+      : filter === 'active' ? s.lastActiveMins < 24 * 60
+      : filter === 'inactive' ? s.lastActiveMins >= 3 * 24 * 60
+      : s.adherencePct < 50)
+    .sort((a, b) => b.adherencePct - a.adherencePct)
+  const visible = showAll ? rows : rows.slice(0, 8)
+
+  const ago = (m: number) => m < 60 ? `${m}m ago` : m < 24 * 60 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / (24 * 60))}d ago`
+  const barFor = (p: number) => p >= 70 ? 'linear-gradient(90deg,#19D3A2,#22D3EE)' : p >= 50 ? 'linear-gradient(90deg,#2979FF,#60A5FA)' : 'linear-gradient(90deg,#7C4DFF,#A78BFA)'
+  const COLS = 'grid-cols-[minmax(170px,1.6fr)_repeat(5,minmax(64px,0.7fr))_minmax(84px,0.8fr)_minmax(150px,1.3fr)]'
+
+  return (
+    <div className="p-5 rounded-2xl border" style={CM_CARD}>
+      <div className="flex items-center gap-4 flex-wrap mb-4">
+        <div className="flex items-center gap-2.5 mr-2">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="progress" cls="w-4 h-4 text-cyan-300" /></div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Student Analytics</div>
+        </div>
+        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+          <Ico n="search" cls="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input value={query} onChange={e => { setQuery(e.target.value); setShowAll(false) }} placeholder="Search students..." aria-label="Search students"
+            className={`${HEAD_INPUT} pl-10`} style={{ background: 'rgba(14,21,40,0.55)' }} />
+        </div>
+        <select value={filter} onChange={e => { setFilter(e.target.value as Filter); setShowAll(false) }} aria-label="Filter students"
+          className="ml-auto px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors border-[#1A2845] cursor-pointer"
+          style={{ background: 'rgba(14,21,40,0.55)', colorScheme: 'dark' }}>
+          <option value="all">All Students</option>
+          <option value="active">Active Today</option>
+          <option value="inactive">Inactive 3+ Days</option>
+          <option value="low">Low Adherence</option>
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[860px]">
+          <div className={`grid ${COLS} gap-3 px-4 pb-2.5 text-[11px] font-semibold text-slate-500 border-b border-[rgba(26,40,69,0.9)]`}>
+            <div>Student</div><div>Study Time</div><div>Sessions</div><div>Streak</div><div>Revision</div><div>Tasks</div><div>Last Active</div><div>Adherence</div>
+          </div>
+          {visible.length === 0 ? (
+            <div className="py-10 text-center text-[13px] text-slate-500">No students match.</div>
+          ) : visible.map(s => (
+            <div key={s.id} className={`grid ${COLS} gap-3 px-4 py-3 items-center text-[13px] text-slate-300 border-b border-[rgba(26,40,69,0.6)] last:border-b-0 hover:bg-white/[0.02] transition-colors`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: s.color }}>{s.initials}</div>
+                <span className="font-medium text-slate-100 truncate">{s.name}</span>
+              </div>
+              <div>{formatStudyDuration(s.studyMinutes)}</div>
+              <div>{s.sessions}</div>
+              <div>{s.streakDays === 0 ? '–' : `${s.streakDays} day${s.streakDays === 1 ? '' : 's'}`}</div>
+              <div>{s.revision}</div>
+              <div>{s.tasks}</div>
+              <div className="text-slate-400">{ago(s.lastActiveMins)}</div>
+              <div className="flex items-center gap-2.5">
+                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${s.adherencePct}%`, background: barFor(s.adherencePct) }} />
+                </div>
+                <span className="w-9 text-right text-[12px] text-slate-400">{s.adherencePct}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {rows.length > 8 && (
+        <button onClick={() => setShowAll(v => !v)} className="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors">
+          {showAll ? 'Show fewer students' : 'View All Students'} {!showAll && <Ico n="arrow" cls="w-3.5 h-3.5" />}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Earnings: what this community has earned the WynkoHead ──
+function EarningsChart({ points }: { points: { label: string; value: number }[] }) {
+  const W = 640, H = 210, PL = 20, PR = 20, PT = 18, PB = 12
+  const n = points.length
+  const max = Math.max(...points.map(p => p.value), 1)
+  const xs = points.map((_, i) => PL + (i / Math.max(n - 1, 1)) * (W - PL - PR))
+  const ys = points.map(p => PT + (1 - p.value / max) * (H - PT - PB))
+  // Catmull-Rom → cubic Bézier, so the line curves through every point.
+  let line = `M${xs[0]},${ys[0]}`
+  for (let i = 0; i < n - 1; i++) {
+    const x0 = xs[i - 1] ?? xs[i], y0 = ys[i - 1] ?? ys[i]
+    const x3 = xs[i + 2] ?? xs[i + 1], y3 = ys[i + 2] ?? ys[i + 1]
+    line += ` C${xs[i] + (xs[i + 1] - x0) / 6},${ys[i] + (ys[i + 1] - y0) / 6} ${xs[i + 1] - (x3 - xs[i]) / 6},${ys[i + 1] - (y3 - ys[i]) / 6} ${xs[i + 1]},${ys[i + 1]}`
+  }
+  const area = `${line} L${xs[n - 1]},${H - PB} L${xs[0]},${H - PB} Z`
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Earnings over time">
+        <defs>
+          <linearGradient id="earnFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7C4DFF" stopOpacity="0.38" />
+            <stop offset="100%" stopColor="#7C4DFF" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#earnFill)" />
+        <path d={line} fill="none" stroke="#8B7CFF" strokeWidth="2.5" strokeLinecap="round" />
+        {points.map((p, i) => (
+          <circle key={i} cx={xs[i]} cy={ys[i]} r="4.5" fill="#8B7CFF" stroke="#0B1530" strokeWidth="2">
+            <title>{`${p.label} · ₹${p.value.toLocaleString('en-IN')}`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="relative h-5 mt-1">
+        {points.map((p, i) => (
+          <span key={i} className="absolute text-[10px] text-slate-500 whitespace-nowrap -translate-x-1/2" style={{ left: `${(xs[i] / W) * 100}%` }}>{p.label}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HeadEarningsTab() {
+  const [range, setRange] = useState<EarningsRange>(30)
+  const data = useMemo(() => buildEarnings(range), [range])
+  const payout = useMemo(() => payoutInfo(), [])
+  const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
+  const SOURCE_COLORS = ['#7C4DFF', '#22D3EE', '#19D3A2']
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawn, setWithdrawn] = useState(false)
+  function requestWithdraw() {
+    if (withdrawing || withdrawn) return
+    setWithdrawing(true)
+    setTimeout(() => { setWithdrawing(false); setWithdrawn(true) }, 900)
+  }
+
+  return (
+    <div className="space-y-3.5">
+      <div className="rounded-2xl border overflow-hidden" style={CM_CARD}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]">
+          <div className="p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="coin" cls="w-4 h-4 text-cyan-300" /></div>
+                <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Earnings Overview</div>
+              </div>
+              <select value={range} onChange={e => setRange(Number(e.target.value) as EarningsRange)} aria-label="Earnings period"
+                className="px-3.5 py-2 rounded-xl border text-[13px] text-slate-200 outline-none focus:border-violet-500/50 transition-colors border-[#1A2845] cursor-pointer"
+                style={{ background: 'rgba(14,21,40,0.55)', colorScheme: 'dark' }}>
+                <option value={7}>Last 7 Days</option>
+                <option value={30}>Last 30 Days</option>
+                <option value={90}>Last 90 Days</option>
+              </select>
+            </div>
+            <div className="flex items-end gap-3 mb-4">
+              <div>
+                <div className="text-3xl font-bold text-white leading-tight">{inr(data.total)}</div>
+                <div className="text-[12px] text-slate-500 mt-0.5">Total Earnings</div>
+              </div>
+              <div className="pb-1 text-[13px] font-semibold text-emerald-400">↑ {data.changePct}%</div>
+            </div>
+            <EarningsChart points={data.points} />
+          </div>
+
+          <div className="p-5 border-t lg:border-t-0 lg:border-l border-[rgba(26,40,69,0.9)] flex flex-col gap-5">
+            <div>
+              <div className="text-[13px] text-slate-400 mb-2">Payout Status</div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold"
+                style={payout.status === 'Paid'
+                  ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                  : { background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>
+                <Ico n="check" cls="w-3.5 h-3.5" /> {payout.status}
+              </span>
+              <div className="text-[11px] text-slate-500 mt-2">{inr(payout.lastAmount)} paid on {payout.lastDate}</div>
+            </div>
+            <div>
+              <div className="text-[13px] text-slate-400 mb-1">Next payout</div>
+              <div className="text-lg font-bold text-slate-100">{payout.nextDate}</div>
+              <div className="text-[13px] text-slate-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-slate-500">(estimated)</span></div>
+            </div>
+            <button onClick={requestWithdraw} disabled={withdrawing || withdrawn}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-70 flex items-center justify-center gap-2"
+              style={withdrawn
+                ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                : { background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', color: '#fff', boxShadow: '0 0 16px #1E3060' }}>
+              {withdrawn ? <><Ico n="check" cls="w-3.5 h-3.5" /> Withdrawal requested</> : withdrawing ? 'Requesting…' : 'Withdraw'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="coin" title="Earnings by Source" sub={`Last ${range} days`} />
+        <div className="space-y-2">
+          {data.sources.map((s, i) => {
+            const pct = data.total > 0 ? Math.round((s.amount / data.total) * 100) : 0
+            return (
+              <div key={s.id} className="rounded-xl border px-4 py-3.5" style={CM_ROW}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${SOURCE_COLORS[i]}1A`, border: `1px solid ${SOURCE_COLORS[i]}44` }}>{s.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-100">{s.label}</div>
+                    <div className="text-[11px] text-slate-500">{s.note}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-slate-100">{inr(s.amount)}</div>
+                    <div className="text-[11px] text-slate-500">{pct}%</div>
+                  </div>
+                </div>
+                <div className="h-1 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SOURCE_COLORS[i] }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Manage Community: details, invite & access, join requests ──
+function HeadManageTab({ settings, onChange }: {
+  settings: HeadCommunitySettings
+  onChange: (patch: Partial<HeadCommunitySettings>) => void
+}) {
+  const [name, setName] = useState(settings.name)
+  const [description, setDescription] = useState(settings.description)
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
+
+  const dirty = name.trim() !== settings.name || description.trim() !== settings.description
+  const inviteLink = `wynko.in/c/${(settings.name || 'community').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+  const pending = HEAD_JOIN_REQUESTS.filter(r => !settings.handledRequests.includes(r.id))
+
+  function save() {
+    if (!name.trim()) return
+    onChange({ name: name.trim(), description: description.trim() })
+    setSaved(true)
+    timers.current.push(setTimeout(() => setSaved(false), 2500))
+  }
+  function copyInvite() {
+    navigator.clipboard?.writeText(inviteLink)
+    setCopied(true)
+    timers.current.push(setTimeout(() => setCopied(false), 2000))
+  }
+  function handle(id: string, approve: boolean) {
+    onChange({ handledRequests: [...settings.handledRequests, id], approvedCount: settings.approvedCount + (approve ? 1 : 0) })
+  }
+
+  return (
+    <div className="space-y-3.5">
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="cog" title="Community Details" sub="How your community appears to students" />
+        <div className="space-y-3.5">
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Community name</span>
+            <input value={name} onChange={e => setName(e.target.value)} maxLength={60} className={HEAD_INPUT} />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Description</span>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={240} className={`${HEAD_INPUT} resize-none`} />
+          </label>
+          <div className="flex items-center justify-end gap-3">
+            {saved && <span className="text-[12px] text-emerald-400">Saved</span>}
+            <button onClick={save} disabled={!dirty || !name.trim()}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="rooms" title="Invite & Access" sub="Control how students join" />
+        <div className="text-[11px] font-semibold text-slate-500 mb-1.5">Invite link</div>
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 truncate border-[#1A2845]" style={{ background: 'rgba(14,21,40,0.55)' }}>{inviteLink}</div>
+          <button onClick={copyInvite}
+            className="px-4 py-2.5 rounded-xl border text-sm font-semibold flex items-center gap-2 transition-colors text-slate-200 hover:text-white hover:border-[rgba(56,132,255,0.6)]"
+            style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+            <Ico n="copy" cls="w-4 h-4" /> {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5" style={CM_ROW}>
+          <div>
+            <div className="text-sm font-semibold text-slate-100">Approve new students manually</div>
+            <div className="text-[12px] text-slate-500 mt-0.5">Students who use your link wait for your approval before they join.</div>
+          </div>
+          <button role="switch" aria-checked={settings.requireApproval} aria-label="Approve new students manually"
+            onClick={() => onChange({ requireApproval: !settings.requireApproval })}
+            className="relative w-11 h-6 rounded-full flex-shrink-0 transition-colors"
+            style={{ background: settings.requireApproval ? '#7C4DFF' : 'rgba(71,85,105,0.5)' }}>
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: settings.requireApproval ? 22 : 2 }} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="check" title="Join Requests" sub={settings.requireApproval ? `${pending.length} waiting for approval` : 'Manual approval is off'} />
+        {!settings.requireApproval ? (
+          <div className="text-[13px] text-slate-500 py-2">New students join instantly. Turn on manual approval above to review them first.</div>
+        ) : pending.length === 0 ? (
+          <div className="text-[13px] text-slate-500 py-2">No pending requests.</div>
+        ) : (
+          <div className="space-y-2">
+            {pending.map(r => (
+              <div key={r.id} className="flex items-center gap-3 rounded-xl border px-4 py-3" style={CM_ROW}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: r.color }}>{r.initials}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-100 truncate">{r.name}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{r.note} · {r.requestedAgo}</div>
+                </div>
+                <button onClick={() => handle(r.id, false)}
+                  className="px-4 py-1.5 rounded-lg border text-[12px] font-semibold text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Decline</button>
+                <button onClick={() => handle(r.id, true)}
+                  className="px-4 py-1.5 rounded-lg text-[12px] font-semibold text-white flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)' }}>
+                  <Ico n="check" cls="w-3.5 h-3.5" /> Approve
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Student-side notification: the WynkoHead published a schedule ──
+// Floats over whatever page the student is on until they choose.
+function ScheduleNotificationCard({ communityName, published, onAccept, onCreateOwn, onDismiss }: {
+  communityName: string
+  published: PublishedSchedule
+  onAccept: () => void
+  onCreateOwn: () => void
+  onDismiss: () => void
+}) {
+  const week = published.week as ScheduleItem[][]
+  return (
+    <div role="alert" className="fixed top-[68px] right-4 z-[70] w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border p-5"
+      style={{ background: 'linear-gradient(160deg, #0F1838 0%, #0A1024 100%)', borderColor: '#2855CC', boxShadow: '0 12px 50px rgba(0,0,0,0.55), 0 0 50px rgba(124,77,255,0.30)' }}>
+      <div className="flex items-start gap-3">
+        <CommunityHeadAvatar head={{ name: published.by, initials: initialsOf(published.by), color: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' }} size={40} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">NEW SCHEDULE</div>
+          <div className="text-sm font-bold text-white leading-snug">{published.by} published a schedule for {communityName}</div>
+        </div>
+        <button onClick={onDismiss} aria-label="Decide later" title="Decide later"
+          className="w-7 h-7 -mr-1 -mt-1 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors flex-shrink-0">
+          <Ico n="close" cls="w-4 h-4" />
+        </button>
+      </div>
+      <div className="rounded-xl border px-3.5 py-2.5 mt-3.5 text-[12px] text-slate-300" style={CM_ROW}>{weekSummary(week)}</div>
+      <div className="text-[12px] text-slate-500 mt-3">Follow it, or keep and create your own. It’s your choice.</div>
+      <div className="flex items-center gap-2.5 mt-3.5">
+        <button onClick={onAccept}
+          className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+          style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)', boxShadow: '0 0 18px rgba(25,211,162,0.30)' }}>
+          <Ico n="check" cls="w-4 h-4" /> Accept Schedule
+        </button>
+        <button onClick={onCreateOwn}
+          className="flex-1 py-2.5 rounded-xl border text-[13px] font-semibold text-slate-200 hover:text-white transition-colors hover:border-[rgba(56,132,255,0.6)]"
+          style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+          Create My Own
+        </button>
+      </div>
     </div>
   )
 }
@@ -3270,9 +5303,10 @@ function initRoomPlan(units: StudyUnit[], schedule: ScheduleItem[][], todayIdx: 
 }
 
 // ─── Room Interior Page ────────────────────────────────────────────────────────
-function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, todayIdx }: {
+function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, todayIdx, backLabel = 'Rooms' }: {
   room: RoomData; onBack: () => void; onNavigate: (id: string) => void; profile?: ProfileInfo
   units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number
+  backLabel?: string // "Community" when the room was opened from a community page
 }) {
   const { avatar: userAvatar } = useContext(UserAvatarCtx)
   const bots = useMemo(() => getRoomBots(room), [room])
@@ -3461,7 +5495,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
         <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0 bg-[rgba(6,9,20,0.95)] border-[rgba(26,40,69,0.55)]"
           >
           <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm flex-shrink-0">
-            <Ico n="chevL" cls="w-4 h-4" /> Rooms
+            <Ico n="chevL" cls="w-4 h-4" /> {backLabel}
           </button>
           <div className="w-px h-5 bg-slate-700 flex-shrink-0" />
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -3729,13 +5763,138 @@ const WEBSITE_SUGGESTIONS = [
 
 const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#19B5E6', '#19D3A2', '#F59E0B', '#F87171', '#EC4899']
 
-function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile }: {
+// ─── Schedule AI chat ─────────────────────────────────────────────────────────
+// "Generate with AI" on the Schedules page opens this chat dialog (it replaced
+// the old subjects / exam / hours form). UI only for now: a sent message shows
+// the student's bubble, then a typing indicator, then a placeholder reply from
+// the mascot. The one place to plug the real assistant in is send() below.
+interface AIChatMsg { id: number; from: 'bot' | 'user'; text: string }
+
+const AI_CHAT_GREETING = 'Hi! I’m your Wynko study assistant. Tell me your subjects, your target exam and how many hours you can study each day, and I’ll help you build your schedule.'
+
+// The Wynko mascot as a round avatar (header, every bot message, typing indicator).
+function MascotAvatar({ size }: { size: number }) {
+  return (
+    <div className="rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size, background: 'rgba(124,77,255,0.14)', border: '1px solid rgba(124,77,255,0.4)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
+      <img src={wynkoMascot} alt="" className="w-auto object-contain" style={{ height: '78%' }} />
+    </div>
+  )
+}
+
+function ScheduleAIChat({ onClose }: { onClose: () => void }) {
+  const [messages, setMessages] = useState<AIChatMsg[]>([{ id: 1, from: 'bot', text: AI_CHAT_GREETING }])
+  const [input, setInput] = useState('')
+  const [typing, setTyping] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nextId = useRef(2)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }) }, [messages, typing])
+  useEffect(() => () => { if (replyTimer.current) clearTimeout(replyTimer.current) }, [])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  function send() {
+    const text = input.trim()
+    if (!text || typing) return
+    setMessages(m => [...m, { id: nextId.current++, from: 'user', text }])
+    setInput('')
+    setTyping(true)
+    // TODO(backend): replace this stub with the real assistant call. Append its
+    // answer as { from: 'bot' } and setTyping(false) when it arrives.
+    replyTimer.current = setTimeout(() => {
+      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: 'I can’t build schedules just yet. I’m still being connected, so please check back soon!' }])
+      setTyping(false)
+    }, 1100)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div role="dialog" aria-modal="true" aria-label="Wynko AI assistant"
+        className="rounded-2xl border w-[520px] max-w-full h-[620px] max-h-[90vh] flex flex-col overflow-hidden"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+
+        {/* Header */}
+        <div className="flex items-center gap-3.5 px-5 py-4 border-b flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: '#1A2845' }}>
+          <MascotAvatar size={52} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
+            <div className="text-base font-bold text-white leading-tight">Create Your Study Schedule</div>
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Online
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close chat"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors flex-shrink-0">
+            <Ico n="close" cls="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+          {messages.map(m => m.from === 'bot' ? (
+            <div key={m.id} className="flex items-end gap-2.5">
+              <MascotAvatar size={34} />
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-slate-200 leading-relaxed whitespace-pre-wrap break-words border"
+                style={{ background: 'rgba(14,21,40,0.85)', borderColor: '#1A2845' }}>{m.text}</div>
+            </div>
+          ) : (
+            <div key={m.id} className="flex justify-end">
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md text-[13px] text-white leading-relaxed whitespace-pre-wrap break-words"
+                style={{ background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', boxShadow: '0 0 16px rgba(124,77,255,0.35)' }}>{m.text}</div>
+            </div>
+          ))}
+          {typing && (
+            <div className="flex items-end gap-2.5">
+              <MascotAvatar size={34} />
+              <div className="px-4 py-3.5 rounded-2xl rounded-bl-md border flex items-center gap-1.5" aria-label="Assistant is typing"
+                style={{ background: 'rgba(14,21,40,0.85)', borderColor: '#1A2845' }}>
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="flex items-center gap-2.5 px-4 py-3.5 border-t flex-shrink-0" style={{ borderColor: '#1A2845' }}>
+          <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            placeholder="Type your subjects, exam and study hours…"
+            className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]" />
+          <button onClick={send} disabled={!input.trim() || typing} aria-label="Send message"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            <Ico n="arrow" cls="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile, embedded = false, title: scheduleTitle = 'Your Schedule', subtitle: scheduleSubtitle = 'Stay consistent. Track your progress.' }: {
   onNavigate: (id: string) => void
   schedule: ScheduleItem[][]
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
   sharedUnits: StudyUnit[]
   setSharedUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
   profile?: ProfileInfo
+  // Embedded = just the schedule editor (AI banner + week editor), without the
+  // page shell, the title or the blocker sections. The WynkoHead's Schedule tab
+  // uses it to edit the schedule they publish to students.
+  embedded?: boolean
+  title?: string
+  subtitle?: string
 }) {
   const weekDates = getWeekDates()
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
@@ -3856,29 +6015,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
     return t
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
-      <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
-          >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
-            <Ico n="chevL" cls="w-4 h-4" /> Home
-          </button>
-          <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
-            <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
-          </div>
-          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
-          <UserAvatar size={32} />
-        </header>
-
-        <main className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* Page title */}
+  const pageBody = (
+    <>
+      {!embedded && (
           <div>
             <h1 className="text-2xl font-bold text-white">Schedule & Blockers</h1>
             <p className="text-slate-400 text-sm mt-0.5">Build your perfect study routine and stay distraction-free.</p>
           </div>
+      )}
 
           {/* ── AI Assistant Banner ── */}
           <div className="rounded-2xl border p-5 relative overflow-hidden"
@@ -3886,15 +6030,16 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at right,#7C4DFF,transparent)' }} />
             <div className="flex items-center gap-5 relative">
-              <div className="flex-shrink-0 w-16 h-16 rounded-2xl overflow-hidden">
-                <img src={aiAssistantImg} alt="AI Assistant" className="w-full h-full object-cover" />
+              <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+                <img src={wynkoMascot} alt="Wynko mascot" className="h-full w-auto object-contain"
+                  style={{ filter: 'drop-shadow(0 0 14px rgba(124,77,255,0.45))' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
                 <div className="text-lg font-bold text-white mb-0.5">Create Your Study Schedule</div>
                 <div className="text-sm text-slate-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
               </div>
-              <button onClick={() => { setShowAI(true); setAiStep('form') }}
+              <button onClick={() => setShowAI(true)}
                 className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-all hover:opacity-90 active:scale-95"
                 style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(40,85,204,0.55), 0 0 48px rgba(124,77,255,0.2)' }}>
                 ✦ Generate with AI
@@ -3912,8 +6057,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <Ico n="clock" cls="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
-                  <div className="text-base font-bold text-white">Your Schedule</div>
-                  <div className="text-[11px] text-slate-500">Stay consistent. Track your progress.</div>
+                  <div className="text-base font-bold text-white">{scheduleTitle}</div>
+                  <div className="text-[11px] text-slate-500">{scheduleSubtitle}</div>
                 </div>
               </div>
               <button onClick={() => setEditMode(e => !e)}
@@ -3967,11 +6112,15 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" >
                     {session.startTime} – {session.endTime}
                   </div>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
-                    🎯 Focus Mode
-                  </button>
-                  <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+                  {!embedded && (
+                    <>
+                      <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
+                        style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
+                        🎯 Focus Mode
+                      </button>
+                      <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -3989,6 +6138,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </button>
           </div>
 
+      {!embedded && (
+        <>
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
             style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
@@ -4156,105 +6307,15 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
           </div>
           <div className="h-6" />
-        </main>
-      </div>
-
-      {/* ── AI Modal ── */}
-      {showAI && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)]" 
-          onClick={e => { if (e.target === e.currentTarget && aiStep !== 'generating') setShowAI(false) }}>
-          <div className="rounded-2xl border w-[460px] overflow-hidden"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 80px #1A2845' }}>
-            {aiStep === 'form' && (
-              <div className="p-7">
-                <div className="text-center mb-6">
-                  <div className="text-4xl mb-2">🤖</div>
-                  <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">AI ASSISTANT</div>
-                  <div className="text-xl font-bold text-white">Generate Your Schedule</div>
-                  <div className="text-sm text-slate-400 mt-1">Tell us about your study goals</div>
-                </div>
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-1 block">SUBJECTS</label>
-                    <input value={aiForm.subjects} onChange={e => setAiForm(f => ({ ...f, subjects: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       placeholder="Physics, Chemistry, Mathematics..." />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-1 block">TARGET EXAM / GOAL</label>
-                    <input value={aiForm.exam} onChange={e => setAiForm(f => ({ ...f, exam: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       placeholder="JEE Advanced, NEET, Board Exams..." />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-2 block">AVAILABLE HOURS PER DAY</label>
-                    <div className="flex gap-2">
-                      {['4', '6', '8', '10', '12'].map(h => (
-                        <button key={h} onClick={() => setAiForm(f => ({ ...f, hoursPerDay: h }))}
-                          className="flex-1 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: aiForm.hoursPerDay === h ? '#1A2845' : 'transparent', color: aiForm.hoursPerDay === h ? '#C4AAFF' : '#4E5E84', borderColor: aiForm.hoursPerDay === h ? '#4A3A88' : '#1A2845' }}>
-                          {h}h
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setShowAI(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
-                  <button onClick={generateAI}
-                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
-                    ✦ Generate Schedule
-                  </button>
-                </div>
-              </div>
-            )}
-            {aiStep === 'generating' && (
-              <div className="p-12 text-center">
-                <div className="text-5xl mb-4 animate-bounce">🤖</div>
-                <div className="text-lg font-bold text-white mb-2">Generating your schedule...</div>
-                <div className="text-sm text-slate-400 mb-6">Analyzing subjects and optimizing study time.</div>
-                <div className="flex justify-center gap-2">
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className="w-2.5 h-2.5 rounded-full bg-violet-500"
-                      style={{ animation: `bounce 1s ease-in-out ${i * 0.2}s infinite` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {aiStep === 'done' && (
-              <div className="p-7">
-                <div className="text-center mb-5">
-                  <div className="text-4xl mb-2">✅</div>
-                  <div className="text-lg font-bold text-white">Schedule Ready!</div>
-                  <div className="text-sm text-slate-400 mt-1">Your personalized 7-day plan is generated.</div>
-                </div>
-                <div className="rounded-xl border p-4 mb-5 space-y-2.5 bg-[#0B1530] border-[#1A2845]" >
-                  {aiForm.subjects.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4).map((sub, i) => {
-                    const times = [['8:00 AM', '10:00 AM'], ['11:00 AM', '1:00 PM'], ['3:00 PM', '5:00 PM'], ['6:00 PM', '7:30 PM']]
-                    return (
-                      <div key={i} className="flex items-center gap-3 text-sm">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${subjectColor(sub)}20` }}>{subjectEmoji(sub)}</div>
-                        <span className="text-slate-200 font-medium flex-1">{sub}</span>
-                        <span className="text-slate-500 font-mono text-[11px]">{times[i][0]} – {times[i][1]}</span>
-                      </div>
-                    )
-                  })}
-                  <div className="text-[10px] text-violet-400 text-center pt-1 font-mono">Scheduled across all 7 days</div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => { setAiStep('form') }}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Regenerate</button>
-                  <button onClick={applyAISchedule}
-                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Apply Schedule</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        </>
       )}
+    </>
+  )
+
+  const modals = (
+    <>
+      {/* ── AI assistant chat ── */}
+      {showAI && <ScheduleAIChat onClose={() => setShowAI(false)} />}
 
       {/* ── Add Session Modal ── */}
       {showAddSession && (
@@ -4479,6 +6540,34 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           </div>
         </div>
       )}
+    </>
+  )
+
+  if (embedded) return <div className="space-y-5">{pageBody}{modals}</div>
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+      <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <Ico n="chevL" cls="w-4 h-4" /> Home
+          </button>
+          <div className="flex-1">
+            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
+            <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
+          </div>
+          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <UserAvatar size={32} />
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {pageBody}
+        </main>
+      </div>
+
+      {modals}
     </div>
   )
 }
@@ -5879,34 +7968,56 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
 // ─── Earn with Wynko Page ──────────────────────────────────────────────────────
 
-function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
+  onNavigate: (id: string) => void
+  profile?: ProfileInfo
+  // Owned by the App root: registering makes the sidebar's Community open the
+  // WynkoHead management dashboard instead of the student module.
+  isWynkoHead: boolean
+  onRegisterWynkoHead: (name: string) => void
+}) {
   type EarnTab = "wynkohead" | "invite"
   const [tab, setTab] = useState<EarnTab>("wynkohead")
-  const [isWynkoHead, setIsWynkoHead] = useState(false)
   const [inLibrary, setInLibrary] = useState(false)
   const [registering, setRegistering] = useState(false)
   const [regName, setRegName] = useState("")
   const [regPhone, setRegPhone] = useState("")
   const [friendCopied, setFriendCopied] = useState(false)
   const [headLinkCopied, setHeadLinkCopied] = useState(false)
-  const [subCodeCopied, setSubCodeCopied] = useState(false)
   const [communityMembers, setCommunityMembers] = useState<{ name: string; joined: string }[]>([])
   const [simName, setSimName] = useState("")
 
+  // A WynkoHead's community — name & description they set once, via the
+  // "Create your community" dialog below. Stored under the same key
+  // HeadManageTab/WynkoHeadCommunityPage read from, so whatever is entered
+  // here is exactly what shows up when the Community module opens.
+  const [communityCreated, setCommunityCreated] = useState<boolean>(() => !!Store.get(HEAD_SETTINGS_KEY, null))
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false)
+  const [createName, setCreateName] = useState("")
+  const [createDesc, setCreateDesc] = useState("")
+
   const friendLink = "wynko.in/ref/jatin123"
   const wynkoHeadLink = "wynko.in/wh/jatin-sinsinwar"
-  const subHeadCode = "WYNKO-JATIN-HEAD"
   const wynkoins = 150
 
   function copyFriend() { navigator.clipboard?.writeText(friendLink); setFriendCopied(true); setTimeout(() => setFriendCopied(false), 2000) }
   function copyHeadLink() { navigator.clipboard?.writeText(wynkoHeadLink); setHeadLinkCopied(true); setTimeout(() => setHeadLinkCopied(false), 2000) }
-  function copySubCode() { navigator.clipboard?.writeText(subHeadCode); setSubCodeCopied(true); setTimeout(() => setSubCodeCopied(false), 2000) }
 
   function handleRegister() {
     if (!regName.trim()) return
-    setIsWynkoHead(true)
+    onRegisterWynkoHead(regName.trim())
     setRegistering(false)
-    setInLibrary(true)
+  }
+
+  function handleCreateCommunity() {
+    if (!createName.trim()) return
+    Store.set(HEAD_SETTINGS_KEY, {
+      name: createName.trim(), description: createDesc.trim(),
+      requireApproval: true, handledRequests: [], approvedCount: 0,
+    })
+    setCommunityCreated(true)
+    setShowCreateCommunity(false)
+    onNavigate("studyrooms")
   }
 
   function addSimMember() {
@@ -5933,11 +8044,6 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
       { name: "Rahul Sharma", joined: "3 days ago", purchases: "₹1,200", earn: "₹600" },
       { name: "Priya Meena", joined: "5 days ago", purchases: "₹800", earn: "₹400" },
     ]
-    const EXAMPLE_SUB_HEADS = [
-      { name: "Aryan Tiwari", code: "WYNKO-ARYAN-HEAD", members: 12, revenue: "₹18,400", myShare: "₹1,840", avatar: "#EC4899", init: "AT" },
-      { name: "Komal Singh", code: "WYNKO-KOMAL-HEAD", members: 7, revenue: "₹9,600", myShare: "₹960", avatar: "#7C4DFF", init: "KS" },
-    ]
-
     return (
       <div className="flex h-screen overflow-hidden bg-[#020615]" >
         <Sidebar active="earn" setActive={onNavigate} profile={profile} />
@@ -5951,6 +8057,12 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
               <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOHEAD LIBRARY</div>
               <div className="text-sm font-semibold text-slate-200">Your community dashboard</div>
             </div>
+            {communityCreated && (
+              <button onClick={() => onNavigate("studyrooms")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]">
+                👑 Visit your community
+              </button>
+            )}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
               <span className="text-base">🪙</span>
               <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
@@ -6033,43 +8145,6 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                   </div>
                 </div>
 
-                {/* Sub WynkoHeads */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">SUB-WYNKOHEADS</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Share your WynkoHead code. If another creator registers as WynkoHead using your code, you earn 10% from their community revenue.</div>
-
-                  {/* Share code */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-4 bg-[#0B1530] border-[rgba(25,181,230,0.25)]" >
-                    <span className="text-cyan-400">👑</span>
-                    <span className="text-sm font-bold text-slate-200 flex-1" >{subHeadCode}</span>
-                    <button onClick={copySubCode} className="text-slate-500 hover:text-cyan-400 transition-colors p-1">
-                      {subCodeCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
-                        : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
-                    </button>
-                  </div>
-
-                  <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
-                    ⚠ THE DATA BELOW IS FOR EXAMPLE ONLY — YOUR REAL SUB-WYNKOHEADS WILL APPEAR HERE ONCE THEY REGISTER
-                  </div>
-
-                  <div className="space-y-2">
-                    {EXAMPLE_SUB_HEADS.map((sh, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[rgba(25,181,230,0.04)] border-[rgba(25,181,230,0.15)]" >
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
-                          style={{ background: `linear-gradient(135deg,${sh.avatar},${sh.avatar}88)` }}>{sh.init}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-slate-200">{sh.name} <span className="text-[9px] text-amber-500 ml-1">[EXAMPLE]</span></div>
-                          <div className="text-[10px] text-slate-500 font-mono">{sh.members} students · {sh.code}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[11px] text-slate-400">Revenue: <span className="text-slate-200 font-semibold">{sh.revenue}</span></div>
-                          <div className="text-[11px] text-cyan-400 font-bold">Your 10%: {sh.myShare}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Community revenue detail */}
                 <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">REVENUE BREAKDOWN — EXAMPLE</div>
@@ -6079,7 +8154,6 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                   <div className="flex gap-3 mb-3">
                     {[
                       { icon: "👥", label: "Community purchases", price: "₹1,200", earn: "₹600", note: "50% share" },
-                      { icon: "🔗", label: "Sub-WynkoHead revenue", price: "₹28,000", earn: "₹2,800", note: "10% share" },
                       { icon: "📚", label: "Study Pack purchase", price: "₹500", earn: "₹250", note: "50% share" },
                     ].map(ex => (
                       <div key={ex.label} className="flex-1 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
@@ -6144,10 +8218,9 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
                 <div className="rounded-2xl border p-4 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">COMMUNITY STATS</div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     {[
                       { label: "Members", val: String(communityMembers.length), color: "#C4AAFF" },
-                      { label: "Sub-WynkoHeads", val: "0", color: "#7DD8F0" },
                     ].map(s => (
                       <div key={s.label} className="p-3 rounded-xl border text-center border-[rgba(26,40,69,0.55)] bg-[#0B1530]" >
                         <div className="text-xl font-black" style={{ color: s.color }}>{s.val}</div>
@@ -6178,6 +8251,12 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             <div className="text-[10px] text-slate-600 mb-0.5" >EARN WITH WYNKO</div>
             <div className="text-sm font-semibold text-slate-200">Build your community. Share the revenue.</div>
           </div>
+          {isWynkoHead && communityCreated && (
+            <button onClick={() => onNavigate("studyrooms")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]">
+              👑 Visit your community
+            </button>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
             <span className="text-base">🪙</span>
             <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
@@ -6193,11 +8272,10 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
             <div className="relative z-10">
               <div className="text-[10px] font-mono tracking-[0.28em] text-violet-400 mb-3">EARN WITH WYNKO</div>
               <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Grow your network — earn from your network's WynkoHeads too. Or simply invite friends and earn WYNKOINS together.</p>
+              <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Or simply invite friends and earn WYNKOINS together.</p>
               <div className="flex gap-6 flex-wrap">
                 {[
                   { icon: "👑", v: "50%", label: "Revenue from your community" },
-                  { icon: "🔗", v: "10%", label: "From Sub-WynkoHead revenue" },
                   { icon: "🪙", v: "WYNKOINS", label: "For every friend who hits 3-day streak" },
                 ].map(f => (
                   <div key={f.label} className="flex items-center gap-2.5">
@@ -6243,7 +8321,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                     {[
                       { n: "1", icon: "📣", title: "Invite Students", desc: "Share your WynkoHead link. Students who join Wynko via your link become part of your community." },
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
-                      { n: "3", icon: "🔗", title: "Grow Sub-WynkoHeads", desc: "Share your WynkoHead code to other creators. When they register using it, you earn 10% from their community revenue too." },
+                      { n: "3", icon: "👑", title: "Create Your Community", desc: "Give your community a name and description, then manage it, publish schedules, and track earnings from your dashboard." },
                     ].map(s => (
                       <div key={s.n} className="p-4 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="flex items-center gap-2 mb-3">
@@ -6306,19 +8384,46 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
                       </div>
                     )}
                   </div>
-                ) : (
-                  <button onClick={() => setInLibrary(true)}
+                ) : !communityCreated ? (
+                  <button onClick={() => setShowCreateCommunity(true)}
                     className="w-full flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
                     style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>🏘️</div>
                       <div className="text-left">
-                        <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
-                        <div className="text-[11px] text-slate-400">{communityMembers.length} community members · your dashboard</div>
+                        <div className="text-sm font-bold text-white">Create your community</div>
+                        <div className="text-[11px] text-slate-400">Give it a name & description to get started</div>
                       </div>
                     </div>
                     <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
                   </button>
+                ) : (
+                  <div className="flex gap-3 flex-wrap">
+                    <button onClick={() => onNavigate("studyrooms")}
+                      className="flex-1 min-w-[260px] flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
+                      style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
+                        <div className="text-left">
+                          <div className="text-sm font-bold text-white">Visit your community</div>
+                          <div className="text-[11px] text-slate-400">Manage students, schedule & earnings</div>
+                        </div>
+                      </div>
+                      <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                    </button>
+                    <button onClick={() => setInLibrary(true)}
+                      className="flex-1 min-w-[260px] flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
+                      style={{ background: "rgba(26,40,69,0.30)", borderColor: "#1E3060" }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>🔗</div>
+                        <div className="text-left">
+                          <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
+                          <div className="text-[11px] text-slate-400">{communityMembers.length} community members · invite links</div>
+                        </div>
+                      </div>
+                      <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -6414,6 +8519,57 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
           </div>
         </main>
       </div>
+      {showCreateCommunity && (
+        <CreateCommunityDialog
+          name={createName} setName={setCreateName}
+          description={createDesc} setDescription={setCreateDesc}
+          onCreate={handleCreateCommunity}
+          onCancel={() => setShowCreateCommunity(false)} />
+      )}
+    </div>
+  )
+}
+
+// Name + description dialog shown once, right after registering as a
+// WynkoHead — submitting saves them under HEAD_SETTINGS_KEY (the same key
+// HeadManageTab / WynkoHeadCommunityPage read from) and sends the person
+// straight into the Community module.
+function CreateCommunityDialog({ name, setName, description, setDescription, onCreate, onCancel }: {
+  name: string; setName: (v: string) => void
+  description: string; setDescription: (v: string) => void
+  onCreate: () => void; onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
+      <div role="dialog" aria-modal="true" aria-label="Create your community" className="rounded-2xl border p-7 w-[440px] max-w-full"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-2">CREATE YOUR COMMUNITY</div>
+        <div className="text-lg font-bold text-white mb-1.5">Name your community</div>
+        <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">This is what your students will see. You can change it later from Manage Community.</div>
+        <div className="space-y-3.5">
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Community name *</span>
+            <input value={name} onChange={e => setName(e.target.value)} maxLength={60} autoFocus
+              placeholder="e.g. JEE 2026 Grind Room"
+              className={HEAD_INPUT} />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Description</span>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={200} rows={3}
+              placeholder="What is this community about, and who is it for?"
+              className={HEAD_INPUT + " resize-none"} />
+          </label>
+        </div>
+        <div className="flex gap-2.5 mt-5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+          <button onClick={onCreate} disabled={!name.trim()}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', boxShadow: '0 0 16px #1E3060' }}>
+            Create Community →
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -6478,12 +8634,223 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
   )
 }
 
+// ─── Quick Timer ────────────────────────────────────────────────────────────
+// A completely standalone countdown, separate from Focus Lock's task/session
+// system on purpose - no subject, no topic, no backend session, nothing to set
+// up. Land on it and it's already got a duration loaded (last one used, or 30
+// minutes the very first time); tap the clock face any time - running or not -
+// to change how long is left, same "click the number to edit it" mechanism as
+// bigtimer-style countdown apps. Persisted as an end timestamp (not a plain
+// tick counter) so it stays accurate if the tab is backgrounded or this page
+// is left and come back to.
+const QT_STORE_KEY = 'wynko_quick_timer_v1'
+const QT_DEFAULT_SECONDS = 30 * 60
+
+type QuickTimerState = {
+  totalSeconds: number
+  remainingSeconds: number
+  running: boolean
+  endAt: number | null
+}
+
+function loadQuickTimer(): QuickTimerState {
+  const saved = Store.get(QT_STORE_KEY, null) as QuickTimerState | null
+  if (!saved || typeof saved.totalSeconds !== 'number') {
+    return { totalSeconds: QT_DEFAULT_SECONDS, remainingSeconds: QT_DEFAULT_SECONDS, running: false, endAt: null }
+  }
+  return saved
+}
+function saveQuickTimer(s: QuickTimerState) { Store.set(QT_STORE_KEY, s) }
+function qtRemainingNow(s: QuickTimerState): number {
+  if (s.running && s.endAt) return Math.max(0, Math.round((s.endAt - Date.now()) / 1000))
+  return s.remainingSeconds
+}
+
+// Click-the-clock-to-edit picker. Three plain hour/minute/second spinners -
+// no presets, no modes, just "how long" - reusing TimeSpinner as-is.
+function QuickTimerDurationPicker({ initialSeconds, onClose, onSet }: {
+  initialSeconds: number; onClose: () => void; onSet: (totalSeconds: number) => void
+}) {
+  const [h, setH] = useState(Math.floor(initialSeconds / 3600))
+  const [m, setM] = useState(Math.floor((initialSeconds % 3600) / 60))
+  const [s, setS] = useState(initialSeconds % 60)
+  const total = h * 3600 + m * 60 + s
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(0,0,0,0.75)]"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div role="dialog" aria-modal="true" className="w-[380px] max-w-full rounded-2xl border p-6"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-center mb-5">
+          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">QUICK TIMER</div>
+          <div className="text-lg font-semibold text-slate-100">Set duration</div>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <TimeSpinner label="HOURS" value={h} onChange={setH} max={23} />
+          <div className="text-2xl text-slate-600 pb-6">:</div>
+          <TimeSpinner label="MIN" value={m} onChange={setM} max={59} />
+          <div className="text-2xl text-slate-600 pb-6">:</div>
+          <TimeSpinner label="SEC" value={s} onChange={setS} max={59} />
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+            Cancel
+          </button>
+          <button onClick={() => total > 0 && onSet(total)} disabled={total <= 0}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            Set Timer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Deliberately plain: flat Wynko-navy background only, no mountain
+// silhouette, no ribbon/chrome around the ring - just the countdown and
+// its controls, same as a dedicated kitchen-timer app.
+function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+  const [state, setState] = useState<QuickTimerState>(loadQuickTimer)
+  const [remaining, setRemaining] = useState(() => qtRemainingNow(state))
+  const [showPicker, setShowPicker] = useState(false)
+
+  useEffect(() => {
+    if (!state.running) { setRemaining(state.remainingSeconds); return }
+    const tick = () => {
+      const r = qtRemainingNow(state)
+      setRemaining(r)
+      if (r <= 0) {
+        setState(prev => {
+          const next: QuickTimerState = { ...prev, running: false, remainingSeconds: 0, endAt: null }
+          saveQuickTimer(next)
+          return next
+        })
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.running, state.endAt])
+
+  function start() {
+    if (remaining <= 0) { setShowPicker(true); return }
+    const next: QuickTimerState = { ...state, running: true, endAt: Date.now() + remaining * 1000, remainingSeconds: remaining }
+    setState(next); saveQuickTimer(next)
+  }
+  function pause() {
+    const r = qtRemainingNow(state)
+    const next: QuickTimerState = { ...state, running: false, endAt: null, remainingSeconds: r }
+    setState(next); saveQuickTimer(next); setRemaining(r)
+  }
+  function reset() {
+    const next: QuickTimerState = { ...state, running: false, endAt: null, remainingSeconds: state.totalSeconds }
+    setState(next); saveQuickTimer(next); setRemaining(state.totalSeconds)
+  }
+  // Mid-session or not, tapping the clock face and setting a new duration
+  // always takes effect immediately - if it was running, it keeps running
+  // with the new total; if it was paused, it stays paused at the new total.
+  function applyDuration(totalSeconds: number) {
+    const next: QuickTimerState = state.running
+      ? { ...state, totalSeconds, remainingSeconds: totalSeconds, endAt: Date.now() + totalSeconds * 1000 }
+      : { ...state, totalSeconds, remainingSeconds: totalSeconds, endAt: null }
+    setState(next); saveQuickTimer(next); setRemaining(totalSeconds); setShowPicker(false)
+  }
+
+  const timeStr = formatClock(remaining, remaining >= 3600 || state.totalSeconds >= 3600)
+
+  return (
+    <div className="h-screen overflow-hidden flex flex-col" style={{ background: '#080A12' }}>
+      <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <button onClick={() => onNavigate('home')}
+          className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6]">
+          <Ico n="chevL" cls="w-4 h-4" /> Home
+        </button>
+        <div className="text-[10px] tracking-[0.18em] text-[#68728A]">QUICK TIMER</div>
+      </header>
+
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
+        <button onClick={() => setShowPicker(true)} title="Tap to set the time" aria-label="Set timer duration"
+          className="bg-transparent border-none p-0"
+          style={{ width: 'min(320px, 52vh, 78vw)', aspectRatio: '1' }}>
+          <TimerCircle remaining={remaining} total={state.totalSeconds} timeStr={timeStr} running={state.running} size={320} />
+        </button>
+
+        <div className="text-xs text-slate-500">{remaining <= 0 ? 'Tap the timer to set a duration' : 'Tap the timer to change the time'}</div>
+
+        <div className="flex items-center gap-4">
+          <button onClick={reset} title="Reset" aria-label="Reset timer"
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-90 active:scale-95"
+            style={{ background: '#1A2845', color: '#C7D2FE' }}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12a8 8 0 0113.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 01-13.7 5.6L4 16M4 20v-4h4" />
+            </svg>
+          </button>
+          <button onClick={() => (state.running ? pause() : start())}
+            title={state.running ? 'Pause' : 'Start'} aria-label={state.running ? 'Pause timer' : 'Start timer'}
+            className="w-16 h-16 rounded-full flex items-center justify-center text-white transition-all hover:opacity-90 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            {state.running
+              ? <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+              : <Ico n="play" cls="w-6 h-6" />}
+          </button>
+          <div className="w-12" />
+        </div>
+      </div>
+
+      {showPicker && (
+        <QuickTimerDurationPicker initialSeconds={state.totalSeconds} onClose={() => setShowPicker(false)} onSet={applyDuration} />
+      )}
+    </div>
+  )
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────────
+// Who is a WynkoHead: whoever registered on the Earn page. Kept in localStorage
+// until the profile has a real role. For review, `?role=wynkohead` switches this
+// browser to WynkoHead and `?role=student` switches back.
+const WYNKO_HEAD_STORE_KEY = 'wynko_wynkohead_v1'
+function loadWynkoHeadRole(): { name: string } | null {
+  try {
+    const q = new URLSearchParams(window.location.search).get('role')
+    if (q === 'student') Store.del(WYNKO_HEAD_STORE_KEY)
+    else if (q === 'wynkohead' && !Store.get(WYNKO_HEAD_STORE_KEY, null)) Store.set(WYNKO_HEAD_STORE_KEY, { name: '' })
+  } catch { /* no window / storage: treat as student */ }
+  return Store.get(WYNKO_HEAD_STORE_KEY, null) as { name: string } | null
+}
+
 export default function DesktopDashboard() {
   const [activeNav, setActiveNav] = useState('home')
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
   const [schedule, setSchedule] = useState<ScheduleItem[][]>(Array.from({ length: 7 }, () => []))
   const [activeRoom, setActiveRoom] = useState<RoomData | null>(null)
+  // Community section: which community's Student View is open, which tab of the
+  // Community module (Study Rooms / Communities) is showing, and the student's
+  // decision on each community's WynkoHead schedule. Communities left this
+  // session are in-memory only, like Study Rooms membership (joinedIds).
+  const [activeCommunity, setActiveCommunity] = useState<CommunityData | null>(null)
+  const [studyRoomsTab, setStudyRoomsTab] = useState<'rooms' | 'communities'>('rooms')
+  const [leftCommunityIds, setLeftCommunityIds] = useState<number[]>([])
+  const [scheduleChoices, setScheduleChoices] = useState<Record<number, CommunityScheduleChoice>>(
+    () => (Store.get(COMMUNITY_SCHEDULE_STORE_KEY, null) as Record<number, CommunityScheduleChoice> | null) ?? {})
+  // What the student's own schedule was before a community schedule replaced it,
+  // so "Reject" can hand it back. Not persisted: the schedule itself isn't either.
+  const ownScheduleBackup = useRef<ScheduleItem[][] | null>(null)
+  // WynkoHead: the role, the schedule they are building for their students
+  // (separate from their own study schedule), and what has been published.
+  const [wynkoHead, setWynkoHead] = useState<{ name: string } | null>(loadWynkoHeadRole)
+  const [headSchedule, setHeadSchedule] = useState<ScheduleItem[][]>(() =>
+    (loadHeadDraft() as ScheduleItem[][] | null)
+    ?? (loadPublishedSchedules()[HEAD_COMMUNITY_ID]?.week as ScheduleItem[][] | undefined)
+    ?? Array.from({ length: 7 }, () => []))
+  const [headUnits, setHeadUnits] = useState<StudyUnit[]>([])
+  const [publishedSchedules, setPublishedSchedules] = useState<Record<number, PublishedSchedule>>(loadPublishedSchedules)
+  const [notifSeen, setNotifSeen] = useState<Record<number, number>>(loadNotifSeen)
   const [userAvatar, setUserAvatar] = useState<string>(avatar7)
   const [avatarTouched, setAvatarTouched] = useState(false)
 
@@ -6513,7 +8880,7 @@ export default function DesktopDashboard() {
   const [focusPlan, setFocusPlan] = useState<{ tasks: StudyTask[]; activeTaskId: string | null }>(() => {
     const snap = loadFocusPlanSnapshot()
     if (snap) return { tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId }
-    return { tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx), activeTaskId: null }
+    return { tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx, getPomodoroSettings()), activeTaskId: null }
   })
   const [autoStartTask, setAutoStartTask] = useState<{ subject: string; topic: string } | null>(null)
   const [showHomeAddTask, setShowHomeAddTask] = useState(false)
@@ -6522,14 +8889,102 @@ export default function DesktopDashboard() {
     if (activeNav !== 'home') return
     const snap = loadFocusPlanSnapshot()
     if (snap) setFocusPlan({ tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId })
-    else setFocusPlan({ tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx), activeTaskId: null })
+    else setFocusPlan({ tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx, getPomodoroSettings()), activeTaskId: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNav])
 
   function handleNav(id: string) {
     setActiveNav(id)
-    if (id !== 'studyrooms') setActiveRoom(null)
+    if (id !== 'studyrooms') { setActiveRoom(null); setActiveCommunity(null) }
   }
+
+  // ── Community schedule decision ──
+  // Accepting makes the WynkoHead's schedule the student's actual schedule
+  // (Schedules page, Today's Study Plan, study-room task list). Only one
+  // community schedule can be active at a time, so accepting one clears any
+  // other accepted one.
+  function saveScheduleChoices(next: Record<number, CommunityScheduleChoice>) {
+    setScheduleChoices(next)
+    Store.set(COMMUNITY_SCHEDULE_STORE_KEY, next)
+  }
+  // The schedule students get for a community: the one its WynkoHead published,
+  // else the community's seed schedule.
+  function communityWeek(communityId: number): { week: ScheduleItem[][]; by: string | null } | null {
+    const pub = publishedSchedules[communityId]
+    if (pub) return { week: pub.week as ScheduleItem[][], by: pub.by }
+    const detail = getCommunityDetail(communityId)
+    return detail ? { week: communitySlotsToWeek(detail.slots), by: null } : null
+  }
+  function applyCommunitySchedule(communityId: number) {
+    const cw = communityWeek(communityId)
+    if (!cw) return
+    const exam = getCommunityDetail(communityId)?.exam ?? ''
+    setSchedule(cw.week.map((day, di) => day.map(s => ({ ...s, id: `cm_${communityId}_${di}_${s.id}` }))))
+    // Same as the AI schedule: subjects the student doesn't track yet become study units.
+    setSharedUnits(prev => {
+      const all = cw.week.flat()
+      const missing = all.filter((s, i) =>
+        all.findIndex(x => x.subject.toLowerCase() === s.subject.toLowerCase()) === i
+        && !prev.some(u => u.subject.toLowerCase() === s.subject.toLowerCase()))
+      return missing.length ? [...prev, ...missing.map(s => ({ subject: s.subject, exam, topics: [s.topic || 'Study session'] }))] : prev
+    })
+  }
+  function revertToOwnSchedule() {
+    setSchedule(ownScheduleBackup.current ?? Array.from({ length: 7 }, () => []))
+    ownScheduleBackup.current = null
+  }
+  function acceptCommunitySchedule(communityId: number) {
+    const alreadyFollowing = Object.values(scheduleChoices).includes('accepted')
+    if (!alreadyFollowing) ownScheduleBackup.current = schedule
+    applyCommunitySchedule(communityId)
+    const next: Record<number, CommunityScheduleChoice> = {}
+    for (const [id, c] of Object.entries(scheduleChoices)) if (c === 'rejected') next[Number(id)] = c
+    next[communityId] = 'accepted'
+    saveScheduleChoices(next)
+  }
+  function rejectCommunitySchedule(communityId: number) {
+    if (scheduleChoices[communityId] === 'accepted') revertToOwnSchedule()
+    saveScheduleChoices({ ...scheduleChoices, [communityId]: 'rejected' })
+  }
+  function leaveCommunity(communityId: number) {
+    if (scheduleChoices[communityId] === 'accepted') revertToOwnSchedule()
+    const { [communityId]: _dropped, ...rest } = scheduleChoices
+    saveScheduleChoices(rest)
+    setLeftCommunityIds(prev => [...prev, communityId])
+    setActiveCommunity(null)
+  }
+  // ── WynkoHead publishes a schedule ──
+  // Students are notified (ScheduleNotificationCard) and asked again, so any
+  // earlier accept / reject for this community is cleared.
+  function publishHeadSchedule() {
+    const week = headSchedule.map(day => day.map(s => ({ ...s })))
+    setPublishedSchedules(savePublishedSchedule(HEAD_COMMUNITY_ID, { week, publishedAt: Date.now(), by: wynkoHead?.name || profile?.displayName || 'Your WynkoHead' }))
+    const { [HEAD_COMMUNITY_ID]: _cleared, ...rest } = scheduleChoices
+    saveScheduleChoices(rest)
+  }
+  function registerWynkoHead(name: string) {
+    const role = { name }
+    Store.set(WYNKO_HEAD_STORE_KEY, role)
+    setWynkoHead(role)
+  }
+  useEffect(() => { if (wynkoHead) saveHeadDraft(headSchedule) }, [headSchedule, wynkoHead])
+  // Another tab publishing (or a student acting on the notification) shows up here live.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORE_KEYS.published) setPublishedSchedules(loadPublishedSchedules())
+      if (e.key === STORE_KEYS.seen) setNotifSeen(loadNotifSeen())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  // A schedule accepted in an earlier session is re-applied on load — the
+  // schedule state itself starts empty every time.
+  useEffect(() => {
+    const accepted = Object.entries(scheduleChoices).find(([, c]) => c === 'accepted')
+    if (accepted) applyCommunitySchedule(Number(accepted[0]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Opens a specific room's interior directly from Home's Live Study
   // Rooms preview - same destination StudyRoomsPage's own room cards use.
   function openRoom(room: RoomData) {
@@ -6581,9 +9036,29 @@ export default function DesktopDashboard() {
 
   function setUserAvatarTouched(a: string) { setAvatarTouched(true); setUserAvatar(a) }
 
+  // A student's pending "your WynkoHead published a schedule" notification: the
+  // newest published schedule (in a community they're still in) they haven't
+  // acted on or dismissed yet. WynkoHeads don't get it — they publish it.
+  const scheduleNotif = (() => {
+    if (wynkoHead) return null
+    const pending = Object.entries(publishedSchedules)
+      .map(([id, p]) => ({ id: Number(id), p, name: ALL_COMMUNITIES.find(c => c.id === Number(id))?.name }))
+      .filter(x => x.name && !leftCommunityIds.includes(x.id) && x.p.publishedAt > (notifSeen[x.id] ?? 0))
+      .sort((a, b) => b.p.publishedAt - a.p.publishedAt)[0]
+    return pending ? { id: pending.id, p: pending.p, name: pending.name as string } : null
+  })()
+  function dismissScheduleNotif() {
+    if (scheduleNotif) setNotifSeen(markNotifSeen(scheduleNotif.id, scheduleNotif.p.publishedAt))
+  }
+
   function renderPage() {
     if (activeNav === 'focus') {
       return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} />
+    }
+    // Quick Timer is intentionally separate from FocusLockPage - its own
+    // page, own localStorage key, no shared state with Focus Lock at all.
+    if (activeNav === 'quicktimer') {
+      return <QuickTimerPage onNavigate={handleNav} />
     }
     if (activeNav === 'schedules') {
       return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
@@ -6598,16 +9073,48 @@ export default function DesktopDashboard() {
       return <WynkoinsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'earn') {
-      return <EarnPage onNavigate={handleNav} profile={profile} />
+      return <EarnPage onNavigate={handleNav} profile={profile} isWynkoHead={!!wynkoHead} onRegisterWynkoHead={registerWynkoHead} />
     }
     if (activeNav === 'settings') {
       return <SettingsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'studyrooms') {
       if (activeRoom) {
-        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} />
+        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} backLabel={activeCommunity || wynkoHead ? 'Community' : 'Rooms'} />
       }
-      return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile} />
+      if (activeCommunity) {
+        const homeSaved = Store.get(HOME_COMMUNITY_STORE_KEY, null) as { id: number } | null
+        const cw = communityWeek(activeCommunity.id)
+        return (
+          <CommunityStudentPage key={activeCommunity.id} community={activeCommunity}
+            isHome={homeSaved?.id === activeCommunity.id}
+            isOwner={!!wynkoHead && activeCommunity.id === HEAD_COMMUNITY_ID}
+            week={cw?.week ?? Array.from({ length: 7 }, () => [])} weekBy={cw?.by ?? null}
+            onBack={() => setActiveCommunity(null)} onNavigate={handleNav}
+            onJoinRoom={room => setActiveRoom(room)}
+            onLeave={() => leaveCommunity(activeCommunity.id)}
+            profile={profile}
+            scheduleChoice={scheduleChoices[activeCommunity.id] ?? null}
+            onAcceptSchedule={() => acceptCommunitySchedule(activeCommunity.id)}
+            onRejectSchedule={() => rejectCommunitySchedule(activeCommunity.id)} />
+        )
+      }
+      // A WynkoHead's Community is the management dashboard for the community
+      // they run; "View Community" there opens the student view above.
+      if (wynkoHead) {
+        const headCommunity = ALL_COMMUNITIES.find(c => c.id === HEAD_COMMUNITY_ID)
+        if (headCommunity) {
+          return (
+            <WynkoHeadCommunityPage community={headCommunity} headName={wynkoHead.name || profile?.displayName || 'Your WynkoHead'} profile={profile}
+              onNavigate={handleNav} onViewAsStudent={() => setActiveCommunity(headCommunity)} onEnterStudyRoom={room => setActiveRoom(room)}
+              headSchedule={headSchedule} setHeadSchedule={setHeadSchedule} headUnits={headUnits} setHeadUnits={setHeadUnits}
+              published={publishedSchedules[HEAD_COMMUNITY_ID]} onPublish={publishHeadSchedule} />
+          )
+        }
+      }
+      return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile}
+        communityTab={studyRoomsTab} onCommunityTabChange={setStudyRoomsTab}
+        onOpenCommunity={setActiveCommunity} leftCommunityIds={leftCommunityIds} />
     }
 
     // ── Home (the module wired to real data this pass) ──
@@ -6628,18 +9135,11 @@ export default function DesktopDashboard() {
       )
     }
 
-    // Today's rows/planned-vs-completed for the two cards below - real
-    // data only: schedule[todayIdx] (today's actual scheduled sessions)
-    // merged with the live Focus Lock plan, see buildTodayPlanRows.
-    // Planned time prefers today's scheduled duration; when nothing's
-    // scheduled yet it falls back to the person's own daily focus goal
-    // (todayFocus.goalMinutes, also real - daily_focus_goal_minutes)
-    // rather than showing an empty/zero ring.
+    // Today's rows for the study-plan card below - real data only:
+    // schedule[todayIdx] (today's actual scheduled sessions) merged with
+    // the live Focus Lock plan, see buildTodayPlanRows.
     const todaySchedule = schedule[todayIdx] || []
     const todayPlanRows = buildTodayPlanRows(todaySchedule, focusPlan.tasks)
-    const scheduledMinutes = todaySchedule.reduce((sum, s) => sum + Math.max(1, parseTimeRangeMinutes(s.startTime, s.endTime)), 0)
-    const plannedMinutes = scheduledMinutes > 0 ? scheduledMinutes : todayFocus.goalMinutes
-    const activeFocusTask = focusPlan.activeTaskId ? focusPlan.tasks.find(t => t.id === focusPlan.activeTaskId) ?? null : null
 
     return (
       <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
@@ -6654,13 +9154,9 @@ export default function DesktopDashboard() {
                 onStartTask={(subject, topic) => goFocus({ subject, topic })}
                 onAddTask={() => setShowHomeAddTask(true)}
               />
-              <TodayFocusCard
-                plannedMinutes={plannedMinutes}
-                completedMinutes={todayFocus.doneMinutes}
-                activeTask={activeFocusTask}
-                onContinueFocus={() => goFocus()}
-                onStartFirst={todayPlanRows.length > 0 ? () => goFocus({ subject: todayPlanRows[0].subject, topic: todayPlanRows[0].topic }) : null}
-                onViewPlan={() => handleNav('schedules')}
+              <HomeFocusEntryCard
+                onGoFocus={() => goFocus()}
+                onGoQuickTimer={() => handleNav('quicktimer')}
               />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3.5 items-stretch">
@@ -6678,6 +9174,12 @@ export default function DesktopDashboard() {
   return (
     <UserAvatarCtx.Provider value={{ avatar: userAvatar, setAvatar: setUserAvatarTouched }}>
       {renderPage()}
+      {scheduleNotif && authState === 'ready' && (
+        <ScheduleNotificationCard communityName={scheduleNotif.name} published={scheduleNotif.p}
+          onAccept={() => { acceptCommunitySchedule(scheduleNotif.id); dismissScheduleNotif() }}
+          onCreateOwn={() => { rejectCommunitySchedule(scheduleNotif.id); dismissScheduleNotif(); handleNav('schedules') }}
+          onDismiss={dismissScheduleNotif} />
+      )}
     </UserAvatarCtx.Provider>
   )
 }
