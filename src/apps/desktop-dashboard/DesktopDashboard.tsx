@@ -1034,55 +1034,112 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
   )
 }
 
-// ─── Home Focus Entry (two options) ───────────────────────────────────────────
-// Replaces the old single "Today's Focus" ring card on Home with a plain
-// choice between the two ways to focus: Focus Lock (task-based, tracked -
-// unchanged, lives entirely in FocusLockPage) and Quick Timer (a standalone
-// countdown - unchanged, lives entirely in QuickTimerPage). This card is just
-// the entry point picker; it doesn't own any focus/timer logic itself.
-function HomeFocusEntryCard({ onGoFocus, onGoQuickTimer }: { onGoFocus: () => void; onGoQuickTimer: () => void }) {
-  const options = [
-    {
-      id: 'focus', label: 'Focus Lock', sub: 'Task-based sessions, tracked over time',
-      icon: 'lock' as const, grad: 'linear-gradient(135deg, rgba(124,77,255,0.18), rgba(107,68,238,0.08))',
-      border: 'rgba(124,77,255,0.35)', iconBg: 'rgba(124,77,255,0.18)', iconColor: '#C4AAFF',
-      onClick: onGoFocus,
-    },
-    {
-      id: 'quicktimer', label: 'Quick Timer', sub: 'Instant countdown, no setup needed',
-      icon: 'clock' as const, grad: 'linear-gradient(135deg, rgba(41,98,255,0.18), rgba(34,211,238,0.08))',
-      border: 'rgba(56,132,255,0.35)', iconBg: 'rgba(41,98,255,0.18)', iconColor: '#7DD8F0',
-      onClick: onGoQuickTimer,
-    },
-  ]
+// ─── Home Focus Timer (primary) + Quick Timer (secondary) ────────────────────
+// Focus Timer is the primary entry point - a live preview of the saved
+// Pomodoro/Regular settings with a single glowing "Focus Lock" CTA (this
+// card still doesn't own any session logic itself; the actual timer only
+// starts once inside FocusLockPage, same as before). Quick Timer sits next
+// to it as a visually secondary, self-contained count-up stopwatch - a
+// separate, lighter engine from the full Quick Timer page's countdown
+// (reached via the chevron), so a 30-second "just time me" doesn't require
+// picking a duration first.
+function HomeFocusTimerCard({ pomo, onGoFocus }: {
+  pomo: PomodoroSettings
+  onGoFocus: () => void
+}) {
+  const mode = useTimerMode()
+  const isPomo = mode === 'pomodoro'
+  const previewSecs = isPomo ? pomo.focusMinutes * 60 : 0
+  const previewStr = isPomo ? formatClock(previewSecs) : '00:00:00'
+  const caption = isPomo ? 'Focus Time' : 'Count Up • No Limit'
+
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0F1240 0%, #0A0E28 100%)',
+        borderColor: 'rgba(124,77,255,0.4)',
+        boxShadow: '0 0 60px rgba(124,77,255,0.16), inset 0 1px 0 rgba(255,255,255,0.05)',
+      }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, rgba(124,77,255,0.3), rgba(41,98,255,0.2))', border: '1px solid rgba(124,77,255,0.45)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
+            <Ico n="target" cls="w-4 h-4 text-violet-300" />
+          </div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Focus Timer</div>
+        </div>
+        <button onClick={() => setTimerMode(isPomo ? 'regular' : 'pomodoro')}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors hover:border-violet-400/50"
+          style={{ background: 'rgba(124,77,255,0.12)', borderColor: 'rgba(124,77,255,0.3)', color: '#C4AAFF' }}>
+          {isPomo ? 'Pomodoro' : 'Regular'}
+          <Ico n="chevR" cls="w-3 h-3 rotate-90" />
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 py-3">
+        <div className="rounded-full flex flex-col items-center justify-center flex-shrink-0"
+          style={{
+            width: 190, height: 190,
+            border: '3px solid rgba(148,197,255,0.65)',
+            boxShadow: '0 0 28px rgba(124,77,255,0.45), 0 0 60px rgba(56,132,255,0.25), inset 0 0 30px rgba(124,77,255,0.12)',
+            background: 'radial-gradient(circle at 50% 40%, #131A45 0%, #0A0E28 75%)',
+          }}>
+          <div className="text-[34px] font-bold text-white tabular-nums" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{previewStr}</div>
+          <div className="text-[11px] text-slate-400 mt-1">{caption}</div>
+        </div>
+
+        <button onClick={onGoFocus}
+          className="flex items-center justify-center gap-2 px-8 h-11 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+          style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)', boxShadow: '0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)' }}>
+          <Ico n="lock" cls="w-4 h-4" /> Focus Lock
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void }) {
+  const [elapsed, setElapsed] = useState(0)
+  const [running, setRunning] = useState(false)
+
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => setElapsed(e => e + 1), 1000)
+    return () => clearInterval(id)
+  }, [running])
+
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
         background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
         borderColor: 'rgba(56,132,255,0.26)',
-        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        boxShadow: '0 0 40px rgba(41,98,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04)',
       }}>
-      <div className="flex items-center gap-2.5 mb-4">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
-          <Ico n="target" cls="w-4 h-4 text-cyan-300" />
+      <button onClick={onOpenQuickTimer}
+        className="flex items-center justify-between mb-4 w-full text-left group">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(41,98,255,0.18)', border: '1px solid rgba(56,132,255,0.35)' }}>
+            <Ico n="clock" cls="w-3.5 h-3.5 text-cyan-300" />
+          </div>
+          <div className="text-sm font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Quick Timer</div>
         </div>
-        <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Start Focusing</div>
-      </div>
-      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {options.map(o => (
-          <button key={o.id} onClick={o.onClick}
-            className="flex flex-col items-start gap-3 p-4 rounded-xl border text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: o.grad, borderColor: o.border }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: o.iconBg }}>
-              <Ico n={o.icon} cls="w-5 h-5" style={{ color: o.iconColor }} />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-100">{o.label}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{o.sub}</div>
-            </div>
-          </button>
-        ))}
+        <Ico n="chevR" cls="w-4 h-4 text-slate-500 transition-colors group-hover:text-cyan-300" />
+      </button>
+
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="text-[30px] font-bold text-white tabular-nums" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+          {formatClock(elapsed, true)}
+        </div>
+        <button onClick={() => setRunning(r => !r)}
+          className="flex items-center justify-center gap-2 px-6 h-10 rounded-2xl text-white font-semibold text-[13px] transition-all hover:opacity-90 active:scale-[0.98]"
+          style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 18px rgba(41,98,255,0.5)' }}>
+          {running
+            ? <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+            : <Ico n="play" cls="w-3.5 h-3.5" />}
+          {running ? 'Pause' : 'Start'}
+        </button>
+        <div className="text-[11px] text-slate-500">∞ No limit</div>
       </div>
     </div>
   )
@@ -8877,6 +8934,9 @@ export default function DesktopDashboard() {
   })
   const [autoStartTask, setAutoStartTask] = useState<{ subject: string; topic: string } | null>(null)
   const [showHomeAddTask, setShowHomeAddTask] = useState(false)
+  // Home's Focus Timer preview card reads/saves the same Pomodoro settings
+  // as Focus Lock (usePomodoroSettings is the shared store - see pomodoroSettings.ts).
+  const { settings: homePomo } = usePomodoroSettings()
 
   useEffect(() => {
     if (activeNav !== 'home') return
@@ -9136,6 +9196,7 @@ export default function DesktopDashboard() {
     const todaySchedule = schedule[todayIdx] || []
     const todayPlanRows = buildTodayPlanRows(todaySchedule, focusPlan.tasks)
 
+    // Focus Timer's "completed today" count: pomodoro tasks in the live plan
     return (
       <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
         <Sidebar active={activeNav} setActive={handleNav} profile={profile} />
@@ -9143,16 +9204,18 @@ export default function DesktopDashboard() {
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
             <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+            {/* Today's Study Plan | Focus Timer (primary) | Quick Timer (secondary, ~half the width of Focus Timer) */}
+            <div className="grid grid-cols-1 lg:grid-cols-[6fr_6fr_3fr] gap-3.5 items-stretch">
               <TodayStudyPlanCard
                 rows={todayPlanRows}
                 onStartTask={(subject, topic) => goFocus({ subject, topic })}
                 onAddTask={() => setShowHomeAddTask(true)}
               />
-              <HomeFocusEntryCard
+              <HomeFocusTimerCard
+                pomo={homePomo}
                 onGoFocus={() => goFocus()}
-                onGoQuickTimer={() => handleNav('quicktimer')}
               />
+              <HomeQuickTimerCard onOpenQuickTimer={() => handleNav('quicktimer')} />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3.5 items-stretch">
               <LiveStudyRoomsCard onEnterRoom={openRoom} onViewAll={viewAllRooms} />
