@@ -8764,10 +8764,14 @@ function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
+        {/* Plain countdown only - no ring/progress chrome, just big digits. */}
         <button onClick={() => setShowPicker(true)} title="Tap to set the time" aria-label="Set timer duration"
-          className="bg-transparent border-none p-0"
-          style={{ width: 'min(320px, 52vh, 78vw)', aspectRatio: '1' }}>
-          <TimerCircle remaining={remaining} total={state.totalSeconds} timeStr={timeStr} running={state.running} size={320} />
+          className="bg-transparent border-none p-0 leading-none tabular-nums"
+          style={{
+            fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#F1F5F9',
+            fontSize: 'min(19vh, 15vw, 160px)', letterSpacing: '-0.02em',
+          }}>
+          {timeStr}
         </button>
 
         <div className="text-xs text-slate-500">{remaining <= 0 ? 'Tap the timer to set a duration' : 'Tap the timer to change the time'}</div>
