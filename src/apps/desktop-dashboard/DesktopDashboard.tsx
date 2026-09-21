@@ -4749,6 +4749,13 @@ function HeadEarningsTab() {
   const payout = useMemo(() => payoutInfo(), [])
   const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
   const SOURCE_COLORS = ['#7C4DFF', '#22D3EE', '#19D3A2']
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawn, setWithdrawn] = useState(false)
+  function requestWithdraw() {
+    if (withdrawing || withdrawn) return
+    setWithdrawing(true)
+    setTimeout(() => { setWithdrawing(false); setWithdrawn(true) }, 900)
+  }
 
   return (
     <div className="space-y-3.5">
@@ -4794,6 +4801,13 @@ function HeadEarningsTab() {
               <div className="text-lg font-bold text-slate-100">{payout.nextDate}</div>
               <div className="text-[13px] text-slate-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-slate-500">(estimated)</span></div>
             </div>
+            <button onClick={requestWithdraw} disabled={withdrawing || withdrawn}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-70 flex items-center justify-center gap-2"
+              style={withdrawn
+                ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                : { background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', color: '#fff', boxShadow: '0 0 16px #1E3060' }}>
+              {withdrawn ? <><Ico n="check" cls="w-3.5 h-3.5" /> Withdrawal requested</> : withdrawing ? 'Requesting…' : 'Withdraw'}
+            </button>
           </div>
         </div>
       </div>
@@ -7916,24 +7930,40 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
   const [regPhone, setRegPhone] = useState("")
   const [friendCopied, setFriendCopied] = useState(false)
   const [headLinkCopied, setHeadLinkCopied] = useState(false)
-  const [subCodeCopied, setSubCodeCopied] = useState(false)
   const [communityMembers, setCommunityMembers] = useState<{ name: string; joined: string }[]>([])
   const [simName, setSimName] = useState("")
 
+  // A WynkoHead's community — name & description they set once, via the
+  // "Create your community" dialog below. Stored under the same key
+  // HeadManageTab/WynkoHeadCommunityPage read from, so whatever is entered
+  // here is exactly what shows up when the Community module opens.
+  const [communityCreated, setCommunityCreated] = useState<boolean>(() => !!Store.get(HEAD_SETTINGS_KEY, null))
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false)
+  const [createName, setCreateName] = useState("")
+  const [createDesc, setCreateDesc] = useState("")
+
   const friendLink = "wynko.in/ref/jatin123"
   const wynkoHeadLink = "wynko.in/wh/jatin-sinsinwar"
-  const subHeadCode = "WYNKO-JATIN-HEAD"
   const wynkoins = 150
 
   function copyFriend() { navigator.clipboard?.writeText(friendLink); setFriendCopied(true); setTimeout(() => setFriendCopied(false), 2000) }
   function copyHeadLink() { navigator.clipboard?.writeText(wynkoHeadLink); setHeadLinkCopied(true); setTimeout(() => setHeadLinkCopied(false), 2000) }
-  function copySubCode() { navigator.clipboard?.writeText(subHeadCode); setSubCodeCopied(true); setTimeout(() => setSubCodeCopied(false), 2000) }
 
   function handleRegister() {
     if (!regName.trim()) return
     onRegisterWynkoHead(regName.trim())
     setRegistering(false)
-    setInLibrary(true)
+  }
+
+  function handleCreateCommunity() {
+    if (!createName.trim()) return
+    Store.set(HEAD_SETTINGS_KEY, {
+      name: createName.trim(), description: createDesc.trim(),
+      requireApproval: true, handledRequests: [], approvedCount: 0,
+    })
+    setCommunityCreated(true)
+    setShowCreateCommunity(false)
+    onNavigate("studyrooms")
   }
 
   function addSimMember() {
@@ -7960,11 +7990,6 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
       { name: "Rahul Sharma", joined: "3 days ago", purchases: "₹1,200", earn: "₹600" },
       { name: "Priya Meena", joined: "5 days ago", purchases: "₹800", earn: "₹400" },
     ]
-    const EXAMPLE_SUB_HEADS = [
-      { name: "Aryan Tiwari", code: "WYNKO-ARYAN-HEAD", members: 12, revenue: "₹18,400", myShare: "₹1,840", avatar: "#EC4899", init: "AT" },
-      { name: "Komal Singh", code: "WYNKO-KOMAL-HEAD", members: 7, revenue: "₹9,600", myShare: "₹960", avatar: "#7C4DFF", init: "KS" },
-    ]
-
     return (
       <div className="flex h-screen overflow-hidden bg-[#020615]" >
         <Sidebar active="earn" setActive={onNavigate} profile={profile} />
@@ -7978,6 +8003,12 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
               <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOHEAD LIBRARY</div>
               <div className="text-sm font-semibold text-slate-200">Your community dashboard</div>
             </div>
+            {communityCreated && (
+              <button onClick={() => onNavigate("studyrooms")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]">
+                👑 Visit your community
+              </button>
+            )}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
               <span className="text-base">🪙</span>
               <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
@@ -8060,43 +8091,6 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
                   </div>
                 </div>
 
-                {/* Sub WynkoHeads */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">SUB-WYNKOHEADS</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Share your WynkoHead code. If another creator registers as WynkoHead using your code, you earn 10% from their community revenue.</div>
-
-                  {/* Share code */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-4 bg-[#0B1530] border-[rgba(25,181,230,0.25)]" >
-                    <span className="text-cyan-400">👑</span>
-                    <span className="text-sm font-bold text-slate-200 flex-1" >{subHeadCode}</span>
-                    <button onClick={copySubCode} className="text-slate-500 hover:text-cyan-400 transition-colors p-1">
-                      {subCodeCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
-                        : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
-                    </button>
-                  </div>
-
-                  <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
-                    ⚠ THE DATA BELOW IS FOR EXAMPLE ONLY — YOUR REAL SUB-WYNKOHEADS WILL APPEAR HERE ONCE THEY REGISTER
-                  </div>
-
-                  <div className="space-y-2">
-                    {EXAMPLE_SUB_HEADS.map((sh, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[rgba(25,181,230,0.04)] border-[rgba(25,181,230,0.15)]" >
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
-                          style={{ background: `linear-gradient(135deg,${sh.avatar},${sh.avatar}88)` }}>{sh.init}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-slate-200">{sh.name} <span className="text-[9px] text-amber-500 ml-1">[EXAMPLE]</span></div>
-                          <div className="text-[10px] text-slate-500 font-mono">{sh.members} students · {sh.code}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[11px] text-slate-400">Revenue: <span className="text-slate-200 font-semibold">{sh.revenue}</span></div>
-                          <div className="text-[11px] text-cyan-400 font-bold">Your 10%: {sh.myShare}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Community revenue detail */}
                 <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">REVENUE BREAKDOWN — EXAMPLE</div>
@@ -8106,7 +8100,6 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
                   <div className="flex gap-3 mb-3">
                     {[
                       { icon: "👥", label: "Community purchases", price: "₹1,200", earn: "₹600", note: "50% share" },
-                      { icon: "🔗", label: "Sub-WynkoHead revenue", price: "₹28,000", earn: "₹2,800", note: "10% share" },
                       { icon: "📚", label: "Study Pack purchase", price: "₹500", earn: "₹250", note: "50% share" },
                     ].map(ex => (
                       <div key={ex.label} className="flex-1 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
@@ -8171,10 +8164,9 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
 
                 <div className="rounded-2xl border p-4 bg-[#0B1530] border-[#1A2845]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">COMMUNITY STATS</div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     {[
                       { label: "Members", val: String(communityMembers.length), color: "#C4AAFF" },
-                      { label: "Sub-WynkoHeads", val: "0", color: "#7DD8F0" },
                     ].map(s => (
                       <div key={s.label} className="p-3 rounded-xl border text-center border-[rgba(26,40,69,0.55)] bg-[#0B1530]" >
                         <div className="text-xl font-black" style={{ color: s.color }}>{s.val}</div>
@@ -8205,6 +8197,12 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
             <div className="text-[10px] text-slate-600 mb-0.5" >EARN WITH WYNKO</div>
             <div className="text-sm font-semibold text-slate-200">Build your community. Share the revenue.</div>
           </div>
+          {isWynkoHead && communityCreated && (
+            <button onClick={() => onNavigate("studyrooms")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]">
+              👑 Visit your community
+            </button>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
             <span className="text-base">🪙</span>
             <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
@@ -8220,11 +8218,10 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
             <div className="relative z-10">
               <div className="text-[10px] font-mono tracking-[0.28em] text-violet-400 mb-3">EARN WITH WYNKO</div>
               <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Grow your network — earn from your network's WynkoHeads too. Or simply invite friends and earn WYNKOINS together.</p>
+              <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Or simply invite friends and earn WYNKOINS together.</p>
               <div className="flex gap-6 flex-wrap">
                 {[
                   { icon: "👑", v: "50%", label: "Revenue from your community" },
-                  { icon: "🔗", v: "10%", label: "From Sub-WynkoHead revenue" },
                   { icon: "🪙", v: "WYNKOINS", label: "For every friend who hits 3-day streak" },
                 ].map(f => (
                   <div key={f.label} className="flex items-center gap-2.5">
@@ -8270,7 +8267,7 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
                     {[
                       { n: "1", icon: "📣", title: "Invite Students", desc: "Share your WynkoHead link. Students who join Wynko via your link become part of your community." },
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
-                      { n: "3", icon: "🔗", title: "Grow Sub-WynkoHeads", desc: "Share your WynkoHead code to other creators. When they register using it, you earn 10% from their community revenue too." },
+                      { n: "3", icon: "👑", title: "Create Your Community", desc: "Give your community a name and description, then manage it, publish schedules, and track earnings from your dashboard." },
                     ].map(s => (
                       <div key={s.n} className="p-4 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
                         <div className="flex items-center gap-2 mb-3">
@@ -8333,19 +8330,46 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
                       </div>
                     )}
                   </div>
-                ) : (
-                  <button onClick={() => setInLibrary(true)}
+                ) : !communityCreated ? (
+                  <button onClick={() => setShowCreateCommunity(true)}
                     className="w-full flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
                     style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>🏘️</div>
                       <div className="text-left">
-                        <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
-                        <div className="text-[11px] text-slate-400">{communityMembers.length} community members · your dashboard</div>
+                        <div className="text-sm font-bold text-white">Create your community</div>
+                        <div className="text-[11px] text-slate-400">Give it a name & description to get started</div>
                       </div>
                     </div>
                     <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
                   </button>
+                ) : (
+                  <div className="flex gap-3 flex-wrap">
+                    <button onClick={() => onNavigate("studyrooms")}
+                      className="flex-1 min-w-[260px] flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
+                      style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
+                        <div className="text-left">
+                          <div className="text-sm font-bold text-white">Visit your community</div>
+                          <div className="text-[11px] text-slate-400">Manage students, schedule & earnings</div>
+                        </div>
+                      </div>
+                      <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                    </button>
+                    <button onClick={() => setInLibrary(true)}
+                      className="flex-1 min-w-[260px] flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
+                      style={{ background: "rgba(26,40,69,0.30)", borderColor: "#1E3060" }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>🔗</div>
+                        <div className="text-left">
+                          <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
+                          <div className="text-[11px] text-slate-400">{communityMembers.length} community members · invite links</div>
+                        </div>
+                      </div>
+                      <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -8440,6 +8464,57 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
             )}
           </div>
         </main>
+      </div>
+      {showCreateCommunity && (
+        <CreateCommunityDialog
+          name={createName} setName={setCreateName}
+          description={createDesc} setDescription={setCreateDesc}
+          onCreate={handleCreateCommunity}
+          onCancel={() => setShowCreateCommunity(false)} />
+      )}
+    </div>
+  )
+}
+
+// Name + description dialog shown once, right after registering as a
+// WynkoHead — submitting saves them under HEAD_SETTINGS_KEY (the same key
+// HeadManageTab / WynkoHeadCommunityPage read from) and sends the person
+// straight into the Community module.
+function CreateCommunityDialog({ name, setName, description, setDescription, onCreate, onCancel }: {
+  name: string; setName: (v: string) => void
+  description: string; setDescription: (v: string) => void
+  onCreate: () => void; onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
+      <div role="dialog" aria-modal="true" aria-label="Create your community" className="rounded-2xl border p-7 w-[440px] max-w-full"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-2">CREATE YOUR COMMUNITY</div>
+        <div className="text-lg font-bold text-white mb-1.5">Name your community</div>
+        <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">This is what your students will see. You can change it later from Manage Community.</div>
+        <div className="space-y-3.5">
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Community name *</span>
+            <input value={name} onChange={e => setName(e.target.value)} maxLength={60} autoFocus
+              placeholder="e.g. JEE 2026 Grind Room"
+              className={HEAD_INPUT} />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Description</span>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={200} rows={3}
+              placeholder="What is this community about, and who is it for?"
+              className={HEAD_INPUT + " resize-none"} />
+          </label>
+        </div>
+        <div className="flex gap-2.5 mt-5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+          <button onClick={onCreate} disabled={!name.trim()}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', boxShadow: '0 0 16px #1E3060' }}>
+            Create Community →
+          </button>
+        </div>
       </div>
     </div>
   )

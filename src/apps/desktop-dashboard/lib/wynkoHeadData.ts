@@ -1,8 +1,8 @@
 // Mock data for the WynkoHead community-management dashboard (students,
 // earnings, join requests). Typed and self-contained so it can be swapped for
 // real queries later without touching the UI. Amounts are in ₹ and use the
-// same revenue-share model as the Earn page (50% community / study-pack
-// purchases, 10% sub-WynkoHead revenue).
+// same revenue-share model as the Earn page: a flat 50% share on everything
+// a WynkoHead's community spends on Wynko (no sub-WynkoHead tier).
 
 // The community this WynkoHead runs (id in ALL_COMMUNITIES).
 export const HEAD_COMMUNITY_ID = 1
@@ -73,11 +73,11 @@ export interface EarningsView {
   sources: EarningsSource[]
 }
 
-const TOTALS: Record<EarningsRange, number> = { 7: 720, 30: 2840, 90: 7460 }
+const TOTALS: Record<EarningsRange, number> = { 7: 570, 30: 2240, 90: 5880 }
 const CHANGE: Record<EarningsRange, number> = { 7: 9, 30: 12, 90: 18 }
 const POINTS: Record<EarningsRange, number> = { 7: 7, 30: 8, 90: 9 }
-// Community purchases 1,650 + study packs 590 + sub-WynkoHeads 600 = 2,840 (30 days).
-const SPLIT = [1650, 590, 600].map(v => v / 2840)
+// Community purchases 1,650 + study packs 590 = 2,240 (30 days) — both at the flat 50% share.
+const SPLIT = [1650, 590].map(v => v / 2240)
 
 // Small seeded generator so the chart doesn't jump around between renders.
 function rng(seed: number) {
@@ -99,11 +99,10 @@ export function buildEarnings(range: EarningsRange): EarningsView {
     const daysAgo = Math.round((range - 1) * (1 - i / (n - 1)))
     return { label: new Date(now - daysAgo * DAY).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value }
   })
-  const a = Math.round(total * SPLIT[0]), b = Math.round(total * SPLIT[1])
+  const a = Math.round(total * SPLIT[0])
   const sources: EarningsSource[] = [
     { id: 'community', emoji: '👥', label: 'Community purchases', note: '50% share', amount: a },
-    { id: 'packs', emoji: '📚', label: 'Study pack purchases', note: '50% share', amount: b },
-    { id: 'sub', emoji: '🔗', label: 'Sub-WynkoHead revenue', note: '10% share', amount: total - a - b },
+    { id: 'packs', emoji: '📚', label: 'Study pack purchases', note: '50% share', amount: total - a },
   ]
   return { total, changePct: CHANGE[range], points, sources }
 }
