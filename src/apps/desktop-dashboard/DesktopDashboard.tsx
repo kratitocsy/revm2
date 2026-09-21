@@ -20,7 +20,9 @@ import {
 } from '../_shared/pomodoroSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 import { Store } from '../../lib/storage'
-import { getCommunityDetail, type CommunityDetail, type CommunityHead, type CommunityScheduleSlot } from './lib/communityData'
+import { getCommunityDetail, type CommunityAnnouncement, type CommunityDetail, type CommunityHead, type CommunityScheduleSlot } from './lib/communityData'
+import { loadAnnouncements, saveAnnouncements, loadPublishedSchedules, savePublishedSchedule, loadNotifSeen, markNotifSeen, loadHeadDraft, saveHeadDraft, STORE_KEYS, type PublishedSchedule } from './lib/communityStore'
+import { HEAD_COMMUNITY_ID, HEAD_STUDENTS, HEAD_JOIN_REQUESTS, buildEarnings, payoutInfo, type EarningsRange } from './lib/wynkoHeadData'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -72,6 +74,9 @@ const IP: Record<string, string[]> = {
   pin: ['M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z'],
   dots: ['M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z'],
   close: ['M6 18L18 6M6 6l12 12'],
+  send: ['M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5'],
+  copy: ['M8 7h8a2 2 0 012 2v10a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2z', 'M16 7V5a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2h2'],
+  trash: ['M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0l-.8 12a2 2 0 01-2 2H9.8a2 2 0 01-2-2L7 7M10 11v6M14 11v6'],
 }
 
 function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; style?: React.CSSProperties }) {
@@ -3481,6 +3486,57 @@ function communitySlotsToWeek(slots: CommunityScheduleSlot[]): ScheduleItem[][] 
   })))
 }
 
+const weekSessionMins = (day: ScheduleItem[]) => day.reduce((n, s) => n + parseTimeRangeMinutes(s.startTime, s.endTime), 0)
+
+// True when every weekday has the same sessions (the seed schedule repeats daily).
+function weekIsUniform(week: ScheduleItem[][]): boolean {
+  const sig = (d: ScheduleItem[]) => d.map(s => `${s.subject}|${s.topic}|${s.startTime}|${s.endTime}`).join(';')
+  return week.every(d => sig(d) === sig(week[0]))
+}
+
+// "4h 30m/day · 3 sessions", or per week when the days differ.
+function weekSummary(week: ScheduleItem[][]): string {
+  const uniform = weekIsUniform(week)
+  const sessions = uniform ? week[0].length : week.reduce((n, d) => n + d.length, 0)
+  const mins = uniform ? weekSessionMins(week[0]) : week.reduce((n, d) => n + weekSessionMins(d), 0)
+  return `${formatStudyDuration(mins)}/${uniform ? 'day' : 'week'} · ${sessions} session${sessions === 1 ? '' : 's'}${uniform ? '' : '/week'}`
+}
+
+// Purple gradient + mountain/flag art shared by the student and WynkoHead
+// community headers, faded in from the right so the text side stays on the card colour.
+function CommunityBannerArt() {
+  return (
+    <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+      <div className="absolute inset-y-0 right-0 w-[62%]"
+        style={{
+          background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 58%, #7C4DFF 85%, #4629A0 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
+          maskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
+        }}>
+        <svg viewBox="0 0 700 132" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60" aria-hidden="true">
+          <polygon points="140,132 230,62 285,96 380,40 470,86 545,58 700,104 700,132" fill="#1B0F45" opacity="0.55" />
+          <polygon points="250,132 340,78 405,104 490,54 700,112 700,132" fill="#150A36" opacity="0.75" />
+          <line x1="490" y1="54" x2="490" y2="22" stroke="#E8E2FF" strokeWidth="2" />
+          <path d="M490,22 L522,30 L490,39 Z" fill="#E8E2FF" opacity="0.9" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+// A community's shared study room, in the shape the room interior expects.
+function communityStudyRoom(community: CommunityData): RoomData {
+  const shortName = community.name.split('—').pop()!.trim()
+  return {
+    id: 1000 + community.id, name: `${shortName} Study Room`, emoji: '', classes: 'Community',
+    subject: 'All Subjects', desc: community.desc, members: community.members,
+    avatarColors: community.avatarColors ?? ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'],
+    avatarInits: community.avatarInits ?? ['RS', 'PK', 'AM', 'DJ'],
+    iconBg: community.iconBg, iconEmoji: community.emoji,
+    tag: 'all', isPublic: true, subjectTag: 'all',
+  }
+}
+
 function CommunityHeadAvatar({ head, size = 40 }: { head: CommunityHead; size?: number }) {
   return (
     <div className="rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 select-none"
@@ -3558,9 +3614,12 @@ function CmStat({ icon, value, label }: { icon: keyof typeof IP; value: string; 
 
 const compactCount = (n: number) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
-function CommunityStudentPage({ community, isHome, onBack, onNavigate, onJoinRoom, onLeave, profile, scheduleChoice, onAcceptSchedule, onRejectSchedule }: {
+function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy, onBack, onNavigate, onJoinRoom, onLeave, profile, scheduleChoice, onAcceptSchedule, onRejectSchedule }: {
   community: CommunityData
   isHome: boolean
+  isOwner?: boolean // the WynkoHead previewing their own community
+  week: ScheduleItem[][] // the schedule students see: the WynkoHead's published one, else the seed
+  weekBy: string | null // who published it (null = the community's seed schedule)
   onBack: () => void
   onNavigate: (id: string) => void
   onJoinRoom: (room: RoomData) => void
@@ -3570,7 +3629,11 @@ function CommunityStudentPage({ community, isHome, onBack, onNavigate, onJoinRoo
   onAcceptSchedule: () => void
   onRejectSchedule: () => void
 }) {
-  const detail = useMemo(() => getCommunityDetail(community.id), [community.id])
+  // Announcements the WynkoHead has posted replace the seed list.
+  const detail = useMemo(() => {
+    const d = getCommunityDetail(community.id)
+    return d ? { ...d, announcements: loadAnnouncements(community.id, d.announcements) } : null
+  }, [community.id])
   const [tab, setTab] = useState<CommunityStudentTab>('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
@@ -3582,23 +3645,13 @@ function CommunityStudentPage({ community, isHome, onBack, onNavigate, onJoinRoo
     { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
   ]
 
-  const shortName = community.name.split('—').pop()!.trim()
   const studyingNow = community.studyingNow ?? detail?.studyingNow ?? 0
   const memberAvatars = [0, 1, 2, 3].map(i => AVATAR_OPTIONS[(community.id + i) % AVATAR_OPTIONS.length])
   const roomAvatars = [0, 1, 2].map(i => AVATAR_OPTIONS[(community.id + 4 + i) % AVATAR_OPTIONS.length])
 
   // The community's shared study room opens in the same room interior every
-  // other Study Room uses; only the RoomData wrapper is built here.
-  function joinCommunityRoom() {
-    onJoinRoom({
-      id: 1000 + community.id, name: `${shortName} Study Room`, emoji: '', classes: 'Community',
-      subject: 'All Subjects', desc: community.desc, members: community.members,
-      avatarColors: community.avatarColors ?? ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'],
-      avatarInits: community.avatarInits ?? ['RS', 'PK', 'AM', 'DJ'],
-      iconBg: community.iconBg, iconEmoji: community.emoji,
-      tag: 'all', isPublic: true, subjectTag: 'all',
-    })
-  }
+  // other Study Room uses.
+  function joinCommunityRoom() { onJoinRoom(communityStudyRoom(community)) }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
@@ -3617,23 +3670,7 @@ function CommunityStudentPage({ community, isHome, onBack, onNavigate, onJoinRoo
           <div className="space-y-4 pb-6">
             {/* 1 · Community header */}
             <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(56,132,255,0.30)', boxShadow: '0 0 70px rgba(41,98,255,0.14), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-              {/* Banner: same purple gradient + mountain/flag art as the Home Community hero,
-                  faded in from the right so the text side stays on the card colour. */}
-              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-                <div className="absolute inset-y-0 right-0 w-[62%]"
-                  style={{
-                    background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 58%, #7C4DFF 85%, #4629A0 100%)',
-                    WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
-                    maskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
-                  }}>
-                  <svg viewBox="0 0 700 132" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60" aria-hidden="true">
-                    <polygon points="140,132 230,62 285,96 380,40 470,86 545,58 700,104 700,132" fill="#1B0F45" opacity="0.55" />
-                    <polygon points="250,132 340,78 405,104 490,54 700,112 700,132" fill="#150A36" opacity="0.75" />
-                    <line x1="490" y1="54" x2="490" y2="22" stroke="#E8E2FF" strokeWidth="2" />
-                    <path d="M490,22 L522,30 L490,39 Z" fill="#E8E2FF" opacity="0.9" />
-                  </svg>
-                </div>
-              </div>
+              <CommunityBannerArt />
 
               <div className="relative z-10 p-5 flex items-center gap-4">
                 <button onClick={onBack} aria-label="Back to communities"
@@ -3674,12 +3711,14 @@ function CommunityStudentPage({ community, isHome, onBack, onNavigate, onJoinRoo
                       <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
                       <div role="menu" className="absolute right-0 top-full mt-2 w-60 rounded-xl border p-1.5 z-40"
                         style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 12px 40px rgba(0,0,0,0.5), 0 0 30px rgba(41,98,255,0.15)' }}>
-                        <button role="menuitem" disabled={isHome}
+                        <button role="menuitem" disabled={isHome || isOwner}
                           onClick={() => { setMenuOpen(false); setConfirmLeave(true) }}
                           className="w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors enabled:hover:bg-red-500/10 disabled:cursor-not-allowed"
-                          style={{ color: isHome ? '#4E5E84' : '#F87171' }}>
+                          style={{ color: isHome || isOwner ? '#4E5E84' : '#F87171' }}>
                           Leave community
-                          {isHome && <div className="text-[11px] font-normal text-slate-500 mt-0.5">This is your Home Community. Change it first.</div>}
+                          {isOwner
+                            ? <div className="text-[11px] font-normal text-slate-500 mt-0.5">You manage this community.</div>
+                            : isHome && <div className="text-[11px] font-normal text-slate-500 mt-0.5">This is your Home Community. Change it first.</div>}
                         </button>
                       </div>
                     </>
@@ -3717,7 +3756,7 @@ function CommunityStudentPage({ community, isHome, onBack, onNavigate, onJoinRoo
               <CommunityHomeTab detail={detail} studyingNow={studyingNow} roomAvatars={roomAvatars}
                 onViewAll={() => setTab('announcements')} onJoinRoom={joinCommunityRoom} />
             ) : tab === 'schedule' ? (
-              <CommunityScheduleTab detail={detail} choice={scheduleChoice}
+              <CommunityScheduleTab week={week} head={detail.head} by={weekBy ?? detail.head.name} choice={scheduleChoice}
                 onAccept={onAcceptSchedule} onReject={onRejectSchedule} onCreateOwn={() => onNavigate('schedules')} />
             ) : tab === 'progress' ? (
               <CommunityProgressTab detail={detail} />
@@ -3853,14 +3892,20 @@ function CommunityHomeTab({ detail, studyingNow, roomAvatars, onViewAll, onJoinR
 }
 
 // ── Schedule tab: the WynkoHead's schedule + the student's accept / reject decision ──
-function CommunityScheduleTab({ detail, choice, onAccept, onReject, onCreateOwn }: {
-  detail: CommunityDetail
+function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCreateOwn }: {
+  week: ScheduleItem[][]
+  head: CommunityHead
+  by: string
   choice: CommunityScheduleChoice | null
   onAccept: () => void
   onReject: () => void
   onCreateOwn: () => void
 }) {
-  const totalMins = detail.slots.reduce((sum, s) => sum + slotMinutes(s), 0)
+  const uniform = weekIsUniform(week)
+  const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
+  const [day, setDay] = useState(todayIdx)
+  const shown = uniform ? (week[0] ?? []) : (week[day] ?? [])
+  const shownMins = weekSessionMins(shown)
   const ghostBtn = 'px-5 py-2.5 rounded-xl text-[13px] font-semibold flex items-center gap-2 transition-colors border'
   return (
     <div className="space-y-3.5">
@@ -3870,7 +3915,7 @@ function CommunityScheduleTab({ detail, choice, onAccept, onReject, onCreateOwn 
         <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
           style={{ background: `radial-gradient(circle, ${choice === 'accepted' ? 'rgba(25,211,162,0.10)' : 'rgba(41,98,255,0.12)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
         <div className="relative flex items-start gap-4 flex-wrap">
-          <CommunityHeadAvatar head={detail.head} size={48} />
+          <CommunityHeadAvatar head={{ ...head, name: by, initials: initialsOf(by) }} size={48} />
           <div className="flex-1 min-w-[260px]">
             <div className="flex items-center gap-2.5 flex-wrap mb-1">
               <div className="text-lg font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Community Schedule</div>
@@ -3894,9 +3939,7 @@ function CommunityScheduleTab({ detail, choice, onAccept, onReject, onCreateOwn 
                   ? 'You’re not following this community’s schedule. You can change your mind any time.'
                   : 'Your WynkoHead has created a study schedule for this community.'}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1.5">
-              By {detail.head.name} · {formatStudyDuration(totalMins)}/day · {detail.slots.length} session{detail.slots.length === 1 ? '' : 's'}
-            </div>
+            <div className="text-[11px] text-slate-500 mt-1.5">By {by} · {weekSummary(week)}</div>
           </div>
         </div>
 
@@ -3941,27 +3984,44 @@ function CommunityScheduleTab({ detail, choice, onAccept, onReject, onCreateOwn 
 
       {/* The schedule itself: time + subject */}
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
-        <CmCardTitle icon="calendar" title="Schedule" sub="Repeats every day"
-          right={<div className="text-xs text-slate-500 flex-shrink-0">{formatStudyDuration(totalMins)} total</div>} />
-        <div className="space-y-2">
-          {detail.slots.map(s => {
-            const color = subjectColor(s.subject)
-            return (
+        <CmCardTitle icon="calendar" title="Schedule" sub={uniform ? 'Repeats every day' : 'Weekly schedule'}
+          right={<div className="text-xs text-slate-500 flex-shrink-0">{formatStudyDuration(shownMins)} {uniform ? 'total' : `on ${DAYS_SHORT[day]}`}</div>} />
+        {!uniform && (
+          <div className="flex gap-1.5 mb-3.5">
+            {DAYS_SHORT.map((d, i) => (
+              <button key={d} onClick={() => setDay(i)} aria-pressed={day === i}
+                className="flex-1 flex flex-col items-center py-2 rounded-xl transition-all"
+                style={{
+                  background: day === i ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
+                  border: `1px solid ${day === i ? '#563FA0' : 'rgba(26,40,69,0.55)'}`,
+                  boxShadow: day === i ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                }}>
+                <span className="text-[11px] font-semibold" style={{ color: day === i ? '#fff' : '#8B9AC7' }}>{d}</span>
+                <span className="text-[10px]" style={{ color: day === i ? 'rgba(255,255,255,0.75)' : '#4E5E84' }}>{week[i]?.length ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {shown.length === 0 ? (
+          <div className="py-6 text-center text-[13px] text-slate-500">No sessions on {DAYS_SHORT[day]}.</div>
+        ) : (
+          <div className="space-y-2">
+            {shown.map(s => (
               <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={CM_ROW}>
                 <div className="w-[150px] flex-shrink-0 text-[12px] font-semibold text-slate-300 whitespace-nowrap" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                  {s.start} – {s.end}
+                  {s.startTime} – {s.endTime}
                 </div>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                  style={{ background: `${color}1A`, border: `1px solid ${color}44` }}>{subjectEmoji(s.subject)}</div>
+                  style={{ background: `${s.color}1A`, border: `1px solid ${s.color}44` }}>{s.iconEmoji}</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-slate-100 truncate">{s.subject}</div>
                   <div className="text-[11px] text-slate-500 truncate">{s.topic}</div>
                 </div>
-                <div className="text-[11px] text-slate-500 flex-shrink-0">{formatStudyDuration(slotMinutes(s))}</div>
+                <div className="text-[11px] text-slate-500 flex-shrink-0">{formatStudyDuration(parseTimeRangeMinutes(s.startTime, s.endTime))}</div>
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -4090,6 +4150,831 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── WynkoHead · Community management ────────────────────────────────────────
+// What a registered WynkoHead sees when they open Community from the sidebar,
+// instead of the student's Study Rooms / Communities module: a management
+// dashboard for the community they run. Tabs: Overview · Schedule ·
+// Announcements · Student Analytics · Earnings · Manage Community.
+//
+// The student side of the same flows lives in CommunityStudentPage above:
+// a schedule published here reaches students as a notification card
+// (ScheduleNotificationCard) and announcements posted here appear in their
+// feed. Both go through lib/communityStore.ts until there is a backend.
+type HeadTab = 'overview' | 'schedule' | 'announcements' | 'analytics' | 'earnings' | 'manage'
+const HEAD_SETTINGS_KEY = 'wynko_head_community_v1'
+
+interface HeadCommunitySettings {
+  name: string
+  description: string
+  requireApproval: boolean
+  handledRequests: string[] // join-request ids already approved / declined
+  approvedCount: number // members added through approved requests
+}
+
+const HEAD_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
+
+function initialsOf(name: string): string {
+  return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'W'
+}
+
+function loadHeadSettings(community: CommunityData): HeadCommunitySettings {
+  const saved = Store.get(HEAD_SETTINGS_KEY, null) as Partial<HeadCommunitySettings> | null
+  return { name: community.name, description: community.desc, requireApproval: true, handledRequests: [], approvedCount: 0, ...(saved ?? {}) }
+}
+
+function HeadBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+      style={{ background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>
+      👑 WynkoHead
+    </span>
+  )
+}
+
+// Same segmented tab bar the student view uses, for any number of tabs.
+function CmTabBar<T extends string>({ tabs, active, onChange }: {
+  tabs: { id: T; label: string; icon: keyof typeof IP }[]
+  active: T
+  onChange: (t: T) => void
+}) {
+  return (
+    <div role="tablist" className="grid gap-1 p-1 rounded-2xl border"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, background: '#0B1530', borderColor: '#1A2845' }}>
+      {tabs.map(t => {
+        const on = active === t.id
+        return (
+          <button key={t.id} role="tab" aria-selected={on} onClick={() => onChange(t.id)} title={t.label}
+            className="flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-sm font-semibold transition-all"
+            style={{
+              background: on ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
+              color: on ? '#fff' : '#8B9AC7',
+              boxShadow: on ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+            }}>
+            <Ico n={t.icon} cls="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{t.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function HeadConfirmDialog({ title, body, confirmLabel, confirmStyle, onConfirm, onCancel }: {
+  title: string
+  body: React.ReactNode
+  confirmLabel: string
+  confirmStyle: React.CSSProperties
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="rounded-2xl border p-7 w-[420px] max-w-full"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-lg font-bold text-white mb-1.5">{title}</div>
+        <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">{body}</div>
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity" style={confirmStyle}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onViewAsStudent, onEnterStudyRoom, headSchedule, setHeadSchedule, headUnits, setHeadUnits, published, onPublish }: {
+  community: CommunityData
+  headName: string
+  profile?: ProfileInfo
+  onNavigate: (id: string) => void
+  onViewAsStudent: () => void
+  onEnterStudyRoom: (room: RoomData) => void
+  headSchedule: ScheduleItem[][]
+  setHeadSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
+  headUnits: StudyUnit[]
+  setHeadUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
+  published: PublishedSchedule | undefined
+  onPublish: () => void
+}) {
+  const [tab, setTab] = useState<HeadTab>('overview')
+  const [settings, setSettings] = useState<HeadCommunitySettings>(() => loadHeadSettings(community))
+  const [announcements, setAnnouncements] = useState<CommunityAnnouncement[]>(
+    () => loadAnnouncements(community.id, getCommunityDetail(community.id)?.announcements ?? []))
+
+  function updateSettings(patch: Partial<HeadCommunitySettings>) {
+    setSettings(prev => { const next = { ...prev, ...patch }; Store.set(HEAD_SETTINGS_KEY, next); return next })
+  }
+  function updateAnnouncements(next: CommunityAnnouncement[]) {
+    setAnnouncements(next)
+    saveAnnouncements(community.id, next)
+  }
+
+  const members = community.members + settings.approvedCount
+  const studyingNow = community.studyingNow ?? 128
+
+  const TABS: { id: HeadTab; label: string; icon: keyof typeof IP }[] = [
+    { id: 'overview', label: 'Overview', icon: 'home' },
+    { id: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
+    { id: 'analytics', label: 'Student Analytics', icon: 'progress' },
+    { id: 'earnings', label: 'Earnings', icon: 'coin' },
+    { id: 'manage', label: 'Manage Community', icon: 'cog' },
+  ]
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
+      <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <Ico n="chevL" cls="w-4 h-4" /> Home
+          </button>
+          <div className="flex-1">
+            <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
+            <div className="text-sm font-semibold text-slate-200">Manage your community, guide your students, and track their progress.</div>
+          </div>
+          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <UserAvatar size={32} />
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-4 pb-6">
+            {/* Community header */}
+            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(56,132,255,0.30)', boxShadow: '0 0 70px rgba(41,98,255,0.14), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+              <CommunityBannerArt />
+              <div className="relative z-10 p-5 flex items-center gap-5 flex-wrap">
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
+                  style={{ background: community.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{community.emoji}</div>
+                <div className="min-w-0 flex-1 basis-[280px]">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-2xl font-bold text-white leading-tight">{settings.name}</h1>
+                    <HeadBadge />
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[13px] mt-1.5" style={{ color: '#A5B4FC' }}>
+                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(members)} Members
+                  </div>
+                  <div className="flex items-center gap-2 text-[13px] text-slate-300 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> {fmt(studyingNow)} active students
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <button onClick={() => setTab('manage')}
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+                    <Ico n="cog" cls="w-4 h-4" /> Manage Community
+                  </button>
+                  <button onClick={onViewAsStudent}
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-100 hover:text-white transition-colors border"
+                    style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(56,132,255,0.40)' }}>
+                    View Community
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <CmTabBar tabs={TABS} active={tab} onChange={setTab} />
+
+            {tab === 'overview' && (
+              <HeadOverviewTab community={community} members={members} studyingNow={studyingNow} announcements={announcements}
+                onViewAnnouncements={() => setTab('announcements')} onEnterRoom={() => onEnterStudyRoom(communityStudyRoom(community))} />
+            )}
+            {tab === 'schedule' && (
+              <HeadScheduleTab members={members} headSchedule={headSchedule} setHeadSchedule={setHeadSchedule}
+                headUnits={headUnits} setHeadUnits={setHeadUnits} published={published} onPublish={onPublish} />
+            )}
+            {tab === 'announcements' && (
+              <HeadAnnouncementsTab headName={headName} announcements={announcements} onChange={updateAnnouncements} />
+            )}
+            {tab === 'analytics' && <HeadAnalyticsTab />}
+            {tab === 'earnings' && <HeadEarningsTab />}
+            {tab === 'manage' && <HeadManageTab settings={settings} onChange={updateSettings} />}
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+// ── Overview: the numbers that matter, the study room, latest announcements ──
+function HeadOverviewTab({ community, members, studyingNow, announcements, onViewAnnouncements, onEnterRoom }: {
+  community: CommunityData
+  members: number
+  studyingNow: number
+  announcements: CommunityAnnouncement[]
+  onViewAnnouncements: () => void
+  onEnterRoom: () => void
+}) {
+  const progress = getCommunityDetail(community.id)?.progress.community
+  const recent = [...announcements].sort((a, b) => b.postedAt - a.postedAt).slice(0, 3)
+  const roomAvatars = [0, 1, 2].map(i => AVATAR_OPTIONS[(community.id + i) % AVATAR_OPTIONS.length])
+  const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
+    { icon: 'rooms', value: fmt(members), label: 'Total Students' },
+    { icon: 'bullseye', value: fmt(Math.round(members * 0.4)), label: 'Active Today' },
+    { icon: 'clock', value: formatStudyDuration(progress?.avgDailyMinutes ?? 0), label: 'Avg. Study Time / Day' },
+    { icon: 'check', value: `${progress?.avgAdherencePct ?? 0}%`, label: 'Avg. Schedule Adherence' },
+  ]
+  return (
+    <div className="space-y-3.5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3.5">
+        {stats.map(s => (
+          <div key={s.label} className="p-5 rounded-2xl border" style={CM_CARD}>
+            <CmStat icon={s.icon} value={s.value} label={s.label} />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 items-stretch">
+        {/* Community Study Room */}
+        <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
+          <CmCardTitle icon="rooms" title="Community Study Room"
+            right={
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+                style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Live
+              </span>
+            } />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex -space-x-2 flex-shrink-0">
+              {roomAvatars.map((src, i) => (
+                <img key={i} src={src} alt="" className="w-9 h-9 rounded-full object-cover border-2 flex-shrink-0" style={{ borderColor: '#0B1530', zIndex: 3 - i }} />
+              ))}
+            </div>
+            <div className="text-[13px] text-slate-300 font-medium">
+              <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students online
+            </div>
+          </div>
+          <div className="rounded-xl border p-4 mb-5" style={CM_ROW}>
+            <div className="text-[11px] text-slate-500 mb-1">Currently studying</div>
+            <div className="text-sm font-semibold text-slate-100">Mathematics · Integration</div>
+          </div>
+          <button onClick={onEnterRoom}
+            className="mt-auto w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            <Ico n="play" cls="w-4 h-4" /> Enter Study Room
+          </button>
+        </div>
+
+        {/* Recent announcements */}
+        <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
+          <CmCardTitle icon="megaphone" title="Recent Announcements"
+            right={
+              <button onClick={onViewAnnouncements} className="flex items-center gap-1 text-[12px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors flex-shrink-0">
+                View All <Ico n="arrow" cls="w-3.5 h-3.5" />
+              </button>
+            } />
+          {recent.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-[13px] text-slate-500 py-8">No announcements yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {recent.map(a => (
+                <div key={a.id} className="rounded-xl border px-4 py-3" style={CM_ROW}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-100 truncate">{a.title}</div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <AnnouncementBadges pinned={a.pinned} important={a.important} />
+                      <span className="text-[11px] text-slate-500 whitespace-nowrap">{formatPostedAgo(a.postedAt)}</span>
+                    </div>
+                  </div>
+                  <div className="text-[12px] text-slate-500 truncate mt-0.5">{a.message}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Schedule: the existing schedule editor + "publish to students" ──
+function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, setHeadUnits, published, onPublish }: {
+  members: number
+  headSchedule: ScheduleItem[][]
+  setHeadSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
+  headUnits: StudyUnit[]
+  setHeadUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
+  published: PublishedSchedule | undefined
+  onPublish: () => void
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [justPublished, setJustPublished] = useState(false)
+  const publishedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (publishedTimer.current) clearTimeout(publishedTimer.current) }, [])
+
+  const hasSessions = headSchedule.some(d => d.length > 0)
+  const unpublishedChanges = !!published && JSON.stringify(published.week) !== JSON.stringify(headSchedule)
+
+  function confirmPublish() {
+    setConfirming(false)
+    onPublish()
+    setJustPublished(true)
+    if (publishedTimer.current) clearTimeout(publishedTimer.current)
+    publishedTimer.current = setTimeout(() => setJustPublished(false), 5000)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="p-5 rounded-2xl border relative overflow-hidden"
+        style={{ ...CM_CARD, borderColor: justPublished ? 'rgba(25,211,162,0.35)' : 'rgba(56,132,255,0.30)' }}>
+        <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
+          style={{ background: `radial-gradient(circle, ${justPublished ? 'rgba(25,211,162,0.10)' : 'rgba(124,77,255,0.14)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
+        <div className="relative flex items-center gap-4 flex-wrap">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}>
+            <Ico n="send" cls="w-5 h-5 text-cyan-300" />
+          </div>
+          <div className="flex-1 min-w-[260px]">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Publish to your students</div>
+              {unpublishedChanges && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                  style={{ background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>Unpublished changes</span>
+              )}
+            </div>
+            <div className="text-[13px] text-slate-400 leading-relaxed mt-0.5">
+              Build the schedule below, then publish it. Students get a notification and choose whether to follow it or create their own.
+            </div>
+            <div className="text-[11px] mt-1.5" style={{ color: justPublished ? '#19D3A2' : '#64748B' }}>
+              {justPublished
+                ? `Published. ${fmt(members)} students have been notified.`
+                : published ? `Last published ${formatPostedStamp(published.publishedAt)}` : 'Not published yet'}
+            </div>
+          </div>
+          <button onClick={() => setConfirming(true)} disabled={!hasSessions}
+            title={hasSessions ? undefined : 'Add at least one session first'}
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            <Ico n="send" cls="w-4 h-4" /> Publish Schedule
+          </button>
+        </div>
+      </div>
+
+      <SchedulesPage embedded title="Community Schedule" subtitle="The schedule your students will receive."
+        onNavigate={() => {}} schedule={headSchedule} setSchedule={setHeadSchedule}
+        sharedUnits={headUnits} setSharedUnits={setHeadUnits} />
+
+      {confirming && (
+        <HeadConfirmDialog title="Publish this schedule?"
+          body={<>{fmt(members)} students will get a notification with this schedule ({weekSummary(headSchedule)}). Each student can accept it or keep their own schedule.</>}
+          confirmLabel="Publish" confirmStyle={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}
+          onConfirm={confirmPublish} onCancel={() => setConfirming(false)} />
+      )}
+    </div>
+  )
+}
+
+// ── Announcements: post to the community, manage the feed ──
+function HeadAnnouncementsTab({ headName, announcements, onChange }: {
+  headName: string
+  announcements: CommunityAnnouncement[]
+  onChange: (next: CommunityAnnouncement[]) => void
+}) {
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [important, setImportant] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const feed = [...announcements].sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (b.postedAt - a.postedAt))
+  const canPost = title.trim().length > 0 && message.trim().length > 0
+
+  function post() {
+    if (!canPost) return
+    onChange([{ id: `hp_${Date.now()}`, title: title.trim(), message: message.trim(), postedAt: Date.now(), important, pinned }, ...announcements])
+    setTitle(''); setMessage(''); setImportant(false); setPinned(false)
+  }
+
+  const toggle = (on: boolean, set: (v: boolean) => void, label: string, icon: keyof typeof IP, accent: string) => (
+    <button type="button" onClick={() => set(!on)} aria-pressed={on}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
+      style={{ background: on ? `${accent}1F` : 'transparent', color: on ? accent : '#64748B', borderColor: on ? `${accent}66` : '#1A2845' }}>
+      <Ico n={icon} cls="w-3.5 h-3.5" /> {label}
+    </button>
+  )
+
+  return (
+    <div className="space-y-3.5">
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="megaphone" title="New Announcement" sub="Visible to every student in your community" />
+        <div className="space-y-3">
+          <input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="Title" className={HEAD_INPUT} />
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} maxLength={400} placeholder="Write your announcement…"
+            className={`${HEAD_INPUT} resize-none`} />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              {toggle(important, setImportant, 'Important', 'alert', '#F87171')}
+              {toggle(pinned, setPinned, 'Pin to top', 'pin', '#7FB0FF')}
+            </div>
+            <button onClick={post} disabled={!canPost}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+              <Ico n="send" cls="w-4 h-4" /> Post Announcement
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {feed.length === 0 ? (
+        <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
+          <div className="text-sm font-semibold text-slate-300 mb-1">No announcements yet</div>
+          <div className="text-[12px] text-slate-500">Post your first announcement above.</div>
+        </div>
+      ) : feed.map(a => (
+        <div key={a.id} className="p-5 rounded-2xl border" style={CM_CARD}>
+          <div className="flex items-start gap-3.5">
+            <CommunityHeadAvatar head={{ name: headName, initials: initialsOf(headName), color: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' }} size={40} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="text-sm font-semibold text-slate-100">{headName}</span>
+                  <WynkoHeadTag />
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <AnnouncementBadges pinned={a.pinned} important={a.important} />
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+                    <Ico n="clock" cls="w-3 h-3" /> {formatPostedStamp(a.postedAt)}
+                  </span>
+                  {deleting === a.id ? (
+                    <span className="flex items-center gap-1.5 text-[11px]">
+                      <button onClick={() => { onChange(announcements.filter(x => x.id !== a.id)); setDeleting(null) }}
+                        className="font-semibold text-red-400 hover:text-red-300 transition-colors">Delete</button>
+                      <span className="text-slate-700">·</span>
+                      <button onClick={() => setDeleting(null)} className="text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setDeleting(a.id)} aria-label={`Delete announcement: ${a.title}`}
+                      className="text-slate-600 hover:text-red-400 transition-colors"><Ico n="trash" cls="w-4 h-4" /></button>
+                  )}
+                </div>
+              </div>
+              <div className="text-[15px] font-semibold text-slate-100 mt-2.5 mb-1">{a.title}</div>
+              <div className="text-[13px] text-slate-400 leading-relaxed whitespace-pre-wrap break-words">{a.message}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Student Analytics: how every student is doing ──
+function HeadAnalyticsTab() {
+  type Filter = 'all' | 'active' | 'inactive' | 'low'
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
+  const [showAll, setShowAll] = useState(false)
+
+  const rows = HEAD_STUDENTS
+    .filter(s => s.name.toLowerCase().includes(query.trim().toLowerCase()))
+    .filter(s => filter === 'all' ? true
+      : filter === 'active' ? s.lastActiveMins < 24 * 60
+      : filter === 'inactive' ? s.lastActiveMins >= 3 * 24 * 60
+      : s.adherencePct < 50)
+    .sort((a, b) => b.adherencePct - a.adherencePct)
+  const visible = showAll ? rows : rows.slice(0, 8)
+
+  const ago = (m: number) => m < 60 ? `${m}m ago` : m < 24 * 60 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / (24 * 60))}d ago`
+  const barFor = (p: number) => p >= 70 ? 'linear-gradient(90deg,#19D3A2,#22D3EE)' : p >= 50 ? 'linear-gradient(90deg,#2979FF,#60A5FA)' : 'linear-gradient(90deg,#7C4DFF,#A78BFA)'
+  const COLS = 'grid-cols-[minmax(170px,1.6fr)_repeat(5,minmax(64px,0.7fr))_minmax(84px,0.8fr)_minmax(150px,1.3fr)]'
+
+  return (
+    <div className="p-5 rounded-2xl border" style={CM_CARD}>
+      <div className="flex items-center gap-4 flex-wrap mb-4">
+        <div className="flex items-center gap-2.5 mr-2">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="progress" cls="w-4 h-4 text-cyan-300" /></div>
+          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Student Analytics</div>
+        </div>
+        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+          <Ico n="search" cls="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input value={query} onChange={e => { setQuery(e.target.value); setShowAll(false) }} placeholder="Search students..." aria-label="Search students"
+            className={`${HEAD_INPUT} pl-10`} style={{ background: 'rgba(14,21,40,0.55)' }} />
+        </div>
+        <select value={filter} onChange={e => { setFilter(e.target.value as Filter); setShowAll(false) }} aria-label="Filter students"
+          className="ml-auto px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors border-[#1A2845] cursor-pointer"
+          style={{ background: 'rgba(14,21,40,0.55)', colorScheme: 'dark' }}>
+          <option value="all">All Students</option>
+          <option value="active">Active Today</option>
+          <option value="inactive">Inactive 3+ Days</option>
+          <option value="low">Low Adherence</option>
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[860px]">
+          <div className={`grid ${COLS} gap-3 px-4 pb-2.5 text-[11px] font-semibold text-slate-500 border-b border-[rgba(26,40,69,0.9)]`}>
+            <div>Student</div><div>Study Time</div><div>Sessions</div><div>Streak</div><div>Revision</div><div>Tasks</div><div>Last Active</div><div>Adherence</div>
+          </div>
+          {visible.length === 0 ? (
+            <div className="py-10 text-center text-[13px] text-slate-500">No students match.</div>
+          ) : visible.map(s => (
+            <div key={s.id} className={`grid ${COLS} gap-3 px-4 py-3 items-center text-[13px] text-slate-300 border-b border-[rgba(26,40,69,0.6)] last:border-b-0 hover:bg-white/[0.02] transition-colors`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: s.color }}>{s.initials}</div>
+                <span className="font-medium text-slate-100 truncate">{s.name}</span>
+              </div>
+              <div>{formatStudyDuration(s.studyMinutes)}</div>
+              <div>{s.sessions}</div>
+              <div>{s.streakDays === 0 ? '–' : `${s.streakDays} day${s.streakDays === 1 ? '' : 's'}`}</div>
+              <div>{s.revision}</div>
+              <div>{s.tasks}</div>
+              <div className="text-slate-400">{ago(s.lastActiveMins)}</div>
+              <div className="flex items-center gap-2.5">
+                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${s.adherencePct}%`, background: barFor(s.adherencePct) }} />
+                </div>
+                <span className="w-9 text-right text-[12px] text-slate-400">{s.adherencePct}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {rows.length > 8 && (
+        <button onClick={() => setShowAll(v => !v)} className="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors">
+          {showAll ? 'Show fewer students' : 'View All Students'} {!showAll && <Ico n="arrow" cls="w-3.5 h-3.5" />}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Earnings: what this community has earned the WynkoHead ──
+function EarningsChart({ points }: { points: { label: string; value: number }[] }) {
+  const W = 640, H = 210, PL = 20, PR = 20, PT = 18, PB = 12
+  const n = points.length
+  const max = Math.max(...points.map(p => p.value), 1)
+  const xs = points.map((_, i) => PL + (i / Math.max(n - 1, 1)) * (W - PL - PR))
+  const ys = points.map(p => PT + (1 - p.value / max) * (H - PT - PB))
+  // Catmull-Rom → cubic Bézier, so the line curves through every point.
+  let line = `M${xs[0]},${ys[0]}`
+  for (let i = 0; i < n - 1; i++) {
+    const x0 = xs[i - 1] ?? xs[i], y0 = ys[i - 1] ?? ys[i]
+    const x3 = xs[i + 2] ?? xs[i + 1], y3 = ys[i + 2] ?? ys[i + 1]
+    line += ` C${xs[i] + (xs[i + 1] - x0) / 6},${ys[i] + (ys[i + 1] - y0) / 6} ${xs[i + 1] - (x3 - xs[i]) / 6},${ys[i + 1] - (y3 - ys[i]) / 6} ${xs[i + 1]},${ys[i + 1]}`
+  }
+  const area = `${line} L${xs[n - 1]},${H - PB} L${xs[0]},${H - PB} Z`
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Earnings over time">
+        <defs>
+          <linearGradient id="earnFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7C4DFF" stopOpacity="0.38" />
+            <stop offset="100%" stopColor="#7C4DFF" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#earnFill)" />
+        <path d={line} fill="none" stroke="#8B7CFF" strokeWidth="2.5" strokeLinecap="round" />
+        {points.map((p, i) => (
+          <circle key={i} cx={xs[i]} cy={ys[i]} r="4.5" fill="#8B7CFF" stroke="#0B1530" strokeWidth="2">
+            <title>{`${p.label} · ₹${p.value.toLocaleString('en-IN')}`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="relative h-5 mt-1">
+        {points.map((p, i) => (
+          <span key={i} className="absolute text-[10px] text-slate-500 whitespace-nowrap -translate-x-1/2" style={{ left: `${(xs[i] / W) * 100}%` }}>{p.label}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HeadEarningsTab() {
+  const [range, setRange] = useState<EarningsRange>(30)
+  const data = useMemo(() => buildEarnings(range), [range])
+  const payout = useMemo(() => payoutInfo(), [])
+  const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
+  const SOURCE_COLORS = ['#7C4DFF', '#22D3EE', '#19D3A2']
+
+  return (
+    <div className="space-y-3.5">
+      <div className="rounded-2xl border overflow-hidden" style={CM_CARD}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]">
+          <div className="p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="coin" cls="w-4 h-4 text-cyan-300" /></div>
+                <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Earnings Overview</div>
+              </div>
+              <select value={range} onChange={e => setRange(Number(e.target.value) as EarningsRange)} aria-label="Earnings period"
+                className="px-3.5 py-2 rounded-xl border text-[13px] text-slate-200 outline-none focus:border-violet-500/50 transition-colors border-[#1A2845] cursor-pointer"
+                style={{ background: 'rgba(14,21,40,0.55)', colorScheme: 'dark' }}>
+                <option value={7}>Last 7 Days</option>
+                <option value={30}>Last 30 Days</option>
+                <option value={90}>Last 90 Days</option>
+              </select>
+            </div>
+            <div className="flex items-end gap-3 mb-4">
+              <div>
+                <div className="text-3xl font-bold text-white leading-tight">{inr(data.total)}</div>
+                <div className="text-[12px] text-slate-500 mt-0.5">Total Earnings</div>
+              </div>
+              <div className="pb-1 text-[13px] font-semibold text-emerald-400">↑ {data.changePct}%</div>
+            </div>
+            <EarningsChart points={data.points} />
+          </div>
+
+          <div className="p-5 border-t lg:border-t-0 lg:border-l border-[rgba(26,40,69,0.9)] flex flex-col gap-5">
+            <div>
+              <div className="text-[13px] text-slate-400 mb-2">Payout Status</div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold"
+                style={payout.status === 'Paid'
+                  ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                  : { background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>
+                <Ico n="check" cls="w-3.5 h-3.5" /> {payout.status}
+              </span>
+              <div className="text-[11px] text-slate-500 mt-2">{inr(payout.lastAmount)} paid on {payout.lastDate}</div>
+            </div>
+            <div>
+              <div className="text-[13px] text-slate-400 mb-1">Next payout</div>
+              <div className="text-lg font-bold text-slate-100">{payout.nextDate}</div>
+              <div className="text-[13px] text-slate-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-slate-500">(estimated)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="coin" title="Earnings by Source" sub={`Last ${range} days`} />
+        <div className="space-y-2">
+          {data.sources.map((s, i) => {
+            const pct = data.total > 0 ? Math.round((s.amount / data.total) * 100) : 0
+            return (
+              <div key={s.id} className="rounded-xl border px-4 py-3.5" style={CM_ROW}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${SOURCE_COLORS[i]}1A`, border: `1px solid ${SOURCE_COLORS[i]}44` }}>{s.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-100">{s.label}</div>
+                    <div className="text-[11px] text-slate-500">{s.note}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-slate-100">{inr(s.amount)}</div>
+                    <div className="text-[11px] text-slate-500">{pct}%</div>
+                  </div>
+                </div>
+                <div className="h-1 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SOURCE_COLORS[i] }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Manage Community: details, invite & access, join requests ──
+function HeadManageTab({ settings, onChange }: {
+  settings: HeadCommunitySettings
+  onChange: (patch: Partial<HeadCommunitySettings>) => void
+}) {
+  const [name, setName] = useState(settings.name)
+  const [description, setDescription] = useState(settings.description)
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
+
+  const dirty = name.trim() !== settings.name || description.trim() !== settings.description
+  const inviteLink = `wynko.in/c/${(settings.name || 'community').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+  const pending = HEAD_JOIN_REQUESTS.filter(r => !settings.handledRequests.includes(r.id))
+
+  function save() {
+    if (!name.trim()) return
+    onChange({ name: name.trim(), description: description.trim() })
+    setSaved(true)
+    timers.current.push(setTimeout(() => setSaved(false), 2500))
+  }
+  function copyInvite() {
+    navigator.clipboard?.writeText(inviteLink)
+    setCopied(true)
+    timers.current.push(setTimeout(() => setCopied(false), 2000))
+  }
+  function handle(id: string, approve: boolean) {
+    onChange({ handledRequests: [...settings.handledRequests, id], approvedCount: settings.approvedCount + (approve ? 1 : 0) })
+  }
+
+  return (
+    <div className="space-y-3.5">
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="cog" title="Community Details" sub="How your community appears to students" />
+        <div className="space-y-3.5">
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Community name</span>
+            <input value={name} onChange={e => setName(e.target.value)} maxLength={60} className={HEAD_INPUT} />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Description</span>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={240} className={`${HEAD_INPUT} resize-none`} />
+          </label>
+          <div className="flex items-center justify-end gap-3">
+            {saved && <span className="text-[12px] text-emerald-400">Saved</span>}
+            <button onClick={save} disabled={!dirty || !name.trim()}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="rooms" title="Invite & Access" sub="Control how students join" />
+        <div className="text-[11px] font-semibold text-slate-500 mb-1.5">Invite link</div>
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 truncate border-[#1A2845]" style={{ background: 'rgba(14,21,40,0.55)' }}>{inviteLink}</div>
+          <button onClick={copyInvite}
+            className="px-4 py-2.5 rounded-xl border text-sm font-semibold flex items-center gap-2 transition-colors text-slate-200 hover:text-white hover:border-[rgba(56,132,255,0.6)]"
+            style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+            <Ico n="copy" cls="w-4 h-4" /> {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5" style={CM_ROW}>
+          <div>
+            <div className="text-sm font-semibold text-slate-100">Approve new students manually</div>
+            <div className="text-[12px] text-slate-500 mt-0.5">Students who use your link wait for your approval before they join.</div>
+          </div>
+          <button role="switch" aria-checked={settings.requireApproval} aria-label="Approve new students manually"
+            onClick={() => onChange({ requireApproval: !settings.requireApproval })}
+            className="relative w-11 h-6 rounded-full flex-shrink-0 transition-colors"
+            style={{ background: settings.requireApproval ? '#7C4DFF' : 'rgba(71,85,105,0.5)' }}>
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: settings.requireApproval ? 22 : 2 }} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl border" style={CM_CARD}>
+        <CmCardTitle icon="check" title="Join Requests" sub={settings.requireApproval ? `${pending.length} waiting for approval` : 'Manual approval is off'} />
+        {!settings.requireApproval ? (
+          <div className="text-[13px] text-slate-500 py-2">New students join instantly. Turn on manual approval above to review them first.</div>
+        ) : pending.length === 0 ? (
+          <div className="text-[13px] text-slate-500 py-2">No pending requests.</div>
+        ) : (
+          <div className="space-y-2">
+            {pending.map(r => (
+              <div key={r.id} className="flex items-center gap-3 rounded-xl border px-4 py-3" style={CM_ROW}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: r.color }}>{r.initials}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-100 truncate">{r.name}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{r.note} · {r.requestedAgo}</div>
+                </div>
+                <button onClick={() => handle(r.id, false)}
+                  className="px-4 py-1.5 rounded-lg border text-[12px] font-semibold text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Decline</button>
+                <button onClick={() => handle(r.id, true)}
+                  className="px-4 py-1.5 rounded-lg text-[12px] font-semibold text-white flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)' }}>
+                  <Ico n="check" cls="w-3.5 h-3.5" /> Approve
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Student-side notification: the WynkoHead published a schedule ──
+// Floats over whatever page the student is on until they choose.
+function ScheduleNotificationCard({ communityName, published, onAccept, onCreateOwn, onDismiss }: {
+  communityName: string
+  published: PublishedSchedule
+  onAccept: () => void
+  onCreateOwn: () => void
+  onDismiss: () => void
+}) {
+  const week = published.week as ScheduleItem[][]
+  return (
+    <div role="alert" className="fixed top-[68px] right-4 z-[70] w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border p-5"
+      style={{ background: 'linear-gradient(160deg, #0F1838 0%, #0A1024 100%)', borderColor: '#2855CC', boxShadow: '0 12px 50px rgba(0,0,0,0.55), 0 0 50px rgba(124,77,255,0.30)' }}>
+      <div className="flex items-start gap-3">
+        <CommunityHeadAvatar head={{ name: published.by, initials: initialsOf(published.by), color: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' }} size={40} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">NEW SCHEDULE</div>
+          <div className="text-sm font-bold text-white leading-snug">{published.by} published a schedule for {communityName}</div>
+        </div>
+        <button onClick={onDismiss} aria-label="Decide later" title="Decide later"
+          className="w-7 h-7 -mr-1 -mt-1 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors flex-shrink-0">
+          <Ico n="close" cls="w-4 h-4" />
+        </button>
+      </div>
+      <div className="rounded-xl border px-3.5 py-2.5 mt-3.5 text-[12px] text-slate-300" style={CM_ROW}>{weekSummary(week)}</div>
+      <div className="text-[12px] text-slate-500 mt-3">Follow it, or keep and create your own. It’s your choice.</div>
+      <div className="flex items-center gap-2.5 mt-3.5">
+        <button onClick={onAccept}
+          className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+          style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)', boxShadow: '0 0 18px rgba(25,211,162,0.30)' }}>
+          <Ico n="check" cls="w-4 h-4" /> Accept Schedule
+        </button>
+        <button onClick={onCreateOwn}
+          className="flex-1 py-2.5 rounded-xl border text-[13px] font-semibold text-slate-200 hover:text-white transition-colors hover:border-[rgba(56,132,255,0.6)]"
+          style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+          Create My Own
+        </button>
+      </div>
     </div>
   )
 }
@@ -4929,13 +5814,19 @@ function ScheduleAIChat({ onClose }: { onClose: () => void }) {
   )
 }
 
-function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile }: {
+function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile, embedded = false, title: scheduleTitle = 'Your Schedule', subtitle: scheduleSubtitle = 'Stay consistent. Track your progress.' }: {
   onNavigate: (id: string) => void
   schedule: ScheduleItem[][]
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
   sharedUnits: StudyUnit[]
   setSharedUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
   profile?: ProfileInfo
+  // Embedded = just the schedule editor (AI banner + week editor), without the
+  // page shell, the title or the blocker sections. The WynkoHead's Schedule tab
+  // uses it to edit the schedule they publish to students.
+  embedded?: boolean
+  title?: string
+  subtitle?: string
 }) {
   const weekDates = getWeekDates()
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
@@ -5056,29 +5947,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
     return t
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
-      <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
-          >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
-            <Ico n="chevL" cls="w-4 h-4" /> Home
-          </button>
-          <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
-            <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
-          </div>
-          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
-          <UserAvatar size={32} />
-        </header>
-
-        <main className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* Page title */}
+  const pageBody = (
+    <>
+      {!embedded && (
           <div>
             <h1 className="text-2xl font-bold text-white">Schedule & Blockers</h1>
             <p className="text-slate-400 text-sm mt-0.5">Build your perfect study routine and stay distraction-free.</p>
           </div>
+      )}
 
           {/* ── AI Assistant Banner ── */}
           <div className="rounded-2xl border p-5 relative overflow-hidden"
@@ -5113,8 +5989,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <Ico n="clock" cls="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
-                  <div className="text-base font-bold text-white">Your Schedule</div>
-                  <div className="text-[11px] text-slate-500">Stay consistent. Track your progress.</div>
+                  <div className="text-base font-bold text-white">{scheduleTitle}</div>
+                  <div className="text-[11px] text-slate-500">{scheduleSubtitle}</div>
                 </div>
               </div>
               <button onClick={() => setEditMode(e => !e)}
@@ -5168,11 +6044,15 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" >
                     {session.startTime} – {session.endTime}
                   </div>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
-                    🎯 Focus Mode
-                  </button>
-                  <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+                  {!embedded && (
+                    <>
+                      <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
+                        style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
+                        🎯 Focus Mode
+                      </button>
+                      <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -5190,6 +6070,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </button>
           </div>
 
+      {!embedded && (
+        <>
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
             style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
@@ -5357,9 +6239,13 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
           </div>
           <div className="h-6" />
-        </main>
-      </div>
+        </>
+      )}
+    </>
+  )
 
+  const modals = (
+    <>
       {/* ── AI assistant chat ── */}
       {showAI && <ScheduleAIChat onClose={() => setShowAI(false)} />}
 
@@ -5586,6 +6472,34 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           </div>
         </div>
       )}
+    </>
+  )
+
+  if (embedded) return <div className="space-y-5">{pageBody}{modals}</div>
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+      <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          >
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <Ico n="chevL" cls="w-4 h-4" /> Home
+          </button>
+          <div className="flex-1">
+            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
+            <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
+          </div>
+          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <UserAvatar size={32} />
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {pageBody}
+        </main>
+      </div>
+
+      {modals}
     </div>
   )
 }
@@ -6986,10 +7900,16 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
 // ─── Earn with Wynko Page ──────────────────────────────────────────────────────
 
-function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
+  onNavigate: (id: string) => void
+  profile?: ProfileInfo
+  // Owned by the App root: registering makes the sidebar's Community open the
+  // WynkoHead management dashboard instead of the student module.
+  isWynkoHead: boolean
+  onRegisterWynkoHead: (name: string) => void
+}) {
   type EarnTab = "wynkohead" | "invite"
   const [tab, setTab] = useState<EarnTab>("wynkohead")
-  const [isWynkoHead, setIsWynkoHead] = useState(false)
   const [inLibrary, setInLibrary] = useState(false)
   const [registering, setRegistering] = useState(false)
   const [regName, setRegName] = useState("")
@@ -7011,7 +7931,7 @@ function EarnPage({ onNavigate, profile }: { onNavigate: (id: string) => void; p
 
   function handleRegister() {
     if (!regName.trim()) return
-    setIsWynkoHead(true)
+    onRegisterWynkoHead(regName.trim())
     setRegistering(false)
     setInLibrary(true)
   }
@@ -7586,6 +8506,19 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
+// Who is a WynkoHead: whoever registered on the Earn page. Kept in localStorage
+// until the profile has a real role. For review, `?role=wynkohead` switches this
+// browser to WynkoHead and `?role=student` switches back.
+const WYNKO_HEAD_STORE_KEY = 'wynko_wynkohead_v1'
+function loadWynkoHeadRole(): { name: string } | null {
+  try {
+    const q = new URLSearchParams(window.location.search).get('role')
+    if (q === 'student') Store.del(WYNKO_HEAD_STORE_KEY)
+    else if (q === 'wynkohead' && !Store.get(WYNKO_HEAD_STORE_KEY, null)) Store.set(WYNKO_HEAD_STORE_KEY, { name: '' })
+  } catch { /* no window / storage: treat as student */ }
+  return Store.get(WYNKO_HEAD_STORE_KEY, null) as { name: string } | null
+}
+
 export default function DesktopDashboard() {
   const [activeNav, setActiveNav] = useState('home')
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
@@ -7603,6 +8536,16 @@ export default function DesktopDashboard() {
   // What the student's own schedule was before a community schedule replaced it,
   // so "Reject" can hand it back. Not persisted: the schedule itself isn't either.
   const ownScheduleBackup = useRef<ScheduleItem[][] | null>(null)
+  // WynkoHead: the role, the schedule they are building for their students
+  // (separate from their own study schedule), and what has been published.
+  const [wynkoHead, setWynkoHead] = useState<{ name: string } | null>(loadWynkoHeadRole)
+  const [headSchedule, setHeadSchedule] = useState<ScheduleItem[][]>(() =>
+    (loadHeadDraft() as ScheduleItem[][] | null)
+    ?? (loadPublishedSchedules()[HEAD_COMMUNITY_ID]?.week as ScheduleItem[][] | undefined)
+    ?? Array.from({ length: 7 }, () => []))
+  const [headUnits, setHeadUnits] = useState<StudyUnit[]>([])
+  const [publishedSchedules, setPublishedSchedules] = useState<Record<number, PublishedSchedule>>(loadPublishedSchedules)
+  const [notifSeen, setNotifSeen] = useState<Record<number, number>>(loadNotifSeen)
   const [userAvatar, setUserAvatar] = useState<string>(avatar7)
   const [avatarTouched, setAvatarTouched] = useState(false)
 
@@ -7659,14 +8602,26 @@ export default function DesktopDashboard() {
     setScheduleChoices(next)
     Store.set(COMMUNITY_SCHEDULE_STORE_KEY, next)
   }
-  function applyCommunitySchedule(communityId: number) {
+  // The schedule students get for a community: the one its WynkoHead published,
+  // else the community's seed schedule.
+  function communityWeek(communityId: number): { week: ScheduleItem[][]; by: string | null } | null {
+    const pub = publishedSchedules[communityId]
+    if (pub) return { week: pub.week as ScheduleItem[][], by: pub.by }
     const detail = getCommunityDetail(communityId)
-    if (!detail) return
-    setSchedule(communitySlotsToWeek(detail.slots))
+    return detail ? { week: communitySlotsToWeek(detail.slots), by: null } : null
+  }
+  function applyCommunitySchedule(communityId: number) {
+    const cw = communityWeek(communityId)
+    if (!cw) return
+    const exam = getCommunityDetail(communityId)?.exam ?? ''
+    setSchedule(cw.week.map((day, di) => day.map(s => ({ ...s, id: `cm_${communityId}_${di}_${s.id}` }))))
     // Same as the AI schedule: subjects the student doesn't track yet become study units.
     setSharedUnits(prev => {
-      const missing = detail.slots.filter(s => !prev.some(u => u.subject.toLowerCase() === s.subject.toLowerCase()))
-      return missing.length ? [...prev, ...missing.map(s => ({ subject: s.subject, exam: detail.exam, topics: [s.topic] }))] : prev
+      const all = cw.week.flat()
+      const missing = all.filter((s, i) =>
+        all.findIndex(x => x.subject.toLowerCase() === s.subject.toLowerCase()) === i
+        && !prev.some(u => u.subject.toLowerCase() === s.subject.toLowerCase()))
+      return missing.length ? [...prev, ...missing.map(s => ({ subject: s.subject, exam, topics: [s.topic || 'Study session'] }))] : prev
     })
   }
   function revertToOwnSchedule() {
@@ -7693,6 +8648,31 @@ export default function DesktopDashboard() {
     setLeftCommunityIds(prev => [...prev, communityId])
     setActiveCommunity(null)
   }
+  // ── WynkoHead publishes a schedule ──
+  // Students are notified (ScheduleNotificationCard) and asked again, so any
+  // earlier accept / reject for this community is cleared.
+  function publishHeadSchedule() {
+    const week = headSchedule.map(day => day.map(s => ({ ...s })))
+    setPublishedSchedules(savePublishedSchedule(HEAD_COMMUNITY_ID, { week, publishedAt: Date.now(), by: wynkoHead?.name || profile?.displayName || 'Your WynkoHead' }))
+    const { [HEAD_COMMUNITY_ID]: _cleared, ...rest } = scheduleChoices
+    saveScheduleChoices(rest)
+  }
+  function registerWynkoHead(name: string) {
+    const role = { name }
+    Store.set(WYNKO_HEAD_STORE_KEY, role)
+    setWynkoHead(role)
+  }
+  useEffect(() => { if (wynkoHead) saveHeadDraft(headSchedule) }, [headSchedule, wynkoHead])
+  // Another tab publishing (or a student acting on the notification) shows up here live.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORE_KEYS.published) setPublishedSchedules(loadPublishedSchedules())
+      if (e.key === STORE_KEYS.seen) setNotifSeen(loadNotifSeen())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   // A schedule accepted in an earlier session is re-applied on load — the
   // schedule state itself starts empty every time.
   useEffect(() => {
@@ -7751,6 +8731,21 @@ export default function DesktopDashboard() {
 
   function setUserAvatarTouched(a: string) { setAvatarTouched(true); setUserAvatar(a) }
 
+  // A student's pending "your WynkoHead published a schedule" notification: the
+  // newest published schedule (in a community they're still in) they haven't
+  // acted on or dismissed yet. WynkoHeads don't get it — they publish it.
+  const scheduleNotif = (() => {
+    if (wynkoHead) return null
+    const pending = Object.entries(publishedSchedules)
+      .map(([id, p]) => ({ id: Number(id), p, name: ALL_COMMUNITIES.find(c => c.id === Number(id))?.name }))
+      .filter(x => x.name && !leftCommunityIds.includes(x.id) && x.p.publishedAt > (notifSeen[x.id] ?? 0))
+      .sort((a, b) => b.p.publishedAt - a.p.publishedAt)[0]
+    return pending ? { id: pending.id, p: pending.p, name: pending.name as string } : null
+  })()
+  function dismissScheduleNotif() {
+    if (scheduleNotif) setNotifSeen(markNotifSeen(scheduleNotif.id, scheduleNotif.p.publishedAt))
+  }
+
   function renderPage() {
     if (activeNav === 'focus') {
       return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} />
@@ -7768,20 +8763,23 @@ export default function DesktopDashboard() {
       return <WynkoinsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'earn') {
-      return <EarnPage onNavigate={handleNav} profile={profile} />
+      return <EarnPage onNavigate={handleNav} profile={profile} isWynkoHead={!!wynkoHead} onRegisterWynkoHead={registerWynkoHead} />
     }
     if (activeNav === 'settings') {
       return <SettingsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'studyrooms') {
       if (activeRoom) {
-        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} backLabel={activeCommunity ? 'Community' : 'Rooms'} />
+        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} backLabel={activeCommunity || wynkoHead ? 'Community' : 'Rooms'} />
       }
       if (activeCommunity) {
         const homeSaved = Store.get(HOME_COMMUNITY_STORE_KEY, null) as { id: number } | null
+        const cw = communityWeek(activeCommunity.id)
         return (
           <CommunityStudentPage key={activeCommunity.id} community={activeCommunity}
             isHome={homeSaved?.id === activeCommunity.id}
+            isOwner={!!wynkoHead && activeCommunity.id === HEAD_COMMUNITY_ID}
+            week={cw?.week ?? Array.from({ length: 7 }, () => [])} weekBy={cw?.by ?? null}
             onBack={() => setActiveCommunity(null)} onNavigate={handleNav}
             onJoinRoom={room => setActiveRoom(room)}
             onLeave={() => leaveCommunity(activeCommunity.id)}
@@ -7790,6 +8788,19 @@ export default function DesktopDashboard() {
             onAcceptSchedule={() => acceptCommunitySchedule(activeCommunity.id)}
             onRejectSchedule={() => rejectCommunitySchedule(activeCommunity.id)} />
         )
+      }
+      // A WynkoHead's Community is the management dashboard for the community
+      // they run; "View Community" there opens the student view above.
+      if (wynkoHead) {
+        const headCommunity = ALL_COMMUNITIES.find(c => c.id === HEAD_COMMUNITY_ID)
+        if (headCommunity) {
+          return (
+            <WynkoHeadCommunityPage community={headCommunity} headName={wynkoHead.name || profile?.displayName || 'Your WynkoHead'} profile={profile}
+              onNavigate={handleNav} onViewAsStudent={() => setActiveCommunity(headCommunity)} onEnterStudyRoom={room => setActiveRoom(room)}
+              headSchedule={headSchedule} setHeadSchedule={setHeadSchedule} headUnits={headUnits} setHeadUnits={setHeadUnits}
+              published={publishedSchedules[HEAD_COMMUNITY_ID]} onPublish={publishHeadSchedule} />
+          )
+        }
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile}
         communityTab={studyRoomsTab} onCommunityTabChange={setStudyRoomsTab}
@@ -7864,6 +8875,12 @@ export default function DesktopDashboard() {
   return (
     <UserAvatarCtx.Provider value={{ avatar: userAvatar, setAvatar: setUserAvatarTouched }}>
       {renderPage()}
+      {scheduleNotif && authState === 'ready' && (
+        <ScheduleNotificationCard communityName={scheduleNotif.name} published={scheduleNotif.p}
+          onAccept={() => { acceptCommunitySchedule(scheduleNotif.id); dismissScheduleNotif() }}
+          onCreateOwn={() => { rejectCommunitySchedule(scheduleNotif.id); dismissScheduleNotif(); handleNav('schedules') }}
+          onDismiss={dismissScheduleNotif} />
+      )}
     </UserAvatarCtx.Provider>
   )
 }
