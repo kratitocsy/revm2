@@ -560,14 +560,14 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 }
 .founder-photo svg{ position:relative; width:56px; height:56px; stroke:currentColor; fill:none; stroke-width:1.4; }
 .founder-photo img{
-  position:absolute; top:0; left:50%; height:100%; aspect-ratio:4/5; width:auto; display:block; object-fit:cover;
+  position:absolute; top:0; left:50%; height:100%; width:auto; display:block;
   transform:translateX(-50%);
   -webkit-user-drag:none; user-select:none;
 }
 /* Full-bleed variant: the photo fills the whole block edge to edge (no side fill) */
 .founder-photo.cover::before{ display:none; }
 .founder-photo.cover img{
-  left:0; width:100%; aspect-ratio:auto; transform:none;
+  left:0; width:100%; aspect-ratio:auto; transform:none; object-fit:cover;
   object-position:var(--pos,50% 50%);
 }
 .founder-body{ padding:0 26px; }
@@ -1197,9 +1197,9 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 /* ================= founders carousel ================= */
 (function(){
   const FOUNDERS = [
-    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg?v=3", l:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"] },
+    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg?v=4", l:["#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd"] },
     { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally.", photo:"founder-jatin.jpg?v=3", l:["#73583c","#7f6144","#89694b","#92714f","#9c7854","#a27e59","#a9835e","#ad8760","#b08a63","#b48e67","#b69069","#b89269","#ba946b","#bc966d","#be986f","#bf9a71"], r:["#5d452f","#674d34","#73563b","#7e5f42","#896747","#94704b","#9b764f","#a07a51","#a07a53","#9f7853","#a57e56","#ab835a","#ab855c","#a9835b","#a47f5a","#9c7956"] },
-    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg?v=3", l:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"] },
+    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg?v=4", l:["#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd"] },
     { name:"Ismat Makwana", role:"Cybersecurity Expert", desc:"Helps strengthen Wynko\u2019s security and privacy, focusing on protecting the platform, its users, and the data behind a trusted study experience.", photo:"founder-ismat.jpg?v=3", cover:true, pos:"50% 64%" }
   ];
 
