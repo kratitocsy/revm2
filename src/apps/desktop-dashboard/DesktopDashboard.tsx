@@ -1038,6 +1038,60 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
   )
 }
 
+// ─── Home Focus Entry (two options) ───────────────────────────────────────────
+// Replaces the old single "Today's Focus" ring card on Home with a plain
+// choice between the two ways to focus: Focus Lock (task-based, tracked -
+// unchanged, lives entirely in FocusLockPage) and Quick Timer (a standalone
+// countdown - unchanged, lives entirely in QuickTimerPage). This card is just
+// the entry point picker; it doesn't own any focus/timer logic itself.
+function HomeFocusEntryCard({ onGoFocus, onGoQuickTimer }: { onGoFocus: () => void; onGoQuickTimer: () => void }) {
+  const options = [
+    {
+      id: 'focus', label: 'Focus Lock', sub: 'Task-based sessions, tracked over time',
+      icon: 'lock' as const, grad: 'linear-gradient(135deg, rgba(124,77,255,0.18), rgba(107,68,238,0.08))',
+      border: 'rgba(124,77,255,0.35)', iconBg: 'rgba(124,77,255,0.18)', iconColor: '#C4AAFF',
+      onClick: onGoFocus,
+    },
+    {
+      id: 'quicktimer', label: 'Quick Timer', sub: 'Instant countdown, no setup needed',
+      icon: 'clock' as const, grad: 'linear-gradient(135deg, rgba(41,98,255,0.18), rgba(34,211,238,0.08))',
+      border: 'rgba(56,132,255,0.35)', iconBg: 'rgba(41,98,255,0.18)', iconColor: '#7DD8F0',
+      onClick: onGoQuickTimer,
+    },
+  ]
+  return (
+    <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
+        borderColor: 'rgba(56,132,255,0.26)',
+        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}>
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
+          <Ico n="target" cls="w-4 h-4 text-cyan-300" />
+        </div>
+        <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Start Focusing</div>
+      </div>
+      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {options.map(o => (
+          <button key={o.id} onClick={o.onClick}
+            className="flex flex-col items-start gap-3 p-4 rounded-xl border text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{ background: o.grad, borderColor: o.border }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: o.iconBg }}>
+              <Ico n={o.icon} cls="w-5 h-5" style={{ color: o.iconColor }} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-slate-100">{o.label}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{o.sub}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Live Study Rooms + Motivational (Home preview cards) ────────────────────
 // Reuses the same room data StudyRoomsPage/RoomInteriorPage already work
 // from (ROOM_DATA + getRoomBots' deterministic per-room "studying now" bots -
@@ -8580,6 +8634,182 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
   )
 }
 
+// ─── Quick Timer ────────────────────────────────────────────────────────────
+// A completely standalone countdown, separate from Focus Lock's task/session
+// system on purpose - no subject, no topic, no backend session, nothing to set
+// up. Land on it and it's already got a duration loaded (last one used, or 30
+// minutes the very first time); tap the clock face any time - running or not -
+// to change how long is left, same "click the number to edit it" mechanism as
+// bigtimer-style countdown apps. Persisted as an end timestamp (not a plain
+// tick counter) so it stays accurate if the tab is backgrounded or this page
+// is left and come back to.
+const QT_STORE_KEY = 'wynko_quick_timer_v1'
+const QT_DEFAULT_SECONDS = 30 * 60
+
+type QuickTimerState = {
+  totalSeconds: number
+  remainingSeconds: number
+  running: boolean
+  endAt: number | null
+}
+
+function loadQuickTimer(): QuickTimerState {
+  const saved = Store.get(QT_STORE_KEY, null) as QuickTimerState | null
+  if (!saved || typeof saved.totalSeconds !== 'number') {
+    return { totalSeconds: QT_DEFAULT_SECONDS, remainingSeconds: QT_DEFAULT_SECONDS, running: false, endAt: null }
+  }
+  return saved
+}
+function saveQuickTimer(s: QuickTimerState) { Store.set(QT_STORE_KEY, s) }
+function qtRemainingNow(s: QuickTimerState): number {
+  if (s.running && s.endAt) return Math.max(0, Math.round((s.endAt - Date.now()) / 1000))
+  return s.remainingSeconds
+}
+
+// Click-the-clock-to-edit picker. Three plain hour/minute/second spinners -
+// no presets, no modes, just "how long" - reusing TimeSpinner as-is.
+function QuickTimerDurationPicker({ initialSeconds, onClose, onSet }: {
+  initialSeconds: number; onClose: () => void; onSet: (totalSeconds: number) => void
+}) {
+  const [h, setH] = useState(Math.floor(initialSeconds / 3600))
+  const [m, setM] = useState(Math.floor((initialSeconds % 3600) / 60))
+  const [s, setS] = useState(initialSeconds % 60)
+  const total = h * 3600 + m * 60 + s
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(0,0,0,0.75)]"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div role="dialog" aria-modal="true" className="w-[380px] max-w-full rounded-2xl border p-6"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-center mb-5">
+          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">QUICK TIMER</div>
+          <div className="text-lg font-semibold text-slate-100">Set duration</div>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <TimeSpinner label="HOURS" value={h} onChange={setH} max={23} />
+          <div className="text-2xl text-slate-600 pb-6">:</div>
+          <TimeSpinner label="MIN" value={m} onChange={setM} max={59} />
+          <div className="text-2xl text-slate-600 pb-6">:</div>
+          <TimeSpinner label="SEC" value={s} onChange={setS} max={59} />
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+            Cancel
+          </button>
+          <button onClick={() => total > 0 && onSet(total)} disabled={total <= 0}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            Set Timer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Deliberately plain: flat Wynko-navy background only, no mountain
+// silhouette, no ribbon/chrome around the ring - just the countdown and
+// its controls, same as a dedicated kitchen-timer app.
+function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+  const [state, setState] = useState<QuickTimerState>(loadQuickTimer)
+  const [remaining, setRemaining] = useState(() => qtRemainingNow(state))
+  const [showPicker, setShowPicker] = useState(false)
+
+  useEffect(() => {
+    if (!state.running) { setRemaining(state.remainingSeconds); return }
+    const tick = () => {
+      const r = qtRemainingNow(state)
+      setRemaining(r)
+      if (r <= 0) {
+        setState(prev => {
+          const next: QuickTimerState = { ...prev, running: false, remainingSeconds: 0, endAt: null }
+          saveQuickTimer(next)
+          return next
+        })
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.running, state.endAt])
+
+  function start() {
+    if (remaining <= 0) { setShowPicker(true); return }
+    const next: QuickTimerState = { ...state, running: true, endAt: Date.now() + remaining * 1000, remainingSeconds: remaining }
+    setState(next); saveQuickTimer(next)
+  }
+  function pause() {
+    const r = qtRemainingNow(state)
+    const next: QuickTimerState = { ...state, running: false, endAt: null, remainingSeconds: r }
+    setState(next); saveQuickTimer(next); setRemaining(r)
+  }
+  function reset() {
+    const next: QuickTimerState = { ...state, running: false, endAt: null, remainingSeconds: state.totalSeconds }
+    setState(next); saveQuickTimer(next); setRemaining(state.totalSeconds)
+  }
+  // Mid-session or not, tapping the clock face and setting a new duration
+  // always takes effect immediately - if it was running, it keeps running
+  // with the new total; if it was paused, it stays paused at the new total.
+  function applyDuration(totalSeconds: number) {
+    const next: QuickTimerState = state.running
+      ? { ...state, totalSeconds, remainingSeconds: totalSeconds, endAt: Date.now() + totalSeconds * 1000 }
+      : { ...state, totalSeconds, remainingSeconds: totalSeconds, endAt: null }
+    setState(next); saveQuickTimer(next); setRemaining(totalSeconds); setShowPicker(false)
+  }
+
+  const timeStr = formatClock(remaining, remaining >= 3600 || state.totalSeconds >= 3600)
+
+  return (
+    <div className="h-screen overflow-hidden flex flex-col" style={{ background: '#080A12' }}>
+      <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <button onClick={() => onNavigate('home')}
+          className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6]">
+          <Ico n="chevL" cls="w-4 h-4" /> Home
+        </button>
+        <div className="text-[10px] tracking-[0.18em] text-[#68728A]">QUICK TIMER</div>
+      </header>
+
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
+        <button onClick={() => setShowPicker(true)} title="Tap to set the time" aria-label="Set timer duration"
+          className="bg-transparent border-none p-0"
+          style={{ width: 'min(320px, 52vh, 78vw)', aspectRatio: '1' }}>
+          <TimerCircle remaining={remaining} total={state.totalSeconds} timeStr={timeStr} running={state.running} size={320} />
+        </button>
+
+        <div className="text-xs text-slate-500">{remaining <= 0 ? 'Tap the timer to set a duration' : 'Tap the timer to change the time'}</div>
+
+        <div className="flex items-center gap-4">
+          <button onClick={reset} title="Reset" aria-label="Reset timer"
+            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-90 active:scale-95"
+            style={{ background: '#1A2845', color: '#C7D2FE' }}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12a8 8 0 0113.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 01-13.7 5.6L4 16M4 20v-4h4" />
+            </svg>
+          </button>
+          <button onClick={() => (state.running ? pause() : start())}
+            title={state.running ? 'Pause' : 'Start'} aria-label={state.running ? 'Pause timer' : 'Start timer'}
+            className="w-16 h-16 rounded-full flex items-center justify-center text-white transition-all hover:opacity-90 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            {state.running
+              ? <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+              : <Ico n="play" cls="w-6 h-6" />}
+          </button>
+          <div className="w-12" />
+        </div>
+      </div>
+
+      {showPicker && (
+        <QuickTimerDurationPicker initialSeconds={state.totalSeconds} onClose={() => setShowPicker(false)} onSet={applyDuration} />
+      )}
+    </div>
+  )
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────────
 // Who is a WynkoHead: whoever registered on the Earn page. Kept in localStorage
 // until the profile has a real role. For review, `?role=wynkohead` switches this
@@ -8825,6 +9055,11 @@ export default function DesktopDashboard() {
     if (activeNav === 'focus') {
       return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} />
     }
+    // Quick Timer is intentionally separate from FocusLockPage - its own
+    // page, own localStorage key, no shared state with Focus Lock at all.
+    if (activeNav === 'quicktimer') {
+      return <QuickTimerPage onNavigate={handleNav} />
+    }
     if (activeNav === 'schedules') {
       return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
     }
@@ -8900,18 +9135,11 @@ export default function DesktopDashboard() {
       )
     }
 
-    // Today's rows/planned-vs-completed for the two cards below - real
-    // data only: schedule[todayIdx] (today's actual scheduled sessions)
-    // merged with the live Focus Lock plan, see buildTodayPlanRows.
-    // Planned time prefers today's scheduled duration; when nothing's
-    // scheduled yet it falls back to the person's own daily focus goal
-    // (todayFocus.goalMinutes, also real - daily_focus_goal_minutes)
-    // rather than showing an empty/zero ring.
+    // Today's rows for the study-plan card below - real data only:
+    // schedule[todayIdx] (today's actual scheduled sessions) merged with
+    // the live Focus Lock plan, see buildTodayPlanRows.
     const todaySchedule = schedule[todayIdx] || []
     const todayPlanRows = buildTodayPlanRows(todaySchedule, focusPlan.tasks)
-    const scheduledMinutes = todaySchedule.reduce((sum, s) => sum + Math.max(1, parseTimeRangeMinutes(s.startTime, s.endTime)), 0)
-    const plannedMinutes = scheduledMinutes > 0 ? scheduledMinutes : todayFocus.goalMinutes
-    const activeFocusTask = focusPlan.activeTaskId ? focusPlan.tasks.find(t => t.id === focusPlan.activeTaskId) ?? null : null
 
     return (
       <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
@@ -8926,13 +9154,9 @@ export default function DesktopDashboard() {
                 onStartTask={(subject, topic) => goFocus({ subject, topic })}
                 onAddTask={() => setShowHomeAddTask(true)}
               />
-              <TodayFocusCard
-                plannedMinutes={plannedMinutes}
-                completedMinutes={todayFocus.doneMinutes}
-                activeTask={activeFocusTask}
-                onContinueFocus={() => goFocus()}
-                onStartFirst={todayPlanRows.length > 0 ? () => goFocus({ subject: todayPlanRows[0].subject, topic: todayPlanRows[0].topic }) : null}
-                onViewPlan={() => handleNav('schedules')}
+              <HomeFocusEntryCard
+                onGoFocus={() => goFocus()}
+                onGoQuickTimer={() => handleNav('quicktimer')}
               />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3.5 items-stretch">
