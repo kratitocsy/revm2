@@ -547,7 +547,7 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 }
 .founder-card:hover{ border-color:var(--border-2); background:rgba(124,77,255,.06); transform:translateY(-4px); }
 /* Full-bleed photo header, same treatment as the .f-visual area on the feature cards.
-   The portrait sits centred at full height; its edge colours (--bgl / --bgr) fill the sides. */
+   The portrait sits centred at full height; its edge colours (--bgl / --bgr) fill the sides, matched so no fade is needed. */
 .founder-photo{
   width:100%; aspect-ratio:2/1; margin-bottom:22px; flex-shrink:0; position:relative; overflow:hidden;
   background:radial-gradient(120% 100% at 50% -20%, rgba(124,77,255,.13), transparent 60%),
@@ -562,9 +562,13 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .founder-photo img{
   position:absolute; top:0; left:50%; height:100%; aspect-ratio:4/5; width:auto; display:block; object-fit:cover;
   transform:translateX(-50%);
-  -webkit-mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent);
-          mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent);
   -webkit-user-drag:none; user-select:none;
+}
+/* Full-bleed variant: the photo fills the whole block edge to edge (no side fill) */
+.founder-photo.cover::before{ display:none; }
+.founder-photo.cover img{
+  left:0; width:100%; aspect-ratio:auto; transform:none;
+  object-position:var(--pos,50% 50%);
 }
 .founder-body{ padding:0 26px; }
 .founder-card h4{ font-size:1rem; margin-bottom:4px; }
@@ -1193,10 +1197,10 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 /* ================= founders carousel ================= */
 (function(){
   const FOUNDERS = [
-    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg?v=2", l:["#fdfdfd","#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd","#fdfdfd"] },
-    { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally.", photo:"founder-jatin.jpg?v=2", l:["#795d40","#af8962","#d78232"], r:["#624932","#a17a52","#a17c58"] },
-    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg?v=2", l:["#fcfcfc","#fdfdfd","#fcfcfc"], r:["#fcfcfc","#fdfdfd","#fcfcfc"] },
-    { name:"Ismat Makwana", role:"Cybersecurity Expert", desc:"Helps strengthen Wynko\u2019s security and privacy, focusing on protecting the platform, its users, and the data behind a trusted study experience.", photo:"founder-ismat.jpg?v=2", l:["#add0ec","#abd2f2","#96bfe1"], r:["#a9cbe6","#8ea6bb","#a8b0b8"] }
+    { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg?v=3", l:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"] },
+    { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally.", photo:"founder-jatin.jpg?v=3", l:["#73583c","#7f6144","#89694b","#92714f","#9c7854","#a27e59","#a9835e","#ad8760","#b08a63","#b48e67","#b69069","#b89269","#ba946b","#bc966d","#be986f","#bf9a71"], r:["#5d452f","#674d34","#73563b","#7e5f42","#896747","#94704b","#9b764f","#a07a51","#a07a53","#9f7853","#a57e56","#ab835a","#ab855c","#a9835b","#a47f5a","#9c7956"] },
+    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg?v=3", l:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd","#fdfdfd"] },
+    { name:"Ismat Makwana", role:"Cybersecurity Expert", desc:"Helps strengthen Wynko\u2019s security and privacy, focusing on protecting the platform, its users, and the data behind a trusted study experience.", photo:"founder-ismat.jpg?v=3", cover:true, pos:"50% 64%" }
   ];
 
   const track = document.getElementById('foundersTrack');
@@ -1207,14 +1211,17 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   const photoIcon = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5S20 16 20 20"/></svg>';
 
   function tileHTML(f){
-    const vars = f.photo
-      ? ' style="--bgl:linear-gradient(180deg,' + f.l.join(',') + ');--bgr:linear-gradient(180deg,' + f.r.join(',') + ')"'
-      : '';
+    let vars = '';
+    if (f.photo) {
+      vars = f.cover
+        ? ' style="--pos:' + (f.pos || '50% 50%') + '"'
+        : ' style="--bgl:linear-gradient(180deg,' + f.l.join(',') + ');--bgr:linear-gradient(180deg,' + f.r.join(',') + ')"';
+    }
     const media = f.photo
       ? '<img src="' + f.photo + '" alt="' + f.name + '" loading="lazy" draggable="false" />'
       : photoIcon;
     return '<div class="founder-tile"><div class="founder-card">' +
-      '<div class="founder-photo"' + vars + '>' + media + '</div>' +
+      '<div class="founder-photo' + (f.cover ? ' cover' : '') + '"' + vars + '>' + media + '</div>' +
       '<div class="founder-body">' +
       '<h4>' + f.name + '</h4>' +
       '<div class="role">' + f.role + '</div>' +
