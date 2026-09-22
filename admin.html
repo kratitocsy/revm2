@@ -58,7 +58,7 @@ async function init(){
   await loadUsagePanel(usageWindowDays);
   if(isOwner) renderModeratorCard();
   if(isOwner) await loadControlRoom();
-  await loadRevheadQueue();
+  await loadWynkoheadQueue();
   await loadPayoutQueue();
   RevM2Logo.init();
   RevM2Loader.hide();
@@ -160,7 +160,7 @@ function render(profiles, events){
     </div>
 
     <div id="controlRoomMount"></div>
-    <div id="revheadQueueMount"></div>
+    <div id="wynkoheadQueueMount"></div>
     <div id="payoutQueueMount"></div>
     <div id="moderatorCardMount"></div>
   `;
@@ -298,8 +298,8 @@ async function loadControlRoom(){
       <div class="cr-metric"><div class="label">Revenue (30d)</div><div class="val">₹${Number(metrics.revenue_30d).toLocaleString('en-IN')}</div></div>
       <div class="cr-metric"><div class="label">Payouts pending</div><div class="val">${metrics.payouts_pending_count} <span style="font-size:0.65rem;color:var(--muted);">(₹${Number(metrics.payouts_pending_amount).toLocaleString('en-IN')})</span></div></div>
       <div class="cr-metric"><div class="label">Payouts paid (all-time)</div><div class="val">₹${Number(metrics.payouts_paid_all_time).toLocaleString('en-IN')}</div></div>
-      <div class="cr-metric"><div class="label">RevHeads</div><div class="val">${metrics.revhead_total} <span style="font-size:0.65rem;color:var(--muted);">(${metrics.revhead_pending_applications} pending)</span></div></div>
-      <div class="cr-metric"><div class="label">RevHead earnings (all-time)</div><div class="val">₹${Number(metrics.revhead_earnings_all_time).toLocaleString('en-IN')}</div></div>
+      <div class="cr-metric"><div class="label">WynkoHeads</div><div class="val">${metrics.revhead_total} <span style="font-size:0.65rem;color:var(--muted);">(${metrics.revhead_pending_applications} pending)</span></div></div>
+      <div class="cr-metric"><div class="label">WynkoHead earnings (all-time)</div><div class="val">₹${Number(metrics.revhead_earnings_all_time).toLocaleString('en-IN')}</div></div>
       <div class="cr-metric"><div class="label">Moderators</div><div class="val">${metrics.moderators_total}</div></div>
       <div class="cr-metric"><div class="label">Active temp grants</div><div class="val">${metrics.temp_roles_active}</div></div>
     </div>`;
@@ -391,21 +391,21 @@ async function toggleModerator(userId, makeMod){
   renderModeratorCard();
 }
 
-async function loadRevheadQueue(){
-  const mount = document.getElementById('revheadQueueMount');
+async function loadWynkoheadQueue(){
+  const mount = document.getElementById('wynkoheadQueueMount');
   if(!mount) return;
   const { data, error } = await sb.rpc('admin_pending_revhead_applications');
   if(error){
-    mount.innerHTML = `<div class="adm-card"><h3>RevHead applications</h3><div style="color:var(--muted);font-size:0.75rem;">${escHtml(error.message)}</div></div>`;
+    mount.innerHTML = `<div class="adm-card"><h3>WynkoHead applications</h3><div style="color:var(--muted);font-size:0.75rem;">${escHtml(error.message)}</div></div>`;
     return;
   }
   if(!data || !data.length){
-    mount.innerHTML = `<div class="adm-card"><h3>RevHead applications</h3><div style="color:var(--muted);font-size:0.78rem;">No pending applications.</div></div>`;
+    mount.innerHTML = `<div class="adm-card"><h3>WynkoHead applications</h3><div style="color:var(--muted);font-size:0.78rem;">No pending applications.</div></div>`;
     return;
   }
   mount.innerHTML = `
     <div class="adm-card">
-      <h3>RevHead applications <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">— oldest first, target 24h turnaround</span></h3>
+      <h3>WynkoHead applications <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">— oldest first, target 24h turnaround</span></h3>
       <div style="overflow-x:auto;">
         <table class="adm-table">
           <thead><tr><th>User</th><th>Applied</th><th>Referral</th><th></th></tr></thead>
@@ -415,8 +415,8 @@ async function loadRevheadQueue(){
               <td>${a.hours_pending}h ago <span class="sla-pill ${a.overdue?'overdue':'ok'}">${a.overdue?'Overdue':'On time'}</span></td>
               <td>${a.referred_by_code ? escHtml(a.referred_by_code) : '<span style="color:var(--muted)">—</span>'}</td>
               <td>
-                <button class="approve-btn" onclick="reviewRevhead('${a.user_id}', true)">Approve</button>
-                <button class="reject-btn" onclick="reviewRevhead('${a.user_id}', false)">Reject</button>
+                <button class="approve-btn" onclick="reviewWynkohead('${a.user_id}', true)">Approve</button>
+                <button class="reject-btn" onclick="reviewWynkohead('${a.user_id}', false)">Reject</button>
               </td>
             </tr>`).join('')}</tbody>
         </table>
@@ -424,11 +424,11 @@ async function loadRevheadQueue(){
     </div>`;
 }
 
-async function reviewRevhead(userId, approve){
+async function reviewWynkohead(userId, approve){
   const { data, error } = await sb.rpc('admin_verify_revhead', { p_user_id: userId, p_approve: approve });
   if(error){ alert('Could not process: ' + error.message); return; }
-  if(approve) alert(`Approved. Their RevHead code is ${data}.`);
-  loadRevheadQueue();
+  if(approve) alert(`Approved. Their WynkoHead code is ${data}.`);
+  loadWynkoheadQueue();
 }
 
 async function loadPayoutQueue(){

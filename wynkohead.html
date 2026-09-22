@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#8b5cf6">
-<link rel="stylesheet" href="src/styles/pages/revhead.css">
+<link rel="stylesheet" href="src/styles/pages/wynkohead.css">
 </head>
 <body>
 <canvas id="starfield"></canvas>
@@ -28,7 +28,7 @@
   <div class="nav-item" onclick="go('store.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Materials</div>
   <div class="nav-section">Social</div>
   <div class="nav-item" onclick="go('partners.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>Partners</div>
-  <div class="nav-item active" onclick="go('revhead.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Community</div>
+  <div class="nav-item active" onclick="go('wynkohead.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Community</div>
   <div class="nav-item" onclick="go('chat.html')"><span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>Group Chat</div>
 </nav>
     <div class="sidebar-footer">
@@ -46,7 +46,7 @@
     <!-- TOPBAR -->
     <div class="topbar">
       <button class="hamburger-btn" onclick="openMobileSidebar()" aria-label="Open menu">&#9776;</button>
-      <div><div class="topbar-title">Community <em>· RevHead</em></div><div class="topbar-sub" id="pageSub">WYNKO community hub</div></div>
+      <div><div class="topbar-title">Community <em>· WynkoHead</em></div><div class="topbar-sub" id="pageSub">WYNKO community hub</div></div>
       <div class="topbar-right">
         <span class="badge-track" id="topTrack">—</span>
       </div>
@@ -67,7 +67,7 @@
   <a class="rm2-tab" href="timer.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Timer</a>
   <a class="rm2-tab" href="tracker.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Tracker</a>
   <a class="rm2-tab" href="groups.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Rooms</a>
-  <a class="rm2-tab active" href="revhead.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Community</a>
+  <a class="rm2-tab active" href="wynkohead.html"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Community</a>
 </nav>
 
 <script src="shared.js"></script>
@@ -113,8 +113,8 @@ function renderApplyForm(profile){
 
   document.getElementById('rhWrap').innerHTML = `
     <div class="rh-page-header">
-      <h1 class="rh-page-title">Community <em>· RevHead</em></h1>
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('rhApplySection').style.display='block';this.style.display='none';">Become RevHead</button>
+      <h1 class="rh-page-title">Community <em>· WynkoHead</em></h1>
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('rhApplySection').style.display='block';this.style.display='none';">Become WynkoHead</button>
     </div>
 
     <div class="rh-rank-card">
@@ -143,9 +143,9 @@ function renderApplyForm(profile){
         ${rejectedNote}
         <div class="field"><label>Referral code (optional)</label>
           <input id="rhCode" placeholder="e.g. AB12CD3" style="text-transform:uppercase;">
-          <div style="font-size:0.68rem;color:var(--muted);margin-top:0.35rem;">Got a code from an existing RevHead? Enter it here — it doesn't affect your approval odds, it just means they get a small share of what you earn for your first 3 months. Leave blank if you don't have one.</div>
+          <div style="font-size:0.68rem;color:var(--muted);margin-top:0.35rem;">Got a code from an existing WynkoHead? Enter it here — it doesn't affect your approval odds, it just means they get a small share of what you earn for your first 3 months. Leave blank if you don't have one.</div>
         </div>
-        <button class="btn btn-primary" style="width:100%;margin-top:0.5rem;" onclick="submitApplication()">Apply to become a RevHead</button>
+        <button class="btn btn-primary" style="width:100%;margin-top:0.5rem;" onclick="submitApplication()">Apply to become a WynkoHead</button>
         <div id="applyMsg" style="font-size:0.75rem;color:var(--danger);margin-top:0.6rem;"></div>
       </div>
     </div>
@@ -166,7 +166,7 @@ async function submitApplication(){
 function renderPending(profile){
   document.getElementById('rhWrap').innerHTML = `
     <div class="rh-page-header">
-      <h1 class="rh-page-title">Community <em>· RevHead</em></h1>
+      <h1 class="rh-page-title">Community <em>· WynkoHead</em></h1>
     </div>
 
     <div class="rh-rank-card">
@@ -192,7 +192,7 @@ function renderPending(profile){
 
     <div class="rh-card">
       <div class="rh-status-pill pending">Application pending</div>
-      <p style="font-size:0.85rem;margin-top:0.9rem;line-height:1.6;">Your RevHead application is in review. Approvals are typically handled within 24 hours.</p>
+      <p style="font-size:0.85rem;margin-top:0.9rem;line-height:1.6;">Your WynkoHead application is in review. Approvals are typically handled within 24 hours.</p>
       <p style="font-size:0.75rem;color:var(--muted);margin-top:0.6rem;">Applied ${profile.revhead_applied_at ? fmtDateShort(profile.revhead_applied_at.split('T')[0]) : '—'}${profile.referred_by_code ? ` · referral code used: ${escHtml(profile.referred_by_code)}` : ''}</p>
     </div>
   `;
@@ -201,8 +201,8 @@ function renderPending(profile){
 async function renderDashboard(profile){
   document.getElementById('rhWrap').innerHTML = `
     <div class="rh-page-header">
-      <h1 class="rh-page-title">Community <em>· RevHead</em></h1>
-      <div class="rh-status-pill verified">Verified RevHead</div>
+      <h1 class="rh-page-title">Community <em>· WynkoHead</em></h1>
+      <div class="rh-status-pill verified">Verified WynkoHead</div>
     </div>
 
     <div class="rh-rank-card">
@@ -265,7 +265,7 @@ async function renderDashboard(profile){
         <div class="rh-code">${escHtml(profile.revhead_code || '—')}</div>
         <button class="copy-btn" onclick="copyCode('${profile.revhead_code||''}')">Copy</button>
       </div>
-      <p style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">Share this with other genuine community leaders. If they apply using it and get verified, you earn 10% of what they make on WYNKO for their first 3 months as a RevHead.</p>
+      <p style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;">Share this with other genuine community leaders. If they apply using it and get verified, you earn 10% of what they make on WYNKO for their first 3 months as a WynkoHead.</p>
     </div>
 
     <div class="rh-card">
@@ -297,7 +297,7 @@ async function renderDashboard(profile){
     </div>
 
     <div class="rh-card">
-      <a class="btn btn-ghost" style="width:100%;" href="groups.html">Create your official RevHead group →</a>
+      <a class="btn btn-ghost" style="width:100%;" href="groups.html">Create your official WynkoHead group →</a>
     </div>
   `;
 
@@ -325,7 +325,7 @@ async function renderDashboard(profile){
   }
   box.innerHTML = `
     <table class="rh-table">
-      <thead><tr><th>RevHead</th><th>Verified</th><th>Days left in window</th><th>Earned from them</th></tr></thead>
+      <thead><tr><th>WynkoHead</th><th>Verified</th><th>Days left in window</th><th>Earned from them</th></tr></thead>
       <tbody>${referrals.map(r=>`
         <tr>
           <td>${escHtml(r.full_name||'—')}<br><span style="color:var(--muted);font-size:0.68rem">${escHtml(r.email||'')}</span></td>
@@ -390,7 +390,7 @@ async function loadEarningsEstimate(){
     .select('id,name').eq('owner_id', me.id).eq('is_revhead_group', true).limit(1).maybeSingle();
 
   if(!myGroup){
-    box.innerHTML = `<div style="font-size:0.75rem;color:var(--muted);">Create your official RevHead group to see a projection here.</div>`;
+    box.innerHTML = `<div style="font-size:0.75rem;color:var(--muted);">Create your official WynkoHead group to see a projection here.</div>`;
     return;
   }
 
@@ -418,7 +418,7 @@ function copyCode(code){
 function renderHowItWorks(){
   document.getElementById('howItWorksWrap').innerHTML = `
     <div class="rh-card">
-      <h3 style="font-size:0.95rem;color:var(--violet-bright);margin-bottom:0.6rem;">How the RevHead program works</h3>
+      <h3 style="font-size:0.95rem;color:var(--violet-bright);margin-bottom:0.6rem;">How the WynkoHead program works</h3>
 
       <table class="tier-table">
         <thead><tr><th>Tier</th><th>How you get here</th><th>Earning rate</th><th>Extras</th></tr></thead>
@@ -430,7 +430,7 @@ function renderHowItWorks(){
             <td>—</td>
           </tr>
           <tr>
-            <td class="tier-highlight">Verified RevHead</td>
+            <td class="tier-highlight">Verified WynkoHead</td>
             <td>Apply (with or without a referral code) → reviewed within ~24h</td>
             <td class="tier-highlight">Full rate</td>
             <td>Verified badge, official group, referral code, community dashboard</td>
@@ -444,9 +444,9 @@ function renderHowItWorks(){
         <ol class="flow-steps">
           <li><b>Everyone earns from their own community's engagement</b> — the more your members actually study together on WYNKO, the more your group generates.</li>
           <li><b>Normal groups earn a reduced rate</b> once they cross a minimum member count — this isn't a manual process, it's based on real activity in your group, not just creating it.</li>
-          <li><b>Applying and getting verified as a RevHead unlocks the full rate</b> — plus an official verified group, your own referral code, and a community analytics dashboard.</li>
+          <li><b>Applying and getting verified as a WynkoHead unlocks the full rate</b> — plus an official verified group, your own referral code, and a community analytics dashboard.</li>
           <li><b>Grow first, apply later works too</b> — if your normal group is already performing well, you'll see a banner here and in Study Groups suggesting you apply, based on your actual numbers.</li>
-          <li><b>Referral code (RevHead-only)</b> — if a new RevHead applied using your code, you earn 10% of what they personally make on WYNKO for their first 90 days as a verified RevHead. After that, it stops automatically — they keep 100% going forward.</li>
+          <li><b>Referral code (WynkoHead-only)</b> — if a new WynkoHead applied using your code, you earn 10% of what they personally make on WYNKO for their first 90 days as a verified WynkoHead. After that, it stops automatically — they keep 100% going forward.</li>
           <li><b>Payouts</b> — earnings are tracked in your dashboard as they're generated. Actual bank/UPI disbursement is being built next (via a payment gateway) — for now, think of the numbers you see as your running balance, not yet a completed transfer.</li>
         </ol>
       </div>

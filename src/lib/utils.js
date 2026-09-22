@@ -64,7 +64,7 @@ export function escAttr(s){
 /* Every sidebar nav-item calls onclick="go('somepage.html')". This was
    only ever defined locally inside tracker.html and explainer.html, so
    on every OTHER page (groups, partners, store, calculator, chat, admin,
-   index, onboarding, predictor, revhead, telegram) clicking a sidebar
+   index, onboarding, predictor, wynkohead, telegram) clicking a sidebar
    item threw "go is not defined" and silently did nothing — the mobile
    drawer would still auto-close (separate listener below) but the app
    never navigated, making the whole nav bar look dead. Defining it once

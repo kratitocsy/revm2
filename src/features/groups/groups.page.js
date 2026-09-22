@@ -14,7 +14,7 @@ let activeTab = 'mine';
 let currentGroup = null;
 let presenceChannel = null;
 let myPresenceChannel = null;
-let iAmVerifiedRevHead = false;
+let iAmVerifiedWynkoHead = false;
 
 async function init(){
   RevM2Loader.show('Loading your groups…');
@@ -35,9 +35,9 @@ async function init(){
   RevM2Notifications.init(sb, me.id);
 
   const { data: myProfile } = await sb.from('user_profiles').select('is_revhead,revhead_status').eq('id', me.id).single();
-  iAmVerifiedRevHead = !!(myProfile?.is_revhead && myProfile?.revhead_status === 'verified');
-  const revheadRow = document.getElementById('cgRevheadRow');
-  if(revheadRow) revheadRow.style.display = iAmVerifiedRevHead ? 'block' : 'none';
+  iAmVerifiedWynkoHead = !!(myProfile?.is_revhead && myProfile?.revhead_status === 'verified');
+  const wynkoheadRow = document.getElementById('cgWynkoheadRow');
+  if(wynkoheadRow) wynkoheadRow.style.display = iAmVerifiedWynkoHead ? 'block' : 'none';
 
   // Shared links (group / RevMGrid session / challenge) all carry an
   // ?invite=<token> and auto-join the group server-side via RPC — see
@@ -66,7 +66,7 @@ async function init(){
 
   await loadMyGroups();
   renderList();
-  await renderRevheadBanner(myProfile);
+  await renderWynkoheadBanner(myProfile);
 
   if(params.get('quickinvite')) openQuickInviteModal();
 
@@ -180,15 +180,15 @@ async function renderDiscover(){
   rm2Stagger(grid.children);
 }
 
-async function renderRevheadBanner(myProfile){
-  const mount = document.getElementById('revheadBannerMount');
+async function renderWynkoheadBanner(myProfile){
+  const mount = document.getElementById('wynkoheadBannerMount');
   if(!mount) return;
 
   if(myProfile?.revhead_status === 'verified' || myProfile?.revhead_status === 'pending'){
-    mount.innerHTML = ''; // already a RevHead or already in the queue — no need to promote it
+    mount.innerHTML = ''; // already a WynkoHead or already in the queue — no need to promote it
     return;
   }
-  if(Store.get('revm2_revhead_banner_dismissed', false)){
+  if(Store.get('revm2_wynkohead_banner_dismissed', false)){
     mount.innerHTML = '';
     return;
   }
@@ -201,36 +201,36 @@ async function renderRevheadBanner(myProfile){
       <div class="rh-banner candidate">
         <div class="rh-banner-text">
           <h4>🎉 "${escHtml(c.group_name)}" is growing fast — ${c.member_count} members</h4>
-          <p>Your group is doing well enough to apply for verified RevHead status — full earning rate, a verified badge, and your own referral code.</p>
+          <p>Your group is doing well enough to apply for verified WynkoHead status — full earning rate, a verified badge, and your own referral code.</p>
         </div>
-        <a class="btn btn-gold btn-sm" href="revhead.html">Apply now</a>
-        <button class="rh-banner-dismiss" onclick="dismissRevheadBanner()">✕</button>
+        <a class="btn btn-gold btn-sm" href="wynkohead.html">Apply now</a>
+        <button class="rh-banner-dismiss" onclick="dismissWynkoheadBanner()">✕</button>
       </div>`;
   } else {
     mount.innerHTML = `
       <div class="rh-banner">
         <div class="rh-banner-text">
-          <h4>Become a RevHead</h4>
-          <p>Manage a JEE, NEET, UPSC or other exam community? Verified RevHeads get an official group, a verified badge, the full earning rate, and their own referral code — reviewed within ~24h.</p>
+          <h4>Become a WynkoHead</h4>
+          <p>Manage a JEE, NEET, UPSC or other exam community? Verified WynkoHeads get an official group, a verified badge, the full earning rate, and their own referral code — reviewed within ~24h.</p>
         </div>
-        <a class="btn btn-gold btn-sm" href="revhead.html">Learn more</a>
-        <button class="rh-banner-dismiss" onclick="dismissRevheadBanner()">✕</button>
+        <a class="btn btn-gold btn-sm" href="wynkohead.html">Learn more</a>
+        <button class="rh-banner-dismiss" onclick="dismissWynkoheadBanner()">✕</button>
       </div>`;
   }
 }
 
-function dismissRevheadBanner(){
-  Store.set('revm2_revhead_banner_dismissed', true);
-  document.getElementById('revheadBannerMount').innerHTML = '';
+function dismissWynkoheadBanner(){
+  Store.set('revm2_wynkohead_banner_dismissed', true);
+  document.getElementById('wynkoheadBannerMount').innerHTML = '';
 }
 
 function groupCardHtml(g, joined){
   const officialBadge = g.is_official ? `<span class="vis-badge" style="color:var(--gold);border-color:var(--gold);">OFFICIAL</span>` : '';
-  const revheadBadge = g.is_revhead_group ? `<span class="vis-badge" style="color:var(--success);border-color:var(--success);">VERIFIED REVHEAD</span>` : '';
+  const wynkoheadBadge = g.is_revhead_group ? `<span class="vis-badge" style="color:var(--success);border-color:var(--success);">VERIFIED WYNKOHEAD</span>` : '';
   return `<div class="gcard">
     <div class="gcard-top">
       <span class="gcard-name">${escHtml(g.name)}</span>
-      ${officialBadge || revheadBadge || `<span class="vis-badge ${g.visibility}">${g.visibility}</span>`}
+      ${officialBadge || wynkoheadBadge || `<span class="vis-badge ${g.visibility}">${g.visibility}</span>`}
     </div>
     <div class="gcard-sub">${escHtml(g.description||'No description')}</div>
     <div class="gcard-sub">${g.is_official ? `${(g.member_limit||0).toLocaleString()} cap` : `Limit: ${g.member_limit}`} · resets ${fmtHour(g.day_reset_hour)}</div>
@@ -259,7 +259,7 @@ async function createGroup(){
     owner_id: me.id,
     visibility: document.getElementById('cgVis').value,
     member_limit: Number(document.getElementById('cgLimit').value),
-    is_revhead_group: iAmVerifiedRevHead && !!document.getElementById('cgRevhead')?.checked
+    is_revhead_group: iAmVerifiedWynkoHead && !!document.getElementById('cgWynkohead')?.checked
   };
   const { data, error } = await sb.from('study_groups').insert(payload).select().single();
   if(error){ alert('Could not create group: '+error.message); return; }

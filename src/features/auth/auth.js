@@ -83,7 +83,7 @@ export function startDesktopAuthSync(session){
 /* ── DESKTOP NATIVE-AUTH AUTOSTART (page-agnostic) ─────────────────
    Runs the moment shared.js loads on ANY page - regardless of whether
    that page calls requireAuth() or does its own custom session check
-   (a few, like store.html/revhead.html/admin.html/telegram.html,
+   (a few, like store.html/wynkohead.html/admin.html/telegram.html,
    don't). native_poll.rs's Rust-side session poll is what actually
    keeps enforcement running independent of whichever page's JS is
    currently active, but it has nothing to query Supabase with until
