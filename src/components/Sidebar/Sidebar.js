@@ -4,8 +4,8 @@
    The main app sidebar (logo, nav, track/exam footer, sign-out)
    was duplicated byte-for-byte across every logged-in page —
    home.html, tracker.html, blocks.html, timer.html, groups.html,
-   battle.html, chat.html, partners.html, pledge.html, store.html,
-   wynkohead.html (11 pages). The only things that ever varied were:
+   battle.html, chat.html, partners.html, pledge.html, store.html
+   (10 pages). The only things that ever varied were:
      - which nav item has the `active` class
      - whether the footer includes a sign-out button
      - the initial track/exam text (always overwritten at runtime
@@ -40,8 +40,6 @@ export const NAV_ITEMS = [
   { section: 'Social' },
   { page: 'partners.html', label: 'Partners',
     icon: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>' },
-  { page: 'wynkohead.html', label: 'Community',
-    icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
   { page: 'chat.html', label: 'Group Chat',
     icon: '<path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/>' },
 ];

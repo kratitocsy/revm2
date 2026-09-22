@@ -38,7 +38,6 @@ const PAGES = [
   { file: 'chat.html',     active: 'chat.html',     showSignOut: true },
   { file: 'partners.html', active: 'partners.html', showFooter: false },
   { file: 'store.html',    active: 'store.html',    showFooter: false },
-  { file: 'wynkohead.html',  active: 'wynkohead.html',  showSignOut: true },
   { file: 'blocks.html',   active: 'blocks.html',   showSignOut: false }, // blocks.html's sidebar has no sign-out button
 ];
 
