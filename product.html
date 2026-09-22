@@ -648,14 +648,6 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .earn-dash-wrap{ position:relative; }
 .earn-dash .dash-top span.tag{ margin-left:auto; font-family:var(--mono); font-size:.6rem; letter-spacing:.12em; color:var(--text-4); }
 
-.earn-calc{
-  margin-top:26px; border:1px solid var(--border-2); border-radius:var(--r-lg); padding:40px 44px;
-  background:
-    radial-gradient(90% 140% at 0% 0%, rgba(124,77,255,.10), transparent 55%),
-    radial-gradient(90% 140% at 100% 100%, rgba(34,211,238,.08), transparent 55%),
-    linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
-  display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center;
-}
 .earn-calc-head{ font-family:var(--mono); font-size:.7rem; letter-spacing:.2em; text-transform:uppercase; color:var(--violet-2); margin-bottom:10px; }
 .earn-calc-row{ margin:22px 0; }
 .earn-calc-row .lbl{ display:flex; justify-content:space-between; font-size:.84rem; color:var(--text-2); margin-bottom:10px; }
@@ -708,7 +700,6 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .quotes{ grid-template-columns:1fr; }
   .flex-grid{ grid-template-columns:repeat(2,1fr); }
   .earn-panel{ grid-template-columns:1fr; padding:30px; }
-  .earn-calc{ grid-template-columns:1fr; padding:30px; }
   .foot-grid{ grid-template-columns:1fr 1fr; }
 }
 @media (max-width:760px){
@@ -721,7 +712,6 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .foot-grid{ grid-template-columns:1fr 1fr; }
   .cta{ padding:52px 22px; }
   .earn-panel{ padding:22px; }
-  .earn-calc{ padding:22px; }
   .device{ transform:scale(.92); transform-origin:top center; max-width:100%; }
 
   /* keep decorative glow + floating chips from pushing the page wider than the viewport */
@@ -1159,18 +1149,35 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       </div>
 
       <div class="earn-dash-wrap">
-        <div class="earn-dash">
+        <div class="earn-dash" id="earn-calc">
           <div class="dash-top"><i></i><i></i><i></i><span class="tag">WYNKOHEAD WALLET</span></div>
           <div class="dash-body">
-            <div style="font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);">Total earned</div>
-            <div class="dash-bal">₹2,840</div>
-            <div class="dash-row"><span>Community purchase · Rahul S.</span><span class="r">+₹600</span></div>
-            <div class="dash-row"><span>Study Pack · Priya M.</span><span class="r">+₹250</span></div>
-            <div class="dash-row"><span>Available to withdraw</span><span class="dash-pill">₹2,400 ready</span></div>
-            <div class="xp-grid">
-              <div class="xp"><b>18</b><span>Members</span></div>
-              <div class="xp"><b>50%</b><span>Revenue share</span></div>
-              <div class="xp"><b>₹440</b><span>Pending</span></div>
+            <div class="earn-calc-head">Estimate your earnings</div>
+            <p style="color:var(--text-3);font-size:.82rem;line-height:1.6;margin:0 0 4px;">Drag the sliders to match your reach — the number updates live.</p>
+
+            <div class="earn-calc-row">
+              <div class="lbl"><span>Community members</span><b id="earnMembersVal">40</b></div>
+              <input type="range" class="earn-range" id="earnMembers" min="5" max="200" step="1" value="40" />
+            </div>
+            <div class="earn-calc-row">
+              <div class="lbl"><span>Avg. spend per member / month</span><b id="earnSpendVal">₹300</b></div>
+              <input type="range" class="earn-range" id="earnSpend" min="100" max="1000" step="50" value="300" />
+            </div>
+
+            <div class="earn-toggle-row">
+              <label class="earn-toggle">
+                <input type="checkbox" id="earnYearly" />
+                <span class="track"></span>
+                <span class="thumb"></span>
+              </label>
+              <span class="tlabel">Show yearly potential</span>
+            </div>
+
+            <div class="earn-result" style="margin-top:24px;">
+              <div class="earn-result-label">Your estimated earnings</div>
+              <div class="earn-result-amt" id="earnResultAmt">₹6,000</div>
+              <div class="earn-result-sub" id="earnResultSub">estimated per month · 50% revenue share</div>
+              <div class="earn-result-note">Illustrative estimate based on your inputs — not a guarantee. Actual earnings depend on your community's real activity.</div>
             </div>
           </div>
         </div>
@@ -1181,40 +1188,6 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
         <div class="float-badge float-badge-b" style="animation-delay:.8s;">
           <div><b>👑 WynkoHead</b><span>Aryan S. · 18 members</span></div>
         </div>
-      </div>
-    </div>
-
-    <!-- ── Earnings calculator (interactive) ── -->
-    <div id="earn-calc" class="earn-calc reveal">
-      <div>
-        <div class="earn-calc-head">Estimate your earnings</div>
-        <h3 class="h-md" style="margin-bottom:8px;">See what your community could earn you.</h3>
-        <p style="color:var(--text-3);font-size:.86rem;line-height:1.6;max-width:420px;margin:0 0 6px;">Drag the sliders to match your reach — the number updates live.</p>
-
-        <div class="earn-calc-row">
-          <div class="lbl"><span>Community members</span><b id="earnMembersVal">40</b></div>
-          <input type="range" class="earn-range" id="earnMembers" min="5" max="200" step="1" value="40" />
-        </div>
-        <div class="earn-calc-row">
-          <div class="lbl"><span>Avg. spend per member / month</span><b id="earnSpendVal">₹300</b></div>
-          <input type="range" class="earn-range" id="earnSpend" min="100" max="1000" step="50" value="300" />
-        </div>
-
-        <div class="earn-toggle-row">
-          <label class="earn-toggle">
-            <input type="checkbox" id="earnYearly" />
-            <span class="track"></span>
-            <span class="thumb"></span>
-          </label>
-          <span class="tlabel">Show yearly potential</span>
-        </div>
-      </div>
-
-      <div class="earn-result">
-        <div class="earn-result-label">Your estimated earnings</div>
-        <div class="earn-result-amt" id="earnResultAmt">₹6,000</div>
-        <div class="earn-result-sub" id="earnResultSub">estimated per month · 50% revenue share</div>
-        <div class="earn-result-note">Illustrative estimate based on your inputs — not a guarantee. Actual earnings depend on your community's real activity.</div>
       </div>
     </div>
   </div>
