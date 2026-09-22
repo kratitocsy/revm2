@@ -20,7 +20,7 @@ function canShowRewardedAd() {
 // applied server-side, not just "the ad finished playing locally".
 //
 // placement: 'superlike_bonus' | 'coin_topup' | 'emergency_pause' | 'materials_unlock'
-// groupId: optional, for in-group ad attribution (35% vs 15% RevHead split)
+// groupId: optional, for in-group ad attribution (35% vs 15% WynkoHead split)
 //
 // Requires the @capacitor-community/admob plugin (or similar) to be
 // installed once you have real AdMob ad unit IDs -- this wraps it,

@@ -11,7 +11,7 @@ const SHELL = [
   '/groups.html',
   '/partners.html',
   '/chat.html',
-  '/revhead.html',
+  '/wynkohead.html',
   '/privacy.html',
   '/style.css',
   '/shared.js',
