@@ -46,16 +46,22 @@ npm run build:onboarding-quiz   # builds Tailwind CSS, then the bundle —
 
 ## Voice
 
-Prototype uses `speechSynthesis` (browser TTS) with a fallback timer when
-speech synthesis is unavailable or muted. Production should replace this
-with recorded voice-over files per the handoff doc
-(`/audio/wynky/{lang}/{lineId}.mp3`), driven by `audio.onplay`/`onended`
-instead of the utterance's `onstart`/`onend` — `speak()` in `wynky.tsx` is
-the single place to swap.
+`speak()` in `wynky.tsx` tries a recorded voice-over file first —
+`/audio/wynky/{lang}/{lineId}.mp3` (line ids: `intro`, `reaction_1..4`,
+each question id `q1..q7`/`q6b`, `saving`, `save_failed`,
+`result_{archetype-slug}`, e.g. `result_dawn-warrior`) — and falls back to
+`speechSynthesis` (browser TTS) transparently on a 404/load error or if it
+doesn't start within ~1.2s. No recordings exist yet, so every line
+currently falls back; **dropping real files into that path is a
+content-only change, no code edit needed.** A failed URL is remembered for
+the session so repeat lines skip straight to the fallback instead of
+re-requesting a file that's already 404'd. Muted skips both and just times
+the (silent) bubble reveal off text length.
 
 ## Status
 
-Wired into `onboarding.html`'s finish step. Not yet using recorded voice
-lines (Web Speech only) or the after-session channel-learning features from
-later build-plan steps — those are separate, unbuilt pieces of the wider
-quiz-bot spec (`Wynko_Quiz_Bot_Schedule_Plan.pdf`, steps 6–9).
+Wired into `onboarding.html`'s finish step. No recorded voice-over files
+exist yet, so it runs on the Web Speech fallback (see Voice above). The
+after-session channel-learning features from later build-plan steps are
+separate, unbuilt pieces of the wider quiz-bot spec
+(`Wynko_Quiz_Bot_Schedule_Plan.pdf`, steps 6–9).

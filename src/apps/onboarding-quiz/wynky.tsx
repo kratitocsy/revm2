@@ -3,10 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 export type Lang = 'hi' | 'en';
 export type Expression = 'idle' | 'wink' | 'talk' | 'curious' | 'happy' | 'wave';
 
-/** A line Wynky says: `text` is shown in the bubble, `say` is what the voice speaks. */
-export type Line = Record<Lang, { text: string; say: string }>;
+/**
+ * A line Wynky says: `text` is shown in the bubble, `say` is what the voice
+ * speaks, and `id` names the recorded audio file (see speak() below) —
+ * `/audio/wynky/{lang}/{id}.mp3`.
+ */
+export type Line = Record<Lang, { text: string; say: string }> & { id: string };
 
-export const line = (en: string, hi: string, hiSay?: string): Line => ({
+export const line = (id: string, en: string, hi: string, hiSay?: string): Line => ({
+  id,
   en: { text: en, say: en },
   hi: { text: hi, say: hiSay ?? hi },
 });
@@ -130,8 +135,19 @@ export function SpeechBubble({ text, lang }: { text: string; lang: Lang }) {
 }
 
 // ── Voice ──────────────────────────────────────────────────────────────
-// Recorded voice-over is planned for production; until those files exist,
-// Web Speech is the only voice path.
+// Two voice paths: recorded voice-over files (production, per the design
+// handoff: /audio/wynky/{lang}/{lineId}.mp3) and Web Speech (fallback, and
+// the only path currently in use since no recordings exist yet). speak()
+// always tries the recorded file first and falls back to Web Speech
+// transparently on a 404/load error — so dropping real audio files into
+// public/audio/wynky/{lang}/ later switches the voice over with zero code
+// changes, exactly as the handoff's "Voice + sound" section asks for.
+
+const AUDIO_BASE = '/audio/wynky';
+// URLs that already failed to load this session: skip straight to Web
+// Speech for them instead of re-issuing a network request (and a console
+// error) every time the same line repeats.
+const missingAudio = new Set<string>();
 
 function pickVoice(lang: Lang): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis?.getVoices() ?? [];
@@ -146,11 +162,11 @@ function pickVoice(lang: Lang): SpeechSynthesisVoice | null {
 }
 
 /**
- * Speaks `text` and calls onEnd exactly once. Chrome sometimes never fires
- * `onend` for long utterances, so a length-based timeout backs it up.
+ * Web Speech fallback. Calls onEnd exactly once; Chrome sometimes never
+ * fires `onend` for long utterances, so a length-based timeout backs it up.
  * Returns a cancel function that suppresses onEnd.
  */
-export function speak(text: string, lang: Lang, muted: boolean, onStart: () => void, onEnd: () => void): () => void {
+function speakSynth(text: string, lang: Lang, onStart: () => void, onEnd: () => void): () => void {
   let done = false;
   const finish = () => {
     if (done) return;
@@ -158,11 +174,9 @@ export function speak(text: string, lang: Lang, muted: boolean, onStart: () => v
     onEnd();
   };
   const synth = window.speechSynthesis;
-  const readingTime = Math.min(4000, 60 * text.length);
-
-  if (muted || !synth) {
+  if (!synth) {
     onStart();
-    const t = setTimeout(finish, readingTime);
+    const t = setTimeout(finish, Math.min(4000, 60 * text.length));
     return () => { done = true; clearTimeout(t); };
   }
 
@@ -182,6 +196,65 @@ export function speak(text: string, lang: Lang, muted: boolean, onStart: () => v
     done = true;
     clearTimeout(safety);
     synth.cancel();
+  };
+}
+
+/**
+ * Speaks a line: tries the recorded voice-over file at
+ * `/audio/wynky/{lang}/{lineId}.mp3` first, falling back to Web Speech if
+ * it 404s, fails to decode, or doesn't start within a beat. Muted skips
+ * both and just times the (silent) reveal off text length, so the UI still
+ * advances in sync with the speech bubble.
+ *
+ * Calls onStart/onEnd exactly once. Returns a cancel function.
+ */
+export function speak(lineId: string, text: string, lang: Lang, muted: boolean, onStart: () => void, onEnd: () => void): () => void {
+  if (muted) {
+    onStart();
+    const t = setTimeout(onEnd, Math.min(4000, 60 * text.length));
+    return () => clearTimeout(t);
+  }
+
+  const src = `${AUDIO_BASE}/${lang}/${lineId}.mp3`;
+  if (missingAudio.has(src)) return speakSynth(text, lang, onStart, onEnd);
+
+  let settled = false;
+  let cancelSynth: (() => void) | null = null;
+  const audio = new Audio(src);
+  audio.preload = 'auto';
+
+  const fallback = () => {
+    if (settled) return;
+    settled = true;
+    missingAudio.add(src);
+    cancelSynth = speakSynth(text, lang, onStart, onEnd);
+  };
+  const started = () => {
+    if (settled) return;
+    settled = true;
+    onStart();
+  };
+  const ended = () => {
+    if (settled && !cancelSynth) onEnd();
+  };
+
+  audio.addEventListener('error', fallback);
+  audio.addEventListener('playing', started);
+  audio.addEventListener('ended', ended);
+  // A same-origin static file either 404s almost immediately or plays; if
+  // neither happened within a beat (slow network, unexpected MIME error),
+  // don't leave Wynky stuck mid-question — fall back and move on.
+  const guard = setTimeout(fallback, 1200);
+  audio.play().catch(fallback);
+
+  return () => {
+    settled = true;
+    clearTimeout(guard);
+    audio.pause();
+    audio.removeEventListener('error', fallback);
+    audio.removeEventListener('playing', started);
+    audio.removeEventListener('ended', ended);
+    cancelSynth?.();
   };
 }
 
