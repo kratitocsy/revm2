@@ -19,6 +19,9 @@ import { sb } from '../../_shared/supabaseClient';
    complete, start, pause) sync within ~300ms; progress-only ticks at
    most every PROGRESS_SYNC_MS.
 
+   The same study_plans row also carries Focus Lock's Quick Notes
+   (quick_notes, migration 0068), synced the same way.
+
    Realtime: every flush ends by touching the user's study_plans row, so
    subscribing to that one filtered row is enough to hear about any
    change. Our own writes carry updated_by = CLIENT_ID and are ignored.
@@ -59,6 +62,8 @@ export type PlanChangeSource = 'local' | 'remote';
 
 const PLAN_CACHE_KEY = 'wynko_focus_plan_v1'; // same key the plan always lived under
 const WEEK_CACHE_KEY = 'wynko_study_week_v1';
+const NOTES_CACHE_KEY = 'wynko_quick_notes_v1';
+const NOTES_SYNC_MS = 800;
 const STRUCTURAL_SYNC_MS = 300;
 const PROGRESS_SYNC_MS = 15000;
 const RETRY_MS = 10000;
@@ -71,6 +76,7 @@ let status: PlanSyncStatus = 'loading';
 let lastError: string | null = null;
 let plan: FocusPlanSnapshot | null = null;
 let week: StudyWeek | null = null; // null = nothing saved yet (Schedules starts empty)
+let notes: string | null = null; // Focus Lock Quick Notes; null = never written
 let version = 0;
 let initialized = false;
 let hydrated = false; // this user's plan has been read from Supabase at least once
@@ -80,10 +86,13 @@ let emittedStructuralKey = '';
 let syncedRows = new Map<string, string>(); // task id -> serialized row
 let syncedPlanKey = '';
 let syncedWeekKey = '';
+let syncedNotes: string | null = null;
 
 let planTimer: ReturnType<typeof setTimeout> | null = null;
 let planTimerDue = 0;
 let weekTimer: ReturnType<typeof setTimeout> | null = null;
+let notesTimer: ReturnType<typeof setTimeout> | null = null;
+let notesFlushing = false;
 let flushing = false;
 let refetchAfterFlush = false;
 let channel: ReturnType<typeof sb.channel> | null = null;
@@ -120,6 +129,10 @@ function cachedPlanFor(uid: string | null): FocusPlanSnapshot | null {
   // No ownerId = saved by the old localStorage-only build: still this browser's plan.
   if (c.ownerId && uid && c.ownerId !== uid) return null;
   return { tasks: c.tasks, activeTaskId: c.activeTaskId ?? null, running: !!c.running, runningStartedAtMs: c.runningStartedAtMs ?? null };
+}
+function cachedNotesFor(uid: string | null): string | null {
+  const c = readCache<{ text: string }>(NOTES_CACHE_KEY);
+  return c && c.ownerId === uid && typeof c.text === 'string' ? c.text : null;
 }
 function cachedWeekFor(uid: string | null): StudyWeek | null {
   const c = readCache<StudyWeek>(WEEK_CACHE_KEY);
@@ -228,7 +241,7 @@ export function mergeRemotePlan(
 // ── remote ───────────────────────────────────────────────────────────────────
 async function fetchRemote(uid: string) {
   const [planRes, tasksRes] = await Promise.all([
-    sb.from('study_plans').select('active_task_id, running, anchor_at, weekly_schedule, study_units').eq('user_id', uid).maybeSingle(),
+    sb.from('study_plans').select('active_task_id, running, anchor_at, weekly_schedule, study_units, quick_notes').eq('user_id', uid).maybeSingle(),
     sb.from('study_plan_tasks')
       .select('user_id, id, subject, topic, mode, pomodoro_phase, pomodoro_total, pomodoro_remaining, regular_elapsed, completed, position')
       .eq('user_id', uid)
@@ -259,6 +272,10 @@ function applyRemote(uid: string, planRow: any, taskRows: TaskRow[]) {
       : null;
     syncedWeekKey = weekKey(week);
     if (week) writeCache(WEEK_CACHE_KEY, { ...week, ownerId: uid });
+
+    notes = typeof planRow.quick_notes === 'string' ? planRow.quick_notes : null;
+    syncedNotes = notes;
+    writeCache(NOTES_CACHE_KEY, { text: notes ?? '', ownerId: uid });
   }
 }
 
@@ -279,10 +296,13 @@ async function hydrate(uid: string) {
       syncedPlanKey = '';
       syncedStructuralKey = '';
       syncedWeekKey = '';
+      syncedNotes = null;
       plan = plan ?? cachedPlanFor(uid);
       week = week ?? cachedWeekFor(uid);
+      notes = notes ?? cachedNotesFor(uid);
       await flushPlan(true);
       if (week) await flushWeek();
+      if (notes) await flushNotes();
     }
     status = 'ready';
     lastError = null;
@@ -316,7 +336,7 @@ function subscribe(uid: string) {
 // count: the server copy plus its anchor catches up to the same values, and a
 // page that is itself running the task keeps its own clock (see FocusLockPage).
 function hasUnsyncedEdits(): boolean {
-  return flushing || !!weekTimer || (!!plan && structuralKey(plan) !== syncedStructuralKey);
+  return flushing || !!weekTimer || !!notesTimer || notesFlushing || (!!plan && structuralKey(plan) !== syncedStructuralKey);
 }
 
 let refetchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -410,6 +430,31 @@ async function flushWeek() {
   if (refetchAfterFlush && !hasUnsyncedEdits()) { refetchAfterFlush = false; void refetch(uid); }
 }
 
+async function flushNotes() {
+  const uid = userId;
+  if (notesTimer) { clearTimeout(notesTimer); notesTimer = null; }
+  if (!uid || !hydrated || notes === syncedNotes) return;
+  const sending = notes;
+  notesFlushing = true;
+  try {
+    const { error } = await sb.from('study_plans').upsert({
+      user_id: uid,
+      quick_notes: sending,
+      updated_by: CLIENT_ID,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+    if (error) throw error;
+    syncedNotes = sending;
+  } catch (e) {
+    console.warn('Quick notes: save failed, will retry', e);
+    notesTimer = setTimeout(() => void flushNotes(), RETRY_MS);
+  } finally {
+    notesFlushing = false;
+  }
+  if (notes !== syncedNotes && !notesTimer) notesTimer = setTimeout(() => void flushNotes(), NOTES_SYNC_MS); // typed more meanwhile
+  if (refetchAfterFlush && !hasUnsyncedEdits()) { refetchAfterFlush = false; void refetch(uid); }
+}
+
 function schedulePlanFlush(delay: number) {
   const due = Date.now() + delay;
   if (planTimer && planTimerDue <= due) return; // an earlier flush is already booked
@@ -425,18 +470,22 @@ function onUser(uid: string | null) {
   hydrated = false;
   if (planTimer) { clearTimeout(planTimer); planTimer = null; }
   if (weekTimer) { clearTimeout(weekTimer); weekTimer = null; }
+  if (notesTimer) { clearTimeout(notesTimer); notesTimer = null; }
   if (channel) { void sb.removeChannel(channel); channel = null; }
   syncedRows = new Map();
   syncedPlanKey = syncedStructuralKey = syncedWeekKey = '';
+  syncedNotes = null;
   if (!uid) {
     status = 'signed-out';
     plan = null;
     week = null;
+    notes = null;
     emit('remote');
     return;
   }
   plan = cachedPlanFor(uid);
   week = cachedWeekFor(uid);
+  notes = cachedNotesFor(uid);
   void hydrate(uid);
 }
 
@@ -448,7 +497,7 @@ export function initStudyPlanSync() {
   sb.auth.onAuthStateChange((_event, session) => onUser(session?.user.id ?? null));
   if (typeof window !== 'undefined') {
     // Best-effort: push the latest progress when the tab is hidden or closed.
-    const flushNow = () => { if (planTimer) void flushPlan(); if (weekTimer) void flushWeek(); };
+    const flushNow = () => { if (planTimer) void flushPlan(); if (weekTimer) void flushWeek(); if (notesTimer) void flushNotes(); };
     window.addEventListener('pagehide', flushNow);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flushNow();
@@ -486,6 +535,22 @@ export function setStudyWeek(schedule: ScheduleItem[][], units: StudyUnit[]) {
   if (weekTimer) clearTimeout(weekTimer);
   weekTimer = setTimeout(() => void flushWeek(), STRUCTURAL_SYNC_MS);
   emit('local');
+}
+
+/** Focus Lock Quick Notes for the signed-in user ('' when none). */
+export function getQuickNotes(): string {
+  return notes ?? '';
+}
+
+/** Saves the Quick Notes text (debounced). No re-render is triggered here:
+ *  the panel owns the text while typing; other tabs/devices get it via realtime. */
+export function setQuickNotes(text: string) {
+  if (text === (notes ?? '')) return;
+  notes = text;
+  if (userId) writeCache(NOTES_CACHE_KEY, { text, ownerId: userId });
+  if (!userId || !hydrated) return;
+  if (notesTimer) clearTimeout(notesTimer);
+  notesTimer = setTimeout(() => void flushNotes(), NOTES_SYNC_MS);
 }
 
 export function subscribePlan(listener: (source: PlanChangeSource) => void): () => void {

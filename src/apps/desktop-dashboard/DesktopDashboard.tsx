@@ -26,6 +26,7 @@ import { loadAnnouncements, saveAnnouncements, loadPublishedSchedules, savePubli
 import { HEAD_COMMUNITY_ID, HEAD_STUDENTS, HEAD_JOIN_REQUESTS, buildEarnings, payoutInfo, type EarningsRange } from './lib/wynkoHeadData'
 import {
   initStudyPlanSync, getPlanSnapshot, setPlanSnapshot, subscribePlan, setStudyWeek, useStudyPlanStore, mergeRemotePlan,
+  getQuickNotes, setQuickNotes,
   type TimerMode, type PomodoroPhase, type StudyTask, type FocusPlanSnapshot, type ScheduleItem, type StudyUnit,
 } from './lib/studyPlanStore'
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
@@ -1860,10 +1861,19 @@ function PomodoroSettingsModal({ initial, inProgress, onClose, onSave }: {
 }
 
 // ─── Quick Notes panel ───────────────────────────────────────────────────────────
-// Purely local scratch space for the current session - not synced anywhere,
-// same "ephemeral by design" spirit as the old Tasks checklist it replaces.
+// Scratch space saved to the account (study_plans.quick_notes via
+// studyPlanStore), so a note survives leaving Focus Lock, reloads, and shows
+// up on the user's other tabs/devices. The panel owns the text while typing;
+// a note changed elsewhere replaces it when it arrives.
 function QuickNotesPanel() {
-  const [note, setNote] = useState('')
+  const [note, setNote] = useState(getQuickNotes)
+  useEffect(() => subscribePlan(source => {
+    if (source === 'remote') setNote(getQuickNotes())
+  }), [])
+  function onChange(text: string) {
+    setNote(text)
+    setQuickNotes(text)
+  }
   return (
     <div className="rounded-2xl border p-4 flex-1 flex flex-col min-h-[140px]"
       style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
@@ -1871,7 +1881,7 @@ function QuickNotesPanel() {
         <span className="text-base leading-none">📝</span>
         <span className="text-sm font-semibold text-slate-100">Quick Notes</span>
       </div>
-      <textarea value={note} onChange={e => setNote(e.target.value)}
+      <textarea value={note} onChange={e => onChange(e.target.value)} maxLength={20000}
         placeholder="No notes yet…
 Add a quick note for this session."
         className="flex-1 w-full bg-transparent outline-none text-[13px] leading-relaxed text-slate-300 placeholder-slate-600 resize-none" />
@@ -1969,6 +1979,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     start: startRemoteSession,
     stop: stopRemoteSession,
   } = useFocusSession()
+  const planSync = useStudyPlanStore()
 
   // Side effects of a Pomodoro tick, kept out of the state updater. Reassigned every render so it
   // always sees the current start/stop closures even though the 1s interval is created only once.
@@ -2214,7 +2225,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     ? (activeTask.mode === 'pomodoro' ? (activeOnBreak ? 'Break Time' : 'Study Time') : 'Studying')
     : (selectedMode === 'pomodoro' ? pomodoroSummaryLabel(pomo) : 'Count Up • No Limit')
 
-  const headerStatus = sessionLoading
+  // First load of the plan from Supabase shows the same 'Syncing…' as the session check.
+  const headerStatus = sessionLoading || planSync.status === 'loading'
     ? 'Syncing…'
     : activeTask
       ? (running ? `${activeOnBreak ? '☕ Break' : '●'} ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')

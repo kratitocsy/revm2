@@ -59,6 +59,10 @@ export function useFocusSession() {
   const [enforcementActive, setEnforcementActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // True while the clock runs without a study_sessions row (start RPC was
+  // unreachable): nothing on the server describes it, so realtime must not
+  // "reconcile" it away - stop() still logs its time.
+  const localOnlyRef = useRef(false);
 
   // Pulls today's per-subject totals from study_sessions directly,
   // same math schedule-tick / group_live_totals use: total_seconds
@@ -206,6 +210,30 @@ export function useFocusSession() {
     };
   }, [reconcile, refreshSubjectTotals, pollEnforcement]);
 
+  // Realtime: this user's study_sessions. A session started or stopped from
+  // timer.html, another tab or another device is picked up straight away, so
+  // Pause here closes the session that's really open (and a session already
+  // closed elsewhere isn't "stopped" again). Debounced so the read happens
+  // after the write that caused the event.
+  useEffect(() => {
+    if (!userId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const channel = sb
+      .channel(`focus-session-${userId}-${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions', filter: `user_id=eq.${userId}` }, () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (!localOnlyRef.current) void reconcile(userId);
+          void refreshSubjectTotals(userId);
+        }, 400);
+      })
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void sb.removeChannel(channel);
+    };
+  }, [userId, reconcile, refreshSubjectTotals]);
+
   // Same 5s cadence as timer.html's startBlockStatusPoller, so this
   // page and the legacy one settle on enforcement state at the same
   // rate rather than one lagging the other.
@@ -227,6 +255,7 @@ export function useFocusSession() {
           p_subject: subject,
         });
         if (error) throw error;
+        localOnlyRef.current = false;
         setRemoteSessionId(data.id);
         setActiveSubject(data.subject);
         setStartedAt(data.started_at ?? new Date().toISOString());
@@ -245,6 +274,7 @@ export function useFocusSession() {
         // running even if the remote sync failed, it just won't show
         // up on RevMGrid/leaderboards for this session.
         console.warn('Focus Lock: remote session sync unavailable, timer still runs locally:', e);
+        localOnlyRef.current = true;
         setRemoteSessionId(null);
         setActiveSubject(subject);
         setStartedAt(new Date().toISOString());
@@ -321,6 +351,7 @@ export function useFocusSession() {
       const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
       logStudyTime(activeSubject || 'General', elapsedSeconds);
     }
+    localOnlyRef.current = false;
     setRemoteSessionId(null);
     setStartedAt(null);
     setRunning(false);
