@@ -383,7 +383,9 @@ async function finish(){
 
   logEvent('onboarding_completed');
   Store.set('revm2_config',cfg);
-  window.location.href='home.html';
+  // Wynky's "study identity" quiz runs as its own bundled app; it sends
+  // the student to home.html itself once they finish (or skip) there.
+  window.location.href='onboarding-quiz.html';
 }
 
 initStarfield(); validate();

@@ -56,6 +56,28 @@ describe('completeQuiz', () => {
     );
   });
 
+  it('shows the mixed-case generated username when that is what the RPC stored', async () => {
+    const rpc = vi.fn().mockImplementation(async (_fn: string, args: Record<string, unknown>) => ({
+      data: { archetype: 'Night Owl', username: args.p_username, coins_awarded: 115, is_first_time: true },
+      error: null,
+    }));
+    const result = await completeQuiz(mockSupabase({ rpcImpl: rpc }), COMPLETE_ANSWERS);
+    expect(result.displayUsername).toMatch(/^NightOwl\d{2}$/);
+    expect(result.storedUsername).toBe(result.displayUsername!.toLowerCase());
+  });
+
+  it('shows the existing username, not the generated one, when the account already had one', async () => {
+    const supabase = mockSupabase({
+      rpcImpl: async () => ({
+        data: { archetype: 'Night Owl', username: 'aryan_s', coins_awarded: 115, is_first_time: true },
+        error: null,
+      }),
+    });
+    const result = await completeQuiz(supabase, COMPLETE_ANSWERS);
+    expect(result.displayUsername).toBe('aryan_s');
+    expect(result.storedUsername).toBe('aryan_s');
+  });
+
   it('retakes (isFirstTime=false) still return successfully with zero coins', async () => {
     const supabase = mockSupabase({
       rpcImpl: async () => ({

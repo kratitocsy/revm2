@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #020615;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #F1F5F9;
+}
+
+@keyframes wkCoin {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-22px); }
+}
+
+@keyframes wkGlow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.55; }
+}
+
+.wq-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 40px;
+  padding: 24px 56px 40px;
+}
+
+.wq-stage-size {
+  --wq-stage: 340px;
+}
+
+@media (max-width: 900px) {
+  .wq-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    padding: 16px 16px 32px;
+  }
+  .wq-stage-size { --wq-stage: min(260px, 64vw); }
+  .wq-header { padding: 14px 16px !important; gap: 10px !important; flex-wrap: wrap; }
+  .wq-header-eyebrow { display: none; }
+  .wq-progress { padding: 0 16px !important; }
+}
+
+@media (max-width: 520px) {
+  .wq-options { grid-template-columns: minmax(0, 1fr) !important; }
+  .wq-h1 { font-size: 30px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
