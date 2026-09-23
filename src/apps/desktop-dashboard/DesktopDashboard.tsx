@@ -31,6 +31,10 @@ import {
 } from './lib/studyPlanStore'
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
 import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
+import {
+  useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
+  type RoomRow, type RoomMember,
+} from './lib/studyRooms'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -1166,21 +1170,19 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
 }
 
 // ─── Live Study Rooms + Motivational (Home preview cards) ────────────────────
-// Reuses the same room data StudyRoomsPage/RoomInteriorPage already work
-// from (ROOM_DATA + getRoomBots' deterministic per-room "studying now" bots -
-// the same computation RoomInteriorPage's own studyingCount uses) rather than
-// inventing separate numbers for this preview. No backend-persisted rooms
-// table exists yet in this codebase (Study Rooms is still local/mock data,
-// same as Schedules/Focus Lock's plan), so this is the actual current source
-// of truth for "live rooms" - not a hardcoded example list.
+// The same real rooms the Study Rooms page lists (list_study_rooms, see
+// lib/studyRooms.ts): rooms you're in plus public ones, busiest first, with
+// live "studying now" counts from open study sessions. Private rooms you're
+// not in aren't previewed here - they're joined from the Study Rooms page.
 function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
   onEnterRoom: (room: RoomData) => void
   onViewAll: () => void
 }) {
-  const publicRooms = ROOM_DATA.filter(r => r.isPublic)
-  const withLive = publicRooms.map(room => ({ room, live: getRoomBots(room).filter(b => b.isStudying).length }))
+  const { rooms: roomRows } = useStudyRooms(true)
+  const visible = roomRowsToRoomData(roomRows).filter(r => r.isMember || r.isPublic)
+  const withLive = visible.map(room => ({ room, live: room.liveCount ?? 0 }))
   const totalStudying = withLive.reduce((sum, x) => sum + x.live, 0)
-  const topRooms = [...withLive].sort((a, b) => b.live - a.live).slice(0, 4)
+  const topRooms = [...withLive].sort((a, b) => b.live - a.live || b.room.members - a.room.members).slice(0, 4)
 
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
@@ -2510,11 +2512,14 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
 // ─── Study Rooms Page ─────────────────────────────────────────────────────────
 
 interface RoomData {
-  id: number; name: string; emoji: string; classes: string; subject: string
+  id: number | string; name: string; emoji: string; classes: string; subject: string
   desc: string; members: number; avatarColors: string[]; avatarInits: string[]
   iconBg: string; iconEmoji: string; tag: 'popular' | 'all' | 'myrooms'
-  isPublic: boolean; password?: string; isUserCreated?: boolean; isOwner?: boolean
+  isPublic: boolean; isUserCreated?: boolean; isOwner?: boolean
   subjectTag: string
+  // Set for real rooms (study_groups rows, see lib/studyRooms.ts). Rooms without
+  // a groupId are a community's local demo room and keep their scripted bots.
+  groupId?: string; isMember?: boolean; hasPassword?: boolean; liveCount?: number; memberLimit?: number
 }
 
 interface BotParticipant {
@@ -2527,72 +2532,44 @@ interface ChatMsg {
   id: string; name: string; text: string; time: string; isBot: boolean; isMe: boolean
 }
 
-const ROOM_DATA: RoomData[] = [
-  {
-    id: 1, name: 'Physics Warriors', emoji: '⚡', classes: 'Class 11 · 12', subject: 'Physics',
-    desc: 'Concepts, PYQs, doubts — all in one place.', members: 48,
-    avatarColors: ['#7C4DFF', '#9B6CFF', '#EC4899', '#F59E0B'],
-    avatarInits: ['RS', 'PK', 'AM', 'DJ'],
-    iconBg: 'linear-gradient(135deg, #1E40AF, #3B82F6)',
-    iconEmoji: '📘', tag: 'popular', subjectTag: 'physics', isPublic: true,
-  },
-  {
-    id: 2, name: 'Chemistry Crew', emoji: '✨', classes: 'Class 11 · 12', subject: 'Chemistry',
-    desc: 'Study. Discuss. Score.', members: 32,
-    avatarColors: ['#7C4DFF', '#0F99CC', '#EC4899', '#F87171'],
-    avatarInits: ['SK', 'DL', 'MK', 'RV'],
-    iconBg: 'linear-gradient(135deg, #7C4DFF, #A855F7)',
-    iconEmoji: '🧪', tag: 'popular', subjectTag: 'chemistry', isPublic: true,
-  },
-  {
-    id: 3, name: 'Maths Mavericks', emoji: '', classes: 'Class 10 · 11 · 12', subject: 'Mathematics',
-    desc: 'Tricks, practice, progress.', members: 67,
-    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'],
-    avatarInits: ['AK', 'KV', 'PN', 'SR'],
-    iconBg: 'linear-gradient(135deg, #0C7FAA, #19B5E6)',
-    iconEmoji: '√x', tag: 'popular', subjectTag: 'maths', isPublic: true,
-  },
-  {
-    id: 4, name: 'Biology Buddies', emoji: '🌿', classes: 'Class 11 · 12', subject: 'Biology',
-    desc: 'Learn, revise, ace.', members: 41,
-    avatarColors: ['#0A9673', '#7C4DFF', '#F59E0B', '#EC4899'],
-    avatarInits: ['VM', 'PR', 'SC', 'AT'],
-    iconBg: 'linear-gradient(135deg, #0A9673, #19D3A2)',
-    iconEmoji: '📗', tag: 'all', subjectTag: 'biology', isPublic: false, password: 'bio123',
-  },
-  {
-    id: 5, name: 'JEE 2026', emoji: '👑', classes: 'JEE Aspirants', subject: 'All Subjects',
-    desc: 'Discipline. Consistency. Results.', members: 89,
-    avatarColors: ['#DC2626', '#7C4DFF', '#0F99CC', '#F59E0B'],
-    avatarInits: ['RK', 'AS', 'PG', 'NM'],
-    iconBg: 'linear-gradient(135deg, #BE185D, #F43F5E)',
-    iconEmoji: '🎯', tag: 'popular', subjectTag: 'all', isPublic: false, password: 'jee2026',
-  },
-  {
-    id: 6, name: 'Night Owls', emoji: '🌙', classes: 'All Classes', subject: 'All Subjects',
-    desc: 'Late night study sessions. No distractions.', members: 27,
-    avatarColors: ['#1D4ED8', '#7C4DFF', '#9B6CFF', '#0F99CC'],
-    avatarInits: ['LD', 'VR', 'AM', 'TR'],
-    iconBg: 'linear-gradient(135deg, #1E3A8A, #3B82F6)',
-    iconEmoji: '💻', tag: 'all', subjectTag: 'all', isPublic: true,
-  },
-  {
-    id: 7, name: 'Class 12 Board Prep', emoji: '', classes: 'Class 12', subject: 'All Subjects',
-    desc: "Let's crack it together!", members: 56,
-    avatarColors: ['#7C4DFF', '#0DAE86', '#F59E0B', '#EC4899'],
-    avatarInits: ['HP', 'GS', 'RT', 'MV'],
-    iconBg: 'linear-gradient(135deg, #5835CC, #7C4DFF)',
-    iconEmoji: '👥', tag: 'all', subjectTag: 'all', isPublic: true,
-  },
-  {
-    id: 8, name: 'Productive Humans', emoji: '✨', classes: 'All Classes', subject: 'All Subjects',
-    desc: 'Better habits. Bigger dreams.', members: 73,
-    avatarColors: ['#7C4DFF', '#3B82F6', '#EC4899', '#19D3A2'],
-    avatarInits: ['KD', 'PS', 'YR', 'NB'],
-    iconBg: 'linear-gradient(135deg, #5C35CC, #7C4DFF)',
-    iconEmoji: '✦', tag: 'all', subjectTag: 'all', isPublic: true,
-  },
+// Real rooms come from list_study_rooms (lib/studyRooms.ts). Their look is
+// derived deterministically from name/subject, so a room renders the same
+// everywhere without storing colours.
+const ROOM_GRADIENTS: [string, string][] = [
+  ['#1E40AF', '#3B82F6'], ['#7C4DFF', '#A855F7'], ['#0C7FAA', '#19B5E6'], ['#0A9673', '#19D3A2'],
+  ['#BE185D', '#F43F5E'], ['#1E3A8A', '#3B82F6'], ['#5835CC', '#7C4DFF'], ['#C2410C', '#F97316'],
 ]
+const FACE_COLORS = ['#7C4DFF', '#0F99CC', '#EC4899', '#F59E0B', '#0DAE86', '#3B82F6', '#F97316', '#9B6CFF']
+
+// "Popular": the busiest rooms with a few members, by live then total members.
+function popularRoomIds(rows: RoomRow[]): Set<string> {
+  return new Set([...rows]
+    .filter(r => r.member_count >= 3)
+    .sort((a, b) => b.live_count - a.live_count || b.member_count - a.member_count)
+    .slice(0, 6)
+    .map(r => r.id))
+}
+
+function roomRowToRoomData(r: RoomRow, popular: Set<string>): RoomData {
+  const subject = r.subject?.trim() || 'All Subjects'
+  const [c1, c2] = ROOM_GRADIENTS[hashSubject(`${r.name}|${subject}`) % ROOM_GRADIENTS.length]
+  const inits = (r.preview_initials ?? []).filter(Boolean).slice(0, 4)
+  const isAdmin = r.my_role === 'admin'
+  return {
+    id: r.id, groupId: r.id, name: r.name, emoji: '', classes: r.is_official ? 'Official Room' : 'All Classes',
+    subject, desc: r.description?.trim() || 'Study together. Stay focused.', members: r.member_count,
+    avatarColors: inits.map((x, i) => FACE_COLORS[(hashSubject(x) + i) % FACE_COLORS.length]), avatarInits: inits,
+    iconBg: `linear-gradient(135deg, ${c1}, ${c2})`, iconEmoji: subjectVisual(subject).emoji,
+    tag: popular.has(r.id) ? 'popular' : isAdmin ? 'myrooms' : 'all',
+    isPublic: r.visibility === 'public', isUserCreated: isAdmin, isOwner: isAdmin, subjectTag: subject.toLowerCase(),
+    isMember: r.is_member, hasPassword: r.has_password, liveCount: r.live_count, memberLimit: r.member_limit,
+  }
+}
+
+function roomRowsToRoomData(rows: RoomRow[]): RoomData[] {
+  const popular = popularRoomIds(rows)
+  return rows.map(r => roomRowToRoomData(r, popular))
+}
 
 // ─── Bot Pool ─────────────────────────────────────────────────────────────────
 const BOT_POOL = [
@@ -2606,9 +2583,11 @@ const BOT_POOL = [
   { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#9B6CFF', isStudying: true },
 ]
 
+// Scripted participants for a community's local demo room only (no groupId).
 function getRoomBots(room: RoomData): BotParticipant[] {
-  if (room.isUserCreated) return []
-  const count = 3 + (room.id % 3)
+  if (room.isUserCreated || room.groupId) return []
+  const seed = Number(room.id) || 0
+  const count = 3 + (seed % 3)
   const subjects = room.subject === 'All Subjects'
     ? ['Physics', 'Chemistry', 'Mathematics', 'Biology']
     : [`${room.subject}`, `${room.subject} — Advanced`, `${room.subject} — PYQs`]
@@ -2616,7 +2595,7 @@ function getRoomBots(room: RoomData): BotParticipant[] {
     ...b,
     id: `bot-${room.id}-${i}`,
     subject: subjects[i % subjects.length],
-    studyTimeSecs: b.isStudying ? (30 + ((room.id * 17 + i * 23) % 120)) * 60 : 0,
+    studyTimeSecs: b.isStudying ? (30 + ((seed * 17 + i * 23) % 120)) * 60 : 0,
   }))
 }
 
@@ -2785,10 +2764,14 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 }
 
 // ─── Study Rooms List Page ─────────────────────────────────────────────────────
-function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, leftCommunityIds }: {
+function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, leftCommunityIds, pendingJoinRoomId, onPendingJoinHandled }: {
   onNavigate: (id: string) => void
   onEnterRoom: (room: RoomData) => void
   profile?: ProfileInfo
+  // A room to open the Join flow for on arrival (an invite link, or Home's
+  // Live Study Rooms card for a room you're not in yet).
+  pendingJoinRoomId?: string | null
+  onPendingJoinHandled?: () => void
   // Owned by the App root (not local state) so that coming Back from a
   // community's page lands on the Communities tab again, not Study Rooms.
   communityTab: 'rooms' | 'communities'
@@ -2799,16 +2782,20 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
   const [tab, setTab] = useState<RoomTab>('all')
   const [subjectFilter, setSubjectFilter] = useState('All Subjects')
   const [search, setSearch] = useState('')
-  const [joinedIds, setJoinedIds] = useState<Set<number>>(new Set())
   const [showCreate, setShowCreate] = useState(false)
-  const [passwordRoomId, setPasswordRoomId] = useState<number | null>(null)
+  const [passwordRoomId, setPasswordRoomId] = useState<string | number | null>(null)
   const [passwordInput, setPasswordInput] = useState('')
-  const [passwordError, setPasswordError] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const [inviteRoom, setInviteRoom] = useState<RoomData | null>(null)
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | number | null>(null)
   const [copied, setCopied] = useState(false)
-  const [userRooms, setUserRooms] = useState<RoomData[]>([])
   const [createForm, setCreateForm] = useState({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  // Set while handling an invite link / Home card request: a successful join
+  // then goes straight into the room instead of just flipping Join to Enter.
+  const enterAfterJoinRef = useRef(false)
   // Parent "Community" module tabs. Everything below this — Hero, Search,
   // the All Rooms/My Rooms/Popular/Subject Wise tabs, the room list, and
   // all three modals — is the pre-existing Study Rooms page, completely
@@ -2816,12 +2803,15 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
   // "Communities" tab (placeholder for now) sits alongside it.
   const setCommunityTab = onCommunityTabChange
 
-  const allRooms = [...ROOM_DATA, ...userRooms]
+  // Real rooms (study_groups), membership included - see lib/studyRooms.ts.
+  const { rooms: roomRows, status: roomsStatus, error: roomsError, refresh: refreshRooms } = useStudyRooms(true)
+  const allRooms = useMemo(() => roomRowsToRoomData(roomRows), [roomRows])
   const filtered = allRooms.filter(r => {
     if (tab === 'popular') return r.tag === 'popular' && !r.isUserCreated
     if (tab === 'myrooms') return !!r.isUserCreated
     if (tab === 'subject') {
-      if (subjectFilter !== 'All Subjects' && r.subject !== subjectFilter && r.subject !== 'All Subjects') return false
+      if (subjectFilter !== 'All Subjects' && r.subject !== 'All Subjects'
+        && !r.subject.toLowerCase().includes(subjectFilter.toLowerCase().slice(0, 4))) return false
     }
     if (search) {
       const q = search.toLowerCase()
@@ -2837,46 +2827,117 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
     { id: 'subject', label: 'Subject Wise', icon: '📚' },
   ]
 
-  function handleJoin(room: RoomData) {
-    if (joinedIds.has(room.id)) return
-    if (!room.isPublic) { setPasswordRoomId(room.id); setPasswordInput(''); setPasswordError(false) }
-    else setJoinedIds(prev => { const s = new Set(prev); s.add(room.id); return s })
+  function joinMessage(result: string): string | null {
+    if (result === 'full') return 'This room is full.'
+    if (result === 'invite_only') return 'This room is invite-only.'
+    if (result === 'wrong_password') return 'Incorrect password. Try again.'
+    return null
   }
 
-  function submitPassword() {
-    const room = allRooms.find(r => r.id === passwordRoomId)
-    if (!room) return
-    if (passwordInput === room.password) {
-      setJoinedIds(prev => { const s = new Set(prev); s.add(room.id); return s })
-      setPasswordRoomId(null)
-    } else { setPasswordError(true) }
-  }
-
-  function handleLeave(id: number) {
-    setJoinedIds(prev => { const s = new Set(prev); s.delete(id); return s })
-    setOpenMenuId(null)
-  }
-
-  function handleCreateRoom() {
-    if (!createForm.name.trim()) return
-    const newRoom: RoomData = {
-      id: Date.now(), name: createForm.name.trim(), emoji: '', classes: 'All Classes',
-      subject: createForm.subject.trim() || 'All Subjects', desc: createForm.desc.trim() || 'Custom study room.',
-      members: 1, avatarColors: ['#7C4DFF'], avatarInits: ['AS'],
-      iconBg: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', iconEmoji: '✦',
-      tag: 'myrooms', isPublic: createForm.isPublic, password: createForm.isPublic ? undefined : createForm.password,
-      isUserCreated: true, isOwner: true, subjectTag: 'all',
+  async function handleJoin(room: RoomData) {
+    if (room.isMember || !room.groupId || busy) return
+    if (!room.isPublic) {
+      if (!room.hasPassword) { setNotice('This room is invite-only.'); return }
+      setPasswordRoomId(room.id); setPasswordInput(''); setPasswordError(null)
+      return
     }
-    setUserRooms(prev => [...prev, newRoom])
-    setJoinedIds(prev => { const s = new Set(prev); s.add(newRoom.id); return s })
-    setShowCreate(false)
-    setCreateForm({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+    setBusy(true)
+    try {
+      const result = await joinRoom(room.groupId)
+      const msg = joinMessage(result)
+      if (msg) setNotice(msg)
+      await refreshRooms()
+      if (!msg && enterAfterJoinRef.current) onEnterRoom({ ...room, isMember: true })
+      enterAfterJoinRef.current = false
+    } catch (e) {
+      setNotice((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitPassword() {
+    const room = allRooms.find(r => r.id === passwordRoomId)
+    if (!room?.groupId || busy) return
+    if (!passwordInput) { setPasswordError('Enter the room password.'); return }
+    setBusy(true)
+    try {
+      const result = await joinRoom(room.groupId, passwordInput)
+      const msg = joinMessage(result)
+      if (msg) { setPasswordError(msg); return }
+      setPasswordRoomId(null)
+      setPasswordInput('')
+      await refreshRooms()
+      if (enterAfterJoinRef.current) onEnterRoom({ ...room, isMember: true })
+      enterAfterJoinRef.current = false
+    } catch (e) {
+      setPasswordError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleLeave(room: RoomData) {
+    setOpenMenuId(null)
+    if (!room.groupId || busy) return
+    setBusy(true)
+    try {
+      await leaveRoom(room.groupId)
+      await refreshRooms()
+    } catch (e) {
+      setNotice((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCreateRoom() {
+    if (!createForm.name.trim() || busy) return
+    if (!createForm.isPublic && createForm.password.length < 4) { setCreateError('Private rooms need a password of at least 4 characters.'); return }
+    setBusy(true)
+    setCreateError(null)
+    try {
+      await createRoom(createForm)
+      await refreshRooms()
+      setShowCreate(false)
+      setCreateForm({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+    } catch (e) {
+      setCreateError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function copyInviteLink(room: RoomData) {
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (!room.groupId) return
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 2000) }
+    try {
+      navigator.clipboard.writeText(roomInviteLink(room.groupId)).then(done, () => setNotice('Could not copy the link.'))
+    } catch {
+      setNotice('Could not copy the link.')
+    }
   }
+  function shareInvite(room: RoomData, via: string) {
+    if (!room.groupId) return
+    const link = roomInviteLink(room.groupId)
+    const text = `Study with me in "${room.name}" on Wynko: ${link}`
+    const url = via === 'WhatsApp' ? `https://wa.me/?text=${encodeURIComponent(text)}`
+      : via === 'Telegram' ? `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(`Study with me in "${room.name}" on Wynko`)}`
+      : `mailto:?subject=${encodeURIComponent(`Join my study room: ${room.name}`)}&body=${encodeURIComponent(text)}`
+    window.open(url, '_blank', 'noopener')
+  }
+
+  // Invite link / Home card: open the Join flow for that room once the list has loaded.
+  useEffect(() => {
+    if (!pendingJoinRoomId || roomsStatus === 'loading') return
+    const room = allRooms.find(r => r.groupId === pendingJoinRoomId)
+    onPendingJoinHandled?.()
+    if (!room) { setNotice('That study room isn’t available. It may be invite-only or no longer exist.'); return }
+    if (room.isMember) { onEnterRoom(room); return }
+    enterAfterJoinRef.current = true
+    void handleJoin(room)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJoinRoomId, roomsStatus])
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]" 
@@ -3000,9 +3061,35 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             </div>
           )}
 
+          {notice && (
+            <div className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-xl border text-[13px] text-amber-300"
+              style={{ background: 'rgba(245,158,11,0.07)', borderColor: 'rgba(245,158,11,0.25)' }}>
+              <span>{notice}</span>
+              <button onClick={() => setNotice(null)} className="text-amber-400/80 hover:text-amber-300 text-xs">Dismiss</button>
+            </div>
+          )}
+          {roomsStatus === 'loading' && allRooms.length === 0 && (
+            <div className="py-16 text-center text-slate-500 text-sm">Loading study rooms…</div>
+          )}
+          {roomsStatus === 'error' && allRooms.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="text-slate-300 font-semibold mb-1">Couldn't load study rooms</div>
+              <div className="text-slate-500 text-sm mb-4">{roomsError}</div>
+              <button onClick={() => void refreshRooms()}
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]">Try again</button>
+            </div>
+          )}
+          {roomsStatus === 'ready' && tab !== 'myrooms' && filtered.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <div className="text-slate-300 font-semibold mb-1">{search ? 'No rooms match your search' : 'No study rooms here yet'}</div>
+              <div className="text-slate-500 text-sm">Create one and invite your friends.</div>
+            </div>
+          )}
+
           <div className="space-y-3 pb-8">
             {filtered.map(room => {
-              const joined = joinedIds.has(room.id)
+              const joined = !!room.isMember
               const menuOpen = openMenuId === room.id
               return (
                 <div key={room.id}
@@ -3063,7 +3150,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                             Invite Friends
                           </button>
                           {joined && (
-                            <button onClick={() => handleLeave(room.id)}
+                            <button onClick={() => handleLeave(room)}
                               className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-[rgba(26,40,69,0.55)]"
                               >
                               <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M17 10H7m0 0l3-3m-3 3l3 3M3 17V3" /></svg>
@@ -3082,8 +3169,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                         Enter →
                       </button>
                     ) : (
-                      <button onClick={() => handleJoin(room)}
-                        className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
+                      <button onClick={() => handleJoin(room)} disabled={busy}
+                        className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
                         style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
                         {room.isPublic ? 'Join' : '🔒 Join'}
                       </button>
@@ -3100,7 +3187,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
 
       {/* Password Modal — Study Rooms tab only; unchanged from before */}
       {passwordRoomId !== null && (() => {
-        const room = allRooms.find(r => r.id === passwordRoomId)!
+        const room = allRooms.find(r => r.id === passwordRoomId)
+        if (!room) return null
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
             onClick={e => { if (e.target === e.currentTarget) setPasswordRoomId(null) }}>
@@ -3118,18 +3206,18 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                 style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : '#1E3060', fontSize: '18px', letterSpacing: '4px' }}
                 placeholder="••••••"
                 value={passwordInput}
-                onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
+                onChange={e => { setPasswordInput(e.target.value); setPasswordError(null) }}
                 onKeyDown={e => e.key === 'Enter' && submitPassword()}
                 autoFocus
               />
-              {passwordError && <div className="text-[11px] text-red-400 text-center mb-3">Incorrect password. Try again.</div>}
+              {passwordError && <div className="text-[11px] text-red-400 text-center mb-3">{passwordError}</div>}
               {!passwordError && <div className="h-4 mb-1" />}
               <div className="flex gap-3">
-                <button onClick={() => setPasswordRoomId(null)}
+                <button onClick={() => { setPasswordRoomId(null); enterAfterJoinRef.current = false }}
                   className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
                   >Cancel</button>
-                <button onClick={submitPassword}
-                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
+                <button onClick={submitPassword} disabled={busy}
+                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
                   style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Enter Room
                 </button>
@@ -3158,7 +3246,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-[#0B1530] border-[#1A2845]"
                 >
                 <span className="flex-1 text-sm text-violet-300 truncate" >
-                  wynko.app/rooms/{inviteRoom.name.toLowerCase().replace(/\s+/g, '-')}
+                  {inviteRoom.groupId ? roomInviteLink(inviteRoom.groupId).replace(/^https?:\/\//, '') : ''}
                 </span>
                 <button onClick={() => copyInviteLink(inviteRoom)}
                   className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all flex-shrink-0"
@@ -3176,7 +3264,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             )}
             <div className="flex gap-2">
               {[{ icon: '💬', label: 'WhatsApp' }, { icon: '✈️', label: 'Telegram' }, { icon: '📧', label: 'Email' }].map(opt => (
-                <button key={opt.label}
+                <button key={opt.label} onClick={() => shareInvite(inviteRoom, opt.label)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors border-[#1A2845] bg-[#0B1530]"
                   >
                   {opt.icon} {opt.label}
@@ -3234,12 +3322,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                    placeholder="Set room password" />
               )}
             </div>
+            {createError && <div className="text-[11px] text-red-400 text-center -mt-2 mb-3">{createError}</div>}
             <div className="flex gap-3">
-              <button onClick={() => setShowCreate(false)}
+              <button onClick={() => { setShowCreate(false); setCreateError(null) }}
                 className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
                 >Cancel</button>
-              <button onClick={handleCreateRoom}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
+              <button onClick={handleCreateRoom} disabled={busy}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
                 style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                 Create Room
               </button>
@@ -5409,7 +5498,23 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   pomoRef.current = pomo
   const togglingRef = useRef(false)
 
-  const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession()
+  // Sessions started in a real room count toward it (study_sessions.group_id).
+  const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession(room.groupId ?? null)
+  // Real room: members + live study state + chat from Supabase (lib/studyRooms.ts).
+  const live = useRoomLive(room.groupId ?? null)
+  const isRealRoom = !!room.groupId
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isRealRoom) return
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [isRealRoom])
+  const [chatError, setChatError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  // Pause barrier (same 150-word reflection as Focus Lock): any action that
+  // stops a running room timer - Pause, "Pause & Open Chat", switching task,
+  // Reset - waits here until the reflection is unlocked. Never saved.
+  const [pausePrompt, setPausePrompt] = useState<{ run: () => void } | null>(null)
 
   // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
   // reassigned every render so the interval below always calls the current start/stop closures.
@@ -5504,7 +5609,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     setFocusRunning(next.running)
   }), [stopRemoteSession])
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, live.messages])
 
   const chatLocked = focusRunning
 
@@ -5514,15 +5619,32 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     return h > 0 ? `${h}h ${f2(m)}m` : `${m}m`
   }
 
-  async function toggleFocus() {
-    if (!selectedTask || togglingRef.current) return
+  async function pauseFocus() {
+    if (!focusRunningRef.current || togglingRef.current) return
     togglingRef.current = true
     try {
-      if (focusRunning) {
-        setFocusRunning(false)
-        await stopRemoteSession()
-        return
-      }
+      setFocusRunning(false)
+      await stopRemoteSession()
+    } finally {
+      togglingRef.current = false
+    }
+  }
+
+  // Runs `action` now if the timer isn't running; otherwise only after the
+  // pause reflection is unlocked.
+  function afterPauseBarrier(action: () => void) {
+    if (focusRunningRef.current) setPausePrompt({ run: action })
+    else action()
+  }
+
+  async function toggleFocus() {
+    if (!selectedTask || togglingRef.current) return
+    if (focusRunning) {
+      afterPauseBarrier(() => void pauseFocus())
+      return
+    }
+    togglingRef.current = true
+    try {
       if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
         // A Pomodoro left sitting at 00:00 (from before breaks existed) starts over fresh.
         setPlanTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, ...pomodoroFields(pomo) } : t))
@@ -5541,25 +5663,47 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   function selectTask(id: string) {
     if (id === selectedTaskId) return
     // Progress on the task being left is kept; the new one is ready to Start.
-    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
-    setSelectedTaskId(id)
+    // Switching stops the running timer, so it goes through the pause barrier.
+    afterPauseBarrier(() => {
+      if (focusRunningRef.current) { setFocusRunning(false); stopRemoteSession() }
+      setSelectedTaskId(id)
+    })
   }
 
   function resetSelectedTask() {
     if (!selectedTask) return
-    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
-    setPlanTasks(prev => prev.map(t => {
-      if (t.id !== selectedTask.id) return t
-      return t.mode === 'pomodoro' ? { ...t, ...pomodoroFields(pomo) } : { ...t, regularElapsed: 0 }
-    }))
+    const taskId = selectedTask.id
+    afterPauseBarrier(() => {
+      if (focusRunningRef.current) { setFocusRunning(false); stopRemoteSession() }
+      setPlanTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t
+        return t.mode === 'pomodoro' ? { ...t, ...pomodoroFields(pomo) } : { ...t, regularElapsed: 0 }
+      }))
+    })
   }
 
   const visibleBots = bots.filter(b => !kickedIds.has(b.id))
-  const studyingCount = visibleBots.filter(b => b.isStudying).length + (focusRunning || userStudyTime > 0 ? 1 : 0)
+  const studyingCount = isRealRoom
+    ? live.members.filter(m => (m.is_me ? focusRunning : m.is_live)).length + (focusRunning && !live.members.some(m => m.is_me) ? 1 : 0)
+    : visibleBots.filter(b => b.isStudying).length + (focusRunning || userStudyTime > 0 ? 1 : 0)
 
-  function sendMessage() {
+  async function sendMessage() {
     const txt = chatInput.trim()
     if (!txt) return
+    if (isRealRoom) {
+      if (!live.myId || sending) return
+      setSending(true)
+      setChatError(null)
+      try {
+        await sendRoomMessage(room.groupId!, live.myId, txt)
+        setChatInput('') // the message itself arrives through realtime
+      } catch (e) {
+        setChatError((e as Error).message)
+      } finally {
+        setSending(false)
+      }
+      return
+    }
     const now = new Date()
     setMessages(prev => [...prev, {
       id: String(Date.now()), name: 'You', text: txt,
@@ -5582,6 +5726,50 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     isPaused: !focusRunning && userStudyTime > 0,
     cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
     accentColor: '#7C4DFF',
+  }
+
+  // Real room: one card per member, from room_members (today's study time,
+  // live/paused state and subject come from their study_sessions). Times tick
+  // locally between refreshes for whoever is live.
+  const memberCards: (BotParticipant & { avatarUrl?: string; userId?: string })[] = live.members.map((m: RoomMember) => {
+    const liveNow = m.is_me ? focusRunning : m.is_live
+    const secs = m.today_seconds + (m.is_live ? Math.max(0, Math.floor((nowMs - live.fetchedAt) / 1000)) : 0)
+    const look = BOT_POOL[hashSubject(m.user_id) % BOT_POOL.length]
+    const first = m.name.trim().split(/\s+/)[0] || m.name
+    return {
+      id: m.is_me ? 'user' : m.user_id, userId: m.user_id,
+      name: m.is_me ? `You (${selfName.split(/\s+/)[0]})` : m.name,
+      initials: (m.is_me ? selfInitials : m.name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()) || first.slice(0, 2).toUpperCase(),
+      subject: m.is_me ? userCard.subject : (m.subject || (liveNow ? 'Studying' : room.subject)),
+      studyTimeSecs: secs,
+      isStudying: liveNow,
+      isPaused: m.is_me ? (!focusRunning && secs > 0) : m.is_paused,
+      cardGrad: m.is_me ? userCard.cardGrad : look.cardGrad,
+      accentColor: m.is_me ? userCard.accentColor : look.accentColor,
+      isMe: m.is_me,
+      avatarUrl: m.is_me ? userAvatar : (m.avatar_url ?? undefined),
+    }
+  })
+  const amAdmin = live.members.some(m => m.is_me && m.role === 'admin')
+  const memberNames = new Map(live.members.map(m => [m.user_id, m.is_me ? 'You' : m.name]))
+  const realMessages: ChatMsg[] = live.messages.map(m => {
+    const d = new Date(m.created_at)
+    return {
+      id: m.id, name: memberNames.get(m.sender_id) ?? 'Member', text: m.body,
+      time: `${d.getHours()}:${f2(d.getMinutes())}`, isBot: false, isMe: m.sender_id === live.myId,
+    }
+  })
+  const shownMessages = isRealRoom ? realMessages : messages
+  const seatsLeft = isRealRoom ? (room.memberLimit ?? 50) - live.members.length : 1
+
+  async function kick(userId: string) {
+    if (!room.groupId) return
+    try {
+      await kickMember(room.groupId, userId)
+      await live.refreshMembers()
+    } catch (e) {
+      setChatError((e as Error).message)
+    }
   }
 
   const allParticipants = [userCard, ...visibleBots]
@@ -5645,7 +5833,40 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 
           {/* Tab content */}
           <div className="flex-1 pb-6">
-            {activeTab === 'studying' && (
+            {activeTab === 'studying' && isRealRoom && live.status === 'loading' && (
+              <div className="py-16 text-center text-slate-500 text-sm">Loading who's studying…</div>
+            )}
+            {activeTab === 'studying' && isRealRoom && live.status === 'error' && (
+              <div className="py-16 text-center">
+                <div className="text-slate-300 font-semibold mb-1">Couldn't load this room</div>
+                <div className="text-slate-500 text-sm mb-4">{live.error}</div>
+                <button onClick={() => void live.refreshMembers()}
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]">Try again</button>
+              </div>
+            )}
+            {activeTab === 'studying' && isRealRoom && live.status === 'ready' && (
+              <div className="grid grid-cols-3 gap-5">
+                {memberCards.map(p => (
+                  <BotCard key={p.id}
+                    bot={p}
+                    canKick={amAdmin && !p.isMe}
+                    onKick={() => p.userId && void kick(p.userId)}
+                    avatarUrl={p.avatarUrl}
+                  />
+                ))}
+                {seatsLeft > 0 && (
+                  <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-violet-500/30 transition-colors"
+                    style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                    <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#1E3060]">
+                      <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    </div>
+                    <div className="text-slate-300 font-semibold text-sm">Seat Available</div>
+                    <div className="text-slate-500 text-xs mt-0.5">Invite a friend to study</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === 'studying' && !isRealRoom && (
               <div className="grid grid-cols-3 gap-5">
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
@@ -5688,7 +5909,10 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                 ) : (
                   <>
                     <div className="flex-1 overflow-y-auto space-y-3 pb-3" style={{ minHeight: '300px' }}>
-                      {messages.map(msg => (
+                      {isRealRoom && shownMessages.length === 0 && (
+                        <div className="py-12 text-center text-slate-500 text-sm">No messages yet. Say hi 👋</div>
+                      )}
+                      {shownMessages.map(msg => (
                         <div key={msg.id} className={`flex gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                             style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#1A2845' }}>
@@ -5712,15 +5936,17 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                         
                         placeholder="Type a message..."
                         value={chatInput}
-                        onChange={e => setChatInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                        onChange={e => { setChatInput(e.target.value); setChatError(null) }}
+                        onKeyDown={e => e.key === 'Enter' && void sendMessage()}
+                        maxLength={2000}
                       />
-                      <button onClick={sendMessage}
+                      <button onClick={() => void sendMessage()} disabled={sending}
                         className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0 bg-[#7C4DFF]"
                         >
                         <Ico n="arrow" cls="w-4 h-4" />
                       </button>
                     </div>
+                    {chatError && <div className="text-[11px] text-red-400 mt-1.5">{chatError}</div>}
                   </>
                 )}
               </div>
@@ -5728,6 +5954,11 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
           </div>
         </main>
       </div>
+      {pausePrompt && (
+        <PauseReflectionModal
+          onClose={() => setPausePrompt(null)}
+          onUnlock={() => { const p = pausePrompt; setPausePrompt(null); p.run() }} />
+      )}
     </div>
   )
 }
@@ -8972,6 +9203,9 @@ export default function DesktopDashboard() {
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
   const [schedule, setSchedule] = useState<ScheduleItem[][]>(Array.from({ length: 7 }, () => []))
   const [activeRoom, setActiveRoom] = useState<RoomData | null>(null)
+  // Room to run the Join flow for when Study Rooms opens: from an invite link
+  // (home.html?room=<id>) or Home's Live Study Rooms card.
+  const [pendingJoinRoomId, setPendingJoinRoomId] = useState<string | null>(null)
   // Community section: which community's Student View is open, which tab of the
   // Community module (Study Rooms / Communities) is showing, and the student's
   // decision on each community's WynkoHead schedule. Communities left this
@@ -9031,6 +9265,22 @@ export default function DesktopDashboard() {
   // left over from a previous visit (offline, tab closed mid-save).
   useEffect(() => {
     if (authState === 'ready') void flushStudyTimeQueue()
+  }, [authState])
+  // Invite links (roomInviteLink): home.html?room=<id> opens that room's Join
+  // flow once signed in, then the parameter is dropped from the address bar.
+  useEffect(() => {
+    if (authState !== 'ready') return
+    try {
+      const url = new URL(window.location.href)
+      const roomId = url.searchParams.get('room')
+      if (!roomId) return
+      url.searchParams.delete('room')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      setStudyRoomsTab('rooms')
+      setActiveRoom(null)
+      setPendingJoinRoomId(roomId)
+      setActiveNav('studyrooms')
+    } catch { /* no URL/history (tests, very old browsers): nothing to do */ }
   }, [authState])
   // A Quick Timer run keeps counting while you're elsewhere in the app; save
   // its time every minute (and finish it) from here while its page is closed.
@@ -9172,6 +9422,16 @@ export default function DesktopDashboard() {
   // Opens a specific room's interior directly from Home's Live Study
   // Rooms preview - same destination StudyRoomsPage's own room cards use.
   function openRoom(room: RoomData) {
+    // A real room you're not in yet goes through the Study Rooms page's Join
+    // flow first (password prompt for private rooms), then opens.
+    if (room.groupId && !room.isMember) {
+      setActiveRoom(null)
+      setActiveCommunity(null)
+      setStudyRoomsTab('rooms')
+      setPendingJoinRoomId(room.groupId)
+      setActiveNav('studyrooms')
+      return
+    }
     setActiveRoom(room)
     setActiveNav('studyrooms')
   }
@@ -9299,6 +9559,7 @@ export default function DesktopDashboard() {
         }
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile}
+        pendingJoinRoomId={pendingJoinRoomId} onPendingJoinHandled={() => setPendingJoinRoomId(null)}
         communityTab={studyRoomsTab} onCommunityTabChange={setStudyRoomsTab}
         onOpenCommunity={setActiveCommunity} leftCommunityIds={leftCommunityIds} />
     }

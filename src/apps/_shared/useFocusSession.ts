@@ -49,7 +49,9 @@ interface ActiveSession {
   started_at: string;
 }
 
-export function useFocusSession() {
+/** `groupId`: a study room the sessions should count toward (study_sessions.group_id);
+ *  null/undefined for plain Focus Lock sessions. */
+export function useFocusSession(groupId: string | null = null) {
   const [userId, setUserId] = useState<string | null>(null);
   const [remoteSessionId, setRemoteSessionId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -251,7 +253,7 @@ export function useFocusSession() {
       if (!userId) return;
       try {
         const { data, error } = await sb.rpc('rpc_start_study_session', {
-          p_group_id: null,
+          p_group_id: groupId,
           p_subject: subject,
         });
         if (error) throw error;
@@ -281,7 +283,7 @@ export function useFocusSession() {
         setRunning(true);
       }
     },
-    [userId, reconcile]
+    [userId, reconcile, groupId]
   );
 
   // Closing a study_sessions row here previously left study_log (the
