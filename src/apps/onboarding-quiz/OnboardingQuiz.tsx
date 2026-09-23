@@ -11,9 +11,10 @@ import {
   type StudentType,
 } from '../_shared/quizEngine';
 import { completeQuiz, type CompleteQuizResult, type QuizSupabaseClient } from '../_shared/quizPersistence';
-import { SpeechBubble, WynkyStage, sfx, speak, type Expression, type Lang, type Line } from './wynky';
+import { SpeechBubble, WynkyHero, WynkyStage, sfx, speak, type Expression, type Lang, type Line } from './wynky';
 import { INTRO, QUESTION_COPY, REACTIONS, SAVE_FAILED, SAVING, resultLine } from './quizCopy';
 import wynkyVideo from './imports/wynky-dance.mp4';
+import wynkyHelloVideo from './imports/wynky-hello.mp4';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 type Phase = 'start' | 'intro' | 'q' | 'saving' | 'result' | 'error';
@@ -173,7 +174,7 @@ export default function OnboardingQuiz() {
     const entry: SpeechEntry = { line: ln, after, cancel: () => {} };
     speech.current = entry;
     const l = langRef.current;
-    entry.cancel = speak(ln[l].say, l, mutedRef.current, () => setSpeaking(true), () => {
+    entry.cancel = speak(ln.id, ln[l].say, l, mutedRef.current, () => setSpeaking(true), () => {
       setSpeaking(false);
       const cb = entry.after;
       entry.after = undefined;
@@ -314,6 +315,7 @@ export default function OnboardingQuiz() {
   };
 
   const hi = lang === 'hi';
+  const isQPhase = phase === 'q';
   const total = totalQuestions(answers);
   const progress = phase === 'q' ? Math.min(answered / total, 1) : 1;
   const segBtn = (on: boolean, label: string, onClick: () => void) => (
@@ -399,9 +401,17 @@ export default function OnboardingQuiz() {
         )}
 
         <main className="wq-main">
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
-            {phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} />}
-            <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} />
+          {/* Big hero mascot for the start/intro "kya aap khelenge" moment (its own
+              wynky-hello.mp4 clip, played straight through); a small companion beside
+              each question after that (Duolingo-style), and the big expression-driven
+              mascot again for the result reveal. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
+            {phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase} />}
+            {phase === 'start' || phase === 'intro' ? (
+              <WynkyHero src={wynkyHelloVideo} />
+            ) : (
+              <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase ? 'small' : 'large'} />
+            )}
           </div>
 
           <div>

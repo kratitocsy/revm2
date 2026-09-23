@@ -32,8 +32,14 @@ body {
   padding: 24px 56px 40px;
 }
 
-.wq-stage-size {
+.wq-stage-large {
   --wq-stage: 340px;
+}
+
+/* Miniature companion mascot shown beside each question (Duolingo-style),
+   as opposed to the big hero mascot for the start/intro/result moments. */
+.wq-stage-small {
+  --wq-stage: 112px;
 }
 
 @media (max-width: 900px) {
@@ -42,7 +48,8 @@ body {
     gap: 36px;
     padding: 16px 16px 32px;
   }
-  .wq-stage-size { --wq-stage: min(260px, 64vw); }
+  .wq-stage-large { --wq-stage: min(260px, 64vw); }
+  .wq-stage-small { --wq-stage: 84px; }
   .wq-header { padding: 14px 16px !important; gap: 10px !important; flex-wrap: wrap; }
   .wq-header-eyebrow { display: none; }
   .wq-progress { padding: 0 16px !important; }

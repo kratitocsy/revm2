@@ -3,10 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 export type Lang = 'hi' | 'en';
 export type Expression = 'idle' | 'wink' | 'talk' | 'curious' | 'happy' | 'wave';
 
-/** A line Wynky says: `text` is shown in the bubble, `say` is what the voice speaks. */
-export type Line = Record<Lang, { text: string; say: string }>;
+/**
+ * A line Wynky says: `text` is shown in the bubble, `say` is what the voice
+ * speaks, and `id` names the recorded audio file (see speak() below) —
+ * `/audio/wynky/{lang}/{id}.mp3`.
+ */
+export type Line = Record<Lang, { text: string; say: string }> & { id: string };
 
-export const line = (en: string, hi: string, hiSay?: string): Line => ({
+export const line = (id: string, en: string, hi: string, hiSay?: string): Line => ({
+  id,
   en: { text: en, say: en },
   hi: { text: hi, say: hiSay ?? hi },
 });
@@ -21,7 +26,9 @@ const WYNKY_CLIPS: Record<Expression, [number, number]> = {
   wave: [8.9, 10.0],
 };
 
-export function WynkyStage({ src, expression, speaking }: { src: string; expression: Expression; speaking: boolean }) {
+export type StageSize = 'large' | 'small';
+
+export function WynkyStage({ src, expression, speaking, size = 'large' }: { src: string; expression: Expression; speaking: boolean; size?: StageSize }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const [start, end] = WYNKY_CLIPS[speaking ? 'talk' : expression];
@@ -41,12 +48,17 @@ export function WynkyStage({ src, expression, speaking }: { src: string; express
   }, [start, end, ready]);
 
   const label = speaking ? 'TALKING' : expression.toUpperCase();
+  const small = size === 'small';
+  const glowInset = small ? -14 : -28;
 
   return (
-    <div className="wq-stage-size" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
+    <div
+      className={small ? 'wq-stage-small' : 'wq-stage-large'}
+      style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0, transition: 'width 220ms ease, height 220ms ease' }}
+    >
       <div
         style={{
-          position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
+          position: 'absolute', inset: glowInset, borderRadius: 999, filter: 'blur(6px)',
           background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
           animation: speaking ? 'wkGlow 1.2s ease-in-out infinite' : 'none',
         }}
@@ -54,8 +66,10 @@ export function WynkyStage({ src, expression, speaking }: { src: string; express
       <div
         style={{
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
-          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
-          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+          border: `${small ? 1.5 : 2}px solid rgba(148,197,255,0.55)`, background: '#A9CCE8',
+          boxShadow: small
+            ? '0 0 18px rgba(124,77,255,0.45), 0 0 36px rgba(41,98,255,0.25), inset 0 0 18px rgba(124,77,255,0.15)'
+            : '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
         }}
       >
         <video
@@ -67,24 +81,68 @@ export function WynkyStage({ src, expression, speaking }: { src: string; express
           preload="auto"
           aria-hidden="true"
           onLoadedMetadata={() => setReady(true)}
-          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', transform: 'translate(-50%,-47%)' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
         />
       </div>
+      {!small && (
+        <div
+          style={{
+            position: 'absolute', left: '50%', bottom: -14, transform: 'translateX(-50%)', padding: '4px 12px',
+            borderRadius: 999, background: '#0B1530', border: '1px solid rgba(124,77,255,0.45)',
+            boxShadow: '0 0 14px rgba(124,77,255,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            letterSpacing: '0.2em', color: '#C4AAFF', whiteSpace: 'nowrap',
+          }}
+        >
+          WYNKY · {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The big hero mascot for the start/intro "hello, wanna play?" moment —
+ * plays its source video through on a plain loop (no expression-clip
+ * switching; unlike WynkyStage/wynky-dance.mp4, this clip is one
+ * continuous wave-then-happy performance, not cut into labeled segments).
+ * Same circular framing/glow/crop transform as WynkyStage's large size, so
+ * the two read as the same character. That crop also happens to push the
+ * source clip's bottom-right generator watermark entirely outside the
+ * visible circle — checked frame-by-frame against the actual clip, not
+ * assumed.
+ */
+export function WynkyHero({ src }: { src: string }) {
+  return (
+    <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
       <div
         style={{
-          position: 'absolute', left: '50%', bottom: -14, transform: 'translateX(-50%)', padding: '4px 12px',
-          borderRadius: 999, background: '#0B1530', border: '1px solid rgba(124,77,255,0.45)',
-          boxShadow: '0 0 14px rgba(124,77,255,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          letterSpacing: '0.2em', color: '#C4AAFF', whiteSpace: 'nowrap',
+          position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
+          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
+          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
+          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
         }}
       >
-        WYNKY · {label}
+        <video
+          src={src}
+          muted
+          playsInline
+          autoPlay
+          loop
+          preload="auto"
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
+        />
       </div>
     </div>
   );
 }
 
-export function SpeechBubble({ text, lang }: { text: string; lang: Lang }) {
+export function SpeechBubble({ text, lang, compact = false }: { text: string; lang: Lang; compact?: boolean }) {
   const [n, setN] = useState(0);
   useEffect(() => {
     setN(0);
@@ -104,15 +162,19 @@ export function SpeechBubble({ text, lang }: { text: string; lang: Lang }) {
     <div
       aria-live="polite"
       style={{
-        position: 'relative', maxWidth: 420, width: '100%', boxSizing: 'border-box', padding: '16px 20px', borderRadius: 20,
+        position: 'relative', maxWidth: compact ? 320 : 420, width: '100%', boxSizing: 'border-box',
+        padding: compact ? '10px 14px' : '16px 20px', borderRadius: compact ? 16 : 20,
         background: 'linear-gradient(160deg,#131A45 0%,#0B1530 100%)', border: '1px solid rgba(124,77,255,0.45)',
-        boxShadow: '0 0 30px rgba(124,77,255,0.25)',
+        boxShadow: compact ? '0 0 16px rgba(124,77,255,0.2)' : '0 0 30px rgba(124,77,255,0.25)',
+        transition: 'max-width 220ms ease, padding 220ms ease',
       }}
     >
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#A78BFA', marginBottom: 6 }}>
-        WYNKY · {lang === 'hi' ? 'HINGLISH' : 'ENGLISH'}
-      </div>
-      <div style={{ fontSize: 15, lineHeight: 1.55, color: '#EEF2FF', minHeight: 46 }}>
+      {!compact && (
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#A78BFA', marginBottom: 6 }}>
+          WYNKY · {lang === 'hi' ? 'HINGLISH' : 'ENGLISH'}
+        </div>
+      )}
+      <div style={{ fontSize: compact ? 13 : 15, lineHeight: 1.5, color: '#EEF2FF', minHeight: compact ? 20 : 46 }}>
         <span className="sr-only">{text}</span>
         <span aria-hidden="true">
           {text.slice(0, n)}
@@ -130,8 +192,19 @@ export function SpeechBubble({ text, lang }: { text: string; lang: Lang }) {
 }
 
 // ── Voice ──────────────────────────────────────────────────────────────
-// Recorded voice-over is planned for production; until those files exist,
-// Web Speech is the only voice path.
+// Two voice paths: recorded voice-over files (production, per the design
+// handoff: /audio/wynky/{lang}/{lineId}.mp3) and Web Speech (fallback, and
+// the only path currently in use since no recordings exist yet). speak()
+// always tries the recorded file first and falls back to Web Speech
+// transparently on a 404/load error — so dropping real audio files into
+// public/audio/wynky/{lang}/ later switches the voice over with zero code
+// changes, exactly as the handoff's "Voice + sound" section asks for.
+
+const AUDIO_BASE = '/audio/wynky';
+// URLs that already failed to load this session: skip straight to Web
+// Speech for them instead of re-issuing a network request (and a console
+// error) every time the same line repeats.
+const missingAudio = new Set<string>();
 
 function pickVoice(lang: Lang): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis?.getVoices() ?? [];
@@ -146,11 +219,11 @@ function pickVoice(lang: Lang): SpeechSynthesisVoice | null {
 }
 
 /**
- * Speaks `text` and calls onEnd exactly once. Chrome sometimes never fires
- * `onend` for long utterances, so a length-based timeout backs it up.
+ * Web Speech fallback. Calls onEnd exactly once; Chrome sometimes never
+ * fires `onend` for long utterances, so a length-based timeout backs it up.
  * Returns a cancel function that suppresses onEnd.
  */
-export function speak(text: string, lang: Lang, muted: boolean, onStart: () => void, onEnd: () => void): () => void {
+function speakSynth(text: string, lang: Lang, onStart: () => void, onEnd: () => void): () => void {
   let done = false;
   const finish = () => {
     if (done) return;
@@ -158,11 +231,9 @@ export function speak(text: string, lang: Lang, muted: boolean, onStart: () => v
     onEnd();
   };
   const synth = window.speechSynthesis;
-  const readingTime = Math.min(4000, 60 * text.length);
-
-  if (muted || !synth) {
+  if (!synth) {
     onStart();
-    const t = setTimeout(finish, readingTime);
+    const t = setTimeout(finish, Math.min(4000, 60 * text.length));
     return () => { done = true; clearTimeout(t); };
   }
 
@@ -182,6 +253,65 @@ export function speak(text: string, lang: Lang, muted: boolean, onStart: () => v
     done = true;
     clearTimeout(safety);
     synth.cancel();
+  };
+}
+
+/**
+ * Speaks a line: tries the recorded voice-over file at
+ * `/audio/wynky/{lang}/{lineId}.mp3` first, falling back to Web Speech if
+ * it 404s, fails to decode, or doesn't start within a beat. Muted skips
+ * both and just times the (silent) reveal off text length, so the UI still
+ * advances in sync with the speech bubble.
+ *
+ * Calls onStart/onEnd exactly once. Returns a cancel function.
+ */
+export function speak(lineId: string, text: string, lang: Lang, muted: boolean, onStart: () => void, onEnd: () => void): () => void {
+  if (muted) {
+    onStart();
+    const t = setTimeout(onEnd, Math.min(4000, 60 * text.length));
+    return () => clearTimeout(t);
+  }
+
+  const src = `${AUDIO_BASE}/${lang}/${lineId}.mp3`;
+  if (missingAudio.has(src)) return speakSynth(text, lang, onStart, onEnd);
+
+  let settled = false;
+  let cancelSynth: (() => void) | null = null;
+  const audio = new Audio(src);
+  audio.preload = 'auto';
+
+  const fallback = () => {
+    if (settled) return;
+    settled = true;
+    missingAudio.add(src);
+    cancelSynth = speakSynth(text, lang, onStart, onEnd);
+  };
+  const started = () => {
+    if (settled) return;
+    settled = true;
+    onStart();
+  };
+  const ended = () => {
+    if (settled && !cancelSynth) onEnd();
+  };
+
+  audio.addEventListener('error', fallback);
+  audio.addEventListener('playing', started);
+  audio.addEventListener('ended', ended);
+  // A same-origin static file either 404s almost immediately or plays; if
+  // neither happened within a beat (slow network, unexpected MIME error),
+  // don't leave Wynky stuck mid-question — fall back and move on.
+  const guard = setTimeout(fallback, 1200);
+  audio.play().catch(fallback);
+
+  return () => {
+    settled = true;
+    clearTimeout(guard);
+    audio.pause();
+    audio.removeEventListener('error', fallback);
+    audio.removeEventListener('playing', started);
+    audio.removeEventListener('ended', ended);
+    cancelSynth?.();
   };
 }
 

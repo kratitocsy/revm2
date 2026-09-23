@@ -403,8 +403,11 @@ async function redirect(user){
 
   logEvent('login');
 
-  const {data:profile}=await sb.from('user_profiles').select('explainer_seen,onboarded').eq('id',user.id).single();
-  if(!profile||!profile.explainer_seen) window.location.href='explainer.html';
+  // Wynky's "study identity" quiz is the onboarding gate: every sign-in
+  // (new account or returning without a finished quiz) lands on it first,
+  // then it sends the student to home.html itself once they finish.
+  const {data:profile}=await sb.from('user_profiles').select('quiz_completed_at').eq('id',user.id).single();
+  if(!profile||!profile.quiz_completed_at) window.location.href='onboarding-quiz.html';
   else window.location.href='home.html';
 }
 
