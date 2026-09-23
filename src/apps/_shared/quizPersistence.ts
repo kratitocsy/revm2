@@ -36,7 +36,11 @@ export interface QuizSupabaseClient {
 
 export interface CompleteQuizResult {
   archetype: Archetype;
-  /** The mixed-case string for the result-screen typewriter reveal, e.g. "NightOwl83". Null if no username could be assigned. */
+  /**
+   * What the result screen should show: the mixed-case generated name (e.g.
+   * "NightOwl83") if that's what got stored, otherwise the account's existing
+   * username (the RPC never overwrites one), or null if the account has none.
+   */
   displayUsername: string | null;
   /** What actually got stored (lowercase), or null. */
   storedUsername: string | null;
@@ -108,7 +112,7 @@ export async function completeQuiz(
       const r = retryData as { archetype: Archetype; username: string | null; coins_awarded: number; is_first_time: boolean };
       return {
         archetype: r.archetype,
-        displayUsername: null,
+        displayUsername: r.username,
         storedUsername: r.username,
         coinsAwarded: r.coins_awarded,
         isFirstTime: r.is_first_time,
@@ -118,9 +122,10 @@ export async function completeQuiz(
   }
 
   const result = data as { archetype: Archetype; username: string | null; coins_awarded: number; is_first_time: boolean };
+  const storedIsGenerated = displayUsername !== null && result.username === usernameToSend;
   return {
     archetype: result.archetype,
-    displayUsername: result.username ? displayUsername : null,
+    displayUsername: storedIsGenerated ? displayUsername : result.username,
     storedUsername: result.username,
     coinsAwarded: result.coins_awarded,
     isFirstTime: result.is_first_time,
