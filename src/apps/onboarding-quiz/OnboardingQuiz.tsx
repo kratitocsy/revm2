@@ -17,11 +17,21 @@ import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
-type Phase = 'start' | 'intro' | 'q' | 'saving' | 'result' | 'error';
+type Phase = 'lang' | 'start' | 'intro' | 'q' | 'saving' | 'result' | 'error';
 
 const LANG_KEY = 'wynko_quiz_lang_v1';
 const MUTED_KEY = 'wynko_quiz_muted_v1';
+const CUSTOM_LANG_KEY = 'wynko_quiz_custom_lang_v1';
 const MONO = "'JetBrains Mono', monospace";
+
+// Shown once, right after login, before the Hinglish/English toggle even
+// applies to anything — mirrors it in both scripts since we don't know
+// yet which the student reads.
+const LANG_PROMPT = { hi: 'Aap kaunsi bhasha mein baat karoge?', en: 'Which language should I talk in?' };
+const LANG_SUBTITLE = {
+  hi: 'Wynky Hinglish aur English dono mein baat kar sakti hai.',
+  en: 'Wynky can talk in Hinglish or English.',
+};
 
 function readPref(key: string): string | null {
   try {
@@ -147,7 +157,11 @@ interface SpeechEntry {
 export default function OnboardingQuiz() {
   const [lang, setLang] = useState<Lang>(() => (readPref(LANG_KEY) === 'en' ? 'en' : 'hi'));
   const [muted, setMuted] = useState(() => readPref(MUTED_KEY) === '1');
-  const [phase, setPhase] = useState<Phase>('start');
+  // Skip the language-pick screen for a returning student who already chose
+  // one (LANG_KEY set) — only first-time visitors see it.
+  const [phase, setPhase] = useState<Phase>(() => (readPref(LANG_KEY) ? 'start' : 'lang'));
+  const [langPick, setLangPick] = useState<Lang | 'custom' | null>(null);
+  const [customLangText, setCustomLangText] = useState('');
   const [answers, setAnswers] = useState<QuizAnswers>({});
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [pick, setPick] = useState<string[]>([]);
@@ -270,6 +284,27 @@ export default function OnboardingQuiz() {
     say(copy.ask);
   };
 
+  const canSubmitLangPick = langPick !== null && (langPick !== 'custom' || customLangText.trim().length > 0);
+
+  const submitLangPick = () => {
+    if (!canSubmitLangPick) return;
+    sfx('pop', mutedRef.current);
+    // Set + persist directly rather than via changeLang(), which no-ops
+    // when the target already matches the default 'hi' state — that guard
+    // is for the header toggle avoiding a redundant re-speak, not for this
+    // first-ever pick, which must always persist so 'lang' isn't shown again.
+    const picked: Lang = langPick === 'custom' ? 'en' : langPick!;
+    if (langPick === 'custom') {
+      // No third UI language exists yet — remember what they typed (for a
+      // future addition) and default the actual screen to English.
+      writePref(CUSTOM_LANG_KEY, customLangText.trim());
+    }
+    setLang(picked);
+    langRef.current = picked;
+    writePref(LANG_KEY, picked);
+    setPhase('start');
+  };
+
   const begin = () => {
     sfx('whoosh', mutedRef.current);
     setPhase('intro');
@@ -386,7 +421,7 @@ export default function OnboardingQuiz() {
           </div>
         </header>
 
-        {phase !== 'start' && phase !== 'intro' && (
+        {phase !== 'lang' && phase !== 'start' && phase !== 'intro' && (
           <div className="wq-progress" style={{ padding: '0 32px' }}>
             <div
               role="progressbar"
@@ -406,7 +441,7 @@ export default function OnboardingQuiz() {
               each question after that (Duolingo-style), and the big expression-driven
               mascot again for the result reveal. */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
-            {phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase} />}
+            {phase !== 'lang' && phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase} />}
             {phase === 'start' || phase === 'intro' ? (
               <WynkyHero src={wynkyHelloVideo} />
             ) : (
@@ -415,6 +450,56 @@ export default function OnboardingQuiz() {
           </div>
 
           <div>
+            {phase === 'lang' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440 }}>
+                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 1 OF 2 · LANGUAGE</div>
+                <h1 className="wq-h1" style={{ margin: 0, fontSize: 32, fontWeight: 700, lineHeight: 1.2, color: '#fff' }}>{LANG_PROMPT.en}</h1>
+                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: '#94A3B8' }}>
+                  {LANG_PROMPT.hi}
+                  <br />
+                  {LANG_SUBTITLE.en}
+                </p>
+                <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
+                  <OptionChip label="मैं हिन्दी में बात करूँगी" on={langPick === 'hi'} onClick={() => setLangPick('hi')} />
+                  <OptionChip label="I speak English" on={langPick === 'en'} onClick={() => setLangPick('en')} />
+                </div>
+                <div style={{ marginTop: -2 }}>
+                  <OptionChip label="I speak another language" on={langPick === 'custom'} onClick={() => setLangPick('custom')} />
+                </div>
+                {langPick === 'custom' && (
+                  <input
+                    autoFocus
+                    value={customLangText}
+                    onChange={(e) => setCustomLangText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitLangPick();
+                    }}
+                    placeholder="Which language? (e.g. Tamil, Bengali...)"
+                    aria-label="Your language"
+                    style={{
+                      height: 46, padding: '0 16px', borderRadius: 14, fontFamily: 'Poppins, sans-serif', fontSize: 14,
+                      color: '#F1F5F9', background: 'rgba(14,21,40,0.75)', border: '1px solid #6B44EE', outline: 'none',
+                      boxShadow: '0 0 18px rgba(124,77,255,0.25)',
+                    }}
+                  />
+                )}
+                {langPick === 'custom' && (
+                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: '#64748B' }}>
+                    Wynky doesn't speak that one yet — she'll use English for now, and we'll let you know when it's added.
+                  </p>
+                )}
+                <PrimaryButton
+                  onClick={submitLangPick}
+                  disabled={!canSubmitLangPick}
+                  background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
+                  glow="0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)"
+                  style={{ marginTop: 6, height: 46, fontSize: 14 }}
+                >
+                  Continue
+                </PrimaryButton>
+              </div>
+            )}
+
             {phase === 'start' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440 }}>
                 <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>FINAL STEP · ABOUT YOU</div>
