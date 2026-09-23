@@ -30,6 +30,7 @@ import {
   type TimerMode, type PomodoroPhase, type StudyTask, type FocusPlanSnapshot, type ScheduleItem, type StudyUnit,
 } from './lib/studyPlanStore'
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
+import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -2410,12 +2411,11 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 // Shown when the user tries to pause from inside Focus Lock. Doesn't touch the
 // timer itself - it just gates the actual pause behind a short "why am I
 // pausing" reflection, so a break is a deliberate choice rather than a reflex tap.
-const PAUSE_REFLECTION_MIN_WORDS = 150
-
+// The typed text stays in this component only - never saved (see pauseReflection.ts).
 function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
   const [text, setText] = useState('')
-  const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length
-  const unlocked = wordCount >= PAUSE_REFLECTION_MIN_WORDS
+  const wordCount = countReflectionWords(text)
+  const unlocked = isPauseUnlocked(text)
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -2486,7 +2486,7 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
         <div className="px-7 pt-1 pb-7 flex flex-col sm:flex-row gap-3">
           <button
             disabled={!unlocked}
-            onClick={onUnlock}
+            onClick={() => { if (unlocked) onUnlock() }}
             className="flex-1 h-11 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:active:scale-100"
             style={unlocked
               ? { color: '#fff', background: 'linear-gradient(135deg, #19B5E6 0%, #0F86B8 100%)', boxShadow: '0 0 20px rgba(25,181,230,0.45), 0 0 40px rgba(25,181,230,0.2)' }
