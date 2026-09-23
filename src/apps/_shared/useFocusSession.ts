@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sb } from './supabaseClient';
+import { logStudyTime, STUDY_LOGGED_EVENT } from './studyTimeLog';
 
 /* ============================================================
    Backend wiring for the redesigned Focus Lock page
@@ -232,17 +233,25 @@ export function useFocusSession() {
         setRunning(true);
         // reflects immediately into set_session_active via the existing
         // poller on its next tick - matches timer.html's own latency
-      } catch (e) {
+      } catch (e: any) {
+        // Another tab/device already has this user's one open session:
+        // adopt it rather than running a parallel local clock whose time
+        // would then be logged a second time on top of that session's.
+        if (/already running/i.test(e?.message || '')) {
+          await reconcile(userId);
+          return;
+        }
         // Same fallback as timer.html: the local pomodoro clock keeps
         // running even if the remote sync failed, it just won't show
         // up on RevMGrid/leaderboards for this session.
         console.warn('Focus Lock: remote session sync unavailable, timer still runs locally:', e);
         setRemoteSessionId(null);
+        setActiveSubject(subject);
         setStartedAt(new Date().toISOString());
         setRunning(true);
       }
     },
-    [userId]
+    [userId, reconcile]
   );
 
   // Closing a study_sessions row here previously left study_log (the
@@ -287,15 +296,30 @@ export function useFocusSession() {
 
   const stop = useCallback(async () => {
     if (remoteSessionId) {
-      try {
-        await sb.rpc('rpc_stop_study_session', { p_session_id: remoteSessionId });
-      } catch (e) {
-        console.warn('Focus Lock: stop remote session failed', e);
+      // One server call closes the row and adds its total_seconds to
+      // study_log - only if this call is the one that closed it, so two tabs
+      // stopping the same session can't count it twice (migration 0067).
+      const { error } = await sb.rpc('rpc_stop_study_session_logged', { p_session_id: remoteSessionId });
+      if (!error) {
+        window.dispatchEvent(new Event(STUDY_LOGGED_EVENT));
+      } else if (error.code === 'PGRST202') {
+        // Migration 0067 not deployed yet: previous two-step behaviour.
+        try {
+          await sb.rpc('rpc_stop_study_session', { p_session_id: remoteSessionId });
+        } catch (e) {
+          console.warn('Focus Lock: stop remote session failed', e);
+        }
+        if (userId && startedAt) {
+          const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
+          await logToStudyLog(userId, activeSubject, elapsedSeconds);
+        }
+      } else {
+        console.warn('Focus Lock: stop remote session failed', error);
       }
-      if (userId && startedAt) {
-        const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
-        await logToStudyLog(userId, activeSubject, elapsedSeconds);
-      }
+    } else if (startedAt) {
+      // The clock ran local-only (start RPC unreachable): still save the time.
+      const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
+      logStudyTime(activeSubject || 'General', elapsedSeconds);
     }
     setRemoteSessionId(null);
     setStartedAt(null);
