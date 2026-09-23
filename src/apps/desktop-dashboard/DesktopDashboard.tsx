@@ -406,11 +406,6 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
         <div className="text-[10px] text-slate-600 mb-0.5">Home / Today</div>
         <div className="text-sm font-semibold text-slate-200">{todayLabel}</div>
       </div>
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 text-sm w-52 border bg-[#0B1530] border-[#1A2845]">
-        <Ico n="search" cls="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="text-xs text-slate-500 flex-1">Search topics...</span>
-        <kbd className="text-[10px] rounded px-1 text-slate-600 font-mono border bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.08)]">⌘K</kbd>
-      </div>
       <button className="relative p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-200 transition-colors">
         <Ico n="bell" cls="w-5 h-5" />
         <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" style={{ boxShadow: '0 0 6px rgba(155,108,255,0.8)' }} />
