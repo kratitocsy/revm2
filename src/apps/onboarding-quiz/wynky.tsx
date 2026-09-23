@@ -26,7 +26,9 @@ const WYNKY_CLIPS: Record<Expression, [number, number]> = {
   wave: [8.9, 10.0],
 };
 
-export function WynkyStage({ src, expression, speaking }: { src: string; expression: Expression; speaking: boolean }) {
+export type StageSize = 'large' | 'small';
+
+export function WynkyStage({ src, expression, speaking, size = 'large' }: { src: string; expression: Expression; speaking: boolean; size?: StageSize }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const [start, end] = WYNKY_CLIPS[speaking ? 'talk' : expression];
@@ -46,12 +48,17 @@ export function WynkyStage({ src, expression, speaking }: { src: string; express
   }, [start, end, ready]);
 
   const label = speaking ? 'TALKING' : expression.toUpperCase();
+  const small = size === 'small';
+  const glowInset = small ? -14 : -28;
 
   return (
-    <div className="wq-stage-size" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
+    <div
+      className={small ? 'wq-stage-small' : 'wq-stage-large'}
+      style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0, transition: 'width 220ms ease, height 220ms ease' }}
+    >
       <div
         style={{
-          position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
+          position: 'absolute', inset: glowInset, borderRadius: 999, filter: 'blur(6px)',
           background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
           animation: speaking ? 'wkGlow 1.2s ease-in-out infinite' : 'none',
         }}
@@ -59,8 +66,10 @@ export function WynkyStage({ src, expression, speaking }: { src: string; express
       <div
         style={{
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
-          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
-          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+          border: `${small ? 1.5 : 2}px solid rgba(148,197,255,0.55)`, background: '#A9CCE8',
+          boxShadow: small
+            ? '0 0 18px rgba(124,77,255,0.45), 0 0 36px rgba(41,98,255,0.25), inset 0 0 18px rgba(124,77,255,0.15)'
+            : '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
         }}
       >
         <video
@@ -72,24 +81,68 @@ export function WynkyStage({ src, expression, speaking }: { src: string; express
           preload="auto"
           aria-hidden="true"
           onLoadedMetadata={() => setReady(true)}
-          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', transform: 'translate(-50%,-47%)' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
         />
       </div>
+      {!small && (
+        <div
+          style={{
+            position: 'absolute', left: '50%', bottom: -14, transform: 'translateX(-50%)', padding: '4px 12px',
+            borderRadius: 999, background: '#0B1530', border: '1px solid rgba(124,77,255,0.45)',
+            boxShadow: '0 0 14px rgba(124,77,255,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            letterSpacing: '0.2em', color: '#C4AAFF', whiteSpace: 'nowrap',
+          }}
+        >
+          WYNKY · {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The big hero mascot for the start/intro "hello, wanna play?" moment —
+ * plays its source video through on a plain loop (no expression-clip
+ * switching; unlike WynkyStage/wynky-dance.mp4, this clip is one
+ * continuous wave-then-happy performance, not cut into labeled segments).
+ * Same circular framing/glow/crop transform as WynkyStage's large size, so
+ * the two read as the same character. That crop also happens to push the
+ * source clip's bottom-right generator watermark entirely outside the
+ * visible circle — checked frame-by-frame against the actual clip, not
+ * assumed.
+ */
+export function WynkyHero({ src }: { src: string }) {
+  return (
+    <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
       <div
         style={{
-          position: 'absolute', left: '50%', bottom: -14, transform: 'translateX(-50%)', padding: '4px 12px',
-          borderRadius: 999, background: '#0B1530', border: '1px solid rgba(124,77,255,0.45)',
-          boxShadow: '0 0 14px rgba(124,77,255,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          letterSpacing: '0.2em', color: '#C4AAFF', whiteSpace: 'nowrap',
+          position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
+          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
+          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
+          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
         }}
       >
-        WYNKY · {label}
+        <video
+          src={src}
+          muted
+          playsInline
+          autoPlay
+          loop
+          preload="auto"
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
+        />
       </div>
     </div>
   );
 }
 
-export function SpeechBubble({ text, lang }: { text: string; lang: Lang }) {
+export function SpeechBubble({ text, lang, compact = false }: { text: string; lang: Lang; compact?: boolean }) {
   const [n, setN] = useState(0);
   useEffect(() => {
     setN(0);
@@ -109,15 +162,19 @@ export function SpeechBubble({ text, lang }: { text: string; lang: Lang }) {
     <div
       aria-live="polite"
       style={{
-        position: 'relative', maxWidth: 420, width: '100%', boxSizing: 'border-box', padding: '16px 20px', borderRadius: 20,
+        position: 'relative', maxWidth: compact ? 320 : 420, width: '100%', boxSizing: 'border-box',
+        padding: compact ? '10px 14px' : '16px 20px', borderRadius: compact ? 16 : 20,
         background: 'linear-gradient(160deg,#131A45 0%,#0B1530 100%)', border: '1px solid rgba(124,77,255,0.45)',
-        boxShadow: '0 0 30px rgba(124,77,255,0.25)',
+        boxShadow: compact ? '0 0 16px rgba(124,77,255,0.2)' : '0 0 30px rgba(124,77,255,0.25)',
+        transition: 'max-width 220ms ease, padding 220ms ease',
       }}
     >
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#A78BFA', marginBottom: 6 }}>
-        WYNKY · {lang === 'hi' ? 'HINGLISH' : 'ENGLISH'}
-      </div>
-      <div style={{ fontSize: 15, lineHeight: 1.55, color: '#EEF2FF', minHeight: 46 }}>
+      {!compact && (
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#A78BFA', marginBottom: 6 }}>
+          WYNKY · {lang === 'hi' ? 'HINGLISH' : 'ENGLISH'}
+        </div>
+      )}
+      <div style={{ fontSize: compact ? 13 : 15, lineHeight: 1.5, color: '#EEF2FF', minHeight: compact ? 20 : 46 }}>
         <span className="sr-only">{text}</span>
         <span aria-hidden="true">
           {text.slice(0, n)}
