@@ -174,7 +174,7 @@ export default function OnboardingQuiz() {
     const entry: SpeechEntry = { line: ln, after, cancel: () => {} };
     speech.current = entry;
     const l = langRef.current;
-    entry.cancel = speak(ln.id, ln[l].say, l, mutedRef.current, () => setSpeaking(true), () => {
+    entry.cancel = speak(ln, l, mutedRef.current, () => setSpeaking(true), () => {
       setSpeaking(false);
       const cb = entry.after;
       entry.after = undefined;

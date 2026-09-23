@@ -222,14 +222,32 @@ function pickVoice(lang: Lang): SpeechSynthesisVoice | null {
  * Web Speech fallback. Calls onEnd exactly once; Chrome sometimes never
  * fires `onend` for long utterances, so a length-based timeout backs it up.
  * Returns a cancel function that suppresses onEnd.
+ *
+ * Most browsers/OSes ship no Hindi voice at all — forcing `hi-IN` on a
+ * device with none installed reads the Devanagari `say` text through
+ * whatever default voice is available (usually English), which comes out
+ * silent or unintelligibly garbled rather than actually speaking Hindi.
+ * When that's the case, fall back to an English voice reading the
+ * Romanized Hinglish `text` instead (e.g. "Sabse pehle batao...") — an
+ * English engine handles transliterated text fine, unlike Devanagari.
  */
-function speakSynth(text: string, lang: Lang, onStart: () => void, onEnd: () => void): () => void {
+function speakSynth(line: Line, lang: Lang, onStart: () => void, onEnd: () => void): () => void {
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
     onEnd();
   };
+
+  let voice = pickVoice(lang);
+  let speakLang: Lang = lang;
+  let text = line[lang].say;
+  if (lang === 'hi' && !voice) {
+    voice = pickVoice('en');
+    text = line.hi.text;
+    speakLang = 'en';
+  }
+
   const synth = window.speechSynthesis;
   if (!synth) {
     onStart();
@@ -239,11 +257,10 @@ function speakSynth(text: string, lang: Lang, onStart: () => void, onEnd: () => 
 
   synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  const v = pickVoice(lang);
-  if (v) u.voice = v;
-  u.lang = v ? v.lang : lang === 'hi' ? 'hi-IN' : 'en-IN';
+  if (voice) u.voice = voice;
+  u.lang = voice ? voice.lang : speakLang === 'hi' ? 'hi-IN' : 'en-IN';
   u.pitch = 1.7;
-  u.rate = lang === 'hi' ? 1.02 : 1.06;
+  u.rate = speakLang === 'hi' ? 1.02 : 1.06;
   u.onstart = onStart;
   u.onend = finish;
   u.onerror = finish;
@@ -265,15 +282,15 @@ function speakSynth(text: string, lang: Lang, onStart: () => void, onEnd: () => 
  *
  * Calls onStart/onEnd exactly once. Returns a cancel function.
  */
-export function speak(lineId: string, text: string, lang: Lang, muted: boolean, onStart: () => void, onEnd: () => void): () => void {
+export function speak(line: Line, lang: Lang, muted: boolean, onStart: () => void, onEnd: () => void): () => void {
   if (muted) {
     onStart();
-    const t = setTimeout(onEnd, Math.min(4000, 60 * text.length));
+    const t = setTimeout(onEnd, Math.min(4000, 60 * line[lang].say.length));
     return () => clearTimeout(t);
   }
 
-  const src = `${AUDIO_BASE}/${lang}/${lineId}.mp3`;
-  if (missingAudio.has(src)) return speakSynth(text, lang, onStart, onEnd);
+  const src = `${AUDIO_BASE}/${lang}/${line.id}.mp3`;
+  if (missingAudio.has(src)) return speakSynth(line, lang, onStart, onEnd);
 
   let settled = false;
   let cancelSynth: (() => void) | null = null;
@@ -284,7 +301,7 @@ export function speak(lineId: string, text: string, lang: Lang, muted: boolean, 
     if (settled) return;
     settled = true;
     missingAudio.add(src);
-    cancelSynth = speakSynth(text, lang, onStart, onEnd);
+    cancelSynth = speakSynth(line, lang, onStart, onEnd);
   };
   const started = () => {
     if (settled) return;
