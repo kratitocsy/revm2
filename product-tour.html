@@ -495,7 +495,7 @@
         </div>
         <div class="float-card fc-2">
           <div class="fc-label">3D Library</div>
-          <div class="fc-value">128 studying now</div>
+          <div class="fc-value">Coming soon</div>
         </div>
 
         <div class="hero-word-wrap">
@@ -506,7 +506,7 @@
 
         <div class="hero-cta-row">
           <a href="#top" class="btn btn-grad">Start free — Get Started →</a>
-          <a href="#platform" class="btn btn-ghost">See the 3D Library</a>
+          <a href="#platform" class="btn btn-ghost">Preview the 3D Library</a>
         </div>
       </div>
     </div>
@@ -560,7 +560,7 @@
         <div class="feat-tabs" id="featTabs">
           <button class="feat-tab active" data-feat="0"><span class="ft-num">01</span>Focus Lock</button>
           <button class="feat-tab" data-feat="1"><span class="ft-num">02</span>Study Rooms</button>
-          <button class="feat-tab" data-feat="2"><span class="ft-num">03</span>3D Library</button>
+          <button class="feat-tab" data-feat="2"><span class="ft-num">03</span>3D Library <span style="margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(124,92,252,.18);color:#b9a6ff;border:1px solid rgba(124,92,252,.35)">Soon</span></button>
           <button class="feat-tab" data-feat="3"><span class="ft-num">04</span>Partner Matching</button>
         </div>
         <div class="feat-panel" id="featPanel">
@@ -574,12 +574,15 @@
   <section id="platform" class="spotlight">
     <div class="wrap">
       <div class="spotlight-grid">
-        <div class="spotlight-card">
-          <div class="spotlight-grid-dots" id="spotDots"></div>
-          <div class="enter-btn">Enter<br>Library →</div>
+        <div class="spotlight-card" style="height:520px;padding:24px;">
+          <picture style="display:block;height:100%;">
+            <source srcset="assets/wynko-study-library-v2.webp" type="image/webp">
+            <img src="assets/wynko-study-library-v2.jpg" alt="Preview of the Wynko 3D Library — quiet zone, study table, solo pods, discussion corner and break zone" loading="lazy" style="height:100%;width:auto;max-width:100%;object-fit:contain;display:block;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.5)">
+          </picture>
+          <span style="position:absolute;top:14px;left:14px;z-index:2;padding:6px 12px;border-radius:999px;font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,#7c5cfc,#2fd4ff);box-shadow:0 6px 20px rgba(124,92,252,.45)">Coming soon</span>
         </div>
         <div class="spotlight-side">
-          <div class="eyebrow">Our Platform</div>
+          <div class="eyebrow">Coming soon · 3D Library</div>
           <h3>Sit down. That's the whole call flow.</h3>
           <p>A fully rendered 3D library where every student appears as an avatar at a real desk. Adjacent seats activate voice or video automatically — no "start call" button. Get up, and the call ends the instant you leave.</p>
           <a href="#top" class="btn btn-ghost btn-sm" style="align-self:flex-start;">Got a study goal? Let's talk →</a>
@@ -639,7 +642,7 @@
         <div class="foot-col">
           <h4>Product</h4>
           <a href="#features">Features</a>
-          <a href="#platform">3D Library</a>
+          <a href="#platform">3D Library (soon)</a>
           <a href="#faq">FAQ</a>
         </div>
         <div class="foot-col">
@@ -686,14 +689,18 @@
   }
 
   // ---- spotlight dot grid ----
+  // (The spotlight now shows a 3D Library preview image; the grid only
+  // renders if #spotDots is present again.)
   const spotDots = document.getElementById('spotDots');
-  const SPOT_CELLS = 12 * 7;
-  const spotLive = new Set();
-  while (spotLive.size < 9) spotLive.add(Math.floor(Math.random() * SPOT_CELLS));
-  for (let i = 0; i < SPOT_CELLS; i++) {
-    const d = document.createElement('div');
-    d.className = 'sg-dot' + (spotLive.has(i) ? ' on' : '');
-    spotDots.appendChild(d);
+  if (spotDots) {
+    const SPOT_CELLS = 12 * 7;
+    const spotLive = new Set();
+    while (spotLive.size < 9) spotLive.add(Math.floor(Math.random() * SPOT_CELLS));
+    for (let i = 0; i < SPOT_CELLS; i++) {
+      const d = document.createElement('div');
+      d.className = 'sg-dot' + (spotLive.has(i) ? ' on' : '');
+      spotDots.appendChild(d);
+    }
   }
 
   // ---- features tabs ----
@@ -709,9 +716,9 @@
       v1: 'JEE Physics Circle', v2: '6 members — live now'
     },
     {
-      title: '3D Library',
-      body: 'A fully rendered library where every student is an avatar at a real desk. Sit at an adjacent seat and voice or video activates automatically — no "start call" step.',
-      v1: 'Silent Reading Hall', v2: '128 seated right now'
+      title: '3D Library — coming soon',
+      body: 'A fully rendered library where every student is an avatar at a real desk. Sit at an adjacent seat and voice or video activates automatically — no "start call" step. We\'re building it now.',
+      v1: 'Silent Reading Hall', v2: 'Coming soon'
     },
     {
       title: 'Partner Matching',
@@ -744,7 +751,7 @@
 
   // ---- testimonials ----
   const TESTIMONIALS = [
-    { quote: "Sitting in the 3D Library with people prepping for the same NEET as me changed everything — prep stopped feeling lonely.", name: "Priya M.", role: "NEET aspirant · 2027", initial: "P" },
+    { quote: "Studying in a room with people prepping for the same NEET as me changed everything — prep stopped feeling lonely.", name: "Priya M.", role: "NEET aspirant · 2027", initial: "P" },
     { quote: "Focus Lock is the first blocker I couldn't talk myself out of. That's kind of the whole point.", name: "Rohan K.", role: "JEE aspirant · 2027", initial: "R" },
     { quote: "No streak guilt, no fake urgency — just people who are actually studying, in the room with you.", name: "Ananya S.", role: "CAT aspirant · 2026", initial: "A" }
   ];
@@ -780,7 +787,7 @@
 
   // ---- FAQ accordion ----
   const FAQS = [
-    { q: 'Is Wynko free to use?', a: 'Yes — study rooms, partner matching, the 3D Library, and unlimited Focus Lock for an initial period are all free. Premium removes ads and raises a few caps, but nothing core sits behind a paywall.' },
+    { q: 'Is Wynko free to use?', a: 'Yes — study rooms, partner matching, and unlimited Focus Lock for an initial period are all free, and so will the 3D Library be when it launches. Premium removes ads and raises a few caps, but nothing core sits behind a paywall.' },
     { q: 'Which exams does Wynko support?', a: 'JEE, NEET, CAT, and UPSC at launch, with more exam cohorts planned as the community grows.' },
     { q: 'What is Focus Lock, and how strict is it?', a: 'A distraction blocker where exiting early takes a written pledge instead of a one-tap escape — friction that\'s designed in on purpose, not a guilt mechanic.' },
     { q: 'Which platforms is Wynko available on?', a: 'Web, a Chrome extension, a Windows desktop app, and Android — all sharing one account and one real-time backend.' },
