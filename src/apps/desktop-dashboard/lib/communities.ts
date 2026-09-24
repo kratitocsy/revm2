@@ -290,6 +290,36 @@ export const fetchPayoutHistory = () =>
 export const fetchWalletBalance = () => call<number>(sb.rpc('my_wallet_balance'), 'Could not load your balance').then((n) => Number(n) || 0);
 export const requestPayout = () => call(sb.rpc('request_payout'), 'Could not request a payout');
 
+// ── Referrals (migration 0079) ──────────────────────────────────────────────
+// Anyone can refer. When someone who signed up through your link creates a
+// community and it gets monetised, you earn 10% of the platform's 50% share
+// of that community's revenue for 6 months from its first monetisation.
+export interface ReferralSummary {
+  referral_code: string | null;
+  people_referred: number;
+  communities_created: number;
+  communities_earning: number;
+  total_earned: number;
+  wallet_balance: number;
+  upi_id: string | null;
+}
+export async function fetchReferralSummary(): Promise<ReferralSummary> {
+  await call<string>(sb.rpc('my_referral_code'), 'Could not create your referral code');
+  const rows = await call<ReferralSummary[]>(sb.rpc('my_referral_summary'), 'Could not load your referrals');
+  const r = rows?.[0];
+  return {
+    referral_code: r?.referral_code ?? null,
+    people_referred: r?.people_referred ?? 0,
+    communities_created: r?.communities_created ?? 0,
+    communities_earning: r?.communities_earning ?? 0,
+    total_earned: Number(r?.total_earned) || 0,
+    wallet_balance: Number(r?.wallet_balance) || 0,
+    upi_id: r?.upi_id ?? null,
+  };
+}
+export const referralLink = (code: string) => `${window.location.origin}/login?ref=${encodeURIComponent(code)}`;
+export const setMyUpiId = (upi: string) => call(sb.rpc('set_my_upi_id', { p_upi_id: upi }), 'Could not save your UPI ID');
+
 // ── Hooks ────────────────────────────────────────────────────────────────────
 /** Generic "load, keep last good value, refresh on focus/interval" helper. */
 export function useLoader<T>(load: (() => Promise<T>) | null, initial: T, deps: unknown[], intervalMs = 60_000) {
