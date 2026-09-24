@@ -14,7 +14,6 @@ let activeTab = 'mine';
 let currentGroup = null;
 let presenceChannel = null;
 let myPresenceChannel = null;
-let iAmVerifiedWynkoHead = false;
 
 async function init(){
   RevM2Loader.show('Loading your groups…');
@@ -34,10 +33,8 @@ async function init(){
   RevM2Calls.init(sb, me.id);
   RevM2Notifications.init(sb, me.id);
 
-  const { data: myProfile } = await sb.from('user_profiles').select('is_revhead,revhead_status').eq('id', me.id).single();
-  iAmVerifiedWynkoHead = !!(myProfile?.is_revhead && myProfile?.revhead_status === 'verified');
-  const wynkoheadRow = document.getElementById('cgWynkoheadRow');
-  if(wynkoheadRow) wynkoheadRow.style.display = iAmVerifiedWynkoHead ? 'block' : 'none';
+  // Anyone can create a community now (migration 0074) - the "Make this a
+  // community" option in the create modal is shown to everyone.
 
   // Shared links (group / RevMGrid session / challenge) all carry an
   // ?invite=<token> and auto-join the group server-side via RPC — see
@@ -208,13 +205,28 @@ function fmtHour(h){
 async function createGroup(){
   const name = document.getElementById('cgName').value.trim();
   if(!name){ alert('Group name required'); return; }
+  // Communities go through the same server function the dashboard uses, so
+  // they get the community settings (approval to join, member cap, owner as
+  // admin, referral link) and show up under Communities.
+  if(document.getElementById('cgWynkohead')?.checked){
+    const { data: groupId, error } = await sb.rpc('rpc_create_community', {
+      p_name: name,
+      p_description: document.getElementById('cgDesc').value.trim() || null,
+      p_emoji: null,
+    });
+    if(error){ alert('Could not create community: '+error.message); return; }
+    closeCreateModal();
+    await loadMyGroups();
+    openGroup(groupId);
+    return;
+  }
   const payload = {
     name,
     description: document.getElementById('cgDesc').value.trim(),
     owner_id: me.id,
     visibility: document.getElementById('cgVis').value,
     member_limit: Number(document.getElementById('cgLimit').value),
-    is_revhead_group: iAmVerifiedWynkoHead && !!document.getElementById('cgWynkohead')?.checked
+    is_revhead_group: false
   };
   const { data, error } = await sb.from('study_groups').insert(payload).select().single();
   if(error){ alert('Could not create group: '+error.message); return; }
