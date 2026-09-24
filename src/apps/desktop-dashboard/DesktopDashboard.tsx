@@ -26,7 +26,7 @@ import {
   joinCommunity, leaveCommunity, setHomeCommunity, parseInviteInput, fetchCommunityDetail, fetchAnnouncements, setScheduleChoice,
   applyAsWynkoHead, createCommunity, publishCommunitySchedule, loadScheduleDraft, saveScheduleDraft, fetchHeadOverview,
   fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, postAnnouncement, deleteAnnouncement,
-  communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout,
+  communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout, MIN_PAYOUT_INR, setMyDateOfBirth,
   fetchMonetizedCommunityIds, setCommunityMonetization, transferCommunityOwnership, fetchMyHomeCommunity,
   fetchReferralSummary, referralLink, setMyUpiId, type ReferralSummary,
   type MyCommunity, type DiscoverCommunity, type CommunityScheduleRow, type CommunityDetailData, type CommunityAnnouncementRow,
@@ -4964,17 +4964,35 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmOff, setConfirmOff] = useState(false)
+  const [needDob, setNeedDob] = useState(false)
+  const [dob, setDob] = useState('')
   async function setEnabled(enabled: boolean) {
     setBusy(true); setError(null)
     try {
       await setCommunityMonetization(groupId, enabled)
       await onChanged()
       setConfirmOff(false)
+      setNeedDob(false)
     } catch (e) {
-      setError((e as Error).message)
+      const message = (e as Error).message
+      setError(message)
+      if (/date of birth/i.test(message)) setNeedDob(true)
     } finally {
       setBusy(false)
     }
+  }
+  async function saveDobAndEnable() {
+    if (!dob || busy) return
+    setBusy(true); setError(null)
+    try {
+      await setMyDateOfBirth(dob)
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+    await setEnabled(true)
   }
   return (
     <div className="rounded-2xl border p-5 mb-4" style={{ ...CM_CARD, borderColor: monetized ? 'rgba(59,130,246,0.45)' : 'rgba(56,132,255,0.25)' }}>
@@ -4988,12 +5006,24 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
           </div>
           <div className="text-[13px] text-slate-400 max-w-xl">
             {monetized
-              ? 'You earn 50% of everything spent (and the ad revenue generated) by members who made this their Home Community. It shows the verified tick; earnings count from when the program was switched on.'
+              ? 'You earn 50% of the net revenue (after GST and store/payment fees) from members who made this their Home Community — their spending and the ad revenue they generate. Your own spending doesn’t count. It shows the verified tick; earnings count from when the program was switched on. Refunds are deducted.'
               : isWynkoHead
-                ? 'Turn it on to earn 50% of what members who made this their Home Community spend, and to get the verified tick.'
-                : 'Only approved WynkoHeads can monetise a community. Apply from the Earn page — once approved, switch it on here.'}
+                ? 'Turn it on to earn 50% of the net revenue from members who made this their Home Community, and to get the verified tick. Monetisation is for 18+ only.'
+                : 'Only approved WynkoHeads (18+) can monetise a community. Apply from the Earn page — once approved, switch it on here.'}
           </div>
           {error && <div className="text-[12px] text-amber-300 mt-2">{error}</div>}
+          {needDob && !monetized && (
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <label className="text-[12px] text-slate-400" htmlFor={`dob-${groupId}`}>Date of birth</label>
+              <input id={`dob-${groupId}`} type="date" value={dob} onChange={e => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)}
+                className="px-3 py-1.5 rounded-xl border bg-[#0B1530] text-[13px] text-slate-200 outline-none border-[#1A2845]" style={{ colorScheme: 'dark' }} />
+              <button onClick={() => void saveDobAndEnable()} disabled={!dob || busy}
+                className="px-4 py-1.5 rounded-xl text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+                {busy ? 'Saving…' : 'Save & turn on'}
+              </button>
+              <span className="text-[11px] text-slate-500 w-full">It can only be set once, so make sure it’s right.</span>
+            </div>
+          )}
         </div>
         <div className="flex-shrink-0">
           {monetized ? (
@@ -5056,7 +5086,7 @@ function HeadTransferOwnership({ groupId, monetized, onTransferred }: {
       <div className="text-white font-bold text-base mb-1">Transfer Ownership</div>
       <div className="text-[13px] text-slate-400 mb-4 max-w-2xl">
         Hand this community to another member. You become a regular member.
-        {monetized && ' It stays in the monetisation program: the new owner becomes a WynkoHead for as long as they own it, and earnings go to them from now on.'}
+        {monetized && ' It stays in the monetisation program only if the new owner is 18+ with a date of birth on file: they become a WynkoHead for this community for as long as they own it, and earnings go to them from now on. Otherwise monetisation switches off.'}
       </div>
       {membersQ.status === 'loading' ? (
         <div className="text-[12px] text-slate-500">Loading members…</div>
@@ -5621,13 +5651,14 @@ function HeadEarningsTab() {
               <div className="text-[13px] text-slate-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-slate-500">(estimated)</span></div>
             </div>
             {withdrawError && <div className="text-[11px] text-amber-300 -mb-2">{withdrawError}</div>}
-            <button onClick={() => void requestWithdraw()} disabled={withdrawing || withdrawn || payout.nextAmount <= 0}
+            <button onClick={() => void requestWithdraw()} disabled={withdrawing || withdrawn || balanceQ.data < MIN_PAYOUT_INR}
               className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-70 flex items-center justify-center gap-2"
               style={withdrawn
                 ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
                 : { background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', color: '#fff', boxShadow: '0 0 16px #1E3060' }}>
               {withdrawn ? <><Ico n="check" cls="w-3.5 h-3.5" /> Withdrawal requested</> : withdrawing ? 'Requesting…' : 'Withdraw'}
             </button>
+            {!withdrawn && balanceQ.data < MIN_PAYOUT_INR && <div className="text-[11px] text-slate-500 text-center -mt-1">Minimum payout is {inr(MIN_PAYOUT_INR)}</div>}
           </div>
         </div>
       </div>
@@ -9311,7 +9342,7 @@ function ReferAndEarnCard() {
           <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">REFER &amp; EARN</div>
           <div className="text-white font-bold text-lg">Invite people who build communities</div>
           <div className="text-slate-400 text-[13px] max-w-2xl mt-1">
-            When someone joins through your link and creates a community that gets monetised, you earn 10% of Wynko’s share of that community’s revenue for 6 months. On every ₹100 its members spend: owner ₹50, you ₹5, Wynko ₹45.
+            When someone joins through your link and creates a community that gets monetised, you earn 10% of Wynko’s share of that community’s revenue for 6 months. On every ₹100 of net revenue (after GST and fees) it brings in: owner ₹50, you ₹5, Wynko ₹45.
           </div>
         </div>
       </div>
@@ -9348,9 +9379,11 @@ function ReferAndEarnCard() {
             <div className="text-[13px] text-slate-300">
               Wallet balance: <b className="text-emerald-400">{inr(d.wallet_balance)}</b>
               {d.upi_id && <span className="text-slate-500"> · pays to {d.upi_id}</span>}
+              {d.wallet_balance < MIN_PAYOUT_INR && <span className="text-slate-500"> · minimum payout {inr(MIN_PAYOUT_INR)}</span>}
             </div>
             {d.upi_id ? (
-              <button onClick={() => void withdraw()} disabled={d.wallet_balance <= 0 || busy === 'payout'}
+              <button onClick={() => void withdraw()} disabled={d.wallet_balance < MIN_PAYOUT_INR || busy === 'payout'}
+                title={d.wallet_balance < MIN_PAYOUT_INR ? `Minimum payout is ${inr(MIN_PAYOUT_INR)}` : undefined}
                 className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: '#19B57D' }}>
                 {busy === 'payout' ? 'Requesting…' : 'Withdraw'}
               </button>
