@@ -1,17 +1,17 @@
 /* RevM² Service Worker — Offline Support */
-const CACHE = 'revm2-v8'; // bumped: was v7. Removed calculator.html and
-// predictor.html from SHELL below (pages deleted from the platform) -
-// this bump purges them out of every existing client's cache too, not
-// just new installs.
+const CACHE = 'revm2-v9'; // bumped: was v8. Pages are now served at clean
+// URLs (vercel.json cleanUrls: /tracker, not /tracker.html - the .html
+// forms redirect), so SHELL caches the clean URLs; caching the .html forms
+// would store redirects, which browsers refuse to use for navigations.
+// Also drops '/index.html', which doesn't exist and made addAll() fail.
 const SHELL = [
   '/',
-  '/index.html',
-  '/login.html',
-  '/tracker.html',
-  '/groups.html',
-  '/partners.html',
-  '/chat.html',
-  '/privacy.html',
+  '/login',
+  '/tracker',
+  '/groups',
+  '/partners',
+  '/chat',
+  '/privacy',
   '/style.css',
   '/shared.js',
   '/manifest.json',
