@@ -85,7 +85,7 @@ export const RevM2Calls = (()=>{
       .on('broadcast', { event:'incoming_call' }, ({payload}) => {
         // If chat.html is already open for this exact friendship, its own
         // per-friendship ring already handles it — don't double-toast.
-        if(location.pathname.endsWith('chat.html') && new URLSearchParams(location.search).get('fid')===payload.fid) return;
+        if(/\/chat(\.html)?$/.test(location.pathname) && new URLSearchParams(location.search).get('fid')===payload.fid) return;
         showToast(sb, payload);
       })
       .subscribe();

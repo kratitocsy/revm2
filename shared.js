@@ -94,7 +94,7 @@ var RevM2Shared = function(exports) {
     window.location.href = url;
   }
   function goInvite() {
-    if (location.pathname.endsWith("groups.html") && typeof openQuickInviteModal === "function") {
+    if (/\/groups(\.html)?$/.test(location.pathname) && typeof openQuickInviteModal === "function") {
       openQuickInviteModal();
     } else {
       window.location.href = "groups.html?quickinvite=1";
@@ -882,7 +882,7 @@ var RevM2Shared = function(exports) {
     function init(sb2, myUserId) {
       if (channel || !myUserId || !sb2) return;
       channel = sb2.channel(`user-calls-${myUserId}`).on("broadcast", { event: "incoming_call" }, ({ payload }) => {
-        if (location.pathname.endsWith("chat.html") && new URLSearchParams(location.search).get("fid") === payload.fid) return;
+        if (/\/chat(\.html)?$/.test(location.pathname) && new URLSearchParams(location.search).get("fid") === payload.fid) return;
         showToast(sb2, payload);
       }).subscribe();
       if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
@@ -995,7 +995,7 @@ var RevM2Shared = function(exports) {
       refreshCounts();
       channel = sb2.channel(`user-notify-${myUserId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "dm_messages", filter: `recipient_id=eq.${myUserId}` }, ({ new: row }) => {
         refreshCounts();
-        const onThisChat = location.pathname.endsWith("chat.html") && new URLSearchParams(location.search).get("fid") === row.friendship_id;
+        const onThisChat = /\/chat(\.html)?$/.test(location.pathname) && new URLSearchParams(location.search).get("fid") === row.friendship_id;
         if (onThisChat) return;
         if (row.kind === "text") showToast("message", row);
         else if (row.kind === "call_log" && row.call_status === "missed") showToast("missed_call", row);

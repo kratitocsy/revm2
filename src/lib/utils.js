@@ -71,11 +71,11 @@ export function escAttr(s){
    here, shared on every page, fixes navigation everywhere. */
 export function go(url){ window.location.href = url; }
 // Sidebar "Invite friends" entry point, present on every logged-in page.
-// On groups.html itself, open the quick-invite modal in place instead of
+// On the groups page itself (/groups or /groups.html), open the quick-invite modal in place instead of
 // a full page reload; everywhere else, navigate there with the trigger
 // param so groups.html's init() opens it automatically after loading.
 export function goInvite(){
-  if(location.pathname.endsWith('groups.html') && typeof openQuickInviteModal === 'function'){
+  if(/\/groups(\.html)?$/.test(location.pathname) && typeof openQuickInviteModal === 'function'){
     openQuickInviteModal();
   } else {
     window.location.href = 'groups.html?quickinvite=1';

@@ -5,14 +5,10 @@
   "redirects": [
     { "source": "/index.html", "destination": "/", "permanent": true }
   ],
+  "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/product.html" },
-    { "source": "/product", "destination": "/product.html" },
-    { "source": "/about", "destination": "/marketing.html" },
-    { "source": "/login", "destination": "/login.html" },
-    { "source": "/waitlist", "destination": "/waitlist.html" },
-    { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/terms", "destination": "/terms.html" }
+    { "source": "/", "destination": "/product" },
+    { "source": "/about", "destination": "/marketing" }
   ],
   "headers": [
     {

@@ -143,8 +143,17 @@ export async function saveUsername(username: string): Promise<string> {
   return data as string;
 }
 
+// Where Supabase sends the user back after an email/OAuth round trip. Pages are
+// served at clean URLs (/home) but the auth redirect allow-list has the .html
+// form, so send that; Vercel then redirects it to the clean URL.
+function authReturnUrl(): string {
+  const url = new URL(window.location.href);
+  if (url.pathname !== '/' && !/\.[a-z0-9]+$/i.test(url.pathname)) url.pathname = url.pathname.replace(/\/$/, '') + '.html';
+  return url.toString();
+}
+
 export async function changeEmail(email: string): Promise<void> {
-  const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: window.location.href });
+  const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: authReturnUrl() });
   if (error) throw new Error(messageOf(error, 'Could not change your email'));
 }
 
@@ -173,7 +182,7 @@ export async function changePassword(email: string, current: string | null, next
 }
 
 export async function linkProvider(provider: LinkableProvider): Promise<void> {
-  const { error } = await sb.auth.linkIdentity({ provider, options: { redirectTo: window.location.href } });
+  const { error } = await sb.auth.linkIdentity({ provider, options: { redirectTo: authReturnUrl() } });
   if (error) throw new Error(messageOf(error, 'Could not connect that account'));
 }
 

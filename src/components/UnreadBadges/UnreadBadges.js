@@ -101,7 +101,7 @@ export const RevM2Notifications = (()=>{
         refreshCounts();
         // If chat.html is already open for this exact conversation, it already
         // shows the message/call-log inline and marks it read — no toast needed.
-        const onThisChat = location.pathname.endsWith('chat.html') && new URLSearchParams(location.search).get('fid')===row.friendship_id;
+        const onThisChat = /\/chat(\.html)?$/.test(location.pathname) && new URLSearchParams(location.search).get('fid')===row.friendship_id;
         if(onThisChat) return;
         if(row.kind==='text') showToast('message', row);
         else if(row.kind==='call_log' && row.call_status==='missed') showToast('missed_call', row);
