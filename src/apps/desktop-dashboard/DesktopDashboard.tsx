@@ -361,7 +361,7 @@ const NAV = [
   { id: 'schedules', label: 'Schedules', icon: 'clock' as const, group: 'STUDY' },
   { id: 'studyrooms', label: 'Community', icon: 'rooms' as const, group: 'STUDY' },
   { id: 'battleground', label: 'Battleground', icon: 'zap' as const, group: 'STUDY' },
-  { id: '3dlibrary', label: '3D Library', icon: 'cube' as const, group: 'STUDY' },
+  // 3D Library is hidden for now (page still exists at the '3dlibrary' id).
   { id: 'wynkoins', label: 'WYNKOINS', icon: 'coin' as const, group: 'OTHER' },
   { id: 'earn', label: 'Earn with Wynko', icon: 'fire' as const, group: 'OTHER' },
   { id: 'settings', label: 'Settings', icon: 'cog' as const, group: 'OTHER' },
@@ -663,10 +663,9 @@ function QuickActions({ onGoFocus, onNavigate }: { onGoFocus: () => void; onNavi
     { label: 'Start Focus', sub: 'Focus Lock', icon: 'lock' as const, grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)', glow: '0 0 28px rgba(124,77,255,0.65), 0 4px 24px rgba(92,53,204,0.4)', onClick: onGoFocus },
     { label: 'Schedules', sub: 'Plan sessions', icon: 'clock' as const, grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)', glow: '0 0 24px rgba(15,153,204,0.55), 0 4px 20px rgba(12,127,170,0.35)', onClick: () => onNavigate('schedules') },
     { label: 'Study Room', sub: '24 online', icon: 'rooms' as const, grad: 'linear-gradient(135deg,#0A9673,#077A5E)', glow: '0 0 24px rgba(10,150,115,0.5), 0 4px 20px rgba(7,122,94,0.3)', onClick: () => onNavigate('studyrooms') },
-    { label: '3D Library', sub: 'Virtual Space', icon: 'cube' as const, grad: 'linear-gradient(135deg,#5835CC,#4630AA)', glow: '0 0 24px rgba(88,53,204,0.55), 0 4px 20px rgba(70,48,170,0.35)', onClick: () => onNavigate('3dlibrary') },
   ]
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-3 gap-3">
       {actions.map((a, i) => (
         <button key={i} onClick={a.onClick}
           className="flex items-center gap-3 p-3.5 rounded-xl border border-white/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
