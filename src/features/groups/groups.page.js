@@ -164,15 +164,18 @@ function renderList(){
 
 async function renderDiscover(){
   const q = document.getElementById('searchBox').value.trim();
-  let query = sb.from('study_groups').select('*').eq('visibility','public').order('created_at',{ascending:false}).limit(40);
+  // Communities aren't listed here: joining one needs the owner's approval,
+  // which is handled by the dashboard's Communities > Explore.
+  let query = sb.from('study_groups').select('*').eq('visibility','public').eq('is_revhead_group', false).order('created_at',{ascending:false}).limit(40);
   if(q) query = query.ilike('name', `%${q}%`);
   const { data, error } = await query;
   const grid = document.getElementById('groupGrid');
   if(error){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Couldn't load groups.</div>`; return; }
   const myIds = new Set(myGroups.map(g=>g.id));
   const results = (data||[]).filter(g=>!myIds.has(g.id));
-  if(!results.length){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No public groups match yet — be the first to create one.</div>`; return; }
-  grid.innerHTML = results.map(g=>groupCardHtml(g, false)).join('');
+  const communitiesHint = `<div class="empty-state" style="grid-column:1/-1;">Looking for a community? <a href="home.html?page=studyrooms&tab=communities" style="color:var(--cyan);">Explore communities →</a></div>`;
+  if(!results.length){ grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No public groups match yet — be the first to create one.</div>` + communitiesHint; return; }
+  grid.innerHTML = results.map(g=>groupCardHtml(g, false)).join('') + communitiesHint;
   rm2Stagger(grid.children);
 }
 
@@ -1096,9 +1099,18 @@ async function kickMember(userId){
 
 async function transferAdmin(userId){
   if(!confirm('Transfer adminship to this member? You will become a regular member.')) return;
-  await sb.from('group_members').update({ role:'admin' }).eq('group_id',currentGroup.id).eq('user_id',userId);
-  await sb.from('group_members').update({ role:'member' }).eq('group_id',currentGroup.id).eq('user_id',me.id);
-  await sb.from('study_groups').update({ owner_id:userId }).eq('id',currentGroup.id);
+  if(currentGroup.is_revhead_group){
+    // Communities are handed over server-side (roles, owner, monetisation
+    // rules) in one step - the owner can't be changed directly.
+    const { error } = await sb.rpc('rpc_transfer_community_ownership', { p_group_id: currentGroup.id, p_new_owner: userId });
+    if(error){ alert('Could not transfer the community: '+error.message); return; }
+  } else {
+    // Owner first: if that fails, nobody's role has changed yet.
+    const { error } = await sb.from('study_groups').update({ owner_id:userId }).eq('id',currentGroup.id);
+    if(error){ alert('Could not transfer: '+error.message); return; }
+    await sb.from('group_members').update({ role:'admin' }).eq('group_id',currentGroup.id).eq('user_id',userId);
+    await sb.from('group_members').update({ role:'member' }).eq('group_id',currentGroup.id).eq('user_id',me.id);
+  }
   currentGroup.my_role = 'member';
   renderGroupDetail();
   loadMembers();

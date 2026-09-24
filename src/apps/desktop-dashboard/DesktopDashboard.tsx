@@ -10470,6 +10470,26 @@ export default function DesktopDashboard() {
         .catch(e => setCommunityNotice((e as Error).message))
     } catch { /* no URL/history (tests, very old browsers): nothing to do */ }
   }, [authState])
+  // Deep links from the old pages (and redirects in vercel.json):
+  // home.html?page=<nav id>[&tab=rooms|communities] opens that page, then the
+  // parameters are dropped from the address bar. Only pages in the sidebar.
+  useEffect(() => {
+    if (authState !== 'ready') return
+    try {
+      const url = new URL(window.location.href)
+      const page = url.searchParams.get('page')
+      if (!page) return
+      const tab = url.searchParams.get('tab')
+      url.searchParams.delete('page')
+      url.searchParams.delete('tab')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      if (!NAV.some(n => n.id === page)) return
+      setActiveRoom(null)
+      setManagingCommunityId(null)
+      setActiveNav(page)
+      if (page === 'studyrooms' && (tab === 'rooms' || tab === 'communities')) setStudyRoomsTab(tab)
+    } catch { /* no URL/history: nothing to do */ }
+  }, [authState])
   // A Quick Timer run keeps counting while you're elsewhere in the app; save
   // its time every minute (and finish it) from here while its page is closed.
   useEffect(() => {
