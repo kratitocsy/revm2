@@ -24,6 +24,7 @@ RevM2Loader.show('Checking access…');
 const sb = window.supabase.createClient(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON);
 
 let isOwner = false;
+let isPlatformOwner = false;
 let allProfiles = [];
 let usageWindowDays = 30;
 let usageFeatureFilter = '';
@@ -38,6 +39,8 @@ async function init(){
   const { data: me } = await sb.from('user_profiles').select('is_admin,is_moderator').eq('id', session.user.id).single();
   const { data: ownerCheck } = await sb.rpc('is_owner');
   isOwner = !!ownerCheck;
+  const { data: platformOwnerCheck } = await sb.rpc('is_platform_owner');
+  isPlatformOwner = !!platformOwnerCheck;
   const canSeeAdmin = me?.is_admin || me?.is_moderator || isOwner;
 
   if(!canSeeAdmin){
@@ -105,7 +108,10 @@ function render(profiles, events){
         <img src="wynko-logo.png" alt="WYNKO" style="height:32px;width:auto;">
         <div class="adm-title">Admin — WYNKO</div>
       </div>
-      <a class="adm-back" href="tracker.html">← Back to tracker</a>
+      <div style="display:flex;gap:1.25rem;align-items:center;">
+        ${isPlatformOwner ? '<a class="adm-back" href="owner" style="color:var(--violet-bright);">Owner Control →</a>' : ''}
+        <a class="adm-back" href="tracker.html">← Back to tracker</a>
+      </div>
     </div>
 
     <div class="stat-grid">
