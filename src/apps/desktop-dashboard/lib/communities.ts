@@ -290,6 +290,13 @@ export const fetchPayoutHistory = () =>
 export const fetchWalletBalance = () => call<number>(sb.rpc('my_wallet_balance'), 'Could not load your balance').then((n) => Number(n) || 0);
 export const requestPayout = () => call(sb.rpc('request_payout'), 'Could not request a payout');
 
+// Payouts need a wallet balance of at least this much (migration 0080).
+export const MIN_PAYOUT_INR = 500;
+
+// Monetisation is 18+ only; the date of birth can be set once (migration 0080).
+export const setMyDateOfBirth = (dob: string) =>
+  call(sb.rpc('set_my_date_of_birth', { p_dob: dob }), 'Could not save your date of birth');
+
 // ── Referrals (migration 0079) ──────────────────────────────────────────────
 // Anyone can refer. When someone who signed up through your link creates a
 // community and it gets monetised, you earn 10% of the platform's 50% share

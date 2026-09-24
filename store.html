@@ -326,21 +326,56 @@ async function loadTxnHistory(){
 
 function openBuy(pkg){ pendingPkg=pkg; document.getElementById('buyDetails').innerHTML=`<b>${pkg.name}</b>: <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:0.15rem"><circle cx="12" cy="12" r="9"/><path d="M8 15V9l4 4 4-4v6"/></svg>${(pkg.coins*(1+pkg.bonus_pct/100)).toLocaleString()} coins for <b>₹${pkg.price_inr}</b>${pkg.bonus_pct?` (includes ${pkg.bonus_pct}% bonus)`:''}. Processed via Razorpay.`; document.getElementById('buyModal').classList.add('show'); }
 function closeBuyModal(){ document.getElementById('buyModal').classList.remove('show'); }
-function proceedPayment(){ closeBuyModal(); alert('Razorpay integration: call your backend /create-razorpay-order → open Razorpay checkout → on success call /verify-payment → increment_wallet RPC.\nSee SETUP.md for full implementation guide.'); }
+// Razorpay: the server creates the order (price comes from coin_packages),
+// checkout collects the payment, and the server verifies the signature and
+// adds the coins. Nothing is granted from the browser.
+function loadRazorpay(){
+  if(window.Razorpay) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://checkout.razorpay.com/v1/checkout.js';
+    s.onload=resolve; s.onerror=()=>reject(new Error('Could not load Razorpay'));
+    document.head.appendChild(s);
+  });
+}
+let paying=false;
+async function proceedPayment(){
+  if(!pendingPkg || paying) return;
+  paying=true; closeBuyModal();
+  try{
+    await loadRazorpay();
+    const { data:order, error } = await sb.functions.invoke('create-razorpay-order',{ body:{ package_id:pendingPkg.id } });
+    if(error || !order?.order_id) throw new Error(order?.error || 'Could not start the payment - try again');
+    const rzp = new window.Razorpay({
+      key: order.key_id,
+      order_id: order.order_id,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'Wynko',
+      description: `${order.coins.toLocaleString()} coins`,
+      prefill: { email: order.email || me.email || '' },
+      theme: { color: '#7C4DFF' },
+      handler: async (resp)=>{
+        const { data:res, error:vErr } = await sb.functions.invoke('verify-razorpay-payment',{ body:resp });
+        if(vErr || !res?.ok){ alert(res?.error || 'Payment received but not confirmed yet - it will be added shortly. Contact support if it isn\'t.'); return; }
+        await loadWallet(); renderWallet();
+        alert(`Payment successful! ${res.coins_added.toLocaleString()} coins added.`);
+      },
+    });
+    rzp.on('payment.failed', (r)=>alert(r?.error?.description || 'Payment failed'));
+    rzp.open();
+  }catch(e){ alert(e.message || 'Payment failed'); }
+  finally{ paying=false; }
+}
 
 function openRedeem(item){ pendingItem=item; document.getElementById('redeemDetails').innerHTML=`<b>${item.name}</b> — <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:0.15rem"><circle cx="12" cy="12" r="9"/><path d="M8 15V9l4 4 4-4v6"/></svg>${item.coin_cost.toLocaleString()} coins${item.duration_days?` for ${item.duration_days} days`:' permanently'}.`; document.getElementById('redeemModal').classList.add('show'); }
 function closeRedeemModal(){ document.getElementById('redeemModal').classList.remove('show'); }
 async function confirmRedeem(){
   if(!pendingItem) return;
-  const { data: ok } = await sb.rpc('spend_coins',{ uid:me.id, amount:pendingItem.coin_cost });
-  if(!ok){ alert('Not enough coins!'); closeRedeemModal(); return; }
-  const expiresAt = pendingItem.duration_days ? new Date(Date.now()+pendingItem.duration_days*86400000).toISOString() : null;
-  await sb.from('user_inventory').insert({ user_id:me.id, item_id:pendingItem.id, expires_at:expiresAt });
-  await sb.from('coin_transactions').insert({ user_id:me.id, amount:-pendingItem.coin_cost, reason:`redeem_${pendingItem.item_type}`, ref_id:pendingItem.id });
-  // apply immediately to profile if it's a badge/ad-free
-  if(pendingItem.item_type==='verified_badge') await sb.from('user_profiles').update({ verified_until:expiresAt||'2099-01-01' }).eq('id',me.id);
-  if(pendingItem.item_type==='ad_free') await sb.from('user_profiles').update({ ad_free_until:expiresAt||'2099-01-01' }).eq('id',me.id);
+  // Server spends the coins and applies the perk in one step.
+  const { error } = await sb.rpc('redeem_shop_item',{ p_item_id:pendingItem.id });
   closeRedeemModal();
+  if(error){ alert(error.message.includes('Not enough coins') ? 'Not enough coins!' : error.message); return; }
   await loadWallet(); renderWallet(); loadInventory();
   alert('Redeemed! Your item is now active.');
 }
