@@ -137,6 +137,22 @@ async function call<T>(p: PromiseLike<{ data: unknown; error: unknown }>, fallba
 export const fetchMyCommunities = () => call<MyCommunity[]>(sb.rpc('my_communities'), 'Could not load your communities').then((d) => d ?? []);
 export const fetchDiscoverCommunities = () => call<DiscoverCommunity[]>(sb.rpc('discover_communities'), 'Could not load communities').then((d) => d ?? []);
 
+/** Which of these communities are in the monetisation program (shown with the verified tick). Migration 0074. */
+export async function fetchMonetizedCommunityIds(ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await call<{ id: string; monetization_enabled: boolean }[]>(
+    sb.from('study_groups').select('id, monetization_enabled').in('id', ids),
+    'Could not load community status',
+  );
+  return new Set((rows ?? []).filter((r) => r.monetization_enabled).map((r) => r.id));
+}
+/** Owner only; turning it on requires an approved WynkoHead (checked server-side). */
+export const setCommunityMonetization = (groupId: string, enabled: boolean) =>
+  call<boolean>(sb.rpc('rpc_set_community_monetization', { p_group_id: groupId, p_enabled: enabled }), 'Could not update monetisation');
+/** A monetised community's new owner becomes a WynkoHead while they own it (migration 0075). */
+export const transferCommunityOwnership = (groupId: string, newOwnerId: string) =>
+  call(sb.rpc('rpc_transfer_community_ownership', { p_group_id: groupId, p_new_owner: newOwnerId }), 'Could not transfer the community');
+
 /** Pulls the token out of a pasted invite link (…?community=<token>) or takes a bare code. */
 export function parseInviteInput(input: string): string {
   const s = input.trim();
