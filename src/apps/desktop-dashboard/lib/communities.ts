@@ -146,6 +146,19 @@ export async function fetchMonetizedCommunityIds(ids: string[]): Promise<Set<str
   );
   return new Set((rows ?? []).filter((r) => r.monetization_enabled).map((r) => r.id));
 }
+/**
+ * The caller's Home Community (community_home, own row via RLS). `chosen` is
+ * false when it was assigned automatically because they're in exactly one
+ * community; with two or more they must pick one explicitly (migration 0078).
+ */
+export async function fetchMyHomeCommunity(): Promise<{ group_id: string; chosen: boolean; locked_until: string } | null> {
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth.user) return null;
+  return call(
+    sb.from('community_home').select('group_id, chosen, locked_until').eq('user_id', auth.user.id).maybeSingle(),
+    'Could not load your Home Community',
+  );
+}
 /** Owner only; turning it on requires an approved WynkoHead (checked server-side). */
 export const setCommunityMonetization = (groupId: string, enabled: boolean) =>
   call<boolean>(sb.rpc('rpc_set_community_monetization', { p_group_id: groupId, p_enabled: enabled }), 'Could not update monetisation');
@@ -276,6 +289,36 @@ export const fetchPayoutHistory = () =>
   call<PayoutRow[]>(sb.rpc('my_payout_history'), 'Could not load payouts').then((d) => (d ?? []).map((p) => ({ ...p, amount: Number(p.amount) || 0 })));
 export const fetchWalletBalance = () => call<number>(sb.rpc('my_wallet_balance'), 'Could not load your balance').then((n) => Number(n) || 0);
 export const requestPayout = () => call(sb.rpc('request_payout'), 'Could not request a payout');
+
+// ── Referrals (migration 0079) ──────────────────────────────────────────────
+// Anyone can refer. When someone who signed up through your link creates a
+// community and it gets monetised, you earn 10% of the platform's 50% share
+// of that community's revenue for 6 months from its first monetisation.
+export interface ReferralSummary {
+  referral_code: string | null;
+  people_referred: number;
+  communities_created: number;
+  communities_earning: number;
+  total_earned: number;
+  wallet_balance: number;
+  upi_id: string | null;
+}
+export async function fetchReferralSummary(): Promise<ReferralSummary> {
+  await call<string>(sb.rpc('my_referral_code'), 'Could not create your referral code');
+  const rows = await call<ReferralSummary[]>(sb.rpc('my_referral_summary'), 'Could not load your referrals');
+  const r = rows?.[0];
+  return {
+    referral_code: r?.referral_code ?? null,
+    people_referred: r?.people_referred ?? 0,
+    communities_created: r?.communities_created ?? 0,
+    communities_earning: r?.communities_earning ?? 0,
+    total_earned: Number(r?.total_earned) || 0,
+    wallet_balance: Number(r?.wallet_balance) || 0,
+    upi_id: r?.upi_id ?? null,
+  };
+}
+export const referralLink = (code: string) => `${window.location.origin}/login?ref=${encodeURIComponent(code)}`;
+export const setMyUpiId = (upi: string) => call(sb.rpc('set_my_upi_id', { p_upi_id: upi }), 'Could not save your UPI ID');
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
 /** Generic "load, keep last good value, refresh on focus/interval" helper. */

@@ -27,7 +27,8 @@ import {
   applyAsWynkoHead, createCommunity, publishCommunitySchedule, loadScheduleDraft, saveScheduleDraft, fetchHeadOverview,
   fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, postAnnouncement, deleteAnnouncement,
   communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout,
-  fetchMonetizedCommunityIds, setCommunityMonetization, transferCommunityOwnership,
+  fetchMonetizedCommunityIds, setCommunityMonetization, transferCommunityOwnership, fetchMyHomeCommunity,
+  fetchReferralSummary, referralLink, setMyUpiId, type ReferralSummary,
   type MyCommunity, type DiscoverCommunity, type CommunityScheduleRow, type CommunityDetailData, type CommunityAnnouncementRow,
   type WynkoHeadStatus, type ScheduleChoice, type StudentAnalyticsRow, type JoinRequestRow,
 } from './lib/communities'
@@ -2787,7 +2788,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 }
 
 // ─── Study Rooms List Page ─────────────────────────────────────────────────────
-function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, communities, communitiesStatus, communitiesError, onRefreshCommunities, pendingJoinRoomId, onPendingJoinHandled, ownedCommunityId, onManageCommunity, onCreateCommunity }: {
+function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, communities, communitiesStatus, communitiesError, onRefreshCommunities, pendingJoinRoomId, onPendingJoinHandled, ownedCommunityIds, onManageCommunity, onCreateCommunity }: {
   onNavigate: (id: string) => void
   onEnterRoom: (room: RoomData) => void
   profile?: ProfileInfo
@@ -2802,8 +2803,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
   onOpenCommunity: (c: CommunityData) => void
   communities: CommunityData[]
   communitiesStatus: 'loading' | 'ready' | 'error'
-  ownedCommunityId: string | null
-  onManageCommunity: () => void
+  ownedCommunityIds: Set<string>
+  onManageCommunity: (id: string) => void
   onCreateCommunity: (name: string, description: string) => Promise<string | null>
   communitiesError: string | null
   onRefreshCommunities: () => Promise<void>
@@ -3010,7 +3011,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           {communityTab === 'communities' ? (
             <CommunitiesTabContent communities={communities} status={communitiesStatus} error={communitiesError}
               onRefresh={onRefreshCommunities} onOpenCommunity={onOpenCommunity}
-              ownedCommunityId={ownedCommunityId} onManageCommunity={onManageCommunity} onCreateCommunity={onCreateCommunity} />
+              ownedCommunityIds={ownedCommunityIds} onManageCommunity={onManageCommunity} onCreateCommunity={onCreateCommunity} />
           ) : (
           <>
           {/* Hero */}
@@ -3458,14 +3459,14 @@ function joinStatusMessage(status: string): string {
   return 'That invite link or code isn’t valid.'
 }
 
-function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCommunity, ownedCommunityId, onManageCommunity, onCreateCommunity }: {
+function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCommunity, ownedCommunityIds, onManageCommunity, onCreateCommunity }: {
   communities: CommunityData[]
   status: 'loading' | 'ready' | 'error'
   error: string | null
   onRefresh: () => Promise<void>
   onOpenCommunity: (c: CommunityData) => void
-  ownedCommunityId: string | null
-  onManageCommunity: () => void
+  ownedCommunityIds: Set<string>
+  onManageCommunity: (id: string) => void
   onCreateCommunity: (name: string, description: string) => Promise<string | null>
 }) {
   // Home Community + its 30-day lock are stored per user (community_home) and
@@ -3597,7 +3598,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
             )}
           </div>
           <div className="text-white/60 text-[13px] mb-5 max-w-md">
-            Your primary community. 50% of your study rewards go here.
+            Everything you buy and the ad revenue you generate supports this community — its WynkoHead earns 50%. You can change it once every 30 days.
           </div>
 
           {home ? (
@@ -3616,8 +3617,8 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {home.id === ownedCommunityId && (
-                  <button onClick={onManageCommunity}
+                {ownedCommunityIds.has(home.id) && (
+                  <button onClick={() => onManageCommunity(home.id)}
                     className="px-5 py-2.5 rounded-full text-white font-semibold text-sm flex items-center gap-1.5 hover:opacity-90 transition-opacity border border-white/40">
                     <Ico n="cog" cls="w-3.5 h-3.5" /> Manage
                   </button>
@@ -3632,7 +3633,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <div className="text-white font-semibold text-base mb-1">No home community selected yet</div>
-                <div className="text-white/55 text-[13px] max-w-sm">Pick one community as your home base — half of your study rewards go there.</div>
+                <div className="text-white/55 text-[13px] max-w-sm">Pick one community as your home base — your purchases and ad revenue support it.</div>
               </div>
               <button onClick={() => setShowPicker(true)}
                 className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm hover:opacity-90 transition-opacity flex-shrink-0">
@@ -3656,7 +3657,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
             <div key={c.id} className="p-5 rounded-2xl border flex flex-col" style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
               <div className="flex items-start justify-between mb-3">
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
-                {c.id === ownedCommunityId ? (
+                {ownedCommunityIds.has(c.id) ? (
                   <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold flex-shrink-0"
                     style={{ background: 'rgba(124,77,255,0.14)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>Owner</span>
                 ) : (
@@ -3679,10 +3680,10 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
                   {c.avatarColors && c.avatarInits && <FaceAvatars colors={c.avatarColors} inits={c.avatarInits} />}
                   {!!c.avatarExtra && <span className="text-[11px] text-slate-500 ml-0.5">+{c.avatarExtra}</span>}
                 </div>
-                <button onClick={() => c.id === ownedCommunityId ? onManageCommunity() : onOpenCommunity(c)}
+                <button onClick={() => ownedCommunityIds.has(c.id) ? onManageCommunity(c.id) : onOpenCommunity(c)}
                   className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1 flex-shrink-0 hover:opacity-90 transition-opacity"
                   style={{ background: '#7C4DFF' }}>
-                  {c.id === ownedCommunityId ? 'Manage' : 'Open'} <Ico n="chevR" cls="w-3 h-3" />
+                  {ownedCommunityIds.has(c.id) ? 'Manage' : 'Open'} <Ico n="chevR" cls="w-3 h-3" />
                 </button>
               </div>
             </div>
@@ -3691,14 +3692,14 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
       </div>
 
       {/* Create your own community - open to everyone; monetisation needs an approved WynkoHead */}
-      {!ownedCommunityId && status !== 'loading' && (
+      {status !== 'loading' && (
         <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-4"
           style={{ background: '#0B1530', borderColor: 'rgba(124,77,255,0.35)', borderStyle: 'dashed' }}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
               style={{ background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.30)' }}>🏗️</div>
             <div className="min-w-0">
-              <div className="text-white font-semibold text-sm">Create Your Own Community</div>
+              <div className="text-white font-semibold text-sm">{ownedCommunityIds.size > 0 ? 'Create Another Community' : 'Create Your Own Community'}</div>
               <div className="text-slate-500 text-[12px]">Bring your friends or students together. Approved WynkoHeads can also monetise it.</div>
             </div>
           </div>
@@ -3813,7 +3814,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
               <div className="text-2xl mb-2">🏗️</div>
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">NEW COMMUNITY</div>
               <div className="text-lg font-bold text-white">Create your community</div>
-              <div className="text-slate-500 text-[12px] mt-1">You can run one community. New members need your approval to join.</div>
+              <div className="text-slate-500 text-[12px] mt-1">New members need your approval to join. You can run as many communities as you like.</div>
             </div>
             <label className="block text-[11px] text-slate-500 mb-1.5">Name</label>
             <input autoFocus value={createName} onChange={e => setCreateName(e.target.value)} maxLength={60} placeholder="e.g. JEE 2027 Night Owls"
@@ -3890,6 +3891,69 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Shown over everything when someone is in two or more communities and
+// hasn't picked their Home Community yet - it can't be dismissed (0078).
+function RequiredHomeCommunityPicker({ communities, currentId, onPicked }: {
+  communities: CommunityData[]
+  currentId: string | null
+  onPicked: () => Promise<void>
+}) {
+  const [selected, setSelected] = useState<string | null>(currentId)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  async function confirm() {
+    if (!selected || busy) return
+    setBusy(true); setError(null)
+    try {
+      await setHomeCommunity(selected)
+      await onPicked()
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(0,0,0,0.8)] px-4" role="dialog" aria-modal="true" aria-labelledby="home-pick-title">
+      <div className="rounded-2xl border p-7 w-[440px] max-w-full max-h-[85vh] overflow-y-auto"
+        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        <div className="text-center mb-5">
+          <div className="text-2xl mb-2">👑</div>
+          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
+          <div id="home-pick-title" className="text-lg font-bold text-white">Choose your Home Community</div>
+          <div className="text-slate-400 text-[12px] mt-1.5 leading-relaxed">
+            You’re in {communities.length} communities. Pick one as your home — everything you buy and the ad revenue you generate supports it.
+            You can change it once every {HOME_LOCK_DAYS} days.
+          </div>
+        </div>
+        <div className="space-y-2 mb-4">
+          {communities.map(c => (
+            <button key={c.id} onClick={() => setSelected(c.id)} disabled={busy}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-violet-500/40"
+              style={{
+                background: selected === c.id ? 'rgba(124,77,255,0.12)' : 'rgba(14,21,40,0.55)',
+                borderColor: selected === c.id ? 'rgba(124,77,255,0.5)' : 'rgba(124,58,237,0.16)',
+              }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-100 flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">{c.name}</span>{c.monetized && <VerifiedTick size={14} />}
+                </div>
+                <div className="text-[11px] text-slate-500">{fmt(c.members)} members</div>
+              </div>
+              {selected === c.id && <Ico n="check" cls="w-4 h-4 text-violet-300 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+        {error && <div className="text-[12px] text-amber-300 text-center mb-3">{error}</div>}
+        <button onClick={() => void confirm()} disabled={!selected || busy}
+          className="w-full py-2.5 rounded-xl text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+          {busy ? 'Saving…' : 'Make this my Home Community'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -4924,9 +4988,9 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
           </div>
           <div className="text-[13px] text-slate-400 max-w-xl">
             {monetized
-              ? 'Your community earns from its members’ study activity and shows the verified tick. Earnings only count from when the program was switched on.'
+              ? 'You earn 50% of everything spent (and the ad revenue generated) by members who made this their Home Community. It shows the verified tick; earnings count from when the program was switched on.'
               : isWynkoHead
-                ? 'Turn it on to start earning from your community and get the verified tick.'
+                ? 'Turn it on to earn 50% of what members who made this their Home Community spend, and to get the verified tick.'
                 : 'Only approved WynkoHeads can monetise a community. Apply from the Earn page — once approved, switch it on here.'}
           </div>
           {error && <div className="text-[12px] text-amber-300 mt-2">{error}</div>}
@@ -9210,6 +9274,104 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
 // ─── Earn with Wynko Page ──────────────────────────────────────────────────────
 
+// ── Refer & Earn (everyone) ─────────────────────────────────────────────
+function ReferAndEarnCard() {
+  const q = useLoader(fetchReferralSummary, null as ReferralSummary | null, [], 0)
+  const [copied, setCopied] = useState(false)
+  const [upi, setUpi] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const d = q.data
+  const link = d?.referral_code ? referralLink(d.referral_code) : ''
+  const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+
+  async function copy() {
+    if (!link) return
+    try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* clipboard blocked */ }
+  }
+  async function saveUpi() {
+    const v = upi.trim()
+    if (!/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/.test(v)) { setMsg({ text: 'Enter a valid UPI ID, like name@okbank.', ok: false }); return }
+    setBusy('upi'); setMsg(null)
+    try { await setMyUpiId(v); setUpi(''); await q.refresh(); setMsg({ text: '✓ UPI ID saved', ok: true }) }
+    catch (e) { setMsg({ text: (e as Error).message, ok: false }) }
+    finally { setBusy(null) }
+  }
+  async function withdraw() {
+    setBusy('payout'); setMsg(null)
+    try { await requestPayout(); await q.refresh(); setMsg({ text: '✓ Payout requested — we’ll send it to your UPI after review.', ok: true }) }
+    catch (e) { setMsg({ text: (e as Error).message, ok: false }) }
+    finally { setBusy(null) }
+  }
+
+  return (
+    <div className="rounded-2xl border p-5" style={{ background: 'linear-gradient(135deg,#0B1530,#10123A)', borderColor: 'rgba(25,181,230,0.35)', boxShadow: '0 0 30px rgba(25,181,230,0.10)' }}>
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+        <div className="min-w-0">
+          <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">REFER &amp; EARN</div>
+          <div className="text-white font-bold text-lg">Invite people who build communities</div>
+          <div className="text-slate-400 text-[13px] max-w-2xl mt-1">
+            When someone joins through your link and creates a community that gets monetised, you earn 10% of Wynko’s share of that community’s revenue for 6 months. On every ₹100 its members spend: owner ₹50, you ₹5, Wynko ₹45.
+          </div>
+        </div>
+      </div>
+
+      {q.status === 'loading' && !d ? (
+        <div className="text-[12px] text-slate-500">Loading your referral link…</div>
+      ) : q.status === 'error' && !d ? (
+        <div className="text-[12px] text-amber-300">{q.error}</div>
+      ) : d && (
+        <>
+          <div className="flex gap-2 mb-4 flex-wrap">
+            <input readOnly value={link} onFocus={e => e.currentTarget.select()}
+              className="flex-1 min-w-[240px] px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none border-[#1E3060]" />
+            <button onClick={() => void copy()} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white flex-shrink-0" style={{ background: '#0F99CC' }}>
+              {copied ? 'Copied ✓' : 'Copy link'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            {[
+              { l: 'People joined', v: String(d.people_referred) },
+              { l: 'Communities they made', v: String(d.communities_created) },
+              { l: 'Earning for you now', v: String(d.communities_earning) },
+              { l: 'Referral earnings', v: inr(d.total_earned) },
+            ].map(x => (
+              <div key={x.l} className="rounded-xl border p-3 bg-[rgba(255,255,255,0.02)] border-[#1A2845]">
+                <div className="text-[11px] text-slate-500 mb-1">{x.l}</div>
+                <div className="text-lg font-bold text-white">{x.v}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border p-3 border-[#1A2845]">
+            <div className="text-[13px] text-slate-300">
+              Wallet balance: <b className="text-emerald-400">{inr(d.wallet_balance)}</b>
+              {d.upi_id && <span className="text-slate-500"> · pays to {d.upi_id}</span>}
+            </div>
+            {d.upi_id ? (
+              <button onClick={() => void withdraw()} disabled={d.wallet_balance <= 0 || busy === 'payout'}
+                className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: '#19B57D' }}>
+                {busy === 'payout' ? 'Requesting…' : 'Withdraw'}
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <input value={upi} onChange={e => setUpi(e.target.value)} placeholder="your@upi"
+                  className="w-44 px-3 py-2 rounded-xl border bg-transparent text-[13px] text-slate-200 outline-none border-[#1E3060]" />
+                <button onClick={() => void saveUpi()} disabled={!upi.trim() || busy === 'upi'}
+                  className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+                  Save UPI
+                </button>
+              </div>
+            )}
+          </div>
+          {msg && <div className={`text-[12px] mt-2 ${msg.ok ? 'text-emerald-400' : 'text-amber-300'}`}>{msg.text}</div>}
+        </>
+      )}
+    </div>
+  )
+}
+
 function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCreateCommunity }: {
   onNavigate: (id: string) => void
   profile?: ProfileInfo
@@ -9543,6 +9705,8 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
               </div>
             </div>
           </div>
+
+          <div className="px-8 pt-6"><ReferAndEarnCard /></div>
 
           {/* Tab switcher */}
           <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(26,40,69,0.55)]" >
@@ -10176,11 +10340,17 @@ export default function DesktopDashboard() {
   const communities = useMemo(
     () => myCommunitiesQ.data.map(r => ({ ...toCommunityData(r), monetized: monetizedQ.data.has(r.id) })),
     [myCommunitiesQ.data, monetizedQ.data])
-  // The community this user runs. Anyone can create one (migration 0074);
-  // being an approved WynkoHead only matters for its monetisation program.
-  const headCommunity = communities.find(c => c.myRole === 'admin') ?? null
-  const [managingCommunity, setManagingCommunity] = useState(false)
-  const refreshCommunities = async () => { await Promise.all([myCommunitiesQ.refresh(), monetizedQ.refresh(), headStatusQ.refresh()]) }
+  // Communities this user runs - anyone can create any number (0074/0076);
+  // being a WynkoHead only matters for the monetisation program. The
+  // dashboard shows whichever one they chose to Manage.
+  const ownedCommunityIds = useMemo(() => new Set(communities.filter(c => c.myRole === 'admin').map(c => c.id)), [communities])
+  const [managingCommunityId, setManagingCommunityId] = useState<string | null>(null)
+  const headCommunity = managingCommunityId ? communities.find(c => c.id === managingCommunityId && c.myRole === 'admin') ?? null : null
+  // Home Community: automatic with one community, a required pick with two or more (0078).
+  const homeQ = useLoader(signedIn ? fetchMyHomeCommunity : null, null as Awaited<ReturnType<typeof fetchMyHomeCommunity>>, [signedIn, communityIdsKey], 0)
+  const needsHomeChoice = signedIn && myCommunitiesQ.status === 'ready' && homeQ.status === 'ready' && communities.length >= 2
+    && !(homeQ.data?.chosen && communities.some(c => c.id === homeQ.data?.group_id))
+  const refreshCommunities = async () => { await Promise.all([myCommunitiesQ.refresh(), monetizedQ.refresh(), headStatusQ.refresh(), homeQ.refresh()]) }
 
   // The weekly schedule and study units the Schedules page edits are saved to
   // the account (study_plans) instead of living only in this tab's memory.
@@ -10353,9 +10523,12 @@ export default function DesktopDashboard() {
     loadScheduleDraft(id).then(d => {
       if (cancelled) return
       const published = communitySchedulesQ.data.find(r => r.group_id === id)
+      // Always replace both, so switching between owned communities never
+      // carries one community's draft into another's.
       if (d) setHeadSchedule(normalizeWeek(d.week))
       else if (published) setHeadSchedule(normalizeWeek(published.week))
-      if (d && Array.isArray(d.units)) setHeadUnits(d.units as StudyUnit[])
+      else setHeadSchedule(Array.from({ length: 7 }, () => []))
+      setHeadUnits(d && Array.isArray(d.units) ? d.units as StudyUnit[] : [])
       setDraftReadyFor(id)
     }).catch(e => console.warn('Community schedule draft not loaded', e))
     return () => { cancelled = true }
@@ -10391,9 +10564,14 @@ export default function DesktopDashboard() {
     try { await createCommunity(name, description); await myCommunitiesQ.refresh(); return null } catch (e) { return (e as Error).message }
   }
   async function createAndManageCommunity(name: string, description: string): Promise<string | null> {
-    const err = await createHeadCommunity(name, description)
-    if (!err) setManagingCommunity(true)
-    return err
+    try {
+      const id = await createCommunity(name, description)
+      await refreshCommunities()
+      setManagingCommunityId(id)
+      return null
+    } catch (e) {
+      return (e as Error).message
+    }
   }
 
   // Opens a specific room's interior directly from Home's Live Study
@@ -10519,7 +10697,7 @@ export default function DesktopDashboard() {
       return <WynkoinsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'earn') {
-      return <EarnPage onNavigate={handleNav} profile={profile} headStatus={headStatusQ.data} hasCommunity={!!headCommunity}
+      return <EarnPage onNavigate={handleNav} profile={profile} headStatus={headStatusQ.data} hasCommunity={ownedCommunityIds.size > 0}
         onApply={applyWynkoHead} onCreateCommunity={createHeadCommunity} />
     }
     if (activeNav === 'settings') {
@@ -10548,15 +10726,15 @@ export default function DesktopDashboard() {
       }
       // The management dashboard for the community this user runs, opened
       // from its "Manage" button; "View Community" there opens the student view.
-      if (headCommunity && managingCommunity) {
+      if (headCommunity) {
         return (
           <WynkoHeadCommunityPage key={headCommunity.id} community={headCommunity} headName={profile?.displayName || headCommunity.headName || 'Your WynkoHead'} profile={profile}
-            onNavigate={handleNav} onBack={() => { setManagingCommunity(false); setStudyRoomsTab('communities') }}
+            onNavigate={handleNav} onBack={() => { setManagingCommunityId(null); setStudyRoomsTab('communities') }}
             isWynkoHead={!!headStatusQ.data?.verified}
             onViewAsStudent={() => setActiveCommunity(headCommunity)} onEnterStudyRoom={room => setActiveRoom(room)}
             headSchedule={headSchedule} setHeadSchedule={setHeadSchedule} headUnits={headUnits} setHeadUnits={setHeadUnits}
             published={headPublished} onPublish={publishHeadSchedule} onCommunityChanged={refreshCommunities}
-            onTransferred={async () => { setManagingCommunity(false); setStudyRoomsTab('communities'); await refreshCommunities() }} />
+            onTransferred={async () => { setManagingCommunityId(null); setStudyRoomsTab('communities'); await refreshCommunities() }} />
         )
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile}
@@ -10564,7 +10742,7 @@ export default function DesktopDashboard() {
         communityTab={studyRoomsTab} onCommunityTabChange={setStudyRoomsTab}
         onOpenCommunity={setActiveCommunity} communities={communities} communitiesStatus={myCommunitiesQ.status}
         communitiesError={myCommunitiesQ.error} onRefreshCommunities={refreshCommunities}
-        ownedCommunityId={headCommunity?.id ?? null} onManageCommunity={() => setManagingCommunity(true)}
+        ownedCommunityIds={ownedCommunityIds} onManageCommunity={id => setManagingCommunityId(id)}
         onCreateCommunity={createAndManageCommunity} />
     }
 
@@ -10638,6 +10816,9 @@ export default function DesktopDashboard() {
   return (
     <UserAvatarCtx.Provider value={{ avatar: userAvatar, setAvatar: setUserAvatarTouched }}>
       {renderPage()}
+      {needsHomeChoice && (
+        <RequiredHomeCommunityPicker communities={communities} currentId={homeQ.data?.group_id ?? null} onPicked={refreshCommunities} />
+      )}
       {scheduleNotif && authState === 'ready' && (
         <ScheduleNotificationCard communityName={scheduleNotif.name} published={scheduleNotif.p}
           onAccept={() => { void acceptCommunitySchedule(scheduleNotif.id) }}

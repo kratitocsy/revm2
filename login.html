@@ -164,6 +164,14 @@ const sb = window.supabase.createClient(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.
   openLoginDrawer();
 })();
 
+// Referral links look like /login?ref=CODE. Remember the code across the
+// OAuth round-trip; it's claimed once, right after sign-in (redirect()).
+(function rememberReferral(){
+  const ref = new URLSearchParams(window.location.search).get('ref');
+  if (!ref || !/^[A-Za-z0-9]{4,16}$/.test(ref)) return;
+  try { localStorage.setItem('wynko_ref', ref.toUpperCase()); } catch(e) {}
+})();
+
 function openLoginDrawer(){
   document.getElementById('loginDrawer').classList.add('open');
   document.getElementById('loginDrawerBackdrop').classList.add('active');
@@ -402,6 +410,16 @@ async function redirect(user){
   }, { onConflict: 'id' });
 
   logEvent('login');
+
+  // Signed up through someone's referral link? Tie this (new) account to
+  // them. The server only accepts it for new accounts, once, never self.
+  try {
+    const ref = localStorage.getItem('wynko_ref');
+    if (ref) {
+      await sb.rpc('rpc_claim_referral', { p_code: ref });
+      localStorage.removeItem('wynko_ref');
+    }
+  } catch(e) { /* never block sign-in on this */ }
 
   // Wynky's "study identity" quiz is the onboarding gate: every sign-in
   // (new account or returning without a finished quiz) lands on it first,
