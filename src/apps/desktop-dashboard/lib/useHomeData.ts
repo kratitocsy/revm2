@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { sb } from '../../_shared/supabaseClient';
+import { normalizePreferences } from './settings';
 import { STUDY_LOGGED_EVENT } from '../../_shared/studyTimeLog';
 import {
   applyAddTopic,
@@ -18,6 +19,7 @@ export interface ProfileInfo {
   displayName: string | null;
   avatarUrl: string | null;
   exam: string | null; // e.g. "JEE 2026" - same cfg.exam value onboarding.html writes
+  avatarPreset: number | null; // user_profiles.preferences.avatar_preset - a bundled avatar picked in Settings
 }
 
 // {date: {subject: seconds}} - same shape/column tracker.html and
@@ -138,7 +140,7 @@ const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
 export function useHomeData() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [rows, setRows] = useState<TrackerRow[]>([]);
-  const [profile, setProfile] = useState<ProfileInfo>({ displayName: null, avatarUrl: null, exam: null });
+  const [profile, setProfile] = useState<ProfileInfo>({ displayName: null, avatarUrl: null, exam: null, avatarPreset: null });
   const [goalMinutes, setGoalMinutes] = useState(180);
   const [studyLog, setStudyLog] = useState<StudyLog>({});
   const [openSession, setOpenSession] = useState<OpenSession | null>(null);
@@ -157,7 +159,7 @@ export function useHomeData() {
     const [profileRes, sessionRes] = await Promise.all([
       sb
         .from('user_profiles')
-        .select('tracker_data, study_log, daily_focus_goal_minutes, display_name, full_name, avatar_url, exam')
+        .select('tracker_data, study_log, daily_focus_goal_minutes, display_name, full_name, avatar_url, exam, preferences')
         .eq('id', userId)
         .maybeSingle(),
       sb
@@ -184,6 +186,7 @@ export function useHomeData() {
       displayName: data?.display_name ?? data?.full_name ?? null,
       avatarUrl: data?.avatar_url ?? null,
       exam: data?.exam ?? null,
+      avatarPreset: normalizePreferences(data?.preferences).avatar_preset,
     });
     setGoalMinutes(data?.daily_focus_goal_minutes ?? 180);
     setStudyLog((data?.study_log as StudyLog) || {});
@@ -214,7 +217,7 @@ export function useHomeData() {
         userIdRef.current = null;
         setAuthState('signed-out');
         setRows([]);
-        setProfile({ displayName: null, avatarUrl: null, exam: null });
+        setProfile({ displayName: null, avatarUrl: null, exam: null, avatarPreset: null });
         setGoalMinutes(180);
         setStudyLog({});
         setOpenSession(null);

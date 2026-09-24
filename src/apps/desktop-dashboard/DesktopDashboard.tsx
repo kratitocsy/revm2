@@ -46,6 +46,11 @@ import {
   sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
   type BattlegroundState, type ActiveBattle, type BattleOpponent, type BattleHistoryRow,
 } from './lib/battleground'
+import {
+  loadSettings, saveProfileFields, saveUsername, changeEmail, changePassword, listIdentities, hasPasswordLogin,
+  linkProvider, unlinkProvider, exportMyData, deleteMyAccount, signOut, DEFAULT_PREFERENCES,
+  type SettingsProfile, type SettingsPreferences, type LinkedIdentity, type LinkableProvider, type ProfilePatch,
+} from './lib/settings'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -7977,56 +7982,286 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
 
 // ─── Settings Page ─────────────────────────────────────────────────────────────
+// Wired to user_profiles (own row) + Supabase Auth via lib/settings.ts.
+// The small form components live at module scope: declared inside
+// SettingsPage they'd be a new component type every render, so each
+// keystroke remounted the <input> and dropped focus.
+
+function StToggle({ val, onChange, disabled }: { val: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button onClick={() => onChange(!val)} disabled={disabled} role="switch" aria-checked={val}
+      className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative disabled:opacity-50"
+      style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
+      <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
+        style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
+    </button>
+  )
+}
+
+function StRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]">
+      <div>
+        <div className="text-sm font-medium text-slate-200">{label}</div>
+        {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+      </div>
+      <div className="ml-4 flex-shrink-0">{children}</div>
+    </div>
+  )
+}
+
+function StSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]">
+      <div className="px-5 pt-5 pb-1">
+        <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
+        {children}
+      </div>
+      <div className="h-2" />
+    </div>
+  )
+}
+
+function StField({ label, value, onChange, placeholder, type = 'text', maxLength, hint }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; maxLength?: number; hint?: string
+}) {
+  return (
+    <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+      <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength}
+        className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]" />
+      {hint && <div className="text-[10px] text-slate-600 mt-1">{hint}</div>}
+    </div>
+  )
+}
+
+function StChoice({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+      <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {options.map(o => (
+          <button key={o} onClick={() => onChange(value === o ? '' : o)}
+            className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
+            style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const ST_PRIMARY_BTN = 'w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50'
+const ST_PRIMARY_STYLE = { background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }
+const ST_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
+const ST_GOAL_HOURS = [2, 3, 4, 6, 8, 10, 12]
+const ST_PROVIDERS: { id: LinkableProvider; name: string; dot: string }[] = [
+  { id: 'google', name: 'Google', dot: 'radial-gradient(circle at 35% 35%,#7BAAF7,#2A62D6)' },
+  { id: 'discord', name: 'Discord', dot: 'radial-gradient(circle at 35% 35%,#A48BFF,#5865F2)' },
+]
 
 function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type SettingsTab = 'profile' | 'account' | 'notifications' | 'privacy' | 'study' | 'about'
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
-  const [saved, setSaved] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function notify(msg: string, ok = true) {
+    setToast({ msg, ok })
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), ok ? 2600 : 5000)
+  }
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
-  // Profile state
-  // displayName/avatar seed from the real signed-in account (same
-  // profile useHomeData already loads for Home/Sidebar); the rest of
-  // this form (username, bio, gender, age, course, school, phone,
-  // email, dailyGoal) is still local-only mock state - a real Settings
-  // read/write pass is a separate, larger module than this name fix.
-  const { avatar: selectedAvatar, setAvatar: setSelectedAvatar } = useContext(UserAvatarCtx)
-  const [displayName, setDisplayName] = useState(profile?.displayName || 'Jatin Sinsinwar')
-  const [username, setUsername] = useState('jatin_sinsinwar')
-  const [bio, setBio] = useState('Aspiring engineer. JEE 2026.')
-  const [gender, setGender] = useState('Male')
-  const [age, setAge] = useState('18')
-  const [course, setCourse] = useState('Engineering')
-  const [classYear, setClassYear] = useState('12th Grade')
-  const [school, setSchool] = useState('Delhi Public School')
-  const [targetExam, setTargetExam] = useState('JEE Advanced 2026')
-  const [phone, setPhone] = useState('+91 98765 43210')
-  const [email, setEmail] = useState('jatin@example.com')
-  const [dailyGoal, setDailyGoal] = useState('6')
-  const [studyReminders, setStudyReminders] = useState(true)
-  const [battleNotifs, setBattleNotifs] = useState(true)
-  const [roomNotifs, setRoomNotifs] = useState(true)
-  const [achievementNotifs, setAchievementNotifs] = useState(true)
-  const [profilePublic, setProfilePublic] = useState(true)
-  const [showStreak, setShowStreak] = useState(true)
-  const [showStats, setShowStats] = useState(true)
+  const settingsQ = useLoader(loadSettings, null as SettingsProfile | null, [], 0)
+  const identitiesQ = useLoader(listIdentities, [] as LinkedIdentity[], [], 0)
+  const s = settingsQ.data
+  const { setAvatar } = useContext(UserAvatarCtx)
+  const timerMode = useTimerMode()
+  const { settings: pomo } = usePomodoroSettings()
+
+  // Editable copies of the loaded profile. Re-seeded whenever a fresh load lands.
+  const [displayName, setDisplayName] = useState('')
+  const [username, setUsername] = useState('')
+  const [bio, setBio] = useState('')
+  const [school, setSchool] = useState('')
+  const [classYear, setClassYear] = useState('')
+  const [course, setCourse] = useState('')
+  const [exam, setExam] = useState('')
+  const [prefs, setPrefs] = useState<SettingsPreferences>(DEFAULT_PREFERENCES)
+  const [remindersEnabled, setRemindersEnabled] = useState(true)
   const [allowBattleInvites, setAllowBattleInvites] = useState(true)
-  const [soundEffects, setSoundEffects] = useState(true)
-  const [focusMode, setFocusMode] = useState(false)
+  const [goalMinutes, setGoalMinutes] = useState(180)
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
 
-  function saveProfile() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2200)
+  useEffect(() => {
+    if (!s) return
+    setDisplayName(s.displayName); setUsername(s.username); setBio(s.bio)
+    setSchool(s.school); setClassYear(s.classYear); setCourse(s.course); setExam(s.exam)
+    setPrefs(s.preferences); setRemindersEnabled(s.remindersEnabled)
+    setAllowBattleInvites(s.allowBattleInvites); setGoalMinutes(s.dailyGoalMinutes)
+  }, [s])
+
+  const profileDirty = !!s && (
+    displayName !== s.displayName || username !== s.username || bio !== s.bio || school !== s.school ||
+    classYear !== s.classYear || course !== s.course || exam !== s.exam)
+  const usernameValid = /^[a-z0-9_]{3,20}$/.test(username)
+
+  async function saveProfile() {
+    if (!s || busy) return
+    if (!displayName.trim()) { notify('Display name can’t be empty.', false); return }
+    if (username !== s.username && !usernameValid) { notify('Usernames are 3-20 characters: lowercase letters, numbers, underscore.', false); return }
+    setBusy('profile')
+    try {
+      await saveProfileFields(s.userId, {
+        display_name: displayName.trim(), bio: bio.trim() || null, school: school.trim() || null,
+        class_year: classYear || null, course: course || null, exam: exam.trim() || null,
+      })
+      if (username !== s.username) await saveUsername(username)
+      await settingsQ.refresh()
+      notify('✓ Profile saved')
+    } catch (e) {
+      notify((e as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
   }
 
-  // profile arrives asynchronously (a fresh sign-in navigating straight
-  // to Settings can beat useHomeData's fetch) - resync once it lands,
-  // but only if the person hasn't already typed something of their own
-  // in this field this session.
-  const [displayNameTouched, setDisplayNameTouched] = useState(false)
-  useEffect(() => {
-    if (!displayNameTouched && profile?.displayName) setDisplayName(profile.displayName)
-  }, [profile?.displayName, displayNameTouched])
+  // Toggles and single-choice settings save immediately, rolling back on failure.
+  async function updatePrefs(patch: Partial<SettingsPreferences>) {
+    if (!s) return
+    const prev = prefsRef.current
+    const next = { ...prev, ...patch }
+    setPrefs(next)
+    try {
+      await saveProfileFields(s.userId, { preferences: next })
+    } catch (e) {
+      setPrefs(prev)
+      notify((e as Error).message, false)
+    }
+  }
+  async function updateColumn<T>(set: (v: T) => void, prev: T, next: T, patch: ProfilePatch, okMsg?: string) {
+    if (!s) return
+    set(next)
+    try {
+      await saveProfileFields(s.userId, patch)
+      if (okMsg) notify(okMsg)
+    } catch (e) {
+      set(prev)
+      notify((e as Error).message, false)
+    }
+  }
+
+  function pickAvatar(preset: number | null) {
+    if (preset === null) { if (s?.avatarUrl) setAvatar(s.avatarUrl) } else setAvatar(AVATAR_OPTIONS[preset])
+    void updatePrefs({ avatar_preset: preset })
+  }
+
+  // ── Account: email / password / linked providers ──
+  const [newEmail, setNewEmail] = useState('')
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const hasPassword = hasPasswordLogin(identitiesQ.data)
+
+  async function submitEmail() {
+    const e = newEmail.trim()
+    if (!s || busy || !e) return
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { notify('That doesn’t look like an email address.', false); return }
+    if (e.toLowerCase() === s.email.toLowerCase()) { notify('That’s already your email.', false); return }
+    setBusy('email')
+    try {
+      await changeEmail(e)
+      setNewEmail('')
+      notify('✓ Check both inboxes — the change applies once you confirm the link.')
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function submitPassword() {
+    if (!s || busy) return
+    if (hasPassword && !pwCurrent) { notify('Enter your current password.', false); return }
+    if (pwNew.length < 8) { notify('New password must be at least 8 characters.', false); return }
+    if (pwNew !== pwConfirm) { notify('New passwords don’t match.', false); return }
+    setBusy('password')
+    try {
+      await changePassword(s.email, hasPassword ? pwCurrent : null, pwNew)
+      setPwCurrent(''); setPwNew(''); setPwConfirm('')
+      await identitiesQ.refresh()
+      notify(hasPassword ? '✓ Password changed' : '✓ Password set — you can now also sign in with email')
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function toggleProvider(provider: LinkableProvider) {
+    if (busy) return
+    const linked = identitiesQ.data.find(i => i.provider === provider)
+    setBusy(`provider:${provider}`)
+    try {
+      if (linked) {
+        await unlinkProvider(linked)
+        await identitiesQ.refresh()
+        notify(`✓ ${provider === 'google' ? 'Google' : 'Discord'} disconnected`)
+      } else {
+        await linkProvider(provider) // redirects to the provider on success
+      }
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // ── Data, deletion, sign-out ──
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteText, setDeleteText] = useState('')
+
+  async function downloadData() {
+    if (!s || busy) return
+    setBusy('export')
+    try {
+      const blob = await exportMyData(s.userId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `wynko-data-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      notify('✓ Your data export has downloaded')
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function confirmDelete() {
+    if (deleteText !== 'DELETE' || busy) return
+    setBusy('delete')
+    try {
+      await deleteMyAccount()
+      window.location.href = '/login.html'
+    } catch (err) {
+      notify((err as Error).message, false)
+      setBusy(null)
+    }
+  }
+
+  async function handleLogout() {
+    if (busy) return
+    setBusy('logout')
+    const blocked = await signOut()
+    if (blocked) { notify(blocked, false); setBusy(null) }
+  }
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'profile', label: 'Profile', icon: '👤' },
@@ -8037,96 +8272,329 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     { id: 'about', label: 'About', icon: 'ℹ️' },
   ]
 
-  function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => void }) {
-    return (
-      <button onClick={() => onChange(!val)}
-        className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-        style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
-        <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
-          style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
-      </button>
-    )
-  }
+  const selectedPreset = prefs.avatar_preset
+  const previewAvatar = selectedPreset !== null ? AVATAR_OPTIONS[selectedPreset] : (s?.avatarUrl || AVATAR_OPTIONS[0])
+  const goalHoursOptions = ST_GOAL_HOURS.includes(goalMinutes / 60) || goalMinutes % 60 !== 0
+    ? ST_GOAL_HOURS : [...ST_GOAL_HOURS, goalMinutes / 60].sort((a, b) => a - b)
 
-  function SettingRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
-    return (
-      <div className="flex items-center justify-between py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
+  let content: React.ReactNode
+  if (settingsQ.status === 'loading' && !s) {
+    content = <div className="text-sm text-slate-500 py-16 text-center">Loading your settings…</div>
+  } else if (!s) {
+    content = (
+      <div className="py-16 text-center space-y-3">
+        <div className="text-sm text-slate-300 font-semibold">Couldn’t load your settings</div>
+        <div className="text-xs text-slate-500">{settingsQ.error}</div>
+        <button onClick={() => void settingsQ.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+      </div>
+    )
+  } else if (activeTab === 'profile') {
+    content = (
+      <>
         <div>
-          <div className="text-sm font-medium text-slate-200">{label}</div>
-          {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+          <h2 className="text-xl font-bold text-white">Profile</h2>
+          <p className="text-slate-400 text-sm mt-0.5">How others see you on Wynko.</p>
         </div>
-        <div className="ml-4 flex-shrink-0">{children}</div>
-      </div>
-    )
-  }
 
-  function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-      <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
-        <div className="px-5 pt-5 pb-1">
-          <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
-          {children}
+        <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]">
+          <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
+              style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
+              <img src={previewAvatar} alt="Selected avatar" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[11px] text-slate-500 mb-3">Choose avatar <span className="text-slate-600">· saves instantly</span></div>
+              <div className="grid grid-cols-7 gap-2">
+                {s.avatarUrl && (
+                  <button onClick={() => pickAvatar(null)} title="Use my photo"
+                    className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
+                    style={{ borderColor: selectedPreset === null ? '#8B5CFF' : 'transparent', boxShadow: selectedPreset === null ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
+                    <img src={s.avatarUrl} alt="My photo" className="w-full aspect-square object-cover bg-[rgba(26,40,69,0.4)]" />
+                  </button>
+                )}
+                {AVATAR_OPTIONS.map((av, i) => (
+                  <button key={i} onClick={() => pickAvatar(i)}
+                    className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
+                    style={{ borderColor: selectedPreset === i ? '#8B5CFF' : 'transparent', boxShadow: selectedPreset === i ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
+                    <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="h-2" />
-      </div>
-    )
-  }
 
-  function FieldInput({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
-    return (
-      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-        <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
-        <input type={type} value={value} onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]"
-           />
-      </div>
-    )
-  }
+        <StSection title="PERSONAL INFORMATION">
+          <StField label="DISPLAY NAME" value={displayName} onChange={setDisplayName} placeholder="Your name" maxLength={50} />
+          <StField label="USERNAME" value={username} onChange={v => setUsername(v.toLowerCase().replace(/\s/g, ''))} placeholder="username" maxLength={20}
+            hint={username !== s.username && !usernameValid ? '3-20 characters: lowercase letters, numbers, underscore.' : 'Friends find and challenge you by this.'} />
+          <StField label="BIO" value={bio} onChange={setBio} placeholder="Tell others about yourself..." maxLength={160} hint={`${bio.length}/160`} />
+        </StSection>
 
-  function SelectInput({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
-    return (
-      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-        <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
-        <div className="flex flex-wrap gap-2">
-          {options.map(o => (
-            <button key={o} onClick={() => onChange(o)}
-              className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
-              style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
-              {o}
+        <StSection title="ACADEMIC INFORMATION">
+          <StField label="SCHOOL / INSTITUTION" value={school} onChange={setSchool} placeholder="Your school or college" maxLength={100} />
+          <StChoice label="CLASS / YEAR" value={classYear} onChange={setClassYear} options={['9th Grade', '10th Grade', '11th Grade', '12th Grade', 'Dropper', '1st Year', '2nd Year', '3rd Year', '4th Year']} />
+          <StChoice label="COURSE / STREAM" value={course} onChange={setCourse} options={['Engineering', 'Medical', 'Commerce', 'Arts', 'Science', 'Law', 'Other']} />
+          <StField label="TARGET EXAM" value={exam} onChange={setExam} placeholder="e.g. JEE Advanced, NEET, UPSC" maxLength={60} />
+        </StSection>
+
+        <button onClick={() => void saveProfile()} disabled={!profileDirty || busy === 'profile'} className={ST_PRIMARY_BTN} style={ST_PRIMARY_STYLE}>
+          {busy === 'profile' ? 'Saving…' : profileDirty ? 'Save Profile Changes' : 'All changes saved'}
+        </button>
+      </>
+    )
+  } else if (activeTab === 'account') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Account</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Manage your login details and security.</p>
+        </div>
+
+        <StSection title="EMAIL ADDRESS">
+          <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT EMAIL</div>
+            <div className="text-sm text-slate-200">{s.email || '—'}</div>
+          </div>
+          <div className="py-3.5">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CHANGE EMAIL</div>
+            <div className="flex gap-2">
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="new@email.com" className={ST_INPUT} />
+              <button onClick={() => void submitEmail()} disabled={!newEmail.trim() || busy === 'email'}
+                className="px-4 rounded-xl text-[12px] font-semibold text-white flex-shrink-0 disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+                {busy === 'email' ? 'Sending…' : 'Update'}
+              </button>
+            </div>
+            <div className="text-[10px] text-slate-600 mt-1">We’ll email a confirmation link to both addresses.</div>
+          </div>
+        </StSection>
+
+        <StSection title={hasPassword ? 'CHANGE PASSWORD' : 'SET A PASSWORD'}>
+          {!hasPassword && (
+            <div className="text-[12px] text-slate-400 pb-2">You sign in with {identitiesQ.data.map(i => i.provider === 'google' ? 'Google' : i.provider === 'discord' ? 'Discord' : i.provider).join(' / ') || 'a linked account'}. Set a password to also sign in with your email.</div>
+          )}
+          {hasPassword && (
+            <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+              <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
+              <input type="password" autoComplete="current-password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} placeholder="Enter current password" className={ST_INPUT} />
+            </div>
+          )}
+          <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
+            <input type="password" autoComplete="new-password" value={pwNew} onChange={e => setPwNew(e.target.value)} placeholder="At least 8 characters" className={ST_INPUT} />
+          </div>
+          <div className="py-3.5">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
+            <input type="password" autoComplete="new-password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} placeholder="Confirm new password" className={ST_INPUT} />
+          </div>
+          <div className="pb-3">
+            <button onClick={() => void submitPassword()} disabled={!pwNew || busy === 'password'}
+              className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+              {busy === 'password' ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
+            </button>
+          </div>
+        </StSection>
+
+        <StSection title="CONNECTED ACCOUNTS">
+          {ST_PROVIDERS.map(p => {
+            const linked = identitiesQ.data.find(i => i.provider === p.id)
+            const onlyLogin = !!linked && identitiesQ.data.length <= 1
+            return (
+              <div key={p.id} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]">
+                <div className="flex items-center gap-3">
+                  <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: p.dot }} />
+                  <div>
+                    <div className="text-sm font-medium text-slate-200">{p.name}</div>
+                    <div className="text-[11px]" style={{ color: linked ? '#19D3A2' : '#4E5E84' }}>
+                      {identitiesQ.status === 'loading' ? 'Checking…' : linked ? `Connected${linked.email ? ` · ${linked.email}` : ''}` : 'Not connected'}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => void toggleProvider(p.id)} disabled={onlyLogin || identitiesQ.status === 'loading' || busy === `provider:${p.id}`}
+                  title={onlyLogin ? 'This is your only way to sign in — connect another account or set a password first.' : undefined}
+                  className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40 disabled:opacity-40"
+                  style={{ borderColor: '#1A2845', color: linked ? '#F87171' : '#9B6CFF' }}>
+                  {busy === `provider:${p.id}` ? '…' : linked ? 'Disconnect' : 'Connect'}
+                </button>
+              </div>
+            )
+          })}
+        </StSection>
+
+        <div className="rounded-2xl border p-5 bg-[rgba(239,68,68,0.04)] border-[rgba(239,68,68,0.2)]">
+          <div className="text-[10px] font-mono tracking-[0.18em] text-red-400 mb-3">DANGER ZONE</div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-red-300">Delete Account</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data. This can’t be undone.</div>
+            </div>
+            <button onClick={() => { setDeleteText(''); setDeleteOpen(true) }}
+              className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]">Delete</button>
+          </div>
+        </div>
+      </>
+    )
+  } else if (activeTab === 'notifications') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Notifications</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Control what alerts you receive. Changes save instantly.</p>
+        </div>
+        <StSection title="STUDY ALERTS">
+          <StRow label="Study Reminders" sub="Reminders to start your scheduled sessions (Telegram)">
+            <StToggle val={remindersEnabled} onChange={v => void updateColumn(setRemindersEnabled, remindersEnabled, v, { reminders_enabled: v })} />
+          </StRow>
+          <StRow label="Focus Session Alerts" sub="Notified when your focus timer ends"><StToggle val={prefs.notif_focus_alerts} onChange={v => void updatePrefs({ notif_focus_alerts: v })} /></StRow>
+          <StRow label="Streak Alerts" sub="Don't break your study streak"><StToggle val={prefs.notif_streak} onChange={v => void updatePrefs({ notif_streak: v })} /></StRow>
+        </StSection>
+        <StSection title="SOCIAL ALERTS">
+          <StRow label="Battle Invitations" sub="Get notified when someone challenges you"><StToggle val={prefs.notif_battle} onChange={v => void updatePrefs({ notif_battle: v })} /></StRow>
+          <StRow label="Study Room Invites" sub="Notified when friends invite you to rooms"><StToggle val={prefs.notif_rooms} onChange={v => void updatePrefs({ notif_rooms: v })} /></StRow>
+          <StRow label="Achievements" sub="Get notified for new badges and trophies"><StToggle val={prefs.notif_achievements} onChange={v => void updatePrefs({ notif_achievements: v })} /></StRow>
+        </StSection>
+        <StSection title="APP SOUNDS">
+          <StRow label="Sound Effects" sub="Play sounds for timers and events"><StToggle val={prefs.sound_effects} onChange={v => void updatePrefs({ sound_effects: v })} /></StRow>
+        </StSection>
+      </>
+    )
+  } else if (activeTab === 'privacy') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Privacy</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Control who can see your data. Changes save instantly.</p>
+        </div>
+        <StSection title="PROFILE VISIBILITY">
+          <StRow label="Public Profile" sub="Anyone on Wynko can see your profile"><StToggle val={prefs.privacy_public_profile} onChange={v => void updatePrefs({ privacy_public_profile: v })} /></StRow>
+          <StRow label="Show Study Streak" sub="Display your streak on your public profile"><StToggle val={prefs.privacy_show_streak} onChange={v => void updatePrefs({ privacy_show_streak: v })} /></StRow>
+          <StRow label="Show Study Stats" sub="Others can see your study hours and progress"><StToggle val={prefs.privacy_show_stats} onChange={v => void updatePrefs({ privacy_show_stats: v })} /></StRow>
+        </StSection>
+        <StSection title="INTERACTIONS">
+          <StRow label="Allow Battle Invites" sub="When off, nobody can find or challenge you in Battleground">
+            <StToggle val={allowBattleInvites} onChange={v => void updateColumn(setAllowBattleInvites, allowBattleInvites, v, { allow_battle_invites: v })} />
+          </StRow>
+          <StRow label="Allow Room Invites" sub="Let others invite you to study rooms"><StToggle val={prefs.privacy_allow_room_invites} onChange={v => void updatePrefs({ privacy_allow_room_invites: v })} /></StRow>
+        </StSection>
+        <StSection title="DATA & PRIVACY">
+          <StRow label="Download My Data" sub="Your profile, study sessions, plan and battle history as JSON">
+            <button onClick={() => void downloadData()} disabled={busy === 'export'}
+              className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060] disabled:opacity-50">
+              {busy === 'export' ? 'Preparing…' : 'Download'}
+            </button>
+          </StRow>
+        </StSection>
+      </>
+    )
+  } else if (activeTab === 'study') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Study Preferences</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience. Changes save instantly.</p>
+        </div>
+        <StSection title="DAILY GOALS">
+          <div className="py-3.5">
+            <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS) · drives Home’s Today’s Focus</div>
+            <div className="flex gap-2 flex-wrap">
+              {goalHoursOptions.map(h => {
+                const m = Math.round(h * 60), on = goalMinutes === m
+                return (
+                  <button key={h} onClick={() => { if (!on) void updateColumn(setGoalMinutes, goalMinutes, m, { daily_focus_goal_minutes: m }, `✓ Daily goal set to ${h}h`) }}
+                    className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
+                    style={{ background: on ? '#1A2845' : '#0B1530', color: on ? '#C4AAFF' : '#4E5E84', borderColor: on ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+                    {h}h
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </StSection>
+        <StSection title="DEFAULT TIMER">
+          {([
+            { mode: 'pomodoro' as const, name: 'Pomodoro', sub: pomodoroSummaryLabel(pomo) },
+            { mode: 'regular' as const, name: 'Regular (count up)', sub: 'No time limit — stop when you’re done' },
+          ]).map(t => (
+            <button key={t.mode} onClick={() => setTimerMode(t.mode)}
+              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)] text-left">
+              <div>
+                <div className="text-sm font-medium text-slate-200">{t.name}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
+              </div>
+              <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                style={{ borderColor: timerMode === t.mode ? '#7C4DFF' : '#1E3060' }}>
+                {timerMode === t.mode && <div className="w-2 h-2 rounded-full bg-violet-500" />}
+              </div>
             </button>
           ))}
+          <div className="text-[10px] text-slate-600 pb-3">Pomodoro lengths are edited from the Pomodoro card in Focus Lock.</div>
+        </StSection>
+        <StSection title="FOCUS SESSION">
+          <StRow label="Auto-start Breaks" sub="Automatically start break timer after focus"><StToggle val={prefs.focus_auto_start_breaks} onChange={v => void updatePrefs({ focus_auto_start_breaks: v })} /></StRow>
+          <StRow label="Focus Mode (block distractions)" sub="Lock notifications during focus sessions"><StToggle val={prefs.focus_block_distractions} onChange={v => void updatePrefs({ focus_block_distractions: v })} /></StRow>
+          <StRow label="Sound during Focus" sub="Play ambient sounds during study sessions"><StToggle val={prefs.focus_ambient_sound} onChange={v => void updatePrefs({ focus_ambient_sound: v })} /></StRow>
+        </StSection>
+      </>
+    )
+  } else {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">About Wynko</h2>
+          <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
         </div>
-      </div>
+        <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
+          <div className="text-xl font-black text-white mb-1">Wynko</div>
+          <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
+          <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
+        </div>
+        <StSection title="LEGAL & INFO">
+          {[
+            { label: 'Terms of Service', icon: '📄', href: '/terms' },
+            { label: 'Privacy Policy', icon: '🔒', href: '/privacy' },
+          ].map(item => (
+            <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer"
+              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]">
+              <div className="flex items-center gap-3">
+                <span className="text-base">{item.icon}</span>
+                <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
+              </div>
+              <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+            </a>
+          ))}
+        </StSection>
+      </>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
-          >
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >SETTINGS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5">SETTINGS</div>
             <div className="text-sm font-semibold text-slate-200">Manage your account & preferences.</div>
           </div>
-          {saved && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-              style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
-              ✓ Changes saved
+          {toast && (
+            <div role="status" className="max-w-md px-3 py-1.5 rounded-full text-[11px] font-semibold truncate"
+              style={toast.ok
+                ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                : { background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.35)' }}>
+              {toast.msg}
             </div>
           )}
           <UserAvatar size={32} />
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Settings nav sidebar */}
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]"
-            >
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]">
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
@@ -8139,295 +8607,38 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 {tab.label}
               </button>
             ))}
-            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]" >
-              <button className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10">
-                <span className="text-base">🚪</span> Log Out
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]">
+              <button onClick={() => void handleLogout()} disabled={busy === 'logout'}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                <span className="text-base">🚪</span> {busy === 'logout' ? 'Signing out…' : 'Log Out'}
               </button>
             </div>
           </div>
 
-          {/* Content area */}
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-
-            {/* ── PROFILE TAB ── */}
-            {activeTab === 'profile' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Profile</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">How others see you on Wynko.</p>
-                </div>
-
-                {/* Avatar picker */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
-                  <div className="flex items-center gap-6">
-                    {/* Big avatar preview */}
-                    <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
-                      style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
-                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-contain" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-[11px] text-slate-500 mb-3">Choose avatar</div>
-                      <div className="grid grid-cols-6 gap-2">
-                        {AVATAR_OPTIONS.map((av, i) => (
-                          <button key={i} onClick={() => setSelectedAvatar(av)}
-                            className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
-                            style={{ borderColor: selectedAvatar === av ? '#8B5CFF' : 'transparent', boxShadow: selectedAvatar === av ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
-                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]"  />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <SectionCard title="PERSONAL INFORMATION">
-                  <FieldInput label="DISPLAY NAME" value={displayName} onChange={v => { setDisplayName(v); setDisplayNameTouched(true) }} placeholder="Your full name" />
-                  <FieldInput label="USERNAME" value={username} onChange={setUsername} placeholder="@username" />
-                  <FieldInput label="BIO" value={bio} onChange={setBio} placeholder="Tell others about yourself..." />
-                  <SelectInput label="GENDER" value={gender} onChange={setGender} options={['Male', 'Female', 'Non-binary', 'Prefer not to say']} />
-                  <FieldInput label="AGE" value={age} onChange={setAge} type="number" placeholder="Your age" />
-                </SectionCard>
-
-                <SectionCard title="ACADEMIC INFORMATION">
-                  <FieldInput label="SCHOOL / INSTITUTION" value={school} onChange={setSchool} placeholder="Your school or college" />
-                  <SelectInput label="CLASS / YEAR" value={classYear} onChange={setClassYear} options={['9th Grade', '10th Grade', '11th Grade', '12th Grade', '1st Year', '2nd Year', '3rd Year', '4th Year']} />
-                  <SelectInput label="COURSE / STREAM" value={course} onChange={setCourse} options={['Engineering', 'Medical', 'Commerce', 'Arts', 'Science', 'Law', 'Other']} />
-                  <FieldInput label="TARGET EXAM" value={targetExam} onChange={setTargetExam} placeholder="e.g. JEE Advanced, NEET, UPSC" />
-                </SectionCard>
-
-                <button onClick={saveProfile}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-                  Save Profile Changes
-                </button>
-              </>
-            )}
-
-            {/* ── ACCOUNT TAB ── */}
-            {activeTab === 'account' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Account</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Manage your login details and security.</p>
-                </div>
-
-                <SectionCard title="CONTACT INFORMATION">
-                  <FieldInput label="EMAIL ADDRESS" value={email} onChange={setEmail} type="email" placeholder="your@email.com" />
-                  <FieldInput label="PHONE NUMBER" value={phone} onChange={setPhone} type="tel" placeholder="+91 00000 00000" />
-                </SectionCard>
-
-                <SectionCard title="SECURITY">
-                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
-                    <input type="password" placeholder="Enter current password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       />
-                  </div>
-                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
-                    <input type="password" placeholder="Enter new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       />
-                  </div>
-                  <div className="py-3.5">
-                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
-                    <input type="password" placeholder="Confirm new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       />
-                  </div>
-                </SectionCard>
-
-                <SectionCard title="CONNECTED ACCOUNTS">
-                  {[
-                    { name: 'Google', icon: '🔵', connected: true },
-                    { name: 'Discord', icon: '🟣', connected: false },
-                    { name: 'GitHub', icon: '⚫', connected: false },
-                  ].map(acc => (
-                    <div key={acc.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{acc.icon}</span>
-                        <div>
-                          <div className="text-sm font-medium text-slate-200">{acc.name}</div>
-                          <div className="text-[11px]" style={{ color: acc.connected ? '#19D3A2' : '#4E5E84' }}>{acc.connected ? 'Connected' : 'Not connected'}</div>
-                        </div>
-                      </div>
-                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40"
-                        style={{ borderColor: '#1A2845', color: acc.connected ? '#F87171' : '#9B6CFF' }}>
-                        {acc.connected ? 'Disconnect' : 'Connect'}
-                      </button>
-                    </div>
-                  ))}
-                </SectionCard>
-
-                <button onClick={saveProfile}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-                  Save Account Changes
-                </button>
-
-                <div className="rounded-2xl border p-5 bg-[rgba(239,68,68,0.04)] border-[rgba(239,68,68,0.2)]" >
-                  <div className="text-[10px] font-mono tracking-[0.18em] text-red-400 mb-3">DANGER ZONE</div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-red-300">Delete Account</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data.</div>
-                    </div>
-                    <button className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]"
-                      >Delete</button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── NOTIFICATIONS TAB ── */}
-            {activeTab === 'notifications' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Notifications</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Control what alerts you receive.</p>
-                </div>
-                <SectionCard title="STUDY ALERTS">
-                  <SettingRow label="Study Reminders" sub="Get reminded to start your study sessions"><Toggle val={studyReminders} onChange={setStudyReminders} /></SettingRow>
-                  <SettingRow label="Focus Session Alerts" sub="Notified when your focus timer ends"><Toggle val={focusMode} onChange={setFocusMode} /></SettingRow>
-                  <SettingRow label="Streak Alerts" sub="Don't break your study streak"><Toggle val={showStreak} onChange={setShowStreak} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="SOCIAL ALERTS">
-                  <SettingRow label="Battle Invitations" sub="Get notified when someone challenges you"><Toggle val={battleNotifs} onChange={setBattleNotifs} /></SettingRow>
-                  <SettingRow label="Study Room Invites" sub="Notified when friends invite you to rooms"><Toggle val={roomNotifs} onChange={setRoomNotifs} /></SettingRow>
-                  <SettingRow label="Achievements" sub="Get notified for new badges and trophies"><Toggle val={achievementNotifs} onChange={setAchievementNotifs} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="APP SOUNDS">
-                  <SettingRow label="Sound Effects" sub="Play sounds for timers and events"><Toggle val={soundEffects} onChange={setSoundEffects} /></SettingRow>
-                </SectionCard>
-              </>
-            )}
-
-            {/* ── PRIVACY TAB ── */}
-            {activeTab === 'privacy' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Privacy</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Control who can see your data.</p>
-                </div>
-                <SectionCard title="PROFILE VISIBILITY">
-                  <SettingRow label="Public Profile" sub="Anyone on Wynko can see your profile"><Toggle val={profilePublic} onChange={setProfilePublic} /></SettingRow>
-                  <SettingRow label="Show Study Streak" sub="Display your streak on your public profile"><Toggle val={showStreak} onChange={setShowStreak} /></SettingRow>
-                  <SettingRow label="Show Study Stats" sub="Others can see your study hours and progress"><Toggle val={showStats} onChange={setShowStats} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="INTERACTIONS">
-                  <SettingRow label="Allow Battle Invites" sub="Let other users challenge you to battles"><Toggle val={allowBattleInvites} onChange={setAllowBattleInvites} /></SettingRow>
-                  <SettingRow label="Allow Room Invites" sub="Let others invite you to study rooms"><Toggle val={roomNotifs} onChange={setRoomNotifs} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="DATA & PRIVACY">
-                  {[
-                    { label: 'Download My Data', sub: 'Export all your study data and history', action: 'Download' },
-                    { label: 'Clear Study History', sub: 'Remove all session and progress records', action: 'Clear' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
-                      <div>
-                        <div className="text-sm font-medium text-slate-200">{item.label}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{item.sub}</div>
-                      </div>
-                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060]"
-                        >{item.action}</button>
-                    </div>
-                  ))}
-                </SectionCard>
-              </>
-            )}
-
-            {/* ── STUDY PREFS TAB ── */}
-            {activeTab === 'study' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Study Preferences</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience.</p>
-                </div>
-                <SectionCard title="DAILY GOALS">
-                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS)</div>
-                    <div className="flex gap-2 flex-wrap">
-                      {['2', '4', '6', '8', '10', '12'].map(h => (
-                        <button key={h} onClick={() => setDailyGoal(h)}
-                          className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: dailyGoal === h ? '#1A2845' : '#0B1530', color: dailyGoal === h ? '#C4AAFF' : '#4E5E84', borderColor: dailyGoal === h ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
-                          {h}h
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </SectionCard>
-                <SectionCard title="FOCUS SESSION">
-                  <SettingRow label="Auto-start Breaks" sub="Automatically start break timer after focus"><Toggle val={focusMode} onChange={setFocusMode} /></SettingRow>
-                  <SettingRow label="Focus Mode (block distractions)" sub="Lock notifications during focus sessions"><Toggle val={studyReminders} onChange={setStudyReminders} /></SettingRow>
-                  <SettingRow label="Sound during Focus" sub="Play ambient sounds during study sessions"><Toggle val={soundEffects} onChange={setSoundEffects} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="PREFERRED TECHNIQUE">
-                  {[
-                    { name: 'Pomodoro', sub: '25 min focus, 5 min break' },
-                    { name: 'Deep Work', sub: '90 min sessions, longer breaks' },
-                    { name: 'Time Blocking', sub: 'Fixed time slots per subject' },
-                    { name: 'Custom', sub: 'Set your own timer intervals' },
-                  ].map((t, i) => (
-                    <div key={t.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
-                      <div>
-                        <div className="text-sm font-medium text-slate-200">{t.name}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
-                      </div>
-                      <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                        style={{ borderColor: i === 0 ? '#7C4DFF' : '#1E3060' }}>
-                        {i === 0 && <div className="w-2 h-2 rounded-full bg-violet-500" />}
-                      </div>
-                    </div>
-                  ))}
-                </SectionCard>
-                <button onClick={saveProfile}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-                  Save Study Preferences
-                </button>
-              </>
-            )}
-
-            {/* ── ABOUT TAB ── */}
-            {activeTab === 'about' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">About Wynko</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
-                </div>
-                <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]" >
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
-                  <div className="text-xl font-black text-white mb-1">Wynko</div>
-                  <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
-                  <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
-                </div>
-                <SectionCard title="LEGAL & INFO">
-                  {[
-                    { label: 'Terms of Service', icon: '📄' },
-                    { label: 'Privacy Policy', icon: '🔒' },
-                    { label: 'Licenses', icon: '📋' },
-                    { label: 'Contact Support', icon: '💬' },
-                    { label: 'Rate Wynko ⭐', icon: '🌟' },
-                  ].map(item => (
-                    <button key={item.label} className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]" >
-                      <div className="flex items-center gap-3">
-                        <span className="text-base">{item.icon}</span>
-                        <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
-                      </div>
-                      <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
-                    </button>
-                  ))}
-                </SectionCard>
-              </>
-            )}
-
+            {content}
             <div className="h-6" />
           </div>
         </div>
       </div>
+
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => { if (busy !== 'delete') setDeleteOpen(false) }}>
+          <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[rgba(239,68,68,0.35)] p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-white mb-2">Delete your account?</h2>
+            <p className="text-slate-400 text-sm mb-4">This permanently deletes your profile, study history, plans, battles and everything else tied to your account. It can’t be undone.</p>
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">TYPE DELETE TO CONFIRM</div>
+            <input value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="DELETE" className={`${ST_INPUT} mb-4`} autoFocus />
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteOpen(false)} disabled={busy === 'delete'} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
+              <button onClick={() => void confirmDelete()} disabled={deleteText !== 'DELETE' || busy === 'delete'}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#DC2626' }}>
+                {busy === 'delete' ? 'Deleting…' : 'Delete forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -9782,13 +9993,14 @@ export default function DesktopDashboard() {
     return () => clearInterval(id)
   }, [authState, activeNav])
 
-  // A real uploaded photo wins over the 6 illustrated presets, same
-  // "resync until touched" pattern as Settings' displayName field -
-  // once someone picks a preset in Settings this session, that choice
-  // sticks even if profile re-fetches.
+  // A preset explicitly saved in Settings (preferences.avatar_preset) wins;
+  // otherwise the real uploaded/OAuth photo; otherwise the default preset.
   useEffect(() => {
-    if (!avatarTouched && profile?.avatarUrl) setUserAvatar(profile.avatarUrl)
-  }, [profile?.avatarUrl, avatarTouched])
+    if (avatarTouched) return
+    const preset = profile?.avatarPreset
+    if (preset !== null && preset !== undefined && AVATAR_OPTIONS[preset]) setUserAvatar(AVATAR_OPTIONS[preset])
+    else if (profile?.avatarUrl) setUserAvatar(profile.avatarUrl)
+  }, [profile?.avatarUrl, profile?.avatarPreset, avatarTouched])
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
