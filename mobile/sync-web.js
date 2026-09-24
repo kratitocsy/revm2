@@ -47,4 +47,19 @@ function walk(currentDir) {
 
 walk(rootDir);
 
+// Capacitor requires www/index.html as the app's entry point, but the site
+// root deliberately has none (Vercel rewrites '/' to product.html, and a real
+// root index.html would shadow that rewrite). Generate the same redirect the
+// old root index.html used, so the app still opens on product.html.
+if (!fs.existsSync(path.join(rootDir, 'index.html'))) {
+  fs.writeFileSync(
+    path.join(wwwDir, 'index.html'),
+    '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8" />\n' +
+      '<meta http-equiv="refresh" content="0; url=/product.html" />\n' +
+      "<script>location.replace('/product.html');</script>\n" +
+      '</head>\n<body></body>\n</html>\n'
+  );
+  copiedCount++;
+}
+
 console.log(`sync-web: copied ${copiedCount} files into mobile/www/`);
