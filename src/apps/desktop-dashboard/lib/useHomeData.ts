@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { sb } from '../../_shared/supabaseClient';
+import { STUDY_LOGGED_EVENT } from '../../_shared/studyTimeLog';
 import {
   applyAddTopic,
   applyMarkReviewed,
@@ -47,9 +48,8 @@ function dateKeyUTC(d: Date): string {
 // total minutes summed across subjects — same study_log column/shape
 // computeStreak already reads. Used by the Home "Your Study Progress"
 // card so its chart and Total/Average stats are real, never hardcoded.
-function computeWeeklyStudy(slog: StudyLog): WeeklyStudyDay[] {
+function computeWeeklyStudy(slog: StudyLog, today: Date = new Date()): WeeklyStudyDay[] {
   const days: WeeklyStudyDay[] = [];
-  const today = new Date();
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
@@ -68,9 +68,9 @@ function computeWeeklyStudy(slog: StudyLog): WeeklyStudyDay[] {
 // walk backward from today one day at a time, stop at the first day
 // with a zero total. Duplicated here rather than shared because
 // tracker.html is a plain script (not a module this can import).
-function computeStreak(slog: StudyLog): number {
+function computeStreak(slog: StudyLog, today: Date = new Date()): number {
   let streak = 0;
-  const d = new Date();
+  const d = new Date(today);
   while (true) {
     const key = dateKeyUTC(d);
     const total = Object.values(slog[key] || {}).reduce((a, b) => a + b, 0);
@@ -82,6 +82,28 @@ function computeStreak(slog: StudyLog): number {
     }
   }
   return streak;
+}
+
+// The one study_sessions row that may still be open (one per user, enforced
+// server-side). Its time reaches study_log only when it stops.
+interface OpenSession {
+  started_at: string;
+  paused_at: string | null;
+  accumulated_paused_seconds: number | null;
+  subject: string | null;
+}
+
+// Same elapsed math as rpc_stop_study_session: wall time minus paused time.
+function withOpenSession(slog: StudyLog, open: OpenSession | null, nowMs: number): StudyLog {
+  if (!open) return slog;
+  const endMs = open.paused_at ? new Date(open.paused_at).getTime() : nowMs;
+  const secs = Math.floor((endMs - new Date(open.started_at).getTime()) / 1000) - (open.accumulated_paused_seconds || 0);
+  if (!(secs > 0)) return slog;
+  const key = dateKeyUTC(new Date(nowMs));
+  const subject = open.subject || 'General';
+  const day = { ...(slog[key] || {}) };
+  day[subject] = (day[subject] || 0) + secs;
+  return { ...slog, [key]: day };
 }
 
 const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
@@ -108,88 +130,147 @@ const SAVE_DEBOUNCE_MS = 1500; // matches src/features/tracker/tracker-sync.js
  *  comment ("shown as a progress bar on the Home page Today's Focus
  *  card") already point at. Nothing wrote this card's data before
  *  this pass - it was fully hardcoded (fixed 1h15m/2h30m, a fixed
- *  3-item session list, fixed "7-day streak"). */
+ *  3-item session list, fixed "7-day streak").
+ *
+ *  Everything stays live: realtime on the user's user_profiles row and
+ *  study_sessions, plus the time of a still-open session added on top
+ *  of study_log (see withOpenSession). */
 export function useHomeData() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [rows, setRows] = useState<TrackerRow[]>([]);
   const [profile, setProfile] = useState<ProfileInfo>({ displayName: null, avatarUrl: null, exam: null });
-  const [todayFocus, setTodayFocus] = useState<TodayFocus>({ goalMinutes: 180, doneMinutes: 0, bySubject: [], streakDays: 0 });
-  const [weeklyStudy, setWeeklyStudy] = useState<WeeklyStudyDay[]>(computeWeeklyStudy({}));
+  const [goalMinutes, setGoalMinutes] = useState(180);
+  const [studyLog, setStudyLog] = useState<StudyLog>({});
+  const [openSession, setOpenSession] = useState<OpenSession | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [loadingRows, setLoadingRows] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const userIdRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadForSession = useCallback(async (userId: string) => {
-    setLoadingRows(true);
-    const { data, error } = await sb
-      .from('user_profiles')
-      .select('tracker_data, study_log, daily_focus_goal_minutes, display_name, full_name, avatar_url, exam')
-      .eq('id', userId)
-      .single();
-    if (!error && data?.tracker_data) {
-      setRows(data.tracker_data as TrackerRow[]);
-    } else {
-      setRows([]);
+  // `initial` is the first load for a signed-in user: it drives the page's
+  // loading/error screens. Every later refresh (realtime event, tab focus,
+  // study time saved) swaps the numbers in place without blanking the page.
+  const loadForSession = useCallback(async (userId: string, initial = false) => {
+    if (initial) { setLoadingRows(true); setError(null); }
+    const [profileRes, sessionRes] = await Promise.all([
+      sb
+        .from('user_profiles')
+        .select('tracker_data, study_log, daily_focus_goal_minutes, display_name, full_name, avatar_url, exam')
+        .eq('id', userId)
+        .maybeSingle(),
+      sb
+        .from('study_sessions')
+        .select('started_at, paused_at, accumulated_paused_seconds, subject')
+        .eq('user_id', userId)
+        .is('ended_at', null)
+        .maybeSingle(),
+    ]);
+    if (userIdRef.current !== userId) return; // signed out / switched account meanwhile
+
+    if (profileRes.error) {
+      console.warn('Home: could not load profile', profileRes.error);
+      if (initial) {
+        setError(profileRes.error.message || 'Could not load your dashboard');
+        setLoadingRows(false);
+      }
+      return; // a failed background refresh keeps showing the last good data
     }
+    const data = profileRes.data;
+    // Local edits still waiting for their debounced save win over the server copy.
+    if (!saveTimerRef.current) setRows((data?.tracker_data as TrackerRow[]) || []);
     setProfile({
       displayName: data?.display_name ?? data?.full_name ?? null,
       avatarUrl: data?.avatar_url ?? null,
       exam: data?.exam ?? null,
     });
-
-    const slog: StudyLog = (data?.study_log as StudyLog) || {};
-    const todayKey = dateKeyUTC(new Date());
-    const todayEntry = slog[todayKey] || {};
-    const bySubject = Object.entries(todayEntry)
-      .map(([subject, secs]) => ({ subject, minutes: Math.round(secs / 60) }))
-      .filter((s) => s.minutes > 0)
-      .sort((a, b) => b.minutes - a.minutes);
-    const doneMinutes = bySubject.reduce((sum, s) => sum + s.minutes, 0);
-    setTodayFocus({
-      goalMinutes: data?.daily_focus_goal_minutes ?? 180,
-      doneMinutes,
-      bySubject,
-      streakDays: computeStreak(slog),
-    });
-    setWeeklyStudy(computeWeeklyStudy(slog));
-
+    setGoalMinutes(data?.daily_focus_goal_minutes ?? 180);
+    setStudyLog((data?.study_log as StudyLog) || {});
+    if (!sessionRes.error) setOpenSession((sessionRes.data as OpenSession | null) ?? null);
+    setNowMs(Date.now());
+    setError(null);
     setLoadingRows(false);
   }, []);
 
+  const scheduleReload = useCallback(() => {
+    const uid = userIdRef.current;
+    if (!uid) return;
+    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = null;
+      void loadForSession(uid);
+    }, 300);
+  }, [loadForSession]);
+
+  // Auth. The client persists the session in localStorage and refreshes the
+  // token on its own (see supabaseClient.ts), so a returning user lands here
+  // already signed in. Only a change of user reloads the dashboard - hourly
+  // TOKEN_REFRESHED events used to re-run the full load behind a loading screen.
   useEffect(() => {
-    let cancelled = false;
-
-    sb.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return;
-      if (!session) {
-        setAuthState('signed-out');
-        setLoadingRows(false);
-        return;
-      }
-      userIdRef.current = session.user.id;
-      setAuthState('ready');
-      loadForSession(session.user.id);
-    });
-
     const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+      const uid = session?.user.id ?? null;
+      if (!uid) {
         userIdRef.current = null;
         setAuthState('signed-out');
         setRows([]);
         setProfile({ displayName: null, avatarUrl: null, exam: null });
-        setTodayFocus({ goalMinutes: 180, doneMinutes: 0, bySubject: [], streakDays: 0 });
-        setWeeklyStudy(computeWeeklyStudy({}));
+        setGoalMinutes(180);
+        setStudyLog({});
+        setOpenSession(null);
+        setError(null);
+        setLoadingRows(false);
         return;
       }
-      userIdRef.current = session.user.id;
+      if (uid === userIdRef.current) return;
+      userIdRef.current = uid;
       setAuthState('ready');
-      loadForSession(session.user.id);
+      void loadForSession(uid, true);
     });
+    return () => sub.subscription.unsubscribe();
+  }, [loadForSession]);
 
+  // Realtime: this user's profile row (study_log, name, avatar, goal - written
+  // by Focus Lock, the Quick Timers, tracker.html, timer.html, Settings, other
+  // devices) and their study_sessions (a Focus Lock session starting or
+  // stopping anywhere). Both filtered to this user; RLS applies as well.
+  useEffect(() => {
+    if (authState !== 'ready' || !userIdRef.current) return;
+    const uid = userIdRef.current;
+    const channel = sb
+      .channel(`home-${uid}-${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles', filter: `id=eq.${uid}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions', filter: `user_id=eq.${uid}` }, scheduleReload)
+      .subscribe((status) => {
+        // Catch up on anything missed while the socket was down.
+        if (status === 'SUBSCRIBED') scheduleReload();
+      });
+    return () => { void sb.removeChannel(channel); };
+  }, [authState, scheduleReload]);
+
+  // Same-tab saves (Quick Timer, Focus Lock stop) and coming back to the tab
+  // refresh straight away instead of waiting on the realtime round trip.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') scheduleReload(); };
+    window.addEventListener(STUDY_LOGGED_EVENT, scheduleReload);
+    window.addEventListener('focus', scheduleReload);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
+      window.removeEventListener(STUDY_LOGGED_EVENT, scheduleReload);
+      window.removeEventListener('focus', scheduleReload);
+      document.removeEventListener('visibilitychange', onVisible);
     };
+  }, [scheduleReload]);
+
+  // Clock for the live parts: a session that's still open keeps adding to
+  // today's total, and the 7-day window / streak roll over at midnight.
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), openSession ? 30_000 : 60_000);
+    return () => clearInterval(id);
+  }, [openSession]);
+
+  const retry = useCallback(() => {
+    if (userIdRef.current) void loadForSession(userIdRef.current, true);
   }, [loadForSession]);
 
   // Same 1.5s debounce as tracker-sync.js / mobile-home's
@@ -199,7 +280,7 @@ export function useHomeData() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       const userId = userIdRef.current;
-      if (!userId) return;
+      if (!userId) { saveTimerRef.current = null; return; }
       try {
         await sb
           .from('user_profiles')
@@ -208,6 +289,7 @@ export function useHomeData() {
       } catch {
         // sync must never break the app — same policy as tracker-sync.js
       }
+      saveTimerRef.current = null; // only now may a realtime refresh replace rows again
     }, SAVE_DEBOUNCE_MS);
   }, []);
 
@@ -245,11 +327,31 @@ export function useHomeData() {
   // locking to a single topic — see buildMultiRecallCurve.
   const recallCurves: MultiRecallCurveData | null = buildMultiRecallCurve(rows, reviewItems);
 
+  // study_log only gains a session's time once it stops; until then its
+  // elapsed time so far is added on top, so Home is live while you study.
+  const liveLog = useMemo(() => withOpenSession(studyLog, openSession, nowMs), [studyLog, openSession, nowMs]);
+  const todayFocus: TodayFocus = useMemo(() => {
+    const todayEntry = liveLog[dateKeyUTC(new Date(nowMs))] || {};
+    const bySubject = Object.entries(todayEntry)
+      .map(([subject, secs]) => ({ subject, minutes: Math.round(secs / 60) }))
+      .filter((s) => s.minutes > 0)
+      .sort((a, b) => b.minutes - a.minutes);
+    return {
+      goalMinutes,
+      doneMinutes: bySubject.reduce((sum, s) => sum + s.minutes, 0),
+      bySubject,
+      streakDays: computeStreak(liveLog, new Date(nowMs)),
+    };
+  }, [liveLog, goalMinutes, nowMs]);
+  const weeklyStudy = useMemo(() => computeWeeklyStudy(liveLog, new Date(nowMs)), [liveLog, nowMs]);
+
   const totalWeekMinutes = weeklyStudy.reduce((sum, d) => sum + d.minutes, 0);
   const avgWeekMinutes = totalWeekMinutes / (weeklyStudy.length || 1);
 
   return {
     authState,
+    error,
+    retry,
     reviewItems,
     recallCurves,
     profile,

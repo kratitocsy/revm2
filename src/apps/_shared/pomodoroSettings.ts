@@ -161,6 +161,29 @@ function subscribe(l: () => void) {
 }
 
 let hydration: Promise<void> | null = null;
+let liveFor: string | null = null;
+
+// Realtime: a save on another device/tab lands in user_profiles; pick it up
+// here (last-write-wins on updatedAt, same rule as hydration) so an open Focus
+// Lock or Study Room starts its next session with the new lengths.
+function followRemote(uid: string) {
+  if (liveFor === uid) return;
+  liveFor = uid;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  sb.channel(`pomodoro-${uid}-${Math.random().toString(36).slice(2, 8)}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_profiles', filter: `id=eq.${uid}` }, () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (currentUserId !== uid) return;
+        const remote = await fetchRemote(uid);
+        if (remote && remote.updatedAt > state.updatedAt) {
+          commit(remote);
+          writeLocal(remote, uid);
+        }
+      }, 400);
+    })
+    .subscribe();
+}
 
 /** Pulls the signed-in user's saved settings and reconciles with the local cache. Runs once per page load. */
 export function hydratePomodoroSettings(): Promise<void> {
@@ -183,6 +206,7 @@ export function hydratePomodoroSettings(): Promise<void> {
           writeLocal(DEFAULT_POMODORO_SETTINGS, uid);
         }
         stateOwner = uid;
+        followRemote(uid);
 
         const remote = await fetchRemote(uid);
         if (remote === undefined) {

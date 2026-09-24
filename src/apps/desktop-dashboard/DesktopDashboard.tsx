@@ -21,9 +21,26 @@ import {
 import { useTimerMode, getTimerMode, setTimerMode } from '../_shared/timerModeSettings'
 import type { ReviewItem, MultiRecallCurveData } from '../_shared/wynkoTracker'
 import { Store } from '../../lib/storage'
-import { getCommunityDetail, type CommunityAnnouncement, type CommunityDetail, type CommunityHead, type CommunityScheduleSlot } from './lib/communityData'
-import { loadAnnouncements, saveAnnouncements, loadPublishedSchedules, savePublishedSchedule, loadNotifSeen, markNotifSeen, loadHeadDraft, saveHeadDraft, STORE_KEYS, type PublishedSchedule } from './lib/communityStore'
-import { HEAD_COMMUNITY_ID, HEAD_STUDENTS, HEAD_JOIN_REQUESTS, buildEarnings, payoutInfo, type EarningsRange } from './lib/wynkoHeadData'
+import {
+  useLoader, useRealtimeRefresh, fetchMyCommunities, fetchDiscoverCommunities, fetchMyCommunitySchedules, fetchMyWynkoHeadStatus,
+  joinCommunity, leaveCommunity, setHomeCommunity, parseInviteInput, fetchCommunityDetail, fetchAnnouncements, setScheduleChoice,
+  applyAsWynkoHead, createCommunity, publishCommunitySchedule, loadScheduleDraft, saveScheduleDraft, fetchHeadOverview,
+  fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, postAnnouncement, deleteAnnouncement,
+  communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout,
+  type MyCommunity, type DiscoverCommunity, type CommunityScheduleRow, type CommunityDetailData, type CommunityAnnouncementRow,
+  type WynkoHeadStatus, type ScheduleChoice, type StudentAnalyticsRow, type JoinRequestRow,
+} from './lib/communities'
+import {
+  initStudyPlanSync, getPlanSnapshot, setPlanSnapshot, subscribePlan, setStudyWeek, useStudyPlanStore, mergeRemotePlan,
+  getQuickNotes, setQuickNotes,
+  type TimerMode, type PomodoroPhase, type StudyTask, type FocusPlanSnapshot, type ScheduleItem, type StudyUnit,
+} from './lib/studyPlanStore'
+import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
+import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
+import {
+  useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
+  type RoomRow, type RoomMember,
+} from './lib/studyRooms'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -89,7 +106,6 @@ function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; 
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface StudyUnit { subject: string; exam: string; topics: string[] }
 
 // ─── Recall Curve SVG ─────────────────────────────────────────────────────────
 // Same visual design as before (gradients, glow filter, grid, TODAY marker,
@@ -405,11 +421,6 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
       <div className="flex-1">
         <div className="text-[10px] text-slate-600 mb-0.5">Home / Today</div>
         <div className="text-sm font-semibold text-slate-200">{todayLabel}</div>
-      </div>
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 text-sm w-52 border bg-[#0B1530] border-[#1A2845]">
-        <Ico n="search" cls="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="text-xs text-slate-500 flex-1">Search topics...</span>
-        <kbd className="text-[10px] rounded px-1 text-slate-600 font-mono border bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.08)]">⌘K</kbd>
       </div>
       <button className="relative p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-200 transition-colors">
         <Ico n="bell" cls="w-5 h-5" />
@@ -785,8 +796,8 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
 // ─── Today's Study Plan + Today's Focus (paired Home cards) ──────────────────
 // Both cards read the SAME real sources: today's schedule (schedule[todayIdx],
 // the actual data the Schedules page manages) and the live Focus Lock plan
-// (persisted at FL_PLAN_KEY - the exact snapshot FocusLockPage itself reads
-// and writes), merged via buildTodayPlanRows/catchUpFocusPlan below. Nothing
+// (studyPlanStore - the exact snapshot FocusLockPage itself reads and
+// writes, synced with Supabase), merged via buildTodayPlanRows/catchUpFocusPlan below. Nothing
 // here is hardcoded: with no schedule and no plan yet, both cards fall into
 // their empty states instead of showing example subjects.
 
@@ -1108,6 +1119,25 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
     return () => clearInterval(id)
   }, [running])
 
+  // Saves the time as study time (studyTimeLog -> study_log), so it counts on
+  // Your Study Progress: each full minute while running, on Pause, and when
+  // Home is left or the tab closed mid-run.
+  const elapsedRef = useRef(0)
+  elapsedRef.current = elapsed
+  const loggedRef = useRef(0)
+  const saveElapsed = useRef(() => {
+    const unsaved = elapsedRef.current - loggedRef.current
+    if (unsaved <= 0) return
+    loggedRef.current = elapsedRef.current
+    logStudyTime(QUICK_TIMER_SUBJECT, unsaved)
+  }).current
+  useEffect(() => { if (!running) saveElapsed() }, [running, saveElapsed])
+  useEffect(() => { if (running && elapsed > 0 && elapsed % 60 === 0) saveElapsed() }, [running, elapsed, saveElapsed])
+  useEffect(() => {
+    window.addEventListener('pagehide', saveElapsed)
+    return () => { window.removeEventListener('pagehide', saveElapsed); saveElapsed() }
+  }, [saveElapsed])
+
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
@@ -1146,21 +1176,19 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
 }
 
 // ─── Live Study Rooms + Motivational (Home preview cards) ────────────────────
-// Reuses the same room data StudyRoomsPage/RoomInteriorPage already work
-// from (ROOM_DATA + getRoomBots' deterministic per-room "studying now" bots -
-// the same computation RoomInteriorPage's own studyingCount uses) rather than
-// inventing separate numbers for this preview. No backend-persisted rooms
-// table exists yet in this codebase (Study Rooms is still local/mock data,
-// same as Schedules/Focus Lock's plan), so this is the actual current source
-// of truth for "live rooms" - not a hardcoded example list.
+// The same real rooms the Study Rooms page lists (list_study_rooms, see
+// lib/studyRooms.ts): rooms you're in plus public ones, busiest first, with
+// live "studying now" counts from open study sessions. Private rooms you're
+// not in aren't previewed here - they're joined from the Study Rooms page.
 function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
   onEnterRoom: (room: RoomData) => void
   onViewAll: () => void
 }) {
-  const publicRooms = ROOM_DATA.filter(r => r.isPublic)
-  const withLive = publicRooms.map(room => ({ room, live: getRoomBots(room).filter(b => b.isStudying).length }))
+  const { rooms: roomRows } = useStudyRooms(true)
+  const visible = roomRowsToRoomData(roomRows).filter(r => r.isMember || r.isPublic)
+  const withLive = visible.map(room => ({ room, live: room.liveCount ?? 0 }))
   const totalStudying = withLive.reduce((sum, x) => sum + x.live, 0)
-  const topRooms = [...withLive].sort((a, b) => b.live - a.live).slice(0, 4)
+  const topRooms = [...withLive].sort((a, b) => b.live - a.live || b.room.members - a.room.members).slice(0, 4)
 
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
@@ -1404,27 +1432,10 @@ function formatClock(totalSecs: number, alwaysHours = false): string {
 // running, exactly like the old subject-switch behavior. Each task keeps
 // its own paused/resumed value locally so switching between tasks (or
 // navigating away and back) never silently resets someone else's progress.
-const FL_PLAN_KEY = 'wynko_focus_plan_v1'
-type TimerMode = 'pomodoro' | 'regular'
-type PomodoroPhase = 'focus' | 'break'
-interface StudyTask {
-  id: string
-  subject: string
-  topic: string
-  mode: TimerMode
-  pomodoroRemaining: number // seconds left in the current Pomodoro phase, meaningful when mode === 'pomodoro'
-  regularElapsed: number    // seconds elapsed, meaningful when mode === 'regular'
-  // Both optional so plans saved before Pomodoro was customizable (which have neither) still load.
-  pomodoroPhase?: PomodoroPhase // 'focus' unless the task is currently in its break
-  pomodoroTotal?: number        // full length (s) of the phase now counting - a session finishes at the length it started with
-  completed?: boolean           // manually marked done from the ⋮ menu - shows a strikethrough, doesn't touch the timer itself
-}
-interface FocusPlanSnapshot {
-  tasks: StudyTask[]
-  activeTaskId: string | null
-  running: boolean
-  runningStartedAtMs: number | null // Date.now() snapshot for offline/away catch-up
-}
+//
+// The plan itself (StudyTask / FocusPlanSnapshot) lives in lib/studyPlanStore.ts,
+// which keeps it in Supabase and in sync across Home, Focus Lock, Study Rooms,
+// Schedules and the user's other tabs/devices.
 
 // ─── Pomodoro engine (pure) ─────────────────────────────────────────────────────
 // Focus Lock and Study Rooms both run their Pomodoro tasks through these, so the
@@ -1491,17 +1502,21 @@ function tickPomodoro(task: StudyTask, delta: number, s: PomodoroSettings): { ta
   return { task: t, running, studied }
 }
 
+// Backed by studyPlanStore: reads are instant (in-memory, seeded from the
+// local cache), writes sync to Supabase in the background.
 function loadFocusPlanSnapshot(): FocusPlanSnapshot | null {
-  try {
-    const raw = localStorage.getItem(FL_PLAN_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed?.tasks)) return parsed
-  } catch { /* corrupt/inaccessible storage - just start fresh */ }
-  return null
+  return getPlanSnapshot()
 }
 function saveFocusPlanSnapshot(snap: FocusPlanSnapshot) {
-  try { localStorage.setItem(FL_PLAN_KEY, JSON.stringify(snap)) } catch { /* best-effort */ }
+  setPlanSnapshot(snap)
+}
+
+// Moves a task's clock forward by `secs` of real time - Pomodoro through the
+// engine (so it can cross focus/break boundaries), Regular just counts up.
+// Used by mergeRemotePlan to catch up a plan that's running on another device.
+function advanceTask(pomo: PomodoroSettings) {
+  return (t: StudyTask, secs: number): { task: StudyTask; running: boolean } =>
+    t.mode === 'pomodoro' ? tickPomodoro(t, secs, pomo) : { task: { ...t, regularElapsed: t.regularElapsed + secs }, running: true }
 }
 
 function makeTaskId(): string {
@@ -1855,10 +1870,19 @@ function PomodoroSettingsModal({ initial, inProgress, onClose, onSave }: {
 }
 
 // ─── Quick Notes panel ───────────────────────────────────────────────────────────
-// Purely local scratch space for the current session - not synced anywhere,
-// same "ephemeral by design" spirit as the old Tasks checklist it replaces.
+// Scratch space saved to the account (study_plans.quick_notes via
+// studyPlanStore), so a note survives leaving Focus Lock, reloads, and shows
+// up on the user's other tabs/devices. The panel owns the text while typing;
+// a note changed elsewhere replaces it when it arrives.
 function QuickNotesPanel() {
-  const [note, setNote] = useState('')
+  const [note, setNote] = useState(getQuickNotes)
+  useEffect(() => subscribePlan(source => {
+    if (source === 'remote') setNote(getQuickNotes())
+  }), [])
+  function onChange(text: string) {
+    setNote(text)
+    setQuickNotes(text)
+  }
   return (
     <div className="rounded-2xl border p-4 flex-1 flex flex-col min-h-[140px]"
       style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
@@ -1866,7 +1890,7 @@ function QuickNotesPanel() {
         <span className="text-base leading-none">📝</span>
         <span className="text-sm font-semibold text-slate-100">Quick Notes</span>
       </div>
-      <textarea value={note} onChange={e => setNote(e.target.value)}
+      <textarea value={note} onChange={e => onChange(e.target.value)} maxLength={20000}
         placeholder="No notes yet…
 Add a quick note for this session."
         className="flex-1 w-full bg-transparent outline-none text-[13px] leading-relaxed text-slate-300 placeholder-slate-600 resize-none" />
@@ -1964,6 +1988,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     start: startRemoteSession,
     stop: stopRemoteSession,
   } = useFocusSession()
+  const planSync = useStudyPlanStore()
 
   // Side effects of a Pomodoro tick, kept out of the state updater. Reassigned every render so it
   // always sees the current start/stop closures even though the 1s interval is created only once.
@@ -2060,6 +2085,25 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   useEffect(() => {
     saveFocusPlanSnapshot({ tasks, activeTaskId, running, runningStartedAtMs: running ? Date.now() : null })
   }, [tasks, activeTaskId, running])
+
+  // Changes made somewhere else - Home, Schedules' plan, another tab or
+  // device, or the first load from Supabase - replace this page's plan. The
+  // one exception is the task this page is itself running: its clock keeps
+  // its own to-the-second value instead of the last synced one.
+  const activeTaskIdRef = useRef(activeTaskId)
+  activeTaskIdRef.current = activeTaskId
+  const runningRef = useRef(running)
+  runningRef.current = running
+  useEffect(() => subscribePlan(source => {
+    if (source !== 'remote') return
+    const remote = loadFocusPlanSnapshot()
+    if (!remote) return
+    const next = mergeRemotePlan(remote, { tasks: tasksRef.current, activeTaskId: activeTaskIdRef.current, running: runningRef.current }, advanceTask(pomoRef.current))
+    if (next.stopHere) stopRemoteSession()
+    setTasks(next.tasks)
+    setActiveTaskId(next.activeTaskId)
+    setRunning(next.running)
+  }), [stopRemoteSession])
 
   const activeTask = tasks.find(t => t.id === activeTaskId) || null
 
@@ -2190,7 +2234,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     ? (activeTask.mode === 'pomodoro' ? (activeOnBreak ? 'Break Time' : 'Study Time') : 'Studying')
     : (selectedMode === 'pomodoro' ? pomodoroSummaryLabel(pomo) : 'Count Up • No Limit')
 
-  const headerStatus = sessionLoading
+  // First load of the plan from Supabase shows the same 'Syncing…' as the session check.
+  const headerStatus = sessionLoading || planSync.status === 'loading'
     ? 'Syncing…'
     : activeTask
       ? (running ? `${activeOnBreak ? '☕ Break' : '●'} ${activeTask.subject} — ${activeTask.topic}` : '⏸ Paused')
@@ -2374,12 +2419,11 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 // Shown when the user tries to pause from inside Focus Lock. Doesn't touch the
 // timer itself - it just gates the actual pause behind a short "why am I
 // pausing" reflection, so a break is a deliberate choice rather than a reflex tap.
-const PAUSE_REFLECTION_MIN_WORDS = 150
-
+// The typed text stays in this component only - never saved (see pauseReflection.ts).
 function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
   const [text, setText] = useState('')
-  const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length
-  const unlocked = wordCount >= PAUSE_REFLECTION_MIN_WORDS
+  const wordCount = countReflectionWords(text)
+  const unlocked = isPauseUnlocked(text)
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -2450,7 +2494,7 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
         <div className="px-7 pt-1 pb-7 flex flex-col sm:flex-row gap-3">
           <button
             disabled={!unlocked}
-            onClick={onUnlock}
+            onClick={() => { if (unlocked) onUnlock() }}
             className="flex-1 h-11 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:active:scale-100"
             style={unlocked
               ? { color: '#fff', background: 'linear-gradient(135deg, #19B5E6 0%, #0F86B8 100%)', boxShadow: '0 0 20px rgba(25,181,230,0.45), 0 0 40px rgba(25,181,230,0.2)' }
@@ -2474,11 +2518,14 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
 // ─── Study Rooms Page ─────────────────────────────────────────────────────────
 
 interface RoomData {
-  id: number; name: string; emoji: string; classes: string; subject: string
+  id: number | string; name: string; emoji: string; classes: string; subject: string
   desc: string; members: number; avatarColors: string[]; avatarInits: string[]
   iconBg: string; iconEmoji: string; tag: 'popular' | 'all' | 'myrooms'
-  isPublic: boolean; password?: string; isUserCreated?: boolean; isOwner?: boolean
+  isPublic: boolean; isUserCreated?: boolean; isOwner?: boolean
   subjectTag: string
+  // Set for real rooms (study_groups rows, see lib/studyRooms.ts). Rooms without
+  // a groupId are a community's local demo room and keep their scripted bots.
+  groupId?: string; isMember?: boolean; hasPassword?: boolean; liveCount?: number; memberLimit?: number
 }
 
 interface BotParticipant {
@@ -2491,72 +2538,44 @@ interface ChatMsg {
   id: string; name: string; text: string; time: string; isBot: boolean; isMe: boolean
 }
 
-const ROOM_DATA: RoomData[] = [
-  {
-    id: 1, name: 'Physics Warriors', emoji: '⚡', classes: 'Class 11 · 12', subject: 'Physics',
-    desc: 'Concepts, PYQs, doubts — all in one place.', members: 48,
-    avatarColors: ['#7C4DFF', '#9B6CFF', '#EC4899', '#F59E0B'],
-    avatarInits: ['RS', 'PK', 'AM', 'DJ'],
-    iconBg: 'linear-gradient(135deg, #1E40AF, #3B82F6)',
-    iconEmoji: '📘', tag: 'popular', subjectTag: 'physics', isPublic: true,
-  },
-  {
-    id: 2, name: 'Chemistry Crew', emoji: '✨', classes: 'Class 11 · 12', subject: 'Chemistry',
-    desc: 'Study. Discuss. Score.', members: 32,
-    avatarColors: ['#7C4DFF', '#0F99CC', '#EC4899', '#F87171'],
-    avatarInits: ['SK', 'DL', 'MK', 'RV'],
-    iconBg: 'linear-gradient(135deg, #7C4DFF, #A855F7)',
-    iconEmoji: '🧪', tag: 'popular', subjectTag: 'chemistry', isPublic: true,
-  },
-  {
-    id: 3, name: 'Maths Mavericks', emoji: '', classes: 'Class 10 · 11 · 12', subject: 'Mathematics',
-    desc: 'Tricks, practice, progress.', members: 67,
-    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'],
-    avatarInits: ['AK', 'KV', 'PN', 'SR'],
-    iconBg: 'linear-gradient(135deg, #0C7FAA, #19B5E6)',
-    iconEmoji: '√x', tag: 'popular', subjectTag: 'maths', isPublic: true,
-  },
-  {
-    id: 4, name: 'Biology Buddies', emoji: '🌿', classes: 'Class 11 · 12', subject: 'Biology',
-    desc: 'Learn, revise, ace.', members: 41,
-    avatarColors: ['#0A9673', '#7C4DFF', '#F59E0B', '#EC4899'],
-    avatarInits: ['VM', 'PR', 'SC', 'AT'],
-    iconBg: 'linear-gradient(135deg, #0A9673, #19D3A2)',
-    iconEmoji: '📗', tag: 'all', subjectTag: 'biology', isPublic: false, password: 'bio123',
-  },
-  {
-    id: 5, name: 'JEE 2026', emoji: '👑', classes: 'JEE Aspirants', subject: 'All Subjects',
-    desc: 'Discipline. Consistency. Results.', members: 89,
-    avatarColors: ['#DC2626', '#7C4DFF', '#0F99CC', '#F59E0B'],
-    avatarInits: ['RK', 'AS', 'PG', 'NM'],
-    iconBg: 'linear-gradient(135deg, #BE185D, #F43F5E)',
-    iconEmoji: '🎯', tag: 'popular', subjectTag: 'all', isPublic: false, password: 'jee2026',
-  },
-  {
-    id: 6, name: 'Night Owls', emoji: '🌙', classes: 'All Classes', subject: 'All Subjects',
-    desc: 'Late night study sessions. No distractions.', members: 27,
-    avatarColors: ['#1D4ED8', '#7C4DFF', '#9B6CFF', '#0F99CC'],
-    avatarInits: ['LD', 'VR', 'AM', 'TR'],
-    iconBg: 'linear-gradient(135deg, #1E3A8A, #3B82F6)',
-    iconEmoji: '💻', tag: 'all', subjectTag: 'all', isPublic: true,
-  },
-  {
-    id: 7, name: 'Class 12 Board Prep', emoji: '', classes: 'Class 12', subject: 'All Subjects',
-    desc: "Let's crack it together!", members: 56,
-    avatarColors: ['#7C4DFF', '#0DAE86', '#F59E0B', '#EC4899'],
-    avatarInits: ['HP', 'GS', 'RT', 'MV'],
-    iconBg: 'linear-gradient(135deg, #5835CC, #7C4DFF)',
-    iconEmoji: '👥', tag: 'all', subjectTag: 'all', isPublic: true,
-  },
-  {
-    id: 8, name: 'Productive Humans', emoji: '✨', classes: 'All Classes', subject: 'All Subjects',
-    desc: 'Better habits. Bigger dreams.', members: 73,
-    avatarColors: ['#7C4DFF', '#3B82F6', '#EC4899', '#19D3A2'],
-    avatarInits: ['KD', 'PS', 'YR', 'NB'],
-    iconBg: 'linear-gradient(135deg, #5C35CC, #7C4DFF)',
-    iconEmoji: '✦', tag: 'all', subjectTag: 'all', isPublic: true,
-  },
+// Real rooms come from list_study_rooms (lib/studyRooms.ts). Their look is
+// derived deterministically from name/subject, so a room renders the same
+// everywhere without storing colours.
+const ROOM_GRADIENTS: [string, string][] = [
+  ['#1E40AF', '#3B82F6'], ['#7C4DFF', '#A855F7'], ['#0C7FAA', '#19B5E6'], ['#0A9673', '#19D3A2'],
+  ['#BE185D', '#F43F5E'], ['#1E3A8A', '#3B82F6'], ['#5835CC', '#7C4DFF'], ['#C2410C', '#F97316'],
 ]
+const FACE_COLORS = ['#7C4DFF', '#0F99CC', '#EC4899', '#F59E0B', '#0DAE86', '#3B82F6', '#F97316', '#9B6CFF']
+
+// "Popular": the busiest rooms with a few members, by live then total members.
+function popularRoomIds(rows: RoomRow[]): Set<string> {
+  return new Set([...rows]
+    .filter(r => r.member_count >= 3)
+    .sort((a, b) => b.live_count - a.live_count || b.member_count - a.member_count)
+    .slice(0, 6)
+    .map(r => r.id))
+}
+
+function roomRowToRoomData(r: RoomRow, popular: Set<string>): RoomData {
+  const subject = r.subject?.trim() || 'All Subjects'
+  const [c1, c2] = ROOM_GRADIENTS[hashSubject(`${r.name}|${subject}`) % ROOM_GRADIENTS.length]
+  const inits = (r.preview_initials ?? []).filter(Boolean).slice(0, 4)
+  const isAdmin = r.my_role === 'admin'
+  return {
+    id: r.id, groupId: r.id, name: r.name, emoji: '', classes: r.is_official ? 'Official Room' : 'All Classes',
+    subject, desc: r.description?.trim() || 'Study together. Stay focused.', members: r.member_count,
+    avatarColors: inits.map((x, i) => FACE_COLORS[(hashSubject(x) + i) % FACE_COLORS.length]), avatarInits: inits,
+    iconBg: `linear-gradient(135deg, ${c1}, ${c2})`, iconEmoji: subjectVisual(subject).emoji,
+    tag: popular.has(r.id) ? 'popular' : isAdmin ? 'myrooms' : 'all',
+    isPublic: r.visibility === 'public', isUserCreated: isAdmin, isOwner: isAdmin, subjectTag: subject.toLowerCase(),
+    isMember: r.is_member, hasPassword: r.has_password, liveCount: r.live_count, memberLimit: r.member_limit,
+  }
+}
+
+function roomRowsToRoomData(rows: RoomRow[]): RoomData[] {
+  const popular = popularRoomIds(rows)
+  return rows.map(r => roomRowToRoomData(r, popular))
+}
 
 // ─── Bot Pool ─────────────────────────────────────────────────────────────────
 const BOT_POOL = [
@@ -2570,9 +2589,11 @@ const BOT_POOL = [
   { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#9B6CFF', isStudying: true },
 ]
 
+// Scripted participants for a community's local demo room only (no groupId).
 function getRoomBots(room: RoomData): BotParticipant[] {
-  if (room.isUserCreated) return []
-  const count = 3 + (room.id % 3)
+  if (room.isUserCreated || room.groupId) return []
+  const seed = Number(room.id) || 0
+  const count = 3 + (seed % 3)
   const subjects = room.subject === 'All Subjects'
     ? ['Physics', 'Chemistry', 'Mathematics', 'Biology']
     : [`${room.subject}`, `${room.subject} — Advanced`, `${room.subject} — PYQs`]
@@ -2580,7 +2601,7 @@ function getRoomBots(room: RoomData): BotParticipant[] {
     ...b,
     id: `bot-${room.id}-${i}`,
     subject: subjects[i % subjects.length],
-    studyTimeSecs: b.isStudying ? (30 + ((room.id * 17 + i * 23) % 120)) * 60 : 0,
+    studyTimeSecs: b.isStudying ? (30 + ((seed * 17 + i * 23) % 120)) * 60 : 0,
   }))
 }
 
@@ -2749,30 +2770,41 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 }
 
 // ─── Study Rooms List Page ─────────────────────────────────────────────────────
-function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, leftCommunityIds }: {
+function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, communities, communitiesStatus, communitiesError, onRefreshCommunities, pendingJoinRoomId, onPendingJoinHandled }: {
   onNavigate: (id: string) => void
   onEnterRoom: (room: RoomData) => void
   profile?: ProfileInfo
+  // A room to open the Join flow for on arrival (an invite link, or Home's
+  // Live Study Rooms card for a room you're not in yet).
+  pendingJoinRoomId?: string | null
+  onPendingJoinHandled?: () => void
   // Owned by the App root (not local state) so that coming Back from a
   // community's page lands on the Communities tab again, not Study Rooms.
   communityTab: 'rooms' | 'communities'
   onCommunityTabChange: (t: 'rooms' | 'communities') => void
   onOpenCommunity: (c: CommunityData) => void
-  leftCommunityIds: number[]
+  communities: CommunityData[]
+  communitiesStatus: 'loading' | 'ready' | 'error'
+  communitiesError: string | null
+  onRefreshCommunities: () => Promise<void>
 }) {
   const [tab, setTab] = useState<RoomTab>('all')
   const [subjectFilter, setSubjectFilter] = useState('All Subjects')
   const [search, setSearch] = useState('')
-  const [joinedIds, setJoinedIds] = useState<Set<number>>(new Set())
   const [showCreate, setShowCreate] = useState(false)
-  const [passwordRoomId, setPasswordRoomId] = useState<number | null>(null)
+  const [passwordRoomId, setPasswordRoomId] = useState<string | number | null>(null)
   const [passwordInput, setPasswordInput] = useState('')
-  const [passwordError, setPasswordError] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const [inviteRoom, setInviteRoom] = useState<RoomData | null>(null)
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | number | null>(null)
   const [copied, setCopied] = useState(false)
-  const [userRooms, setUserRooms] = useState<RoomData[]>([])
   const [createForm, setCreateForm] = useState({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  // Set while handling an invite link / Home card request: a successful join
+  // then goes straight into the room instead of just flipping Join to Enter.
+  const enterAfterJoinRef = useRef(false)
   // Parent "Community" module tabs. Everything below this — Hero, Search,
   // the All Rooms/My Rooms/Popular/Subject Wise tabs, the room list, and
   // all three modals — is the pre-existing Study Rooms page, completely
@@ -2780,12 +2812,15 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
   // "Communities" tab (placeholder for now) sits alongside it.
   const setCommunityTab = onCommunityTabChange
 
-  const allRooms = [...ROOM_DATA, ...userRooms]
+  // Real rooms (study_groups), membership included - see lib/studyRooms.ts.
+  const { rooms: roomRows, status: roomsStatus, error: roomsError, refresh: refreshRooms } = useStudyRooms(true)
+  const allRooms = useMemo(() => roomRowsToRoomData(roomRows), [roomRows])
   const filtered = allRooms.filter(r => {
     if (tab === 'popular') return r.tag === 'popular' && !r.isUserCreated
     if (tab === 'myrooms') return !!r.isUserCreated
     if (tab === 'subject') {
-      if (subjectFilter !== 'All Subjects' && r.subject !== subjectFilter && r.subject !== 'All Subjects') return false
+      if (subjectFilter !== 'All Subjects' && r.subject !== 'All Subjects'
+        && !r.subject.toLowerCase().includes(subjectFilter.toLowerCase().slice(0, 4))) return false
     }
     if (search) {
       const q = search.toLowerCase()
@@ -2801,46 +2836,117 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
     { id: 'subject', label: 'Subject Wise', icon: '📚' },
   ]
 
-  function handleJoin(room: RoomData) {
-    if (joinedIds.has(room.id)) return
-    if (!room.isPublic) { setPasswordRoomId(room.id); setPasswordInput(''); setPasswordError(false) }
-    else setJoinedIds(prev => { const s = new Set(prev); s.add(room.id); return s })
+  function joinMessage(result: string): string | null {
+    if (result === 'full') return 'This room is full.'
+    if (result === 'invite_only') return 'This room is invite-only.'
+    if (result === 'wrong_password') return 'Incorrect password. Try again.'
+    return null
   }
 
-  function submitPassword() {
-    const room = allRooms.find(r => r.id === passwordRoomId)
-    if (!room) return
-    if (passwordInput === room.password) {
-      setJoinedIds(prev => { const s = new Set(prev); s.add(room.id); return s })
-      setPasswordRoomId(null)
-    } else { setPasswordError(true) }
-  }
-
-  function handleLeave(id: number) {
-    setJoinedIds(prev => { const s = new Set(prev); s.delete(id); return s })
-    setOpenMenuId(null)
-  }
-
-  function handleCreateRoom() {
-    if (!createForm.name.trim()) return
-    const newRoom: RoomData = {
-      id: Date.now(), name: createForm.name.trim(), emoji: '', classes: 'All Classes',
-      subject: createForm.subject.trim() || 'All Subjects', desc: createForm.desc.trim() || 'Custom study room.',
-      members: 1, avatarColors: ['#7C4DFF'], avatarInits: ['AS'],
-      iconBg: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', iconEmoji: '✦',
-      tag: 'myrooms', isPublic: createForm.isPublic, password: createForm.isPublic ? undefined : createForm.password,
-      isUserCreated: true, isOwner: true, subjectTag: 'all',
+  async function handleJoin(room: RoomData) {
+    if (room.isMember || !room.groupId || busy) return
+    if (!room.isPublic) {
+      if (!room.hasPassword) { setNotice('This room is invite-only.'); return }
+      setPasswordRoomId(room.id); setPasswordInput(''); setPasswordError(null)
+      return
     }
-    setUserRooms(prev => [...prev, newRoom])
-    setJoinedIds(prev => { const s = new Set(prev); s.add(newRoom.id); return s })
-    setShowCreate(false)
-    setCreateForm({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+    setBusy(true)
+    try {
+      const result = await joinRoom(room.groupId)
+      const msg = joinMessage(result)
+      if (msg) setNotice(msg)
+      await refreshRooms()
+      if (!msg && enterAfterJoinRef.current) onEnterRoom({ ...room, isMember: true })
+      enterAfterJoinRef.current = false
+    } catch (e) {
+      setNotice((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitPassword() {
+    const room = allRooms.find(r => r.id === passwordRoomId)
+    if (!room?.groupId || busy) return
+    if (!passwordInput) { setPasswordError('Enter the room password.'); return }
+    setBusy(true)
+    try {
+      const result = await joinRoom(room.groupId, passwordInput)
+      const msg = joinMessage(result)
+      if (msg) { setPasswordError(msg); return }
+      setPasswordRoomId(null)
+      setPasswordInput('')
+      await refreshRooms()
+      if (enterAfterJoinRef.current) onEnterRoom({ ...room, isMember: true })
+      enterAfterJoinRef.current = false
+    } catch (e) {
+      setPasswordError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleLeave(room: RoomData) {
+    setOpenMenuId(null)
+    if (!room.groupId || busy) return
+    setBusy(true)
+    try {
+      await leaveRoom(room.groupId)
+      await refreshRooms()
+    } catch (e) {
+      setNotice((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCreateRoom() {
+    if (!createForm.name.trim() || busy) return
+    if (!createForm.isPublic && createForm.password.length < 4) { setCreateError('Private rooms need a password of at least 4 characters.'); return }
+    setBusy(true)
+    setCreateError(null)
+    try {
+      await createRoom(createForm)
+      await refreshRooms()
+      setShowCreate(false)
+      setCreateForm({ name: '', subject: '', desc: '', isPublic: true, password: '' })
+    } catch (e) {
+      setCreateError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function copyInviteLink(room: RoomData) {
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (!room.groupId) return
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 2000) }
+    try {
+      navigator.clipboard.writeText(roomInviteLink(room.groupId)).then(done, () => setNotice('Could not copy the link.'))
+    } catch {
+      setNotice('Could not copy the link.')
+    }
   }
+  function shareInvite(room: RoomData, via: string) {
+    if (!room.groupId) return
+    const link = roomInviteLink(room.groupId)
+    const text = `Study with me in "${room.name}" on Wynko: ${link}`
+    const url = via === 'WhatsApp' ? `https://wa.me/?text=${encodeURIComponent(text)}`
+      : via === 'Telegram' ? `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(`Study with me in "${room.name}" on Wynko`)}`
+      : `mailto:?subject=${encodeURIComponent(`Join my study room: ${room.name}`)}&body=${encodeURIComponent(text)}`
+    window.open(url, '_blank', 'noopener')
+  }
+
+  // Invite link / Home card: open the Join flow for that room once the list has loaded.
+  useEffect(() => {
+    if (!pendingJoinRoomId || roomsStatus === 'loading') return
+    const room = allRooms.find(r => r.groupId === pendingJoinRoomId)
+    onPendingJoinHandled?.()
+    if (!room) { setNotice('That study room isn’t available. It may be invite-only or no longer exist.'); return }
+    if (room.isMember) { onEnterRoom(room); return }
+    enterAfterJoinRef.current = true
+    void handleJoin(room)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJoinRoomId, roomsStatus])
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]" 
@@ -2882,7 +2988,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
 
         <main className="flex-1 overflow-y-auto px-6 py-5">
           {communityTab === 'communities' ? (
-            <CommunitiesTabContent onOpenCommunity={onOpenCommunity} leftIds={leftCommunityIds} />
+            <CommunitiesTabContent communities={communities} status={communitiesStatus} error={communitiesError}
+              onRefresh={onRefreshCommunities} onOpenCommunity={onOpenCommunity} />
           ) : (
           <>
           {/* Hero */}
@@ -2964,9 +3071,35 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             </div>
           )}
 
+          {notice && (
+            <div className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-xl border text-[13px] text-amber-300"
+              style={{ background: 'rgba(245,158,11,0.07)', borderColor: 'rgba(245,158,11,0.25)' }}>
+              <span>{notice}</span>
+              <button onClick={() => setNotice(null)} className="text-amber-400/80 hover:text-amber-300 text-xs">Dismiss</button>
+            </div>
+          )}
+          {roomsStatus === 'loading' && allRooms.length === 0 && (
+            <div className="py-16 text-center text-slate-500 text-sm">Loading study rooms…</div>
+          )}
+          {roomsStatus === 'error' && allRooms.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="text-slate-300 font-semibold mb-1">Couldn't load study rooms</div>
+              <div className="text-slate-500 text-sm mb-4">{roomsError}</div>
+              <button onClick={() => void refreshRooms()}
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]">Try again</button>
+            </div>
+          )}
+          {roomsStatus === 'ready' && tab !== 'myrooms' && filtered.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <div className="text-slate-300 font-semibold mb-1">{search ? 'No rooms match your search' : 'No study rooms here yet'}</div>
+              <div className="text-slate-500 text-sm">Create one and invite your friends.</div>
+            </div>
+          )}
+
           <div className="space-y-3 pb-8">
             {filtered.map(room => {
-              const joined = joinedIds.has(room.id)
+              const joined = !!room.isMember
               const menuOpen = openMenuId === room.id
               return (
                 <div key={room.id}
@@ -3027,7 +3160,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                             Invite Friends
                           </button>
                           {joined && (
-                            <button onClick={() => handleLeave(room.id)}
+                            <button onClick={() => handleLeave(room)}
                               className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-[rgba(26,40,69,0.55)]"
                               >
                               <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M17 10H7m0 0l3-3m-3 3l3 3M3 17V3" /></svg>
@@ -3046,8 +3179,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                         Enter →
                       </button>
                     ) : (
-                      <button onClick={() => handleJoin(room)}
-                        className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
+                      <button onClick={() => handleJoin(room)} disabled={busy}
+                        className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
                         style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
                         {room.isPublic ? 'Join' : '🔒 Join'}
                       </button>
@@ -3064,7 +3197,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
 
       {/* Password Modal — Study Rooms tab only; unchanged from before */}
       {passwordRoomId !== null && (() => {
-        const room = allRooms.find(r => r.id === passwordRoomId)!
+        const room = allRooms.find(r => r.id === passwordRoomId)
+        if (!room) return null
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
             onClick={e => { if (e.target === e.currentTarget) setPasswordRoomId(null) }}>
@@ -3082,18 +3216,18 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                 style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : '#1E3060', fontSize: '18px', letterSpacing: '4px' }}
                 placeholder="••••••"
                 value={passwordInput}
-                onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
+                onChange={e => { setPasswordInput(e.target.value); setPasswordError(null) }}
                 onKeyDown={e => e.key === 'Enter' && submitPassword()}
                 autoFocus
               />
-              {passwordError && <div className="text-[11px] text-red-400 text-center mb-3">Incorrect password. Try again.</div>}
+              {passwordError && <div className="text-[11px] text-red-400 text-center mb-3">{passwordError}</div>}
               {!passwordError && <div className="h-4 mb-1" />}
               <div className="flex gap-3">
-                <button onClick={() => setPasswordRoomId(null)}
+                <button onClick={() => { setPasswordRoomId(null); enterAfterJoinRef.current = false }}
                   className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
                   >Cancel</button>
-                <button onClick={submitPassword}
-                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
+                <button onClick={submitPassword} disabled={busy}
+                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
                   style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                   Enter Room
                 </button>
@@ -3122,7 +3256,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-[#0B1530] border-[#1A2845]"
                 >
                 <span className="flex-1 text-sm text-violet-300 truncate" >
-                  wynko.app/rooms/{inviteRoom.name.toLowerCase().replace(/\s+/g, '-')}
+                  {inviteRoom.groupId ? roomInviteLink(inviteRoom.groupId).replace(/^https?:\/\//, '') : ''}
                 </span>
                 <button onClick={() => copyInviteLink(inviteRoom)}
                   className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all flex-shrink-0"
@@ -3140,7 +3274,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             )}
             <div className="flex gap-2">
               {[{ icon: '💬', label: 'WhatsApp' }, { icon: '✈️', label: 'Telegram' }, { icon: '📧', label: 'Email' }].map(opt => (
-                <button key={opt.label}
+                <button key={opt.label} onClick={() => shareInvite(inviteRoom, opt.label)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors border-[#1A2845] bg-[#0B1530]"
                   >
                   {opt.icon} {opt.label}
@@ -3198,12 +3332,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                    placeholder="Set room password" />
               )}
             </div>
+            {createError && <div className="text-[11px] text-red-400 text-center -mt-2 mb-3">{createError}</div>}
             <div className="flex gap-3">
-              <button onClick={() => setShowCreate(false)}
+              <button onClick={() => { setShowCreate(false); setCreateError(null) }}
                 className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
                 >Cancel</button>
-              <button onClick={handleCreateRoom}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
+              <button onClick={handleCreateRoom} disabled={busy}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
                 style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
                 Create Room
               </button>
@@ -3232,10 +3367,11 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
 //   3. Discover More Communities — full-width CTA.
 //   4. Join with Invite Link — full-width input + Join button.
 const HOME_LOCK_DAYS = 30
-const HOME_COMMUNITY_STORE_KEY = 'wynko_home_community_v1'
 
+// One community the signed-in user belongs to (my_communities, lib/communities.ts),
+// in the shape the Communities cards and pages render.
 interface CommunityData {
-  id: number
+  id: string
   name: string
   members: number
   desc: string
@@ -3245,86 +3381,129 @@ interface CommunityData {
   avatarColors?: string[]
   avatarInits?: string[]
   avatarExtra?: number
+  headName?: string
+  myRole?: 'admin' | 'member'
+  isHome?: boolean
+  homeLockedUntil?: string | null
+  inviteToken?: string | null
+  joinRequiresApproval?: boolean
 }
 
-// All communities the user currently belongs to. One of these is the "home"
-// community (default: Alpha Squad, matching first-run state below); the
-// rest render as cards in the "Your Communities" grid. A 5th entry is
-// included so the grid visibly wraps to a second row / the page scrolls,
-// same as it would once a real user has joined more than a handful.
-const ALL_COMMUNITIES: CommunityData[] = [
-  { id: 1, name: 'JEE 2026 — Alpha Squad', members: 2840, desc: 'Learn. Compete. Grow.',
-    emoji: '🏆', iconBg: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' },
-  { id: 2, name: 'JEE 2026 — Warriors', members: 1284, studyingNow: 832, desc: 'Push each other through every mock test.',
-    emoji: '🎯', iconBg: 'linear-gradient(135deg,#6D5EF5,#4C3FD6)',
-    avatarColors: ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'], avatarInits: ['RS', 'PK', 'AM', 'DJ'], avatarExtra: 42 },
-  { id: 3, name: 'NEET 2026 — Dreamers', members: 986, studyingNow: 521, desc: 'Biology-first grind squad for NEET.',
-    emoji: '🧬', iconBg: 'linear-gradient(135deg,#12B886,#0A9673)',
-    avatarColors: ['#0DAE86', '#3B82F6', '#F59E0B', '#F97316'], avatarInits: ['AK', 'KV', 'PN', 'SR'], avatarExtra: 28 },
-  { id: 4, name: 'UPSC 2026 — Aspirants', members: 642, studyingNow: 318, desc: 'Daily current affairs + answer writing.',
-    emoji: '🏛️', iconBg: 'linear-gradient(135deg,#EC4899,#BE185D)',
-    avatarColors: ['#EC4899', '#7C4DFF', '#0F99CC', '#F59E0B'], avatarInits: ['VM', 'PR', 'SC', 'AT'], avatarExtra: 16 },
-  { id: 5, name: 'Boards 2026 — Sprinters', members: 410, studyingNow: 145, desc: 'Last-mile revision for board exams.',
-    emoji: '⚡', iconBg: 'linear-gradient(135deg,#19B5E6,#0F7FB8)',
-    avatarColors: ['#19B5E6', '#7C4DFF', '#F59E0B', '#0DAE86'], avatarInits: ['NT', 'IR', 'GP', 'MS'], avatarExtra: 9 },
-]
+function communityLook(name: string): { iconBg: string } {
+  const [c1, c2] = ROOM_GRADIENTS[hashSubject(name) % ROOM_GRADIENTS.length]
+  return { iconBg: `linear-gradient(135deg,${c1},${c2})` }
+}
+
+function toCommunityData(r: MyCommunity): CommunityData {
+  const inits = (r.preview_initials ?? []).filter(Boolean).slice(0, 4)
+  return {
+    id: r.id, name: r.name, members: r.member_count, desc: r.description?.trim() || 'Study together. Grow together.',
+    emoji: r.emoji || '👥', ...communityLook(r.name), studyingNow: r.live_count,
+    avatarColors: inits.map((x, i) => FACE_COLORS[(hashSubject(x) + i) % FACE_COLORS.length]), avatarInits: inits,
+    avatarExtra: Math.max(0, r.member_count - inits.length),
+    headName: r.head_name, myRole: r.my_role, isHome: !!r.is_home, homeLockedUntil: r.home_locked_until,
+    inviteToken: r.invite_token, joinRequiresApproval: r.join_requires_approval,
+  }
+}
+
+// A published community week from the database, made safe to render as ScheduleItem[][].
+function normalizeWeek(raw: unknown): ScheduleItem[][] {
+  const days = Array.isArray(raw) ? raw : []
+  return Array.from({ length: 7 }, (_, i) => (Array.isArray(days[i]) ? days[i] : [])
+    .filter((x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object')
+    .map((x, j) => ({
+      id: String(x.id ?? `s${i}_${j}`), subject: String(x.subject ?? 'Study'), topic: String(x.topic ?? ''),
+      startTime: String(x.startTime ?? ''), endTime: String(x.endTime ?? ''),
+      color: String(x.color ?? subjectColor(String(x.subject ?? ''))), iconEmoji: String(x.iconEmoji ?? subjectEmoji(String(x.subject ?? ''))),
+    })))
+}
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
-function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
+function joinStatusMessage(status: string): string {
+  if (status === 'joined') return '✓ You joined the community.'
+  if (status === 'requested') return '✓ Request sent — you\u2019ll join once the WynkoHead approves it.'
+  if (status === 'already_member') return 'You’re already in this community.'
+  if (status === 'full') return 'This community is full.'
+  return 'That invite link or code isn’t valid.'
+}
+
+function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCommunity }: {
+  communities: CommunityData[]
+  status: 'loading' | 'ready' | 'error'
+  error: string | null
+  onRefresh: () => Promise<void>
   onOpenCommunity: (c: CommunityData) => void
-  leftIds: number[]
 }) {
-  // First-ever load: seed a default home community so the page isn't empty
-  // (Alpha Squad, locked with 12 days already remaining — mirrors the
-  // product's onboarding-assigned home community). After that, whatever is
-  // in storage always wins, so a user's own choice is never overwritten.
-  const [homeCommunityId, setHomeCommunityId] = useState<number | null>(null)
-  const [homeLockUntil, setHomeLockUntil] = useState<number | null>(null)
+  // Home Community + its 30-day lock are stored per user (community_home) and
+  // enforced server-side by rpc_set_home_community; half of the user's study
+  // rewards follow it (compute_user_group_time_split, migration 0071).
   const [showPicker, setShowPicker] = useState(false)
+  const [pickerError, setPickerError] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState('')
   const [inviteMsg, setInviteMsg] = useState<string | null>(null)
-  const [exploreMsg, setExploreMsg] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [showDiscover, setShowDiscover] = useState(false)
+  const discoverQ = useLoader(showDiscover ? fetchDiscoverCommunities : null, [] as DiscoverCommunity[], [showDiscover], 0)
+  const [discoverMsg, setDiscoverMsg] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    const saved = Store.get(HOME_COMMUNITY_STORE_KEY, null) as { id: number; lockUntil: number } | null
-    if (saved && saved.id) {
-      setHomeCommunityId(saved.id)
-      setHomeLockUntil(saved.lockUntil)
-    } else {
-      const seeded = { id: 1, lockUntil: Date.now() + 12 * 24 * 60 * 60 * 1000 }
-      Store.set(HOME_COMMUNITY_STORE_KEY, seeded)
-      setHomeCommunityId(seeded.id)
-      setHomeLockUntil(seeded.lockUntil)
-    }
-  }, [])
-
-  // Communities the student has left this session (see leaveCommunity in the
-  // App root) drop out of every list below.
-  const joinedCommunities = ALL_COMMUNITIES.filter(c => !leftIds.includes(c.id))
-  const home = joinedCommunities.find(c => c.id === homeCommunityId) || null
+  const joinedCommunities = communities
+  const home = joinedCommunities.find(c => c.isHome) || null
+  const homeCommunityId = home?.id ?? null
+  const homeLockUntil = home?.homeLockedUntil ? new Date(home.homeLockedUntil).getTime() : null
   const daysRemaining = homeLockUntil ? Math.max(0, Math.ceil((homeLockUntil - Date.now()) / (1000 * 60 * 60 * 24))) : 0
   const isLocked = !!home && daysRemaining > 0
   const otherCommunities = joinedCommunities.filter(c => c.id !== homeCommunityId)
 
-  function selectHomeCommunity(id: number) {
-    const lockUntil = Date.now() + HOME_LOCK_DAYS * 24 * 60 * 60 * 1000
-    setHomeCommunityId(id)
-    setHomeLockUntil(lockUntil)
-    Store.set(HOME_COMMUNITY_STORE_KEY, { id, lockUntil })
-    setShowPicker(false)
+  async function selectHomeCommunity(id: string) {
+    if (busy) return
+    setBusy(true)
+    setPickerError(null)
+    try {
+      await setHomeCommunity(id)
+      await onRefresh()
+      setShowPicker(false)
+    } catch (e) {
+      setPickerError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
-  function handleJoinInvite() {
-    if (!inviteLink.trim()) return
-    setInviteMsg('✓ Request sent — you\u2019ll be notified once approved.')
-    setInviteLink('')
-    setTimeout(() => setInviteMsg(null), 3000)
+  async function handleJoinInvite() {
+    const token = parseInviteInput(inviteLink)
+    if (!token || busy) return
+    setBusy(true)
+    try {
+      const r = await joinCommunity({ token })
+      setInviteMsg(joinStatusMessage(r.status))
+      if (r.status === 'joined' || r.status === 'requested') setInviteLink('')
+      if (r.status === 'joined') await onRefresh()
+    } catch (e) {
+      setInviteMsg((e as Error).message)
+    } finally {
+      setBusy(false)
+      setTimeout(() => setInviteMsg(null), 5000)
+    }
   }
 
   function handleExplore() {
-    setExploreMsg(true)
-    setTimeout(() => setExploreMsg(false), 2500)
+    setShowDiscover(true)
+  }
+
+  async function joinFromDiscover(c: DiscoverCommunity) {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await joinCommunity({ groupId: c.id })
+      setDiscoverMsg(m => ({ ...m, [c.id]: joinStatusMessage(r.status) }))
+      if (r.status === 'joined') await onRefresh()
+      await discoverQ.refresh()
+    } catch (e) {
+      setDiscoverMsg(m => ({ ...m, [c.id]: (e as Error).message }))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -3403,7 +3582,11 @@ function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
       {/* 2 · Your Communities */}
       <div className="mb-7">
         <div className="text-white font-bold text-base mb-0.5">Your Communities</div>
-        <div className="text-slate-500 text-[13px] mb-4">You are part of {otherCommunities.length} {otherCommunities.length === 1 ? 'community' : 'communities'}</div>
+        <div className="text-slate-500 text-[13px] mb-4">
+          {status === 'loading' && joinedCommunities.length === 0 ? 'Loading your communities…'
+            : status === 'error' && joinedCommunities.length === 0 ? <>Couldn’t load your communities. <button onClick={() => void onRefresh()} className="text-violet-300 hover:text-violet-200">Try again</button>{error ? ` (${error})` : ''}</>
+            : `You are part of ${otherCommunities.length} ${otherCommunities.length === 1 ? 'community' : 'communities'}${home ? ' besides your home' : ''}`}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {otherCommunities.map(c => (
             <div key={c.id} className="p-5 rounded-2xl border flex flex-col" style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
@@ -3454,7 +3637,7 @@ function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
             style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.4)' }}>
             Explore <Ico n="chevR" cls="w-3.5 h-3.5" />
           </button>
-          {exploreMsg && <div className="text-[11px] text-violet-300">More communities coming soon ✨</div>}
+
         </div>
       </div>
 
@@ -3474,16 +3657,16 @@ function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
             <input
               type="text" placeholder="Enter invite link or code" value={inviteLink}
               onChange={e => setInviteLink(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleJoinInvite()}
+              onKeyDown={e => e.key === 'Enter' && void handleJoinInvite()}
               className="w-56 px-4 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
               style={{ borderColor: '#1E3060' }} />
-            <button onClick={handleJoinInvite}
-              className="px-5 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-opacity flex-shrink-0"
+            <button onClick={() => void handleJoinInvite()} disabled={busy}
+              className="px-5 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-opacity flex-shrink-0 disabled:opacity-60"
               style={{ background: '#7C4DFF' }}>
               Join
             </button>
           </div>
-          {inviteMsg && <div className="text-[11px] text-emerald-400">{inviteMsg}</div>}
+          {inviteMsg && <div className={`text-[11px] ${inviteMsg.startsWith('✓') ? 'text-emerald-400' : 'text-amber-300'}`}>{inviteMsg}</div>}
         </div>
       </div>
 
@@ -3499,9 +3682,13 @@ function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
               <div className="text-lg font-bold text-white">{home ? 'Change your home community' : 'Select your home community'}</div>
               <div className="text-slate-500 text-[12px] mt-1">You can only change this once every {HOME_LOCK_DAYS} days.</div>
             </div>
+            {pickerError && <div className="text-[12px] text-amber-300 text-center mb-3">{pickerError}</div>}
+            {joinedCommunities.length === 0 && (
+              <div className="text-[13px] text-slate-400 text-center mb-5">Join a community first — use an invite link or Explore below.</div>
+            )}
             <div className="space-y-2 mb-5">
               {joinedCommunities.map(c => (
-                <button key={c.id} onClick={() => selectHomeCommunity(c.id)}
+                <button key={c.id} onClick={() => void selectHomeCommunity(c.id)} disabled={busy}
                   className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-violet-500/40"
                   style={{
                     background: c.id === homeCommunityId ? 'rgba(124,77,255,0.12)' : 'rgba(14,21,40,0.55)',
@@ -3516,9 +3703,53 @@ function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
                 </button>
               ))}
             </div>
-            <button onClick={() => setShowPicker(false)}
+            <button onClick={() => { setShowPicker(false); setPickerError(null) }}
               className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
               Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Discover communities (Explore) - same modal language as the picker above */}
+      {showDiscover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
+          onClick={e => { if (e.target === e.currentTarget) setShowDiscover(false) }}>
+          <div className="rounded-2xl border p-7 w-[440px] max-h-[80vh] overflow-y-auto"
+            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            <div className="text-center mb-5">
+              <div className="text-2xl mb-2">🧭</div>
+              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">DISCOVER</div>
+              <div className="text-lg font-bold text-white">Communities you can join</div>
+              <div className="text-slate-500 text-[12px] mt-1">Run by verified WynkoHeads.</div>
+            </div>
+            {discoverQ.status === 'loading' && <div className="text-[13px] text-slate-500 text-center py-6">Loading communities…</div>}
+            {discoverQ.status === 'error' && <div className="text-[13px] text-amber-300 text-center py-6">{discoverQ.error}</div>}
+            {discoverQ.status === 'ready' && discoverQ.data.length === 0 && (
+              <div className="text-[13px] text-slate-500 text-center py-6">No other communities to join right now.</div>
+            )}
+            <div className="space-y-2 mb-5">
+              {discoverQ.data.map(c => (
+                <div key={c.id} className="p-3 rounded-xl border" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(124,58,237,0.16)' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: communityLook(c.name).iconBg }}>{c.emoji || '👥'}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-slate-100 truncate">{c.name}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{fmt(c.member_count)} members · by {c.head_name}</div>
+                    </div>
+                    <button onClick={() => void joinFromDiscover(c)} disabled={busy || c.requested}
+                      className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+                      style={{ background: '#7C4DFF' }}>
+                      {c.requested ? 'Requested' : c.join_requires_approval ? 'Request' : 'Join'}
+                    </button>
+                  </div>
+                  {discoverMsg[c.id] && <div className="text-[11px] text-emerald-400 mt-2">{discoverMsg[c.id]}</div>}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowDiscover(false)}
+              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+              Close
             </button>
           </div>
         </div>
@@ -3533,14 +3764,48 @@ function CommunitiesTabContent({ onOpenCommunity, leftIds }: {
 // WynkoHead — header, four tabs (Home · Schedule · My Progress · Announcements)
 // and nothing else. No revenue/earnings anywhere on this page by design.
 //
-// Data comes from getCommunityDetail() (lib/communityData.ts — typed mock data
-// until community tables exist). The one piece of real state is the student's
-// Accept / Reject decision on the WynkoHead's schedule: the decision lives in
-// the App root (it has to write the student's actual schedule), is persisted in
-// localStorage under COMMUNITY_SCHEDULE_STORE_KEY, and is passed in here.
+// Data is live: community_detail (my progress in this community, community
+// stats, head) and community_announcements (realtime). The Accept / Reject
+// decision on the WynkoHead's published schedule lives in the App root (it has
+// to write the student's actual schedule) and is saved per user
+// (community_schedule_choices) via rpc_set_schedule_choice.
 type CommunityStudentTab = 'home' | 'schedule' | 'progress' | 'announcements'
-type CommunityScheduleChoice = 'accepted' | 'rejected'
-const COMMUNITY_SCHEDULE_STORE_KEY = 'wynko_community_schedule_v1'
+type CommunityScheduleChoice = ScheduleChoice
+
+// What the community page renders, built from community_detail +
+// community_announcements (lib/communities.ts).
+interface CommunityHead { name: string; initials: string; color: string }
+interface CommunityAnnouncement { id: string; title: string; message: string; postedAt: number; pinned?: boolean; important?: boolean }
+interface CommunityDetail {
+  head: CommunityHead
+  studyingNow: number
+  announcements: CommunityAnnouncement[]
+  progress: {
+    todayMinutes: number; todaySessions: number; adherencePct: number | null
+    totalMinutes: number; totalSessions: number; weeklyMinutes: number[]
+    community: { avgDailyMinutes: number; activeSubjects: number; avgAdherencePct: number | null }
+  }
+}
+const HEAD_AVATAR_GRADIENT = 'linear-gradient(135deg,#7C4DFF,#4C2E9E)'
+const pctText = (n: number | null | undefined) => (n == null ? '–' : `${n}%`)
+
+function toAnnouncement(a: CommunityAnnouncementRow): CommunityAnnouncement {
+  return { id: a.id, title: a.title, message: a.message, postedAt: new Date(a.created_at).getTime(), pinned: a.pinned, important: a.important }
+}
+
+function toCommunityDetail(d: CommunityDetailData, anns: CommunityAnnouncementRow[]): CommunityDetail {
+  const weekly = Array.from({ length: 7 }, (_, i) => Number(d.my.weekly_minutes?.[i]) || 0)
+  return {
+    head: { name: d.head.name, initials: initialsOf(d.head.name), color: HEAD_AVATAR_GRADIENT },
+    studyingNow: d.studying_now,
+    announcements: anns.map(toAnnouncement),
+    progress: {
+      todayMinutes: d.my.today_minutes, todaySessions: d.my.today_sessions, adherencePct: d.my.adherence,
+      totalMinutes: d.my.total_minutes, totalSessions: d.my.total_sessions, weeklyMinutes: weekly,
+      community: { avgDailyMinutes: d.stats.avg_daily_minutes, activeSubjects: d.stats.active_subjects, avgAdherencePct: d.stats.avg_adherence },
+    },
+  }
+}
 
 // Shared look for every block on this page — the same gradient card, icon tile
 // and inner row already used by Home's Today's Study Plan.
@@ -3578,18 +3843,6 @@ function formatPostedAgo(ts: number): string {
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
   return formatPostedStamp(ts)
-}
-
-const slotMinutes = (s: CommunityScheduleSlot) => parseTimeRangeMinutes(s.start, s.end)
-
-// The WynkoHead's schedule is one daily template; the student's own schedule
-// is Mon–Sun, so an accepted schedule repeats on every day of the week.
-function communitySlotsToWeek(slots: CommunityScheduleSlot[]): ScheduleItem[][] {
-  return Array.from({ length: 7 }, (_, dayI) => slots.map(s => ({
-    id: `cm_${dayI}_${s.id}`, subject: s.subject, topic: s.topic,
-    startTime: s.start, endTime: s.end,
-    color: subjectColor(s.subject), iconEmoji: subjectEmoji(s.subject),
-  })))
 }
 
 const weekSessionMins = (day: ScheduleItem[]) => day.reduce((n, s) => n + parseTimeRangeMinutes(s.startTime, s.endTime), 0)
@@ -3630,16 +3883,17 @@ function CommunityBannerArt() {
   )
 }
 
-// A community's shared study room, in the shape the room interior expects.
+// A community's shared study room: the community's own group, opened in the
+// same room interior as every Study Room (real members, chat, sessions that
+// count toward the community).
 function communityStudyRoom(community: CommunityData): RoomData {
   const shortName = community.name.split('—').pop()!.trim()
   return {
-    id: 1000 + community.id, name: `${shortName} Study Room`, emoji: '', classes: 'Community',
+    id: community.id, groupId: community.id, isMember: true, name: `${shortName} Study Room`, emoji: '', classes: 'Community',
     subject: 'All Subjects', desc: community.desc, members: community.members,
-    avatarColors: community.avatarColors ?? ['#7C4DFF', '#EC4899', '#F59E0B', '#0F99CC'],
-    avatarInits: community.avatarInits ?? ['RS', 'PK', 'AM', 'DJ'],
+    avatarColors: community.avatarColors ?? [], avatarInits: community.avatarInits ?? [],
     iconBg: community.iconBg, iconEmoji: community.emoji,
-    tag: 'all', isPublic: true, subjectTag: 'all',
+    tag: 'all', isPublic: true, subjectTag: 'all', memberLimit: 5000, liveCount: community.studyingNow,
   }
 }
 
@@ -3724,8 +3978,8 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
   community: CommunityData
   isHome: boolean
   isOwner?: boolean // the WynkoHead previewing their own community
-  week: ScheduleItem[][] // the schedule students see: the WynkoHead's published one, else the seed
-  weekBy: string | null // who published it (null = the community's seed schedule)
+  week: ScheduleItem[][] | null // the WynkoHead's published schedule (null = none published yet)
+  weekBy: string | null // who published it
   onBack: () => void
   onNavigate: (id: string) => void
   onJoinRoom: (room: RoomData) => void
@@ -3735,11 +3989,12 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
   onAcceptSchedule: () => void
   onRejectSchedule: () => void
 }) {
-  // Announcements the WynkoHead has posted replace the seed list.
-  const detail = useMemo(() => {
-    const d = getCommunityDetail(community.id)
-    return d ? { ...d, announcements: loadAnnouncements(community.id, d.announcements) } : null
-  }, [community.id])
+  // Everything below is live data: community_detail (progress, stats, head)
+  // and the announcement feed, which updates in realtime when the WynkoHead posts.
+  const detailQ = useLoader(() => fetchCommunityDetail(community.id), null as CommunityDetailData | null, [community.id])
+  const annQ = useLoader(() => fetchAnnouncements(community.id), [] as CommunityAnnouncementRow[], [community.id])
+  useRealtimeRefresh('community_announcements', `group_id=eq.${community.id}`, () => { void annQ.refresh() })
+  const detail = useMemo(() => (detailQ.data ? toCommunityDetail(detailQ.data, annQ.data) : null), [detailQ.data, annQ.data])
   const [tab, setTab] = useState<CommunityStudentTab>('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
@@ -3751,9 +4006,9 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
     { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
   ]
 
-  const studyingNow = community.studyingNow ?? detail?.studyingNow ?? 0
-  const memberAvatars = [0, 1, 2, 3].map(i => AVATAR_OPTIONS[(community.id + i) % AVATAR_OPTIONS.length])
-  const roomAvatars = [0, 1, 2].map(i => AVATAR_OPTIONS[(community.id + 4 + i) % AVATAR_OPTIONS.length])
+  const studyingNow = detail?.studyingNow ?? community.studyingNow ?? 0
+  const members = detailQ.data?.member_count ?? community.members
+  const faces = { colors: community.avatarColors ?? [], inits: community.avatarInits ?? [] }
 
   // The community's shared study room opens in the same room interior every
   // other Study Room uses.
@@ -3789,19 +4044,14 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
                 <div className="min-w-0 flex-1">
                   <h1 className="text-2xl font-bold text-white leading-tight truncate">{community.name}</h1>
                   <div className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: '#A5B4FC' }}>
-                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(community.members)} members
+                    <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(members)} members
                   </div>
                   <div className="flex items-center gap-2 mt-2.5">
-                    <div className="flex -space-x-2 flex-shrink-0">
-                      {memberAvatars.map((src, i) => (
-                        <img key={i} src={src} alt="" className="w-8 h-8 rounded-full object-cover border-2 flex-shrink-0"
-                          style={{ borderColor: '#0B1530', zIndex: 4 - i }} />
-                      ))}
-                    </div>
-                    {community.members > memberAvatars.length && (
+                    <FaceAvatars colors={faces.colors} inits={faces.inits} />
+                    {members > faces.inits.length && (
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold text-slate-200"
                         style={{ background: 'rgba(14,21,40,0.7)', border: '1px solid rgba(56,132,255,0.30)' }}>
-                        +{compactCount(community.members - memberAvatars.length)}
+                        +{compactCount(members - faces.inits.length)}
                       </span>
                     )}
                   </div>
@@ -3855,15 +4105,29 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
             {/* 3 · Tab content */}
             {!detail ? (
               <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
-                <div className="text-sm font-semibold text-slate-300 mb-1">Nothing here yet</div>
-                <div className="text-[12px] text-slate-500">This community’s WynkoHead hasn’t set anything up yet.</div>
+                {detailQ.status === 'error' ? (
+                  <>
+                    <div className="text-sm font-semibold text-slate-300 mb-1">Couldn’t load this community</div>
+                    <div className="text-[12px] text-slate-500 mb-4">{detailQ.error}</div>
+                    <button onClick={() => void detailQ.refresh()} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-500">Loading community…</div>
+                )}
               </div>
             ) : tab === 'home' ? (
-              <CommunityHomeTab detail={detail} studyingNow={studyingNow} roomAvatars={roomAvatars}
+              <CommunityHomeTab detail={detail} studyingNow={studyingNow} faces={faces}
                 onViewAll={() => setTab('announcements')} onJoinRoom={joinCommunityRoom} />
             ) : tab === 'schedule' ? (
-              <CommunityScheduleTab week={week} head={detail.head} by={weekBy ?? detail.head.name} choice={scheduleChoice}
-                onAccept={onAcceptSchedule} onReject={onRejectSchedule} onCreateOwn={() => onNavigate('schedules')} />
+              week ? (
+                <CommunityScheduleTab week={week} head={detail.head} by={weekBy ?? detail.head.name} choice={scheduleChoice}
+                  onAccept={onAcceptSchedule} onReject={onRejectSchedule} onCreateOwn={() => onNavigate('schedules')} />
+              ) : (
+                <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
+                  <div className="text-sm font-semibold text-slate-300 mb-1">No schedule yet</div>
+                  <div className="text-[12px] text-slate-500">{detail.head.name} hasn’t published a community schedule yet. You’ll get a notification when they do.</div>
+                </div>
+              )
             ) : tab === 'progress' ? (
               <CommunityProgressTab detail={detail} />
             ) : (
@@ -3897,10 +4161,10 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
 }
 
 // ── Home tab: latest announcement + study room, then this community's progress ──
-function CommunityHomeTab({ detail, studyingNow, roomAvatars, onViewAll, onJoinRoom }: {
+function CommunityHomeTab({ detail, studyingNow, faces, onViewAll, onJoinRoom }: {
   detail: CommunityDetail
   studyingNow: number
-  roomAvatars: string[]
+  faces: { colors: string[]; inits: string[] }
   onViewAll: () => void
   onJoinRoom: () => void
 }) {
@@ -3954,12 +4218,7 @@ function CommunityHomeTab({ detail, studyingNow, roomAvatars, onViewAll, onJoinR
           <div className="flex-1 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-3 mb-3">
-                <div className="flex -space-x-2 flex-shrink-0">
-                  {roomAvatars.map((src, i) => (
-                    <img key={i} src={src} alt="" className="w-9 h-9 rounded-full object-cover border-2 flex-shrink-0"
-                      style={{ borderColor: '#0B1530', zIndex: 3 - i }} />
-                  ))}
-                </div>
+                <FaceAvatars colors={faces.colors.slice(0, 3)} inits={faces.inits.slice(0, 3)} />
                 <div className="text-[13px] text-slate-300 font-medium">
                   <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students studying
                 </div>
@@ -3990,7 +4249,7 @@ function CommunityHomeTab({ detail, studyingNow, roomAvatars, onViewAll, onJoinR
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(26,40,69,0.9)]">
           <div className="sm:pr-6"><CmStat icon="clock" value={formatStudyDuration(p.todayMinutes)} label="Study Time Today" /></div>
           <div className="sm:px-6"><CmStat icon="bullseye" value={String(p.todaySessions)} label="Focus Sessions" /></div>
-          <div className="sm:pl-6"><CmStat icon="check" value={`${p.adherencePct}%`} label="Schedule Adherence" /></div>
+          <div className="sm:pl-6"><CmStat icon="check" value={pctText(p.adherencePct)} label="Schedule Adherence" /></div>
         </div>
       </div>
     </div>
@@ -4193,7 +4452,7 @@ function CommunityProgressTab({ detail }: { detail: CommunityDetail }) {
         {([
           { icon: 'clock', value: formatStudyDuration(p.totalMinutes), label: 'Total Study Time' },
           { icon: 'bullseye', value: String(p.totalSessions), label: 'Focus Sessions' },
-          { icon: 'check', value: `${p.adherencePct}%`, label: 'Schedule Adherence' },
+          { icon: 'check', value: pctText(p.adherencePct), label: 'Schedule Adherence' },
         ] as { icon: keyof typeof IP; value: string; label: string }[]).map(s => (
           <div key={s.label} className="p-5 rounded-2xl border" style={CM_CARD}>
             <CmStat icon={s.icon} value={s.value} label={s.label} />
@@ -4212,7 +4471,7 @@ function CommunityProgressTab({ detail }: { detail: CommunityDetail }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(26,40,69,0.9)]">
           <div className="sm:pr-6"><CmStat icon="clock" value={formatStudyDuration(p.community.avgDailyMinutes)} label="Avg. Study Time / Day" /></div>
           <div className="sm:px-6"><CmStat icon="library" value={String(p.community.activeSubjects)} label="Active Subjects" /></div>
-          <div className="sm:pl-6"><CmStat icon="check" value={`${p.community.avgAdherencePct}%`} label="Avg. Schedule Adherence" /></div>
+          <div className="sm:pl-6"><CmStat icon="check" value={pctText(p.community.avgAdherencePct)} label="Avg. Schedule Adherence" /></div>
         </div>
       </div>
     </div>
@@ -4269,17 +4528,19 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
 // The student side of the same flows lives in CommunityStudentPage above:
 // a schedule published here reaches students as a notification card
 // (ScheduleNotificationCard) and announcements posted here appear in their
-// feed. Both go through lib/communityStore.ts until there is a backend.
+// feed. Everything is Supabase-backed (lib/communities.ts, migration 0071);
+// earnings and payouts use the existing RevHead ledger/payout backend.
 type HeadTab = 'overview' | 'schedule' | 'announcements' | 'analytics' | 'earnings' | 'manage'
-const HEAD_SETTINGS_KEY = 'wynko_head_community_v1'
+type EarningsRange = 7 | 30 | 90
 
 interface HeadCommunitySettings {
   name: string
   description: string
   requireApproval: boolean
-  handledRequests: string[] // join-request ids already approved / declined
-  approvedCount: number // members added through approved requests
 }
+
+// A community's published schedule, as the WynkoHead and students see it.
+interface PublishedSchedule { week: ScheduleItem[][]; publishedAt: number; by: string }
 
 const HEAD_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
 
@@ -4287,10 +4548,6 @@ function initialsOf(name: string): string {
   return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'W'
 }
 
-function loadHeadSettings(community: CommunityData): HeadCommunitySettings {
-  const saved = Store.get(HEAD_SETTINGS_KEY, null) as Partial<HeadCommunitySettings> | null
-  return { name: community.name, description: community.desc, requireApproval: true, handledRequests: [], approvedCount: 0, ...(saved ?? {}) }
-}
 
 function HeadBadge() {
   return (
@@ -4353,7 +4610,7 @@ function HeadConfirmDialog({ title, body, confirmLabel, confirmStyle, onConfirm,
   )
 }
 
-function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onViewAsStudent, onEnterStudyRoom, headSchedule, setHeadSchedule, headUnits, setHeadUnits, published, onPublish }: {
+function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onViewAsStudent, onEnterStudyRoom, headSchedule, setHeadSchedule, headUnits, setHeadUnits, published, onPublish, onCommunityChanged }: {
   community: CommunityData
   headName: string
   profile?: ProfileInfo
@@ -4365,23 +4622,39 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onVi
   headUnits: StudyUnit[]
   setHeadUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
   published: PublishedSchedule | undefined
-  onPublish: () => void
+  onPublish: () => Promise<string | null> // error message, or null when published
+  onCommunityChanged: () => Promise<void> // re-read the community (name, members, ...)
 }) {
   const [tab, setTab] = useState<HeadTab>('overview')
-  const [settings, setSettings] = useState<HeadCommunitySettings>(() => loadHeadSettings(community))
-  const [announcements, setAnnouncements] = useState<CommunityAnnouncement[]>(
-    () => loadAnnouncements(community.id, getCommunityDetail(community.id)?.announcements ?? []))
+  const settings: HeadCommunitySettings = { name: community.name, description: community.desc, requireApproval: !!community.joinRequiresApproval }
+  const overviewQ = useLoader(() => fetchHeadOverview(community.id), null as Awaited<ReturnType<typeof fetchHeadOverview>> | null, [community.id], 30_000)
+  const annQ = useLoader(() => fetchAnnouncements(community.id), [] as CommunityAnnouncementRow[], [community.id])
+  useRealtimeRefresh('community_announcements', `group_id=eq.${community.id}`, () => { void annQ.refresh() })
+  const announcements = useMemo(() => annQ.data.map(toAnnouncement), [annQ.data])
 
-  function updateSettings(patch: Partial<HeadCommunitySettings>) {
-    setSettings(prev => { const next = { ...prev, ...patch }; Store.set(HEAD_SETTINGS_KEY, next); return next })
+  async function updateSettings(patch: Partial<HeadCommunitySettings>): Promise<string | null> {
+    try {
+      await updateCommunitySettings(community.id, {
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.requireApproval !== undefined ? { join_requires_approval: patch.requireApproval } : {}),
+      })
+      await onCommunityChanged()
+      return null
+    } catch (e) {
+      return (e as Error).message
+    }
   }
-  function updateAnnouncements(next: CommunityAnnouncement[]) {
-    setAnnouncements(next)
-    saveAnnouncements(community.id, next)
+  async function postAnn(a: { title: string; message: string; pinned: boolean; important: boolean }): Promise<string | null> {
+    try { await postAnnouncement(community.id, a); await annQ.refresh(); return null } catch (e) { return (e as Error).message }
+  }
+  async function deleteAnn(id: string): Promise<string | null> {
+    try { await deleteAnnouncement(id); await annQ.refresh(); return null } catch (e) { return (e as Error).message }
   }
 
-  const members = community.members + settings.approvedCount
-  const studyingNow = community.studyingNow ?? 128
+  // Students = members other than the WynkoHead.
+  const members = overviewQ.data?.members ?? Math.max(0, community.members - 1)
+  const studyingNow = overviewQ.data?.studying_now ?? community.studyingNow ?? 0
 
   const TABS: { id: HeadTab; label: string; icon: keyof typeof IP }[] = [
     { id: 'overview', label: 'Overview', icon: 'home' },
@@ -4446,7 +4719,7 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onVi
             <CmTabBar tabs={TABS} active={tab} onChange={setTab} />
 
             {tab === 'overview' && (
-              <HeadOverviewTab community={community} members={members} studyingNow={studyingNow} announcements={announcements}
+              <HeadOverviewTab community={community} overview={overviewQ.data} members={members} studyingNow={studyingNow} announcements={announcements}
                 onViewAnnouncements={() => setTab('announcements')} onEnterRoom={() => onEnterStudyRoom(communityStudyRoom(community))} />
             )}
             {tab === 'schedule' && (
@@ -4454,11 +4727,14 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onVi
                 headUnits={headUnits} setHeadUnits={setHeadUnits} published={published} onPublish={onPublish} />
             )}
             {tab === 'announcements' && (
-              <HeadAnnouncementsTab headName={headName} announcements={announcements} onChange={updateAnnouncements} />
+              <HeadAnnouncementsTab headName={headName} announcements={announcements} onPost={postAnn} onDelete={deleteAnn} />
             )}
-            {tab === 'analytics' && <HeadAnalyticsTab />}
+            {tab === 'analytics' && <HeadAnalyticsTab groupId={community.id} />}
             {tab === 'earnings' && <HeadEarningsTab />}
-            {tab === 'manage' && <HeadManageTab settings={settings} onChange={updateSettings} />}
+            {tab === 'manage' && (
+              <HeadManageTab groupId={community.id} settings={settings} inviteToken={community.inviteToken ?? null}
+                onChange={updateSettings} onMembersChanged={async () => { await onCommunityChanged(); await overviewQ.refresh() }} />
+            )}
           </div>
         </main>
       </div>
@@ -4467,22 +4743,21 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onVi
 }
 
 // ── Overview: the numbers that matter, the study room, latest announcements ──
-function HeadOverviewTab({ community, members, studyingNow, announcements, onViewAnnouncements, onEnterRoom }: {
+function HeadOverviewTab({ community, overview, members, studyingNow, announcements, onViewAnnouncements, onEnterRoom }: {
   community: CommunityData
+  overview: Awaited<ReturnType<typeof fetchHeadOverview>> | null
   members: number
   studyingNow: number
   announcements: CommunityAnnouncement[]
   onViewAnnouncements: () => void
   onEnterRoom: () => void
 }) {
-  const progress = getCommunityDetail(community.id)?.progress.community
   const recent = [...announcements].sort((a, b) => b.postedAt - a.postedAt).slice(0, 3)
-  const roomAvatars = [0, 1, 2].map(i => AVATAR_OPTIONS[(community.id + i) % AVATAR_OPTIONS.length])
   const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
     { icon: 'rooms', value: fmt(members), label: 'Total Students' },
-    { icon: 'bullseye', value: fmt(Math.round(members * 0.4)), label: 'Active Today' },
-    { icon: 'clock', value: formatStudyDuration(progress?.avgDailyMinutes ?? 0), label: 'Avg. Study Time / Day' },
-    { icon: 'check', value: `${progress?.avgAdherencePct ?? 0}%`, label: 'Avg. Schedule Adherence' },
+    { icon: 'bullseye', value: overview ? fmt(overview.active_today) : '–', label: 'Active Today' },
+    { icon: 'clock', value: overview ? formatStudyDuration(overview.avg_daily_minutes) : '–', label: 'Avg. Study Time / Day' },
+    { icon: 'check', value: pctText(overview?.avg_adherence), label: 'Avg. Schedule Adherence' },
   ]
   return (
     <div className="space-y-3.5">
@@ -4498,25 +4773,21 @@ function HeadOverviewTab({ community, members, studyingNow, announcements, onVie
         {/* Community Study Room */}
         <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
           <CmCardTitle icon="rooms" title="Community Study Room"
-            right={
+            right={studyingNow > 0 ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
                 style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Live
               </span>
-            } />
+            ) : undefined} />
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex -space-x-2 flex-shrink-0">
-              {roomAvatars.map((src, i) => (
-                <img key={i} src={src} alt="" className="w-9 h-9 rounded-full object-cover border-2 flex-shrink-0" style={{ borderColor: '#0B1530', zIndex: 3 - i }} />
-              ))}
-            </div>
+            <FaceAvatars colors={(community.avatarColors ?? []).slice(0, 3)} inits={(community.avatarInits ?? []).slice(0, 3)} />
             <div className="text-[13px] text-slate-300 font-medium">
               <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students online
             </div>
           </div>
           <div className="rounded-xl border p-4 mb-5" style={CM_ROW}>
             <div className="text-[11px] text-slate-500 mb-1">Currently studying</div>
-            <div className="text-sm font-semibold text-slate-100">Mathematics · Integration</div>
+            <div className="text-sm font-semibold text-slate-100">{overview?.current_subject || 'No one right now'}</div>
           </div>
           <button onClick={onEnterRoom}
             className="mt-auto w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
@@ -4565,19 +4836,25 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
   headUnits: StudyUnit[]
   setHeadUnits: React.Dispatch<React.SetStateAction<StudyUnit[]>>
   published: PublishedSchedule | undefined
-  onPublish: () => void
+  onPublish: () => Promise<string | null>
 }) {
   const [confirming, setConfirming] = useState(false)
   const [justPublished, setJustPublished] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
+  const [publishing, setPublishing] = useState(false)
   const publishedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (publishedTimer.current) clearTimeout(publishedTimer.current) }, [])
 
   const hasSessions = headSchedule.some(d => d.length > 0)
   const unpublishedChanges = !!published && JSON.stringify(published.week) !== JSON.stringify(headSchedule)
 
-  function confirmPublish() {
+  async function confirmPublish() {
     setConfirming(false)
-    onPublish()
+    setPublishing(true)
+    setPublishError(null)
+    const err = await onPublish()
+    setPublishing(false)
+    if (err) { setPublishError(err); return }
     setJustPublished(true)
     if (publishedTimer.current) clearTimeout(publishedTimer.current)
     publishedTimer.current = setTimeout(() => setJustPublished(false), 5000)
@@ -4604,13 +4881,15 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
             <div className="text-[13px] text-slate-400 leading-relaxed mt-0.5">
               Build the schedule below, then publish it. Students get a notification and choose whether to follow it or create their own.
             </div>
-            <div className="text-[11px] mt-1.5" style={{ color: justPublished ? '#19D3A2' : '#64748B' }}>
-              {justPublished
-                ? `Published. ${fmt(members)} students have been notified.`
-                : published ? `Last published ${formatPostedStamp(published.publishedAt)}` : 'Not published yet'}
+            <div className="text-[11px] mt-1.5" style={{ color: publishError ? '#FBBF24' : justPublished ? '#19D3A2' : '#64748B' }}>
+              {publishError
+                ? publishError
+                : justPublished
+                  ? `Published. ${fmt(members)} students have been notified.`
+                  : published ? `Last published ${formatPostedStamp(published.publishedAt)}` : 'Not published yet'}
             </div>
           </div>
-          <button onClick={() => setConfirming(true)} disabled={!hasSessions}
+          <button onClick={() => setConfirming(true)} disabled={!hasSessions || publishing}
             title={hasSessions ? undefined : 'Add at least one session first'}
             className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
             style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
@@ -4627,18 +4906,21 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
         <HeadConfirmDialog title="Publish this schedule?"
           body={<>{fmt(members)} students will get a notification with this schedule ({weekSummary(headSchedule)}). Each student can accept it or keep their own schedule.</>}
           confirmLabel="Publish" confirmStyle={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}
-          onConfirm={confirmPublish} onCancel={() => setConfirming(false)} />
+          onConfirm={() => void confirmPublish()} onCancel={() => setConfirming(false)} />
       )}
     </div>
   )
 }
 
 // ── Announcements: post to the community, manage the feed ──
-function HeadAnnouncementsTab({ headName, announcements, onChange }: {
+function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
   headName: string
   announcements: CommunityAnnouncement[]
-  onChange: (next: CommunityAnnouncement[]) => void
+  onPost: (a: { title: string; message: string; pinned: boolean; important: boolean }) => Promise<string | null>
+  onDelete: (id: string) => Promise<string | null>
 }) {
+  const [postError, setPostError] = useState<string | null>(null)
+  const [posting, setPosting] = useState(false)
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [important, setImportant] = useState(false)
@@ -4648,9 +4930,13 @@ function HeadAnnouncementsTab({ headName, announcements, onChange }: {
   const feed = [...announcements].sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (b.postedAt - a.postedAt))
   const canPost = title.trim().length > 0 && message.trim().length > 0
 
-  function post() {
-    if (!canPost) return
-    onChange([{ id: `hp_${Date.now()}`, title: title.trim(), message: message.trim(), postedAt: Date.now(), important, pinned }, ...announcements])
+  async function post() {
+    if (!canPost || posting) return
+    setPosting(true)
+    setPostError(null)
+    const err = await onPost({ title: title.trim(), message: message.trim(), important, pinned })
+    setPosting(false)
+    if (err) { setPostError(err); return }
     setTitle(''); setMessage(''); setImportant(false); setPinned(false)
   }
 
@@ -4675,7 +4961,8 @@ function HeadAnnouncementsTab({ headName, announcements, onChange }: {
               {toggle(important, setImportant, 'Important', 'alert', '#F87171')}
               {toggle(pinned, setPinned, 'Pin to top', 'pin', '#7FB0FF')}
             </div>
-            <button onClick={post} disabled={!canPost}
+            {postError && <span className="text-[12px] text-amber-300">{postError}</span>}
+            <button onClick={() => void post()} disabled={!canPost || posting}
               className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
               <Ico n="send" cls="w-4 h-4" /> Post Announcement
@@ -4706,7 +4993,7 @@ function HeadAnnouncementsTab({ headName, announcements, onChange }: {
                   </span>
                   {deleting === a.id ? (
                     <span className="flex items-center gap-1.5 text-[11px]">
-                      <button onClick={() => { onChange(announcements.filter(x => x.id !== a.id)); setDeleting(null) }}
+                      <button onClick={() => { void onDelete(a.id).then(err => { if (err) setPostError(err) }); setDeleting(null) }}
                         className="font-semibold text-red-400 hover:text-red-300 transition-colors">Delete</button>
                       <span className="text-slate-700">·</span>
                       <button onClick={() => setDeleting(null)} className="text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
@@ -4728,22 +5015,42 @@ function HeadAnnouncementsTab({ headName, announcements, onChange }: {
 }
 
 // ── Student Analytics: how every student is doing ──
-function HeadAnalyticsTab() {
+// One student's row, from community_student_analytics (this month's study,
+// streak, revision count, completed Focus Lock tasks, last activity, adherence).
+interface HeadStudent {
+  id: string; name: string; initials: string; color: string
+  studyMinutes: number; sessions: number; streakDays: number; revision: number; tasks: number
+  lastActiveMins: number; adherencePct: number | null
+}
+function toHeadStudent(r: StudentAnalyticsRow): HeadStudent {
+  const [c1, c2] = ROOM_GRADIENTS[hashSubject(r.user_id) % ROOM_GRADIENTS.length]
+  const last = r.last_active_at ? new Date(r.last_active_at).getTime() : 0
+  return {
+    id: r.user_id, name: r.name, initials: initialsOf(r.name), color: `linear-gradient(135deg,${c1},${c2})`,
+    studyMinutes: r.study_minutes, sessions: r.sessions, streakDays: r.streak_days, revision: r.revision, tasks: r.tasks,
+    lastActiveMins: last ? Math.max(0, Math.floor((Date.now() - last) / 60000)) : Number.POSITIVE_INFINITY,
+    adherencePct: r.adherence,
+  }
+}
+
+function HeadAnalyticsTab({ groupId }: { groupId: string }) {
   type Filter = 'all' | 'active' | 'inactive' | 'low'
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [showAll, setShowAll] = useState(false)
+  const studentsQ = useLoader(() => fetchStudentAnalytics(groupId), [] as StudentAnalyticsRow[], [groupId], 120_000)
+  const students = useMemo(() => studentsQ.data.map(toHeadStudent), [studentsQ.data])
 
-  const rows = HEAD_STUDENTS
+  const rows = students
     .filter(s => s.name.toLowerCase().includes(query.trim().toLowerCase()))
     .filter(s => filter === 'all' ? true
       : filter === 'active' ? s.lastActiveMins < 24 * 60
       : filter === 'inactive' ? s.lastActiveMins >= 3 * 24 * 60
-      : s.adherencePct < 50)
-    .sort((a, b) => b.adherencePct - a.adherencePct)
+      : s.adherencePct != null && s.adherencePct < 50)
+    .sort((a, b) => (b.adherencePct ?? -1) - (a.adherencePct ?? -1) || b.studyMinutes - a.studyMinutes)
   const visible = showAll ? rows : rows.slice(0, 8)
 
-  const ago = (m: number) => m < 60 ? `${m}m ago` : m < 24 * 60 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / (24 * 60))}d ago`
+  const ago = (m: number) => !Number.isFinite(m) ? 'Never' : m < 60 ? `${m}m ago` : m < 24 * 60 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / (24 * 60))}d ago`
   const barFor = (p: number) => p >= 70 ? 'linear-gradient(90deg,#19D3A2,#22D3EE)' : p >= 50 ? 'linear-gradient(90deg,#2979FF,#60A5FA)' : 'linear-gradient(90deg,#7C4DFF,#A78BFA)'
   const COLS = 'grid-cols-[minmax(170px,1.6fr)_repeat(5,minmax(64px,0.7fr))_minmax(84px,0.8fr)_minmax(150px,1.3fr)]'
 
@@ -4775,7 +5082,12 @@ function HeadAnalyticsTab() {
             <div>Student</div><div>Study Time</div><div>Sessions</div><div>Streak</div><div>Revision</div><div>Tasks</div><div>Last Active</div><div>Adherence</div>
           </div>
           {visible.length === 0 ? (
-            <div className="py-10 text-center text-[13px] text-slate-500">No students match.</div>
+            <div className="py-10 text-center text-[13px] text-slate-500">
+              {studentsQ.status === 'loading' ? 'Loading students…'
+                : studentsQ.status === 'error' ? studentsQ.error
+                : students.length === 0 ? 'No students yet. Share your invite link from Manage Community.'
+                : 'No students match.'}
+            </div>
           ) : visible.map(s => (
             <div key={s.id} className={`grid ${COLS} gap-3 px-4 py-3 items-center text-[13px] text-slate-300 border-b border-[rgba(26,40,69,0.6)] last:border-b-0 hover:bg-white/[0.02] transition-colors`}>
               <div className="flex items-center gap-3 min-w-0">
@@ -4790,9 +5102,9 @@ function HeadAnalyticsTab() {
               <div className="text-slate-400">{ago(s.lastActiveMins)}</div>
               <div className="flex items-center gap-2.5">
                 <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
-                  <div className="h-full rounded-full" style={{ width: `${s.adherencePct}%`, background: barFor(s.adherencePct) }} />
+                  <div className="h-full rounded-full" style={{ width: `${s.adherencePct ?? 0}%`, background: barFor(s.adherencePct ?? 0) }} />
                 </div>
-                <span className="w-9 text-right text-[12px] text-slate-400">{s.adherencePct}%</span>
+                <span className="w-9 text-right text-[12px] text-slate-400">{pctText(s.adherencePct)}</span>
               </div>
             </div>
           ))}
@@ -4849,18 +5161,72 @@ function EarningsChart({ points }: { points: { label: string; value: number }[] 
   )
 }
 
+// Earnings come from the existing RevHead backend: revhead_earnings_ledger
+// (own rows, RLS), my_wallet_balance (unclaimed), my_payout_history and
+// request_payout (needs a UPI ID on the profile; admins process it).
+const EARNING_SOURCE_META: Record<string, { emoji: string; label: string }> = {
+  platform: { emoji: '👥', label: 'Community activity' },
+  premium: { emoji: '⭐', label: 'Premium purchases' },
+  store: { emoji: '🛍️', label: 'Store purchases' },
+  ads: { emoji: '📺', label: 'Ads' },
+  ad: { emoji: '📺', label: 'Ads' },
+}
+function buildEarningsView(rows: { amount: number; source: string | null; occurred_at: string }[], range: EarningsRange) {
+  const DAY = 86400000
+  const now = Date.now()
+  const inRange = rows.filter(r => now - new Date(r.occurred_at).getTime() < range * DAY)
+  const prev = rows.filter(r => { const age = now - new Date(r.occurred_at).getTime(); return age >= range * DAY && age < 2 * range * DAY })
+  const total = inRange.reduce((a, r) => a + r.amount, 0)
+  const prevTotal = prev.reduce((a, r) => a + r.amount, 0)
+  const changePct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : 0
+  const n = range === 7 ? 7 : range === 30 ? 8 : 9
+  const points = Array.from({ length: n }, (_, i) => {
+    const daysAgo = Math.round((range - 1) * (1 - i / (n - 1)))
+    const cutoff = now - daysAgo * DAY
+    const value = Math.round(inRange.filter(r => new Date(r.occurred_at).getTime() <= cutoff).reduce((a, r) => a + r.amount, 0))
+    return { label: new Date(cutoff).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value }
+  })
+  const bySource = new Map<string, number>()
+  inRange.forEach(r => bySource.set(r.source || 'platform', (bySource.get(r.source || 'platform') ?? 0) + r.amount))
+  const sources = [...bySource.entries()].sort((a, b) => b[1] - a[1]).map(([id, amount]) => ({
+    id, emoji: EARNING_SOURCE_META[id]?.emoji ?? '💰', label: EARNING_SOURCE_META[id]?.label ?? id, note: '50% share', amount: Math.round(amount),
+  }))
+  return { total: Math.round(total), changePct, points, sources }
+}
+
 function HeadEarningsTab() {
   const [range, setRange] = useState<EarningsRange>(30)
-  const data = useMemo(() => buildEarnings(range), [range])
-  const payout = useMemo(() => payoutInfo(), [])
+  const ledgerQ = useLoader(() => fetchEarningsLedger(180), [] as { amount: number; source: string | null; occurred_at: string }[], [], 120_000)
+  const payoutsQ = useLoader(fetchPayoutHistory, [] as Awaited<ReturnType<typeof fetchPayoutHistory>>, [], 120_000)
+  const balanceQ = useLoader(fetchWalletBalance, 0, [], 120_000)
+  const data = useMemo(() => buildEarningsView(ledgerQ.data, range), [ledgerQ.data, range])
+  const latest = payoutsQ.data[0]
+  const nextDate = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })()
+  const payout = {
+    status: (latest && latest.status !== 'paid' ? 'Pending' : 'Paid') as 'Paid' | 'Pending',
+    lastAmount: Math.round(latest?.amount ?? 0),
+    lastDate: latest ? new Date(latest.processed_at ?? latest.requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+    nextAmount: Math.round(balanceQ.data),
+    nextDate,
+  }
   const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
-  const SOURCE_COLORS = ['#7C4DFF', '#22D3EE', '#19D3A2']
+  const SOURCE_COLORS = ['#7C4DFF', '#22D3EE', '#19D3A2', '#F59E0B', '#EC4899']
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawn, setWithdrawn] = useState(false)
-  function requestWithdraw() {
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
+  async function requestWithdraw() {
     if (withdrawing || withdrawn) return
     setWithdrawing(true)
-    setTimeout(() => { setWithdrawing(false); setWithdrawn(true) }, 900)
+    setWithdrawError(null)
+    try {
+      await requestPayout()
+      setWithdrawn(true)
+      await Promise.all([payoutsQ.refresh(), balanceQ.refresh(), ledgerQ.refresh()])
+    } catch (e) {
+      setWithdrawError((e as Error).message)
+    } finally {
+      setWithdrawing(false)
+    }
   }
 
   return (
@@ -4886,7 +5252,9 @@ function HeadEarningsTab() {
                 <div className="text-3xl font-bold text-white leading-tight">{inr(data.total)}</div>
                 <div className="text-[12px] text-slate-500 mt-0.5">Total Earnings</div>
               </div>
-              <div className="pb-1 text-[13px] font-semibold text-emerald-400">↑ {data.changePct}%</div>
+              {data.changePct !== 0 && (
+                <div className={`pb-1 text-[13px] font-semibold ${data.changePct > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>{data.changePct > 0 ? '↑' : '↓'} {Math.abs(data.changePct)}%</div>
+              )}
             </div>
             <EarningsChart points={data.points} />
           </div>
@@ -4900,14 +5268,15 @@ function HeadEarningsTab() {
                   : { background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>
                 <Ico n="check" cls="w-3.5 h-3.5" /> {payout.status}
               </span>
-              <div className="text-[11px] text-slate-500 mt-2">{inr(payout.lastAmount)} paid on {payout.lastDate}</div>
+              <div className="text-[11px] text-slate-500 mt-2">{latest ? `${inr(payout.lastAmount)} ${payout.status === 'Paid' ? 'paid' : 'requested'} on ${payout.lastDate}` : 'No payouts yet'}</div>
             </div>
             <div>
               <div className="text-[13px] text-slate-400 mb-1">Next payout</div>
               <div className="text-lg font-bold text-slate-100">{payout.nextDate}</div>
               <div className="text-[13px] text-slate-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-slate-500">(estimated)</span></div>
             </div>
-            <button onClick={requestWithdraw} disabled={withdrawing || withdrawn}
+            {withdrawError && <div className="text-[11px] text-amber-300 -mb-2">{withdrawError}</div>}
+            <button onClick={() => void requestWithdraw()} disabled={withdrawing || withdrawn || payout.nextAmount <= 0}
               className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-70 flex items-center justify-center gap-2"
               style={withdrawn
                 ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
@@ -4920,13 +5289,16 @@ function HeadEarningsTab() {
 
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="coin" title="Earnings by Source" sub={`Last ${range} days`} />
+        {data.sources.length === 0 && (
+          <div className="text-[13px] text-slate-500 py-2">{ledgerQ.status === 'loading' ? 'Loading earnings…' : ledgerQ.status === 'error' ? ledgerQ.error : 'No earnings in this period yet.'}</div>
+        )}
         <div className="space-y-2">
           {data.sources.map((s, i) => {
             const pct = data.total > 0 ? Math.round((s.amount / data.total) * 100) : 0
             return (
               <div key={s.id} className="rounded-xl border px-4 py-3.5" style={CM_ROW}>
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${SOURCE_COLORS[i]}1A`, border: `1px solid ${SOURCE_COLORS[i]}44` }}>{s.emoji}</div>
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${SOURCE_COLORS[i % SOURCE_COLORS.length]}1A`, border: `1px solid ${SOURCE_COLORS[i % SOURCE_COLORS.length]}44` }}>{s.emoji}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-slate-100">{s.label}</div>
                     <div className="text-[11px] text-slate-500">{s.note}</div>
@@ -4937,7 +5309,7 @@ function HeadEarningsTab() {
                   </div>
                 </div>
                 <div className="h-1 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SOURCE_COLORS[i] }} />
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SOURCE_COLORS[i % SOURCE_COLORS.length] }} />
                 </div>
               </div>
             )
@@ -4949,34 +5321,53 @@ function HeadEarningsTab() {
 }
 
 // ── Manage Community: details, invite & access, join requests ──
-function HeadManageTab({ settings, onChange }: {
+function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChanged }: {
+  groupId: string
   settings: HeadCommunitySettings
-  onChange: (patch: Partial<HeadCommunitySettings>) => void
+  inviteToken: string | null
+  onChange: (patch: Partial<HeadCommunitySettings>) => Promise<string | null>
+  onMembersChanged: () => Promise<void>
 }) {
   const [name, setName] = useState(settings.name)
   const [description, setDescription] = useState(settings.description)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
+  const requestsQ = useLoader(() => fetchJoinRequests(groupId), [] as JoinRequestRow[], [groupId])
+  useRealtimeRefresh('community_join_requests', `group_id=eq.${groupId}`, () => { void requestsQ.refresh() })
 
   const dirty = name.trim() !== settings.name || description.trim() !== settings.description
-  const inviteLink = `wynko.in/c/${(settings.name || 'community').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
-  const pending = HEAD_JOIN_REQUESTS.filter(r => !settings.handledRequests.includes(r.id))
+  const inviteLink = inviteToken ? communityInviteLink(inviteToken) : ''
+  const pending = requestsQ.data.map(r => {
+    const [c1, c2] = ROOM_GRADIENTS[hashSubject(r.user_id) % ROOM_GRADIENTS.length]
+    return { id: r.id, name: r.name, initials: initialsOf(r.name), color: `linear-gradient(135deg,${c1},${c2})`, note: r.note || 'Wants to join', requestedAgo: formatPostedAgo(new Date(r.created_at).getTime()) }
+  })
 
-  function save() {
+  async function save() {
     if (!name.trim()) return
-    onChange({ name: name.trim(), description: description.trim() })
+    setSaveError(null)
+    const err = await onChange({ name: name.trim(), description: description.trim() })
+    if (err) { setSaveError(err); return }
     setSaved(true)
     timers.current.push(setTimeout(() => setSaved(false), 2500))
   }
   function copyInvite() {
+    if (!inviteLink) return
     navigator.clipboard?.writeText(inviteLink)
     setCopied(true)
     timers.current.push(setTimeout(() => setCopied(false), 2000))
   }
-  function handle(id: string, approve: boolean) {
-    onChange({ handledRequests: [...settings.handledRequests, id], approvedCount: settings.approvedCount + (approve ? 1 : 0) })
+  async function handle(id: string, approve: boolean) {
+    try {
+      const result = await decideJoinRequest(id, approve)
+      if (result === 'full') setSaveError('Your community is full.')
+      await requestsQ.refresh()
+      if (approve) await onMembersChanged()
+    } catch (e) {
+      setSaveError((e as Error).message)
+    }
   }
 
   return (
@@ -4993,8 +5384,9 @@ function HeadManageTab({ settings, onChange }: {
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={240} className={`${HEAD_INPUT} resize-none`} />
           </label>
           <div className="flex items-center justify-end gap-3">
+            {saveError && <span className="text-[12px] text-amber-300">{saveError}</span>}
             {saved && <span className="text-[12px] text-emerald-400">Saved</span>}
-            <button onClick={save} disabled={!dirty || !name.trim()}
+            <button onClick={() => void save()} disabled={!dirty || !name.trim()}
               className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>Save Changes</button>
           </div>
@@ -5005,7 +5397,7 @@ function HeadManageTab({ settings, onChange }: {
         <CmCardTitle icon="rooms" title="Invite & Access" sub="Control how students join" />
         <div className="text-[11px] font-semibold text-slate-500 mb-1.5">Invite link</div>
         <div className="flex items-center gap-2.5 mb-5">
-          <div className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 truncate border-[#1A2845]" style={{ background: 'rgba(14,21,40,0.55)' }}>{inviteLink}</div>
+          <div className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 truncate border-[#1A2845]" style={{ background: 'rgba(14,21,40,0.55)' }}>{inviteLink.replace(/^https?:\/\//, '') || 'Loading…'}</div>
           <button onClick={copyInvite}
             className="px-4 py-2.5 rounded-xl border text-sm font-semibold flex items-center gap-2 transition-colors text-slate-200 hover:text-white hover:border-[rgba(56,132,255,0.6)]"
             style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
@@ -5018,7 +5410,7 @@ function HeadManageTab({ settings, onChange }: {
             <div className="text-[12px] text-slate-500 mt-0.5">Students who use your link wait for your approval before they join.</div>
           </div>
           <button role="switch" aria-checked={settings.requireApproval} aria-label="Approve new students manually"
-            onClick={() => onChange({ requireApproval: !settings.requireApproval })}
+            onClick={() => { void onChange({ requireApproval: !settings.requireApproval }).then(err => { if (err) setSaveError(err) }) }}
             className="relative w-11 h-6 rounded-full flex-shrink-0 transition-colors"
             style={{ background: settings.requireApproval ? '#7C4DFF' : 'rgba(71,85,105,0.5)' }}>
             <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: settings.requireApproval ? 22 : 2 }} />
@@ -5027,8 +5419,8 @@ function HeadManageTab({ settings, onChange }: {
       </div>
 
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
-        <CmCardTitle icon="check" title="Join Requests" sub={settings.requireApproval ? `${pending.length} waiting for approval` : 'Manual approval is off'} />
-        {!settings.requireApproval ? (
+        <CmCardTitle icon="check" title="Join Requests" sub={settings.requireApproval || pending.length > 0 ? `${pending.length} waiting for approval` : 'Manual approval is off'} />
+        {!settings.requireApproval && pending.length === 0 ? (
           <div className="text-[13px] text-slate-500 py-2">New students join instantly. Turn on manual approval above to review them first.</div>
         ) : pending.length === 0 ? (
           <div className="text-[13px] text-slate-500 py-2">No pending requests.</div>
@@ -5041,9 +5433,9 @@ function HeadManageTab({ settings, onChange }: {
                   <div className="text-sm font-semibold text-slate-100 truncate">{r.name}</div>
                   <div className="text-[11px] text-slate-500 truncate">{r.note} · {r.requestedAgo}</div>
                 </div>
-                <button onClick={() => handle(r.id, false)}
+                <button onClick={() => void handle(r.id, false)}
                   className="px-4 py-1.5 rounded-lg border text-[12px] font-semibold text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Decline</button>
-                <button onClick={() => handle(r.id, true)}
+                <button onClick={() => void handle(r.id, true)}
                   className="px-4 py-1.5 rounded-lg text-[12px] font-semibold text-white flex items-center gap-1.5 hover:opacity-90 transition-opacity"
                   style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)' }}>
                   <Ico n="check" cls="w-3.5 h-3.5" /> Approve
@@ -5373,7 +5765,23 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   pomoRef.current = pomo
   const togglingRef = useRef(false)
 
-  const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession()
+  // Sessions started in a real room count toward it (study_sessions.group_id).
+  const { start: startRemoteSession, stop: stopRemoteSession } = useFocusSession(room.groupId ?? null)
+  // Real room: members + live study state + chat from Supabase (lib/studyRooms.ts).
+  const live = useRoomLive(room.groupId ?? null)
+  const isRealRoom = !!room.groupId
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isRealRoom) return
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [isRealRoom])
+  const [chatError, setChatError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  // Pause barrier (same 150-word reflection as Focus Lock): any action that
+  // stops a running room timer - Pause, "Pause & Open Chat", switching task,
+  // Reset - waits here until the reflection is unlocked. Never saved.
+  const [pausePrompt, setPausePrompt] = useState<{ run: () => void } | null>(null)
 
   // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
   // reassigned every render so the interval below always calls the current start/stop closures.
@@ -5449,7 +5857,26 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     saveFocusPlanSnapshot({ tasks: planTasks, activeTaskId: selectedTaskId, running: focusRunning, runningStartedAtMs: focusRunning ? Date.now() : null })
   }, [planTasks, selectedTaskId, focusRunning, initial])
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  // Plan changes from elsewhere (another tab/device, the first load from
+  // Supabase) replace this room's copy - otherwise the save above would write
+  // the old list back and undo them. Same rule as FocusLockPage: a task this
+  // room is itself running keeps its own clock.
+  const selectedTaskIdRef = useRef(selectedTaskId)
+  selectedTaskIdRef.current = selectedTaskId
+  const focusRunningRef = useRef(focusRunning)
+  focusRunningRef.current = focusRunning
+  useEffect(() => subscribePlan(source => {
+    if (source !== 'remote') return
+    const remote = loadFocusPlanSnapshot()
+    if (!remote) return
+    const next = mergeRemotePlan(remote, { tasks: tasksRef.current, activeTaskId: selectedTaskIdRef.current, running: focusRunningRef.current }, advanceTask(pomoRef.current))
+    if (next.stopHere) stopRemoteSession()
+    setPlanTasks(next.tasks)
+    setSelectedTaskId(next.activeTaskId ?? next.tasks[0]?.id ?? null)
+    setFocusRunning(next.running)
+  }), [stopRemoteSession])
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, live.messages])
 
   const chatLocked = focusRunning
 
@@ -5459,15 +5886,32 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     return h > 0 ? `${h}h ${f2(m)}m` : `${m}m`
   }
 
-  async function toggleFocus() {
-    if (!selectedTask || togglingRef.current) return
+  async function pauseFocus() {
+    if (!focusRunningRef.current || togglingRef.current) return
     togglingRef.current = true
     try {
-      if (focusRunning) {
-        setFocusRunning(false)
-        await stopRemoteSession()
-        return
-      }
+      setFocusRunning(false)
+      await stopRemoteSession()
+    } finally {
+      togglingRef.current = false
+    }
+  }
+
+  // Runs `action` now if the timer isn't running; otherwise only after the
+  // pause reflection is unlocked.
+  function afterPauseBarrier(action: () => void) {
+    if (focusRunningRef.current) setPausePrompt({ run: action })
+    else action()
+  }
+
+  async function toggleFocus() {
+    if (!selectedTask || togglingRef.current) return
+    if (focusRunning) {
+      afterPauseBarrier(() => void pauseFocus())
+      return
+    }
+    togglingRef.current = true
+    try {
       if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
         // A Pomodoro left sitting at 00:00 (from before breaks existed) starts over fresh.
         setPlanTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, ...pomodoroFields(pomo) } : t))
@@ -5486,25 +5930,47 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   function selectTask(id: string) {
     if (id === selectedTaskId) return
     // Progress on the task being left is kept; the new one is ready to Start.
-    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
-    setSelectedTaskId(id)
+    // Switching stops the running timer, so it goes through the pause barrier.
+    afterPauseBarrier(() => {
+      if (focusRunningRef.current) { setFocusRunning(false); stopRemoteSession() }
+      setSelectedTaskId(id)
+    })
   }
 
   function resetSelectedTask() {
     if (!selectedTask) return
-    if (focusRunning) { setFocusRunning(false); stopRemoteSession() }
-    setPlanTasks(prev => prev.map(t => {
-      if (t.id !== selectedTask.id) return t
-      return t.mode === 'pomodoro' ? { ...t, ...pomodoroFields(pomo) } : { ...t, regularElapsed: 0 }
-    }))
+    const taskId = selectedTask.id
+    afterPauseBarrier(() => {
+      if (focusRunningRef.current) { setFocusRunning(false); stopRemoteSession() }
+      setPlanTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t
+        return t.mode === 'pomodoro' ? { ...t, ...pomodoroFields(pomo) } : { ...t, regularElapsed: 0 }
+      }))
+    })
   }
 
   const visibleBots = bots.filter(b => !kickedIds.has(b.id))
-  const studyingCount = visibleBots.filter(b => b.isStudying).length + (focusRunning || userStudyTime > 0 ? 1 : 0)
+  const studyingCount = isRealRoom
+    ? live.members.filter(m => (m.is_me ? focusRunning : m.is_live)).length + (focusRunning && !live.members.some(m => m.is_me) ? 1 : 0)
+    : visibleBots.filter(b => b.isStudying).length + (focusRunning || userStudyTime > 0 ? 1 : 0)
 
-  function sendMessage() {
+  async function sendMessage() {
     const txt = chatInput.trim()
     if (!txt) return
+    if (isRealRoom) {
+      if (!live.myId || sending) return
+      setSending(true)
+      setChatError(null)
+      try {
+        await sendRoomMessage(room.groupId!, live.myId, txt)
+        setChatInput('') // the message itself arrives through realtime
+      } catch (e) {
+        setChatError((e as Error).message)
+      } finally {
+        setSending(false)
+      }
+      return
+    }
     const now = new Date()
     setMessages(prev => [...prev, {
       id: String(Date.now()), name: 'You', text: txt,
@@ -5527,6 +5993,50 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     isPaused: !focusRunning && userStudyTime > 0,
     cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
     accentColor: '#7C4DFF',
+  }
+
+  // Real room: one card per member, from room_members (today's study time,
+  // live/paused state and subject come from their study_sessions). Times tick
+  // locally between refreshes for whoever is live.
+  const memberCards: (BotParticipant & { avatarUrl?: string; userId?: string })[] = live.members.map((m: RoomMember) => {
+    const liveNow = m.is_me ? focusRunning : m.is_live
+    const secs = m.today_seconds + (m.is_live ? Math.max(0, Math.floor((nowMs - live.fetchedAt) / 1000)) : 0)
+    const look = BOT_POOL[hashSubject(m.user_id) % BOT_POOL.length]
+    const first = m.name.trim().split(/\s+/)[0] || m.name
+    return {
+      id: m.is_me ? 'user' : m.user_id, userId: m.user_id,
+      name: m.is_me ? `You (${selfName.split(/\s+/)[0]})` : m.name,
+      initials: (m.is_me ? selfInitials : m.name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()) || first.slice(0, 2).toUpperCase(),
+      subject: m.is_me ? userCard.subject : (m.subject || (liveNow ? 'Studying' : room.subject)),
+      studyTimeSecs: secs,
+      isStudying: liveNow,
+      isPaused: m.is_me ? (!focusRunning && secs > 0) : m.is_paused,
+      cardGrad: m.is_me ? userCard.cardGrad : look.cardGrad,
+      accentColor: m.is_me ? userCard.accentColor : look.accentColor,
+      isMe: m.is_me,
+      avatarUrl: m.is_me ? userAvatar : (m.avatar_url ?? undefined),
+    }
+  })
+  const amAdmin = live.members.some(m => m.is_me && m.role === 'admin')
+  const memberNames = new Map(live.members.map(m => [m.user_id, m.is_me ? 'You' : m.name]))
+  const realMessages: ChatMsg[] = live.messages.map(m => {
+    const d = new Date(m.created_at)
+    return {
+      id: m.id, name: memberNames.get(m.sender_id) ?? 'Member', text: m.body,
+      time: `${d.getHours()}:${f2(d.getMinutes())}`, isBot: false, isMe: m.sender_id === live.myId,
+    }
+  })
+  const shownMessages = isRealRoom ? realMessages : messages
+  const seatsLeft = isRealRoom ? (room.memberLimit ?? 50) - live.members.length : 1
+
+  async function kick(userId: string) {
+    if (!room.groupId) return
+    try {
+      await kickMember(room.groupId, userId)
+      await live.refreshMembers()
+    } catch (e) {
+      setChatError((e as Error).message)
+    }
   }
 
   const allParticipants = [userCard, ...visibleBots]
@@ -5590,7 +6100,40 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 
           {/* Tab content */}
           <div className="flex-1 pb-6">
-            {activeTab === 'studying' && (
+            {activeTab === 'studying' && isRealRoom && live.status === 'loading' && (
+              <div className="py-16 text-center text-slate-500 text-sm">Loading who's studying…</div>
+            )}
+            {activeTab === 'studying' && isRealRoom && live.status === 'error' && (
+              <div className="py-16 text-center">
+                <div className="text-slate-300 font-semibold mb-1">Couldn't load this room</div>
+                <div className="text-slate-500 text-sm mb-4">{live.error}</div>
+                <button onClick={() => void live.refreshMembers()}
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]">Try again</button>
+              </div>
+            )}
+            {activeTab === 'studying' && isRealRoom && live.status === 'ready' && (
+              <div className="grid grid-cols-3 gap-5">
+                {memberCards.map(p => (
+                  <BotCard key={p.id}
+                    bot={p}
+                    canKick={amAdmin && !p.isMe}
+                    onKick={() => p.userId && void kick(p.userId)}
+                    avatarUrl={p.avatarUrl}
+                  />
+                ))}
+                {seatsLeft > 0 && (
+                  <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-violet-500/30 transition-colors"
+                    style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                    <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#1E3060]">
+                      <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    </div>
+                    <div className="text-slate-300 font-semibold text-sm">Seat Available</div>
+                    <div className="text-slate-500 text-xs mt-0.5">Invite a friend to study</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === 'studying' && !isRealRoom && (
               <div className="grid grid-cols-3 gap-5">
                 {allParticipants.map((p, i) => (
                   <BotCard key={p.id}
@@ -5633,7 +6176,10 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                 ) : (
                   <>
                     <div className="flex-1 overflow-y-auto space-y-3 pb-3" style={{ minHeight: '300px' }}>
-                      {messages.map(msg => (
+                      {isRealRoom && shownMessages.length === 0 && (
+                        <div className="py-12 text-center text-slate-500 text-sm">No messages yet. Say hi 👋</div>
+                      )}
+                      {shownMessages.map(msg => (
                         <div key={msg.id} className={`flex gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                             style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#1A2845' }}>
@@ -5657,15 +6203,17 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                         
                         placeholder="Type a message..."
                         value={chatInput}
-                        onChange={e => setChatInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                        onChange={e => { setChatInput(e.target.value); setChatError(null) }}
+                        onKeyDown={e => e.key === 'Enter' && void sendMessage()}
+                        maxLength={2000}
                       />
-                      <button onClick={sendMessage}
+                      <button onClick={() => void sendMessage()} disabled={sending}
                         className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0 bg-[#7C4DFF]"
                         >
                         <Ico n="arrow" cls="w-4 h-4" />
                       </button>
                     </div>
+                    {chatError && <div className="text-[11px] text-red-400 mt-1.5">{chatError}</div>}
                   </>
                 )}
               </div>
@@ -5673,6 +6221,11 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
           </div>
         </main>
       </div>
+      {pausePrompt && (
+        <PauseReflectionModal
+          onClose={() => setPausePrompt(null)}
+          onUnlock={() => { const p = pausePrompt; setPausePrompt(null); p.run() }} />
+      )}
     </div>
   )
 }
@@ -5736,11 +6289,6 @@ function BattleTrophySVG({ tier }: { tier: 'bronze' | 'silver' | 'gold' | 'diamo
 
 
 // ─── Schedules Page ────────────────────────────────────────────────────────────
-
-interface ScheduleItem {
-  id: string; subject: string; topic: string
-  startTime: string; endTime: string; color: string; iconEmoji: string
-}
 
 interface FocusRoutine {
   id: string; name: string; days: number[]
@@ -8012,14 +8560,23 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
 // ─── Earn with Wynko Page ──────────────────────────────────────────────────────
 
-function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
+function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCreateCommunity }: {
   onNavigate: (id: string) => void
   profile?: ProfileInfo
-  // Owned by the App root: registering makes the sidebar's Community open the
-  // WynkoHead management dashboard instead of the student module.
-  isWynkoHead: boolean
-  onRegisterWynkoHead: (name: string) => void
+  // From the App root (user_profiles revhead_* columns + my_communities):
+  // registering submits an application that an admin reviews; once verified,
+  // the WynkoHead creates their community and the sidebar's Community opens
+  // the management dashboard.
+  headStatus: WynkoHeadStatus | null
+  hasCommunity: boolean
+  onApply: () => Promise<string | null>
+  onCreateCommunity: (name: string, description: string) => Promise<string | null>
 }) {
+  const isWynkoHead = !!headStatus?.verified
+  const applicationPending = headStatus?.application === 'pending'
+  const applicationRejected = headStatus?.application === 'rejected'
+  const [earnError, setEarnError] = useState<string | null>(null)
+  const [earnBusy, setEarnBusy] = useState(false)
   type EarnTab = "wynkohead" | "invite"
   const [tab, setTab] = useState<EarnTab>("wynkohead")
   const [inLibrary, setInLibrary] = useState(false)
@@ -8032,10 +8589,8 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
   const [simName, setSimName] = useState("")
 
   // A WynkoHead's community — name & description they set once, via the
-  // "Create your community" dialog below. Stored under the same key
-  // HeadManageTab/WynkoHeadCommunityPage read from, so whatever is entered
-  // here is exactly what shows up when the Community module opens.
-  const [communityCreated, setCommunityCreated] = useState<boolean>(() => !!Store.get(HEAD_SETTINGS_KEY, null))
+  // "Create your community" dialog below (rpc_create_community).
+  const communityCreated = hasCommunity
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [createName, setCreateName] = useState("")
   const [createDesc, setCreateDesc] = useState("")
@@ -8047,19 +8602,23 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
   function copyFriend() { navigator.clipboard?.writeText(friendLink); setFriendCopied(true); setTimeout(() => setFriendCopied(false), 2000) }
   function copyHeadLink() { navigator.clipboard?.writeText(wynkoHeadLink); setHeadLinkCopied(true); setTimeout(() => setHeadLinkCopied(false), 2000) }
 
-  function handleRegister() {
-    if (!regName.trim()) return
-    onRegisterWynkoHead(regName.trim())
+  async function handleRegister() {
+    if (!regName.trim() || earnBusy) return
+    setEarnBusy(true)
+    setEarnError(null)
+    const err = await onApply()
+    setEarnBusy(false)
+    if (err) { setEarnError(err); return }
     setRegistering(false)
   }
 
-  function handleCreateCommunity() {
-    if (!createName.trim()) return
-    Store.set(HEAD_SETTINGS_KEY, {
-      name: createName.trim(), description: createDesc.trim(),
-      requireApproval: true, handledRequests: [], approvedCount: 0,
-    })
-    setCommunityCreated(true)
+  async function handleCreateCommunity() {
+    if (!createName.trim() || earnBusy) return
+    setEarnBusy(true)
+    setEarnError(null)
+    const err = await onCreateCommunity(createName.trim(), createDesc.trim())
+    setEarnBusy(false)
+    if (err) { setEarnError(err); return }
     setShowCreateCommunity(false)
     onNavigate("studyrooms")
   }
@@ -8381,14 +8940,25 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
                 </div>
 
                 {/* Register / Open Library CTA */}
-                {!isWynkoHead ? (
+                {earnError && (
+                  <div className="mb-3 px-4 py-2.5 rounded-xl border text-[13px] text-amber-300" style={{ background: 'rgba(245,158,11,0.07)', borderColor: 'rgba(245,158,11,0.25)' }}>{earnError}</div>
+                )}
+                {!isWynkoHead && applicationPending ? (
+                  <div className="rounded-2xl border p-6 bg-[#0B1530] border-[#1E3060]">
+                    <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">APPLICATION RECEIVED</div>
+                    <div className="text-lg font-black text-white mb-1">Your WynkoHead application is under review</div>
+                    <div className="text-[12px] text-slate-400">We’ll verify your details. Once approved, you can create your community here and start earning.</div>
+                  </div>
+                ) : !isWynkoHead ? (
                   <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
                     {!registering ? (
                       <div className="p-6 flex items-center justify-between gap-6">
                         <div>
                           <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">READY TO START?</div>
                           <div className="text-lg font-black text-white mb-1">Register as a WynkoHead</div>
-                          <div className="text-[12px] text-slate-400">Unlock your community dashboard, share your invite link, and start earning 50% revenue share.</div>
+                          <div className="text-[12px] text-slate-400">{applicationRejected
+                            ? 'Your previous application wasn’t approved. You can apply again.'
+                            : 'Apply to unlock your community dashboard, share your invite link, and start earning 50% revenue share.'}</div>
                         </div>
                         <button onClick={() => setRegistering(true)}
                           className="flex-shrink-0 px-6 py-3 rounded-xl text-white font-bold text-sm transition-all hover:scale-[1.03]"
@@ -8418,7 +8988,7 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
                             <button onClick={() => setRegistering(false)}
                               className="px-4 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
                               >Cancel</button>
-                            <button onClick={handleRegister}
+                            <button onClick={() => void handleRegister()} disabled={earnBusy}
                               className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
                               style={{ background: regName.trim() ? "linear-gradient(135deg,#7C4DFF,#6B44EE)" : "#0B1530", opacity: regName.trim() ? 1 : 0.5 }}>
                               Complete Registration →
@@ -8567,7 +9137,7 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
         <CreateCommunityDialog
           name={createName} setName={setCreateName}
           description={createDesc} setDescription={setCreateDesc}
-          onCreate={handleCreateCommunity}
+          onCreate={() => void handleCreateCommunity()}
           onCancel={() => setShowCreateCommunity(false)} />
       )}
     </div>
@@ -8575,7 +9145,7 @@ function EarnPage({ onNavigate, profile, isWynkoHead, onRegisterWynkoHead }: {
 }
 
 // Name + description dialog shown once, right after registering as a
-// WynkoHead — submitting saves them under HEAD_SETTINGS_KEY (the same key
+// WynkoHead — submitting creates the community (rpc_create_community; the same
 // HeadManageTab / WynkoHeadCommunityPage read from) and sends the person
 // straight into the Community module.
 function CreateCommunityDialog({ name, setName, description, setDescription, onCreate, onCancel }: {
@@ -8692,9 +9262,10 @@ const QT_DEFAULT_SECONDS = 30 * 60
 
 type QuickTimerState = {
   totalSeconds: number
-  remainingSeconds: number
+  remainingSeconds: number // while running: the value when this run started
   running: boolean
   endAt: number | null
+  loggedSeconds?: number   // seconds of the current run already saved as study time
 }
 
 function loadQuickTimer(): QuickTimerState {
@@ -8708,6 +9279,27 @@ function saveQuickTimer(s: QuickTimerState) { Store.set(QT_STORE_KEY, s) }
 function qtRemainingNow(s: QuickTimerState): number {
   if (s.running && s.endAt) return Math.max(0, Math.round((s.endAt - Date.now()) / 1000))
   return s.remainingSeconds
+}
+// Saves the part of the current run not saved yet as study time (study_log),
+// returning the state with that recorded. Used every minute while running
+// and whenever a run pauses, finishes, resets or changes duration - so the
+// Quick Timer counts on Your Study Progress without any extra step.
+function qtSaveStudyTime(s: QuickTimerState): QuickTimerState {
+  if (!s.running || !s.endAt) return s
+  const ran = Math.max(0, s.remainingSeconds - qtRemainingNow(s))
+  const unsaved = ran - (s.loggedSeconds ?? 0)
+  if (unsaved <= 0) return s
+  logStudyTime(QUICK_TIMER_SUBJECT, unsaved)
+  return { ...s, loggedSeconds: ran }
+}
+// For when the Quick Timer page isn't open: a run keeps going in the
+// background (it's an end timestamp), so save its progress / finish it here.
+function settleQuickTimerInBackground() {
+  const saved = Store.get(QT_STORE_KEY, null) as QuickTimerState | null
+  if (!saved?.running) return
+  let next = qtSaveStudyTime(saved)
+  if (qtRemainingNow(next) <= 0) next = { ...next, running: false, remainingSeconds: 0, endAt: null, loggedSeconds: 0 }
+  if (next !== saved) saveQuickTimer(next)
 }
 
 // Click-the-clock-to-edit picker. Three plain hour/minute/second spinners -
@@ -8762,19 +9354,27 @@ function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
   const [state, setState] = useState<QuickTimerState>(loadQuickTimer)
   const [remaining, setRemaining] = useState(() => qtRemainingNow(state))
   const [showPicker, setShowPicker] = useState(false)
+  // Latest state for the 1s tick and the unmount save, which would otherwise
+  // hold the state from when they were created (and save a minute twice).
+  const stateRef = useRef(state)
+  stateRef.current = state
+  function commit(next: QuickTimerState) {
+    stateRef.current = next
+    setState(next); saveQuickTimer(next)
+  }
 
   useEffect(() => {
     if (!state.running) { setRemaining(state.remainingSeconds); return }
     const tick = () => {
-      const r = qtRemainingNow(state)
+      const cur = stateRef.current
+      const r = qtRemainingNow(cur)
       setRemaining(r)
       if (r <= 0) {
-        setState(prev => {
-          const next: QuickTimerState = { ...prev, running: false, remainingSeconds: 0, endAt: null }
-          saveQuickTimer(next)
-          return next
-        })
+        commit({ ...qtSaveStudyTime(cur), running: false, remainingSeconds: 0, endAt: null, loggedSeconds: 0 })
+        return
       }
+      const ran = cur.remainingSeconds - r
+      if (ran - (cur.loggedSeconds ?? 0) >= 60) commit(qtSaveStudyTime(cur))
     }
     tick()
     const id = setInterval(tick, 1000)
@@ -8782,28 +9382,39 @@ function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.running, state.endAt])
 
+  // Leaving the page (or closing the tab) mid-run: save what ran so far; the
+  // run itself carries on in the background (see settleQuickTimerInBackground).
+  useEffect(() => {
+    const saveNow = () => {
+      const next = qtSaveStudyTime(stateRef.current)
+      if (next !== stateRef.current) { stateRef.current = next; saveQuickTimer(next) }
+    }
+    window.addEventListener('pagehide', saveNow)
+    return () => { window.removeEventListener('pagehide', saveNow); saveNow() }
+  }, [])
+
   function start() {
     if (remaining <= 0) { setShowPicker(true); return }
-    const next: QuickTimerState = { ...state, running: true, endAt: Date.now() + remaining * 1000, remainingSeconds: remaining }
-    setState(next); saveQuickTimer(next)
+    commit({ ...state, running: true, endAt: Date.now() + remaining * 1000, remainingSeconds: remaining, loggedSeconds: 0 })
   }
   function pause() {
     const r = qtRemainingNow(state)
-    const next: QuickTimerState = { ...state, running: false, endAt: null, remainingSeconds: r }
-    setState(next); saveQuickTimer(next); setRemaining(r)
+    commit({ ...qtSaveStudyTime(stateRef.current), running: false, endAt: null, remainingSeconds: r, loggedSeconds: 0 })
+    setRemaining(r)
   }
   function reset() {
-    const next: QuickTimerState = { ...state, running: false, endAt: null, remainingSeconds: state.totalSeconds }
-    setState(next); saveQuickTimer(next); setRemaining(state.totalSeconds)
+    commit({ ...qtSaveStudyTime(stateRef.current), running: false, endAt: null, remainingSeconds: state.totalSeconds, loggedSeconds: 0 })
+    setRemaining(state.totalSeconds)
   }
   // Mid-session or not, tapping the clock face and setting a new duration
   // always takes effect immediately - if it was running, it keeps running
   // with the new total; if it was paused, it stays paused at the new total.
   function applyDuration(totalSeconds: number) {
-    const next: QuickTimerState = state.running
-      ? { ...state, totalSeconds, remainingSeconds: totalSeconds, endAt: Date.now() + totalSeconds * 1000 }
-      : { ...state, totalSeconds, remainingSeconds: totalSeconds, endAt: null }
-    setState(next); saveQuickTimer(next); setRemaining(totalSeconds); setShowPicker(false)
+    const saved = qtSaveStudyTime(stateRef.current)
+    commit(state.running
+      ? { ...saved, totalSeconds, remainingSeconds: totalSeconds, endAt: Date.now() + totalSeconds * 1000, loggedSeconds: 0 }
+      : { ...saved, totalSeconds, remainingSeconds: totalSeconds, endAt: null, loggedSeconds: 0 })
+    setRemaining(totalSeconds); setShowPicker(false)
   }
 
   const timeStr = formatClock(remaining, remaining >= 3600 || state.totalSeconds >= 3600)
@@ -8859,54 +9470,125 @@ function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
-// Who is a WynkoHead: whoever registered on the Earn page. Kept in localStorage
-// until the profile has a real role. For review, `?role=wynkohead` switches this
-// browser to WynkoHead and `?role=student` switches back.
-const WYNKO_HEAD_STORE_KEY = 'wynko_wynkohead_v1'
-function loadWynkoHeadRole(): { name: string } | null {
-  try {
-    const q = new URLSearchParams(window.location.search).get('role')
-    if (q === 'student') Store.del(WYNKO_HEAD_STORE_KEY)
-    else if (q === 'wynkohead' && !Store.get(WYNKO_HEAD_STORE_KEY, null)) Store.set(WYNKO_HEAD_STORE_KEY, { name: '' })
-  } catch { /* no window / storage: treat as student */ }
-  return Store.get(WYNKO_HEAD_STORE_KEY, null) as { name: string } | null
-}
+// Who is a WynkoHead: a verified RevHead (user_profiles.is_revhead +
+// revhead_status = 'verified', set by an admin after the Earn page application)
+// who has created their community - see headCommunity below.
+
+// Starts Supabase sync for the study plan + weekly schedule (and follows
+// sign-in/out) before the first render reads the plan.
+initStudyPlanSync()
 
 export default function DesktopDashboard() {
   const [activeNav, setActiveNav] = useState('home')
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
   const [schedule, setSchedule] = useState<ScheduleItem[][]>(Array.from({ length: 7 }, () => []))
   const [activeRoom, setActiveRoom] = useState<RoomData | null>(null)
-  // Community section: which community's Student View is open, which tab of the
-  // Community module (Study Rooms / Communities) is showing, and the student's
-  // decision on each community's WynkoHead schedule. Communities left this
-  // session are in-memory only, like Study Rooms membership (joinedIds).
+  // Room to run the Join flow for when Study Rooms opens: from an invite link
+  // (home.html?room=<id>) or Home's Live Study Rooms card.
+  const [pendingJoinRoomId, setPendingJoinRoomId] = useState<string | null>(null)
+  // Community section: which community's Student View is open and which tab of
+  // the Community module (Study Rooms / Communities) is showing. Communities,
+  // their schedules and the WynkoHead role come from Supabase (see below).
   const [activeCommunity, setActiveCommunity] = useState<CommunityData | null>(null)
   const [studyRoomsTab, setStudyRoomsTab] = useState<'rooms' | 'communities'>('rooms')
-  const [leftCommunityIds, setLeftCommunityIds] = useState<number[]>([])
-  const [scheduleChoices, setScheduleChoices] = useState<Record<number, CommunityScheduleChoice>>(
-    () => (Store.get(COMMUNITY_SCHEDULE_STORE_KEY, null) as Record<number, CommunityScheduleChoice> | null) ?? {})
   // What the student's own schedule was before a community schedule replaced it,
-  // so "Reject" can hand it back. Not persisted: the schedule itself isn't either.
+  // so "Reject" can hand it back (this visit only).
   const ownScheduleBackup = useRef<ScheduleItem[][] | null>(null)
-  // WynkoHead: the role, the schedule they are building for their students
-  // (separate from their own study schedule), and what has been published.
-  const [wynkoHead, setWynkoHead] = useState<{ name: string } | null>(loadWynkoHeadRole)
-  const [headSchedule, setHeadSchedule] = useState<ScheduleItem[][]>(() =>
-    (loadHeadDraft() as ScheduleItem[][] | null)
-    ?? (loadPublishedSchedules()[HEAD_COMMUNITY_ID]?.week as ScheduleItem[][] | undefined)
-    ?? Array.from({ length: 7 }, () => []))
+  // WynkoHead: the schedule they're building for their students (separate from
+  // their own study schedule), saved as a draft on the community.
+  const [headSchedule, setHeadSchedule] = useState<ScheduleItem[][]>(() => Array.from({ length: 7 }, () => []))
   const [headUnits, setHeadUnits] = useState<StudyUnit[]>([])
-  const [publishedSchedules, setPublishedSchedules] = useState<Record<number, PublishedSchedule>>(loadPublishedSchedules)
-  const [notifSeen, setNotifSeen] = useState<Record<number, number>>(loadNotifSeen)
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null)
+  const [communityNotice, setCommunityNotice] = useState<string | null>(null)
   const [userAvatar, setUserAvatar] = useState<string>(avatar7)
   const [avatarTouched, setAvatarTouched] = useState(false)
 
-  // Home's real data — everything else on this page (Focus Lock,
-  // Schedules, Study Rooms, Battleground, Settings, Wynkoins, Earn,
-  // Library) still runs on the local mock state above until their
-  // own module pass.
-  const { authState, reviewItems, profile, todayFocus, weeklyStudy, totalWeekMinutes, avgWeekMinutes, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  // Home's real data. The study plan and weekly schedule shared by Home,
+  // Focus Lock, Study Rooms and Schedules are synced through studyPlanStore
+  // (below), communities through lib/communities.ts; the rest (Battleground,
+  // Settings, Wynkoins, Library, Earn's library/invite extras) still runs on
+  // local mock state until their own module pass.
+  const { authState, error: homeError, retry: retryHome, reviewItems, profile, todayFocus, weeklyStudy, totalWeekMinutes, avgWeekMinutes, loading: homeLoading, addUnit, removeUnitBySubject, markAsReviewed } = useHomeData()
+  // Tasks + weekly schedule, synced with Supabase (lib/studyPlanStore.ts).
+  const planStore = useStudyPlanStore()
+
+  // ── Communities (lib/communities.ts, migration 0071) ──
+  const signedIn = authState === 'ready'
+  const myCommunitiesQ = useLoader(signedIn ? fetchMyCommunities : null, [] as MyCommunity[], [signedIn])
+  const communitySchedulesQ = useLoader(signedIn ? fetchMyCommunitySchedules : null, [] as CommunityScheduleRow[], [signedIn])
+  // A WynkoHead publishing shows up for their students right away (RLS limits
+  // the feed to communities the user is in).
+  useRealtimeRefresh('community_schedules', '', () => { void communitySchedulesQ.refresh() }, signedIn)
+  const headStatusQ = useLoader(signedIn ? fetchMyWynkoHeadStatus : null, null as WynkoHeadStatus | null, [signedIn], 300_000)
+  const communities = useMemo(() => myCommunitiesQ.data.map(toCommunityData), [myCommunitiesQ.data])
+  // The community this user runs, if they're a verified WynkoHead who created one.
+  const headCommunity = headStatusQ.data?.verified ? communities.find(c => c.myRole === 'admin') ?? null : null
+  const refreshCommunities = async () => { await myCommunitiesQ.refresh() }
+
+  // The weekly schedule and study units the Schedules page edits are saved to
+  // the account (study_plans) instead of living only in this tab's memory.
+  // Server copy -> state whenever it changes (first load, another tab/device);
+  // state -> server on every edit. An account with nothing saved yet keeps
+  // what this tab has (e.g. an accepted community schedule) and saves that.
+  const weekReady = useRef(false)
+  useEffect(() => {
+    if (planStore.status === 'loading' || planStore.status === 'signed-out') { weekReady.current = false; return }
+    if (planStore.week) {
+      setSchedule(planStore.week.schedule)
+      setSharedUnits(planStore.week.units)
+    } else if (!weekReady.current) {
+      setStudyWeek(schedule, sharedUnits)
+    }
+    weekReady.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planStore.status, planStore.week])
+  useEffect(() => {
+    if (weekReady.current) setStudyWeek(schedule, sharedUnits)
+  }, [schedule, sharedUnits])
+
+  // Study time from the Quick Timers is queued locally first; send anything
+  // left over from a previous visit (offline, tab closed mid-save).
+  useEffect(() => {
+    if (authState === 'ready') void flushStudyTimeQueue()
+  }, [authState])
+  // Invite links (roomInviteLink): home.html?room=<id> opens that room's Join
+  // flow once signed in, then the parameter is dropped from the address bar.
+  useEffect(() => {
+    if (authState !== 'ready') return
+    try {
+      const url = new URL(window.location.href)
+      const roomId = url.searchParams.get('room')
+      // Community invite links (communityInviteLink): home.html?community=<token>
+      // joins, or sends a join request when the WynkoHead approves members.
+      const communityToken = url.searchParams.get('community')
+      if (!roomId && !communityToken) return
+      url.searchParams.delete('room')
+      url.searchParams.delete('community')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      setActiveRoom(null)
+      setActiveNav('studyrooms')
+      if (roomId) {
+        setStudyRoomsTab('rooms')
+        setPendingJoinRoomId(roomId)
+        return
+      }
+      setStudyRoomsTab('communities')
+      joinCommunity({ token: communityToken! })
+        .then(async r => {
+          setCommunityNotice(joinStatusMessage(r.status))
+          if (r.status === 'joined') await myCommunitiesQ.refresh()
+        })
+        .catch(e => setCommunityNotice((e as Error).message))
+    } catch { /* no URL/history (tests, very old browsers): nothing to do */ }
+  }, [authState])
+  // A Quick Timer run keeps counting while you're elsewhere in the app; save
+  // its time every minute (and finish it) from here while its page is closed.
+  useEffect(() => {
+    if (authState !== 'ready' || activeNav === 'quicktimer') return
+    settleQuickTimerInBackground()
+    const id = setInterval(settleQuickTimerInBackground, 60_000)
+    return () => clearInterval(id)
+  }, [authState, activeNav])
 
   // A real uploaded photo wins over the 6 illustrated presets, same
   // "resync until touched" pattern as Settings' displayName field -
@@ -8919,12 +9601,12 @@ export default function DesktopDashboard() {
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
   // Home's "Today's Study Plan" / "Today's Focus" cards read the same live
-  // Focus Lock plan FocusLockPage itself persists at FL_PLAN_KEY, so both
-  // pages always agree on what's scheduled/active/completed. Re-synced from
-  // localStorage whenever Home becomes the active page (below) rather than
-  // kept ticking live while sitting on Home - a fresh read plus the same
-  // catch-up math FocusLockPage uses is accurate enough without a second
-  // per-second timer running outside Focus Lock itself.
+  // Focus Lock plan FocusLockPage itself saves (studyPlanStore), so both
+  // pages always agree on what's scheduled/active/completed. Re-read whenever
+  // Home becomes the active page and whenever the plan changes - here, in
+  // another tab or on another device (realtime) - rather than kept ticking
+  // live while sitting on Home: a fresh read plus the same catch-up math
+  // FocusLockPage uses is accurate without a second per-second timer.
   const [focusPlan, setFocusPlan] = useState<{ tasks: StudyTask[]; activeTaskId: string | null }>(() => {
     const snap = loadFocusPlanSnapshot()
     if (snap) return { tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId }
@@ -8942,7 +9624,7 @@ export default function DesktopDashboard() {
     if (snap) setFocusPlan({ tasks: catchUpFocusPlan(snap), activeTaskId: snap.activeTaskId })
     else setFocusPlan({ tasks: seedTasksFromRealData(sharedUnits, schedule, todayIdx, getPomodoroSettings()), activeTaskId: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNav])
+  }, [activeNav, planStore.version])
 
   function handleNav(id: string) {
     setActiveNav(id)
@@ -8950,95 +9632,120 @@ export default function DesktopDashboard() {
   }
 
   // ── Community schedule decision ──
-  // Accepting makes the WynkoHead's schedule the student's actual schedule
-  // (Schedules page, Today's Study Plan, study-room task list). Only one
-  // community schedule can be active at a time, so accepting one clears any
-  // other accepted one.
-  function saveScheduleChoices(next: Record<number, CommunityScheduleChoice>) {
-    setScheduleChoices(next)
-    Store.set(COMMUNITY_SCHEDULE_STORE_KEY, next)
-  }
-  // The schedule students get for a community: the one its WynkoHead published,
-  // else the community's seed schedule.
-  function communityWeek(communityId: number): { week: ScheduleItem[][]; by: string | null } | null {
-    const pub = publishedSchedules[communityId]
-    if (pub) return { week: pub.week as ScheduleItem[][], by: pub.by }
-    const detail = getCommunityDetail(communityId)
-    return detail ? { week: communitySlotsToWeek(detail.slots), by: null } : null
-  }
-  function applyCommunitySchedule(communityId: number) {
-    const cw = communityWeek(communityId)
-    if (!cw) return
-    const exam = getCommunityDetail(communityId)?.exam ?? ''
-    setSchedule(cw.week.map((day, di) => day.map(s => ({ ...s, id: `cm_${communityId}_${di}_${s.id}` }))))
+  // Accepting makes the WynkoHead's published schedule the student's actual
+  // schedule (Schedules page, Today's Study Plan, study-room task list). Only
+  // one community schedule can be followed at a time (rpc_set_schedule_choice
+  // clears any other accepted one).
+  const scheduleRowFor = (id: string) => communitySchedulesQ.data.find(r => r.group_id === id) ?? null
+  const followingId = communitySchedulesQ.data.find(r => r.choice === 'accepted')?.group_id ?? null
+  function applyCommunitySchedule(row: CommunityScheduleRow) {
+    const week = normalizeWeek(row.week)
+    const tag = row.group_id.slice(0, 8)
+    setSchedule(week.map((day, di) => day.map(s => ({ ...s, id: `cm_${tag}_${di}_${s.id}` }))))
     // Same as the AI schedule: subjects the student doesn't track yet become study units.
     setSharedUnits(prev => {
-      const all = cw.week.flat()
+      const all = week.flat()
       const missing = all.filter((s, i) =>
         all.findIndex(x => x.subject.toLowerCase() === s.subject.toLowerCase()) === i
         && !prev.some(u => u.subject.toLowerCase() === s.subject.toLowerCase()))
-      return missing.length ? [...prev, ...missing.map(s => ({ subject: s.subject, exam, topics: [s.topic || 'Study session'] }))] : prev
+      return missing.length ? [...prev, ...missing.map(s => ({ subject: s.subject, exam: '', topics: [s.topic || 'Study session'] }))] : prev
     })
   }
   function revertToOwnSchedule() {
     setSchedule(ownScheduleBackup.current ?? Array.from({ length: 7 }, () => []))
     ownScheduleBackup.current = null
   }
-  function acceptCommunitySchedule(communityId: number) {
-    const alreadyFollowing = Object.values(scheduleChoices).includes('accepted')
-    if (!alreadyFollowing) ownScheduleBackup.current = schedule
-    applyCommunitySchedule(communityId)
-    const next: Record<number, CommunityScheduleChoice> = {}
-    for (const [id, c] of Object.entries(scheduleChoices)) if (c === 'rejected') next[Number(id)] = c
-    next[communityId] = 'accepted'
-    saveScheduleChoices(next)
-  }
-  function rejectCommunitySchedule(communityId: number) {
-    if (scheduleChoices[communityId] === 'accepted') revertToOwnSchedule()
-    saveScheduleChoices({ ...scheduleChoices, [communityId]: 'rejected' })
-  }
-  function leaveCommunity(communityId: number) {
-    if (scheduleChoices[communityId] === 'accepted') revertToOwnSchedule()
-    const { [communityId]: _dropped, ...rest } = scheduleChoices
-    saveScheduleChoices(rest)
-    setLeftCommunityIds(prev => [...prev, communityId])
-    setActiveCommunity(null)
-  }
-  // ── WynkoHead publishes a schedule ──
-  // Students are notified (ScheduleNotificationCard) and asked again, so any
-  // earlier accept / reject for this community is cleared.
-  function publishHeadSchedule() {
-    const week = headSchedule.map(day => day.map(s => ({ ...s })))
-    setPublishedSchedules(savePublishedSchedule(HEAD_COMMUNITY_ID, { week, publishedAt: Date.now(), by: wynkoHead?.name || profile?.displayName || 'Your WynkoHead' }))
-    const { [HEAD_COMMUNITY_ID]: _cleared, ...rest } = scheduleChoices
-    saveScheduleChoices(rest)
-  }
-  function registerWynkoHead(name: string) {
-    const role = { name }
-    Store.set(WYNKO_HEAD_STORE_KEY, role)
-    setWynkoHead(role)
-  }
-  useEffect(() => { if (wynkoHead) saveHeadDraft(headSchedule) }, [headSchedule, wynkoHead])
-  // Another tab publishing (or a student acting on the notification) shows up here live.
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORE_KEYS.published) setPublishedSchedules(loadPublishedSchedules())
-      if (e.key === STORE_KEYS.seen) setNotifSeen(loadNotifSeen())
+  async function decideSchedule(id: string, choice: ScheduleChoice | null): Promise<boolean> {
+    try {
+      await setScheduleChoice(id, choice)
+    } catch (e) {
+      setCommunityNotice((e as Error).message)
+      return false
     }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
+    await communitySchedulesQ.refresh()
+    return true
+  }
+  async function acceptCommunitySchedule(id: string) {
+    const row = scheduleRowFor(id)
+    if (!row) return
+    if (!followingId) ownScheduleBackup.current = schedule
+    if (await decideSchedule(id, 'accepted')) applyCommunitySchedule(row)
+  }
+  async function rejectCommunitySchedule(id: string) {
+    const wasFollowing = followingId === id
+    if (await decideSchedule(id, 'rejected') && wasFollowing) revertToOwnSchedule()
+  }
+  async function leaveCommunityById(id: string) {
+    try {
+      await leaveCommunity(id)
+    } catch (e) {
+      setCommunityNotice((e as Error).message)
+      return
+    }
+    if (followingId === id) revertToOwnSchedule()
+    setActiveCommunity(null)
+    await Promise.all([myCommunitiesQ.refresh(), communitySchedulesQ.refresh()])
+  }
 
-  // A schedule accepted in an earlier session is re-applied on load — the
-  // schedule state itself starts empty every time.
+  // ── WynkoHead: schedule draft (saved on the community) + publish ──
   useEffect(() => {
-    const accepted = Object.entries(scheduleChoices).find(([, c]) => c === 'accepted')
-    if (accepted) applyCommunitySchedule(Number(accepted[0]))
+    if (!headCommunity || draftReadyFor === headCommunity.id) return
+    const id = headCommunity.id
+    let cancelled = false
+    loadScheduleDraft(id).then(d => {
+      if (cancelled) return
+      const published = communitySchedulesQ.data.find(r => r.group_id === id)
+      if (d) setHeadSchedule(normalizeWeek(d.week))
+      else if (published) setHeadSchedule(normalizeWeek(published.week))
+      if (d && Array.isArray(d.units)) setHeadUnits(d.units as StudyUnit[])
+      setDraftReadyFor(id)
+    }).catch(e => console.warn('Community schedule draft not loaded', e))
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [headCommunity?.id])
+  useEffect(() => {
+    if (!headCommunity || draftReadyFor !== headCommunity.id) return
+    const id = headCommunity.id
+    const t = setTimeout(() => {
+      saveScheduleDraft(id, headSchedule, headUnits).catch(e => console.warn('Community schedule draft not saved', e))
+    }, 800)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [headSchedule, headUnits, draftReadyFor])
+  async function publishHeadSchedule(): Promise<string | null> {
+    if (!headCommunity) return 'No community to publish to'
+    try {
+      await publishCommunitySchedule(headCommunity.id, headSchedule)
+      await communitySchedulesQ.refresh()
+      return null
+    } catch (e) {
+      return (e as Error).message
+    }
+  }
+  const headPublished: PublishedSchedule | undefined = (() => {
+    const row = headCommunity ? scheduleRowFor(headCommunity.id) : null
+    return row ? { week: normalizeWeek(row.week), publishedAt: new Date(row.published_at).getTime(), by: row.published_by_name || 'You' } : undefined
+  })()
+  async function applyWynkoHead(): Promise<string | null> {
+    try { await applyAsWynkoHead(); await headStatusQ.refresh(); return null } catch (e) { return (e as Error).message }
+  }
+  async function createHeadCommunity(name: string, description: string): Promise<string | null> {
+    try { await createCommunity(name, description); await myCommunitiesQ.refresh(); return null } catch (e) { return (e as Error).message }
+  }
+
   // Opens a specific room's interior directly from Home's Live Study
   // Rooms preview - same destination StudyRoomsPage's own room cards use.
   function openRoom(room: RoomData) {
+    // A real room you're not in yet goes through the Study Rooms page's Join
+    // flow first (password prompt for private rooms), then opens.
+    if (room.groupId && !room.isMember) {
+      setActiveRoom(null)
+      setActiveCommunity(null)
+      setStudyRoomsTab('rooms')
+      setPendingJoinRoomId(room.groupId)
+      setActiveNav('studyrooms')
+      return
+    }
     setActiveRoom(room)
     setActiveNav('studyrooms')
   }
@@ -9060,7 +9767,7 @@ export default function DesktopDashboard() {
   }
 
   // Adds directly to the live Focus Lock plan (same StudyTask model, same
-  // localStorage key) so it shows up in Today's Study Plan immediately -
+  // synced store) so it shows up in Today's Study Plan immediately -
   // reads the freshest snapshot first so it never clobbers a session that's
   // actually running right now.
   function handleHomeAddTask(subject: string, topic: string) {
@@ -9093,15 +9800,15 @@ export default function DesktopDashboard() {
   // newest published schedule (in a community they're still in) they haven't
   // acted on or dismissed yet. WynkoHeads don't get it — they publish it.
   const scheduleNotif = (() => {
-    if (wynkoHead) return null
-    const pending = Object.entries(publishedSchedules)
-      .map(([id, p]) => ({ id: Number(id), p, name: ALL_COMMUNITIES.find(c => c.id === Number(id))?.name }))
-      .filter(x => x.name && !leftCommunityIds.includes(x.id) && x.p.publishedAt > (notifSeen[x.id] ?? 0))
-      .sort((a, b) => b.p.publishedAt - a.p.publishedAt)[0]
-    return pending ? { id: pending.id, p: pending.p, name: pending.name as string } : null
+    const pending = communitySchedulesQ.data
+      .filter(r => !r.is_admin && (!r.seen_published_at || new Date(r.published_at).getTime() > new Date(r.seen_published_at).getTime()))
+      .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())[0]
+    if (!pending) return null
+    const p: PublishedSchedule = { week: normalizeWeek(pending.week), publishedAt: new Date(pending.published_at).getTime(), by: pending.published_by_name || 'Your WynkoHead' }
+    return { id: pending.group_id, p, name: pending.name }
   })()
   function dismissScheduleNotif() {
-    if (scheduleNotif) setNotifSeen(markNotifSeen(scheduleNotif.id, scheduleNotif.p.publishedAt))
+    if (scheduleNotif) void decideSchedule(scheduleNotif.id, null) // "decide later": marks this version as seen
   }
 
   function renderPage() {
@@ -9126,52 +9833,54 @@ export default function DesktopDashboard() {
       return <WynkoinsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'earn') {
-      return <EarnPage onNavigate={handleNav} profile={profile} isWynkoHead={!!wynkoHead} onRegisterWynkoHead={registerWynkoHead} />
+      return <EarnPage onNavigate={handleNav} profile={profile} headStatus={headStatusQ.data} hasCommunity={!!headCommunity}
+        onApply={applyWynkoHead} onCreateCommunity={createHeadCommunity} />
     }
     if (activeNav === 'settings') {
       return <SettingsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === 'studyrooms') {
       if (activeRoom) {
-        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} backLabel={activeCommunity || wynkoHead ? 'Community' : 'Rooms'} />
+        return <RoomInteriorPage room={activeRoom} onBack={() => setActiveRoom(null)} onNavigate={handleNav} profile={profile} units={sharedUnits} schedule={schedule} todayIdx={todayIdx} backLabel={activeCommunity || headCommunity ? 'Community' : 'Rooms'} />
       }
       if (activeCommunity) {
-        const homeSaved = Store.get(HOME_COMMUNITY_STORE_KEY, null) as { id: number } | null
-        const cw = communityWeek(activeCommunity.id)
+        const live = communities.find(c => c.id === activeCommunity.id) ?? activeCommunity
+        const row = scheduleRowFor(activeCommunity.id)
         return (
-          <CommunityStudentPage key={activeCommunity.id} community={activeCommunity}
-            isHome={homeSaved?.id === activeCommunity.id}
-            isOwner={!!wynkoHead && activeCommunity.id === HEAD_COMMUNITY_ID}
-            week={cw?.week ?? Array.from({ length: 7 }, () => [])} weekBy={cw?.by ?? null}
+          <CommunityStudentPage key={activeCommunity.id} community={live}
+            isHome={!!live.isHome}
+            isOwner={live.myRole === 'admin'}
+            week={row ? normalizeWeek(row.week) : null} weekBy={row?.published_by_name ?? null}
             onBack={() => setActiveCommunity(null)} onNavigate={handleNav}
             onJoinRoom={room => setActiveRoom(room)}
-            onLeave={() => leaveCommunity(activeCommunity.id)}
+            onLeave={() => { void leaveCommunityById(activeCommunity.id) }}
             profile={profile}
-            scheduleChoice={scheduleChoices[activeCommunity.id] ?? null}
-            onAcceptSchedule={() => acceptCommunitySchedule(activeCommunity.id)}
-            onRejectSchedule={() => rejectCommunitySchedule(activeCommunity.id)} />
+            scheduleChoice={row?.choice ?? null}
+            onAcceptSchedule={() => { void acceptCommunitySchedule(activeCommunity.id) }}
+            onRejectSchedule={() => { void rejectCommunitySchedule(activeCommunity.id) }} />
         )
       }
       // A WynkoHead's Community is the management dashboard for the community
       // they run; "View Community" there opens the student view above.
-      if (wynkoHead) {
-        const headCommunity = ALL_COMMUNITIES.find(c => c.id === HEAD_COMMUNITY_ID)
-        if (headCommunity) {
+      if (headCommunity) {
+        {
           return (
-            <WynkoHeadCommunityPage community={headCommunity} headName={wynkoHead.name || profile?.displayName || 'Your WynkoHead'} profile={profile}
+            <WynkoHeadCommunityPage key={headCommunity.id} community={headCommunity} headName={profile?.displayName || headCommunity.headName || 'Your WynkoHead'} profile={profile}
               onNavigate={handleNav} onViewAsStudent={() => setActiveCommunity(headCommunity)} onEnterStudyRoom={room => setActiveRoom(room)}
               headSchedule={headSchedule} setHeadSchedule={setHeadSchedule} headUnits={headUnits} setHeadUnits={setHeadUnits}
-              published={publishedSchedules[HEAD_COMMUNITY_ID]} onPublish={publishHeadSchedule} />
+              published={headPublished} onPublish={publishHeadSchedule} onCommunityChanged={refreshCommunities} />
           )
         }
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile}
+        pendingJoinRoomId={pendingJoinRoomId} onPendingJoinHandled={() => setPendingJoinRoomId(null)}
         communityTab={studyRoomsTab} onCommunityTabChange={setStudyRoomsTab}
-        onOpenCommunity={setActiveCommunity} leftCommunityIds={leftCommunityIds} />
+        onOpenCommunity={setActiveCommunity} communities={communities} communitiesStatus={myCommunitiesQ.status}
+        communitiesError={myCommunitiesQ.error} onRefreshCommunities={refreshCommunities} />
     }
 
     // ── Home (the module wired to real data this pass) ──
-    if (authState === 'loading' || (authState === 'ready' && homeLoading)) {
+    if (authState === 'loading' || (authState === 'ready' && (homeLoading || planStore.status === 'loading'))) {
       return (
         <div className="flex h-screen items-center justify-center text-slate-500 text-sm" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
           Loading your dashboard…
@@ -9184,6 +9893,15 @@ export default function DesktopDashboard() {
           <div className="text-slate-200 text-base font-semibold">Sign in to see your dashboard</div>
           <div className="text-slate-500 text-sm max-w-xs">Your review queue and study data will show up here once you're signed in.</div>
           <a href="/login.html" className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Go to sign in</a>
+        </div>
+      )
+    }
+    if (homeError) {
+      return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+          <div className="text-slate-200 text-base font-semibold">Couldn't load your dashboard</div>
+          <div className="text-slate-500 text-sm max-w-xs">Check your connection and try again. Your study data is safe.</div>
+          <button onClick={retryHome} className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Try again</button>
         </div>
       )
     }
@@ -9232,9 +9950,16 @@ export default function DesktopDashboard() {
       {renderPage()}
       {scheduleNotif && authState === 'ready' && (
         <ScheduleNotificationCard communityName={scheduleNotif.name} published={scheduleNotif.p}
-          onAccept={() => { acceptCommunitySchedule(scheduleNotif.id); dismissScheduleNotif() }}
-          onCreateOwn={() => { rejectCommunitySchedule(scheduleNotif.id); dismissScheduleNotif(); handleNav('schedules') }}
+          onAccept={() => { void acceptCommunitySchedule(scheduleNotif.id) }}
+          onCreateOwn={() => { void rejectCommunitySchedule(scheduleNotif.id); handleNav('schedules') }}
           onDismiss={dismissScheduleNotif} />
+      )}
+      {communityNotice && (
+        <div role="status" className="fixed bottom-5 right-5 z-[80] max-w-[360px] rounded-xl border px-4 py-3 flex items-start gap-3 text-[13px] text-slate-200"
+          style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+          <span className="flex-1">{communityNotice}</span>
+          <button onClick={() => setCommunityNotice(null)} aria-label="Dismiss" className="text-slate-500 hover:text-slate-200"><Ico n="close" cls="w-4 h-4" /></button>
+        </div>
       )}
     </UserAvatarCtx.Provider>
   )
