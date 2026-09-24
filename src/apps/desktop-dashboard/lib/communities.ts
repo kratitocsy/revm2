@@ -146,6 +146,19 @@ export async function fetchMonetizedCommunityIds(ids: string[]): Promise<Set<str
   );
   return new Set((rows ?? []).filter((r) => r.monetization_enabled).map((r) => r.id));
 }
+/**
+ * The caller's Home Community (community_home, own row via RLS). `chosen` is
+ * false when it was assigned automatically because they're in exactly one
+ * community; with two or more they must pick one explicitly (migration 0078).
+ */
+export async function fetchMyHomeCommunity(): Promise<{ group_id: string; chosen: boolean; locked_until: string } | null> {
+  const { data: auth } = await sb.auth.getUser();
+  if (!auth.user) return null;
+  return call(
+    sb.from('community_home').select('group_id, chosen, locked_until').eq('user_id', auth.user.id).maybeSingle(),
+    'Could not load your Home Community',
+  );
+}
 /** Owner only; turning it on requires an approved WynkoHead (checked server-side). */
 export const setCommunityMonetization = (groupId: string, enabled: boolean) =>
   call<boolean>(sb.rpc('rpc_set_community_monetization', { p_group_id: groupId, p_enabled: enabled }), 'Could not update monetisation');
