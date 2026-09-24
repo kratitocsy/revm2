@@ -41,6 +41,11 @@ import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
   type RoomRow, type RoomMember,
 } from './lib/studyRooms'
+import {
+  fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
+  sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
+  type BattlegroundState, type ActiveBattle, type BattleOpponent, type BattleHistoryRow,
+} from './lib/battleground'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -7241,28 +7246,25 @@ const TROPHY_TIERS = [
   { label: '60 Battles', sub: '60 battles', tier: 'Diamond', img: trophyDiamond, color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
 ]
 
-interface BAFriend { id: string; name: string; color: string; variant: number; xp: number; status: 'online' | 'busy' | 'offline' }
-
+// Thresholds mirror battle_title_for_xp() in 0062_battleground.sql exactly -
+// the server is the source of truth for the title string, this is only for
+// the client-side progress bar (% to next title, XP needed).
 const BA_TIERS = [
   { n: 'Rookie', min: 0 },
-  { n: 'Challenger', min: 500 },
-  { n: 'Focused', min: 1200 },
-  { n: 'Warrior', min: 2000 },
-  { n: 'Elite', min: 3200 },
-  { n: 'Unstoppable', min: 5000 },
+  { n: 'Challenger', min: 100 },
+  { n: 'Focused', min: 300 },
+  { n: 'Warrior', min: 700 },
+  { n: 'Elite', min: 1500 },
+  { n: 'Unstoppable', min: 3000 },
 ]
-const BA_XP_WIN = 120
-const BA_XP_LOSS = 25
 const BA_MILESTONES = [1, 10, 30, 60]
 
-const BA_FRIENDS: BAFriend[] = [
-  { id: 'aryan', name: 'Aryan', color: '#F59E0B', variant: 1, xp: 3460, status: 'online' },
-  { id: 'meera', name: 'Meera', color: '#A855F7', variant: 2, xp: 2420, status: 'online' },
-  { id: 'kabir', name: 'Kabir', color: '#19B5E6', variant: 1, xp: 1780, status: 'online' },
-  { id: 'dev', name: 'Dev', color: '#19B5E6', variant: 3, xp: 1240, status: 'busy' },
-  { id: 'riya', name: 'Riya', color: '#EC4899', variant: 0, xp: 860, status: 'offline' },
-  { id: 'nain', name: 'Nain', color: '#3B82F6', variant: 3, xp: 310, status: 'offline' },
-]
+// Deterministic look for a real opponent (no "pick an avatar" step exists
+// for Battleground) - same hash-based approach as FACE_COLORS elsewhere.
+function battleAvatarLook(id: string): { color: string; variant: number } {
+  const h = hashSubject(id)
+  return { color: FACE_COLORS[h % FACE_COLORS.length], variant: h }
+}
 
 function baFmtTime(s: number) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
@@ -7305,161 +7307,319 @@ function BAStatGrid({ battles, wins, losses, streak, best, focusSecs, xp }: {
 
 function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type BAView = 'home' | 'waiting' | 'profile'
-  type ArenaPhase = 'countdown' | 'live' | 'result' | null
 
   const [view, setView] = useState<BAView>('home')
-  const [arenaPhase, setArenaPhase] = useState<ArenaPhase>(null)
+  const [, setNowTick] = useState(0) // forces a re-render every second for live timers/countdowns below
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const [meXp, setMeXp] = useState(2610)
-  const [meBattles, setMeBattles] = useState(47)
-  const [meWins, setMeWins] = useState(31)
-  const [meLosses, setMeLosses] = useState(16)
-  const [meStreak, setMeStreak] = useState(4)
-  const [meBest, setMeBest] = useState(9)
-  const [meFocusSecs, setMeFocusSecs] = useState(38 * 3600 + 42 * 60)
+  const bg = useLoader(fetchBattlegroundState, null as BattlegroundState | null, [], 0)
+  const board = useLoader(fetchTopBattlers, [] as BattleOpponent[], [], 0)
+  const history = useLoader(() => fetchBattleHistory(100), [] as BattleHistoryRow[], [], 0)
 
-  const [invites, setInvites] = useState<{ id: string; ago: string }[]>([
-    { id: 'aryan', ago: '2 min ago' },
-    { id: 'kabir', ago: '14 min ago' },
-  ])
+  // RLS already scopes `battles`/`battle_invitations` selects to rows the
+  // caller is part of, so no extra filter is needed - any change visible
+  // to this user (challenge sent/accepted, opponent ready, either player
+  // pausing) re-pulls the one-round-trip hub snapshot.
+  useRealtimeRefresh('battles', '', bg.refresh)
+  useRealtimeRefresh('battle_invitations', '', bg.refresh)
 
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerQuery, setPickerQuery] = useState('')
-  const [pickerSel, setPickerSel] = useState<string | null>(null)
-
-  const [pendingOpp, setPendingOpp] = useState<BAFriend | null>(null)
-  const [expirySecs, setExpirySecs] = useState(300)
-  const [countdownN, setCountdownN] = useState(3)
-  const [battleOpp, setBattleOpp] = useState<BAFriend | null>(null)
-  const [elapsedSecs, setElapsedSecs] = useState(0)
-  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
-  const [result, setResult] = useState<{ kind: 'won' | 'lost'; opp: BAFriend; elapsed: number; before: number; after: number; gain: number } | null>(null)
-
-  const waitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const expiryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  function clearAllTimers() {
-    if (waitTimeoutRef.current) clearTimeout(waitTimeoutRef.current)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    if (liveIntervalRef.current) clearInterval(liveIntervalRef.current)
-    if (expiryIntervalRef.current) clearInterval(expiryIntervalRef.current)
-    waitTimeoutRef.current = null; countdownIntervalRef.current = null; liveIntervalRef.current = null; expiryIntervalRef.current = null
-  }
-  useEffect(() => () => clearAllTimers(), [])
+  const activeBattle = bg.data?.active ?? null
+  const outgoing = bg.data?.outgoing_invite ?? null
 
   useEffect(() => {
-    if (arenaPhase === 'live') {
-      liveIntervalRef.current = setInterval(() => setElapsedSecs(s => s + 1), 1000)
-    } else if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current); liveIntervalRef.current = null
-    }
-    return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current) }
-  }, [arenaPhase])
+    if (!activeBattle && !outgoing) return
+    const id = setInterval(() => setNowTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [activeBattle, outgoing])
 
-  function byId(id: string) { return (BA_FRIENDS.find(f => f.id === id) || BA_FRIENDS[0]) as BAFriend }
+  // Safety net alongside realtime: also catches server-side invite/battle
+  // expiry, which only takes effect the next time get_battleground_state()
+  // itself runs (nothing pushes a change for time simply passing).
+  useEffect(() => {
+    const need = view === 'waiting' || !!activeBattle
+    if (!need) return
+    const id = setInterval(() => void bg.refresh(), 5000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, activeBattle])
 
-  function openPicker() { setPickerOpen(true); setPickerQuery(''); setPickerSel(null) }
+  // ── Challenge picker: username search against real accounts (no
+  // friends system exists - see search_battle_opponents in 0072) ────────
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerResults, setPickerResults] = useState<BattleOpponent[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [pickerSel, setPickerSel] = useState<BattleOpponent | null>(null)
+
+  useEffect(() => {
+    if (!pickerOpen) return
+    setPickerLoading(true)
+    const t = setTimeout(() => {
+      searchBattleOpponents(pickerQuery)
+        .then(setPickerResults)
+        .catch(e => setActionError((e as Error).message))
+        .finally(() => setPickerLoading(false))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [pickerOpen, pickerQuery])
+
+  function openPicker() { setPickerOpen(true); setPickerQuery(''); setPickerSel(null); setPickerResults([]) }
   function closePicker() { setPickerOpen(false) }
 
-  function sendChallenge() {
-    if (!pickerSel) return
-    const f = byId(pickerSel)
-    setPickerOpen(false)
-    setPendingOpp(f)
-    setExpirySecs(300)
-    setView('waiting')
-    waitTimeoutRef.current = setTimeout(() => startCountdown(f), 5500)
-    expiryIntervalRef.current = setInterval(() => {
-      setExpirySecs(s => {
-        if (s <= 1) { clearAllTimers(); setPendingOpp(null); setView('home'); return 300 }
-        return s - 1
+  async function sendChallenge() {
+    if (!pickerSel || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await sendBattleChallenge(pickerSel.id)
+      setPickerOpen(false)
+      await bg.refresh()
+      setView('waiting')
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cancelChallenge() {
+    if (!outgoing || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await cancelBattleChallenge(outgoing.id)
+      await bg.refresh()
+      setView('home')
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function acceptInvite(id: string) {
+    if (busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await respondBattleChallenge(id, true)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function rejectInvite(id: string) {
+    if (busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await respondBattleChallenge(id, false)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function markReady() {
+    if (!activeBattle || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await readyBattle(activeBattle.id)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cancelWaitingRoom() {
+    if (!activeBattle || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await cancelPendingBattle(activeBattle.id)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── Pause / result ──────────────────────────────────────────────────────
+  // pauseBattle() always makes the caller lose (server-enforced) and
+  // returns the finished row directly, so pausing myself shows the result
+  // instantly. Losing because the OPPONENT paused first is detected from
+  // realtime instead: `active` disappears from the hub snapshot while we
+  // still remember its id, and the newest battle_history row is that result.
+  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
+  const [result, setResult] = useState<{
+    kind: 'won' | 'lost'; opponentName: string; opponentAvatar: string | null; opponentId: string
+    elapsed: number; xpBefore: number; xpAfter: number; gain: number
+  } | null>(null)
+  const lastActiveRef = useRef<ActiveBattle | null>(null)
+  const xpBeforeRef = useRef(0)
+
+  useEffect(() => {
+    if (bg.status !== 'ready' || !bg.data) return
+    if (bg.data.active) {
+      lastActiveRef.current = bg.data.active
+      xpBeforeRef.current = bg.data.me.xp
+      return
+    }
+    const prev = lastActiveRef.current
+    if (!prev || result) return
+    lastActiveRef.current = null
+    fetchBattleHistory(1).then(rows => {
+      const row = rows[0]
+      if (!row || row.id !== prev.id) return
+      setResult({
+        kind: row.result, opponentName: row.opponent_username, opponentAvatar: row.opponent_avatar, opponentId: row.opponent_id,
+        elapsed: row.focus_seconds, xpBefore: xpBeforeRef.current, xpAfter: xpBeforeRef.current + row.xp_earned, gain: row.xp_earned,
       })
-    }, 1000)
-  }
-
-  function cancelChallenge() {
-    clearAllTimers(); setPendingOpp(null); setView('home')
-  }
-
-  function acceptInvite(id: string) {
-    if (battleOpp) return
-    const f = byId(id)
-    setInvites(prev => prev.filter(i => i.id !== id))
-    startCountdown(f)
-  }
-  function rejectInvite(id: string) {
-    setInvites(prev => prev.filter(i => i.id !== id))
-  }
-
-  function startCountdown(opp: BAFriend) {
-    clearAllTimers()
-    setPendingOpp(opp); setCountdownN(3); setArenaPhase('countdown')
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdownN(n => {
-        if (n <= 1) {
-          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-          setBattleOpp(opp); setElapsedSecs(0); setPendingOpp(null)
-          setArenaPhase('live')
-          return 3
-        }
-        return n - 1
-      })
-    }, 1000)
-  }
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bg.status, bg.data, result])
 
   function requestPause() { setPauseConfirmOpen(true) }
   function keepFocusing() { setPauseConfirmOpen(false) }
-  function confirmPause() { finishBattle('lost', true) }
-  function opponentPausesFirst() { finishBattle('won', true) }
-
-  function finishBattle(kind: 'won' | 'lost', apply: boolean) {
-    const opp = battleOpp || byId('aryan')
-    const gain = kind === 'won' ? BA_XP_WIN : BA_XP_LOSS
-    const before = meXp
-    setResult({ kind, opp, elapsed: elapsedSecs, before, after: before + gain, gain })
-    if (apply) {
-      setMeBattles(b => b + 1); setMeXp(x => x + gain); setMeFocusSecs(f => f + elapsedSecs)
-      if (kind === 'won') { setMeWins(w => w + 1); setMeStreak(s => { const ns = s + 1; setMeBest(b => Math.max(b, ns)); return ns }) }
-      else { setMeLosses(l => l + 1); setMeStreak(0) }
+  async function confirmPause() {
+    if (!activeBattle || !bg.data || busy) return
+    setBusy(true); setPauseConfirmOpen(false); setActionError(null)
+    try {
+      const before = bg.data.me.xp
+      const row = await pauseBattle(activeBattle.id)
+      lastActiveRef.current = null
+      const elapsed = row.started_at && row.ended_at
+        ? Math.max(0, Math.round((new Date(row.ended_at).getTime() - new Date(row.started_at).getTime()) / 1000)) : 0
+      setResult({
+        kind: 'lost', opponentName: activeBattle.opponent_username, opponentAvatar: activeBattle.opponent_avatar, opponentId: activeBattle.opponent_id,
+        elapsed, xpBefore: before, xpAfter: before + row.loser_xp_awarded, gain: row.loser_xp_awarded,
+      })
+      await bg.refresh()
+      void Promise.all([history.refresh(), board.refresh()])
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
     }
-    setPauseConfirmOpen(false); setBattleOpp(null)
-    setArenaPhase('result')
   }
 
   function backToBattlegroundFromResult() {
-    setArenaPhase(null); setResult(null); setView('home')
+    setResult(null); setView('home')
+    void Promise.all([history.refresh(), board.refresh()])
   }
 
-  // ── Fullscreen arena: countdown / live duel / result ──────────────────────
-  if (arenaPhase) {
+  const meXp = bg.data?.me.xp ?? 0
+  const rank = baTierInfo(meXp)
+  const stats = bg.data?.stats ?? { total: 0, wins: 0, losses: 0, total_focus_seconds: 0 }
+  const earnedTrophies = TROPHY_TIERS.filter((_, i) => stats.total >= BA_MILESTONES[i])
+  // Win streak/best aren't tracked server-side (battles carries totals
+  // only) - derive both from battle history, which is ordered newest-first.
+  const { streak, best } = (() => {
+    let curStreak = 0, bestStreak = 0, running = 0, stillCurrent = true
+    for (const h of history.data) {
+      if (h.result === 'won') {
+        running += 1
+        if (stillCurrent) curStreak = running
+        bestStreak = Math.max(bestStreak, running)
+      } else {
+        running = 0
+        stillCurrent = false
+      }
+    }
+    return { streak: curStreak, best: bestStreak }
+  })()
+  const boardRows = [
+    ...board.data.map(b => ({ id: b.id, name: b.username, avatar: b.avatar_url, xp: b.battle_xp, me: false })),
+    { id: 'me', name: 'You', avatar: profile?.avatarUrl ?? null, xp: meXp, me: true },
+  ].sort((a, b) => b.xp - a.xp)
+
+  function OpponentAvatar({ id, avatar, size, glow, ringColor }: { id: string; avatar: string | null; size: number; glow?: boolean; ringColor?: string }) {
+    if (avatar) {
+      return (
+        <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: `2.5px solid ${ringColor || '#7C4DFF'}`, boxShadow: glow ? `0 0 16px ${ringColor || '#7C4DFF'}80` : 'none' }}>
+          <img src={avatar} alt="" className="w-full h-full object-cover" />
+        </div>
+      )
+    }
+    const look = battleAvatarLook(id)
+    return <BattleAvatar color={look.color} variant={look.variant} size={size} glow={glow} ringColor={ringColor || look.color} />
+  }
+
+  if (bg.status === 'loading' && !bg.data) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[#020615]">
+        <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
+        <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Loading Battleground…</div>
+      </div>
+    )
+  }
+  if (bg.status === 'error' && !bg.data) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[#020615]">
+        <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
+          <div className="text-slate-200 text-sm font-semibold">Couldn't load Battleground</div>
+          <div className="text-slate-500 text-xs max-w-xs">{bg.error}</div>
+          <button onClick={() => void bg.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fullscreen arena: ready room / live duel / result ──────────────────
+  if (result || activeBattle) {
+    const phase: 'ready' | 'live' | 'result' = result ? 'result' : activeBattle!.status === 'pending' ? 'ready' : 'live'
+    const elapsedSecs = phase === 'live' && activeBattle?.started_at
+      ? Math.max(0, Math.floor((Date.now() - new Date(activeBattle.started_at).getTime()) / 1000)) : 0
+
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020615] text-center px-6">
         <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6">
           <div className="text-sm font-bold tracking-wider text-white">WYN<span className="text-[#7C4DFF]">KO</span></div>
-          {arenaPhase === 'live' && (
+          {phase === 'live' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
               <Ico n="lock" cls="w-3.5 h-3.5" /> Focus Lock on
             </div>
           )}
         </div>
 
-        {arenaPhase === 'countdown' && pendingOpp && (
+        {actionError && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl text-[12px] text-amber-300" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)' }}>
+            {actionError}
+          </div>
+        )}
+
+        {phase === 'ready' && activeBattle && (
           <div>
-            <p className="text-slate-400 text-sm mb-2"><b className="text-white">{pendingOpp.name}</b> accepted</p>
-            <div className="text-8xl font-black text-white mb-3" style={{ textShadow: '0 0 40px rgba(124,77,255,0.5)' }}>{countdownN}</div>
-            <p className="text-slate-300 text-sm mb-1">Battle starts now. Don't pause.</p>
-            <p className="text-slate-500 text-xs mb-6">Focus Lock is turning on.</p>
-            <div className="flex items-center justify-center gap-3">
-              <BattleAvatar color="#7C4DFF" variant={0} size={40} />
+            <p className="text-slate-400 text-sm mb-4">Both players ready up. Focus Lock turns on and the clock starts the moment you're both in.</p>
+            <div className="flex items-center justify-center gap-6 mb-6">
+              <div className="flex flex-col items-center gap-2">
+                <BattleAvatar color="#7C4DFF" variant={0} size={64} glow={activeBattle.i_am_ready} />
+                <div className="text-sm font-semibold text-white">You</div>
+                <div className="text-[11px]" style={{ color: activeBattle.i_am_ready ? '#4ade80' : '#64748b' }}>{activeBattle.i_am_ready ? 'Ready' : 'Not ready'}</div>
+              </div>
               <span className="text-slate-500 text-xs font-bold">VS</span>
-              <BattleAvatar color={pendingOpp.color} variant={pendingOpp.variant} size={40} />
+              <div className="flex flex-col items-center gap-2">
+                <OpponentAvatar id={activeBattle.opponent_id} avatar={activeBattle.opponent_avatar} size={64} glow={activeBattle.opponent_ready} ringColor={battleAvatarLook(activeBattle.opponent_id).color} />
+                <div className="text-sm font-semibold text-white">{activeBattle.opponent_username}</div>
+                <div className="text-[11px]" style={{ color: activeBattle.opponent_ready ? '#4ade80' : '#64748b' }}>{activeBattle.opponent_ready ? 'Ready' : 'Not ready'}</div>
+              </div>
+            </div>
+            {activeBattle.i_am_ready ? (
+              <p className="text-slate-500 text-xs mb-6">Waiting for {activeBattle.opponent_username} to ready up…</p>
+            ) : (
+              <button onClick={markReady} disabled={busy} className="px-8 py-3 rounded-2xl font-bold text-white disabled:opacity-50 mb-4" style={{ background: '#7C4DFF' }}>I'm ready</button>
+            )}
+            <div>
+              <button onClick={cancelWaitingRoom} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845] disabled:opacity-50">Cancel battle</button>
             </div>
           </div>
         )}
 
-        {arenaPhase === 'live' && battleOpp && (
+        {phase === 'live' && activeBattle && (
           <div className="w-full max-w-xl">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mb-8" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" /> BATTLE ACTIVE
@@ -7474,29 +7634,28 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               </div>
               <div className="text-slate-600 text-xs font-bold">VS</div>
               <div className="flex flex-col items-center gap-2">
-                <BattleAvatar color={battleOpp.color} variant={battleOpp.variant} size={88} glow ringColor={battleOpp.color} />
-                <div className="text-sm font-semibold text-white">{battleOpp.name}</div>
-                <div className="text-[11px] text-slate-500">{battleOpp.name}'s focus time</div>
+                <OpponentAvatar id={activeBattle.opponent_id} avatar={activeBattle.opponent_avatar} size={88} glow ringColor={battleAvatarLook(activeBattle.opponent_id).color} />
+                <div className="text-sm font-semibold text-white">{activeBattle.opponent_username}</div>
+                <div className="text-[11px] text-slate-500">{activeBattle.opponent_username}'s focus time</div>
                 <div className="text-3xl font-black text-white" style={{ fontFamily: 'monospace' }}>{baFmtTime(elapsedSecs)}</div>
                 <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Focusing</div>
               </div>
             </div>
             <p className="text-slate-500 text-xs mb-5">First person to pause loses.</p>
-            <button onClick={requestPause} className="mx-auto flex items-center gap-2 px-8 py-3 rounded-2xl font-bold" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
+            <button onClick={requestPause} disabled={busy} className="mx-auto flex items-center gap-2 px-8 py-3 rounded-2xl font-bold disabled:opacity-50" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
               PAUSE
             </button>
             <p className="text-slate-600 text-[11px] mt-4">Pausing Focus Lock counts as pausing the battle.</p>
-            <button onClick={opponentPausesFirst} className="mt-8 text-[11px] text-slate-600 hover:text-slate-400 underline">Simulate: opponent pauses first</button>
 
             {pauseConfirmOpen && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 px-4">
                 <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[#1E3060] p-6">
                   <h2 className="text-lg font-bold text-white mb-2">Pause and lose the battle?</h2>
-                  <p className="text-slate-400 text-sm mb-5">{battleOpp.name} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
+                  <p className="text-slate-400 text-sm mb-5">{activeBattle.opponent_username} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
                   <div className="flex flex-col gap-2">
                     <button onClick={keepFocusing} className="w-full py-2.5 rounded-xl font-bold text-white" style={{ background: '#7C4DFF' }}>Keep focusing</button>
-                    <button onClick={confirmPause} className="w-full py-2.5 rounded-xl font-semibold text-sm" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>Pause and lose</button>
+                    <button onClick={confirmPause} disabled={busy} className="w-full py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>Pause and lose</button>
                   </div>
                 </div>
               </div>
@@ -7504,23 +7663,23 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           </div>
         )}
 
-        {arenaPhase === 'result' && result && (
+        {phase === 'result' && result && (
           <div className="w-full max-w-md">
             <div className="text-6xl mb-3">{result.kind === 'won' ? '🏆' : '💀'}</div>
             <h1 className="text-3xl font-black text-white mb-1">{result.kind === 'won' ? 'YOU WIN' : 'DEFEAT'}</h1>
             <p className="text-slate-400 text-sm mb-1">{result.kind === 'won' ? 'Your opponent paused first.' : 'You paused first.'}</p>
-            <p className="text-slate-500 text-xs mb-6">You vs {result.opp.name}</p>
+            <p className="text-slate-500 text-xs mb-6">You vs {result.opponentName}</p>
             <div className="flex items-center justify-center gap-8 mb-6">
               <div><div className="text-[11px] text-slate-500 mb-1">Focus time</div><div className="text-xl font-bold text-white">{baFmtTime(result.elapsed)}</div></div>
               <div><div className="text-[11px] text-slate-500 mb-1">Battle XP</div><div className="text-xl font-bold text-emerald-400">+{result.gain}</div></div>
             </div>
             {(() => {
-              const a = baTierInfo(result.before), b = baTierInfo(result.after), promoted = b.i > a.i
+              const a = baTierInfo(result.xpBefore), b = baTierInfo(result.xpAfter), promoted = b.i > a.i
               return (
                 <div className="mb-6">
                   <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{b.cur.n}</span>
-                    <span className="text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.after)} XP</span>
+                    <span className="text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.xpAfter)} XP</span>
                   </div>
                   <div className="h-2 rounded-full bg-[#1A2845] overflow-hidden">
                     <div className="h-full rounded-full bg-[#7C4DFF]" style={{ width: `${promoted ? b.pct : a.pct}%` }} />
@@ -7538,12 +7697,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     )
   }
 
-  const rank = baTierInfo(meXp)
-  const earnedTrophies = TROPHY_TIERS.filter((_, i) => meBattles >= BA_MILESTONES[i])
-  const boardRows = [
-    ...BA_FRIENDS.map(f => ({ id: f.id, name: f.name, color: f.color, variant: f.variant, xp: f.xp, me: false })),
-    { id: 'me', name: 'You', color: '#7C4DFF', variant: 0, xp: meXp, me: true },
-  ].sort((a, b) => b.xp - a.xp)
+  const incoming = bg.data?.incoming_invites ?? []
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
@@ -7565,27 +7719,37 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           </div>
           <div className="relative p-2 text-slate-400">
             <Ico n="bell" cls="w-5 h-5" />
-            {invites.length > 0 && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]">{invites.length}</div>
+            {incoming.length > 0 && (
+              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]">{incoming.length}</div>
             )}
           </div>
           <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {view === 'waiting' && pendingOpp && (
+          {actionError && (
+            <div className="px-4 py-2.5 rounded-xl text-[12px] text-amber-300 flex items-center justify-between gap-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.3)' }}>
+              <span>{actionError}</span>
+              <button onClick={() => setActionError(null)} className="text-amber-300/70 hover:text-amber-200">✕</button>
+            </div>
+          )}
+
+          {view === 'waiting' && outgoing && (
             <div className="max-w-md mx-auto text-center py-16">
               <div className="flex items-center justify-center gap-4 mb-6">
                 <BattleAvatar color="#7C4DFF" variant={0} size={64} />
                 <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />)}</div>
-                <BattleAvatar color={pendingOpp.color} variant={pendingOpp.variant} size={64} glow ringColor={pendingOpp.color} />
+                <OpponentAvatar id={outgoing.to_user} avatar={outgoing.avatar_url} size={64} glow ringColor={battleAvatarLook(outgoing.to_user).color} />
               </div>
-              <h2 className="text-lg font-bold text-white mb-2">Waiting for {pendingOpp.name} to accept</h2>
-              <p className="text-slate-400 text-sm mb-6">Once they accept, you both get a 3-2-1 countdown and the battle begins.</p>
-              <div className="text-xs text-slate-500 mb-6">Invitation expires in <b className="text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(expirySecs)}</b></div>
-              <button onClick={cancelChallenge} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel challenge</button>
+              <h2 className="text-lg font-bold text-white mb-2">Waiting for {outgoing.username} to accept</h2>
+              <p className="text-slate-400 text-sm mb-6">Once they accept, you'll both ready up and the battle begins.</p>
+              <div className="text-xs text-slate-500 mb-6">
+                Invitation expires in <b className="text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(Math.max(0, Math.floor((new Date(outgoing.expires_at).getTime() - Date.now()) / 1000)))}</b>
+              </div>
+              <button onClick={cancelChallenge} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845] disabled:opacity-50">Cancel challenge</button>
             </div>
           )}
+          {view === 'waiting' && !outgoing && (() => { setView('home'); return null })()}
 
           {view === 'profile' && (
             <div className="max-w-2xl mx-auto space-y-4">
@@ -7622,20 +7786,20 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   })}
                 </div>
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1A2845] text-[11px] text-slate-500">
-                  <span>Win a battle <b className="text-emerald-400">+{BA_XP_WIN} XP</b></span>
-                  <span>Lose a battle <b className="text-slate-400">+{BA_XP_LOSS} XP</b></span>
+                  <span>Win a battle <b className="text-emerald-400">+20-60 XP</b></span>
+                  <span>Lose a battle <b className="text-slate-400">+0-20 XP</b></span>
                 </div>
               </div>
 
               <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
                 <div className="text-sm font-bold text-white mb-4">Battle stats</div>
-                <BAStatGrid battles={meBattles} wins={meWins} losses={meLosses} streak={meStreak} best={meBest} focusSecs={meFocusSecs} xp={meXp} />
+                <BAStatGrid battles={stats.total} wins={stats.wins} losses={stats.losses} streak={streak} best={best} focusSecs={stats.total_focus_seconds} xp={meXp} />
                 <div className="mt-4 flex items-center gap-3 text-xs text-slate-400">
-                  <span><b className="text-emerald-400">{meWins}</b> wins</span>
-                  <span><b className="text-red-400">{meLosses}</b> losses</span>
+                  <span><b className="text-emerald-400">{stats.wins}</b> wins</span>
+                  <span><b className="text-red-400">{stats.losses}</b> losses</span>
                 </div>
                 <div className="h-1.5 rounded-full overflow-hidden flex mt-1.5 bg-[#1A2845]">
-                  <div className="h-full bg-emerald-400" style={{ width: `${meBattles > 0 ? Math.round((meWins / meBattles) * 100) : 0}%` }} />
+                  <div className="h-full bg-emerald-400" style={{ width: `${stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0}%` }} />
                   <div className="h-full flex-1" style={{ background: 'rgba(248,113,113,0.7)' }} />
                 </div>
               </div>
@@ -7666,7 +7830,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>⚔️</div>
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold text-white">Battleground</h1>
-                  <p className="text-slate-400 text-sm">Challenge your friends. Stay focused. Don't pause.</p>
+                  <p className="text-slate-400 text-sm">Challenge someone. Stay focused. Don't pause.</p>
                 </div>
                 <button onClick={() => setView('profile')} className="text-right hover:opacity-80 transition-opacity">
                   <div className="text-[10px] text-slate-500 mb-0.5">Your battle title</div>
@@ -7681,8 +7845,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                   <div>
                     <h2 className="text-lg font-bold text-white mb-1.5">Ready for a challenge?</h2>
-                    <p className="text-slate-400 text-sm mb-4">Challenge a friend and see who can stay focused longer.</p>
-                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-white text-sm" style={{ background: '#7C4DFF' }}>⚔️ Challenge friend</button>
+                    <p className="text-slate-400 text-sm mb-4">Challenge someone and see who can stay focused longer.</p>
+                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-white text-sm" style={{ background: '#7C4DFF' }}>⚔️ Challenge someone</button>
                   </div>
                   <div className="flex items-center gap-3">
                     <BattleAvatar color="#7C4DFF" variant={0} size={56} />
@@ -7697,28 +7861,25 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 </div>
               </div>
 
-              {invites.length > 0 && (
+              {incoming.length > 0 && (
                 <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]">
                   <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
                     <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
                     <div className="text-sm font-bold text-white">Battle Invitations</div>
-                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]">{invites.length} pending</div>
+                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]">{incoming.length} pending</div>
                   </div>
                   <div className="px-4 pb-4 space-y-2">
-                    {invites.map(inv => {
-                      const f = byId(inv.id)
-                      return (
-                        <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(124,77,255,0.06)' }}>
-                          <BattleAvatar color={f.color} variant={f.variant} size={36} />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-white">{f.name} <span className="text-slate-400 font-normal">challenged you</span></div>
-                            <div className="text-[11px] text-slate-500">{inv.ago}</div>
-                          </div>
-                          <button onClick={() => acceptInvite(inv.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#7C4DFF' }}>Accept</button>
-                          <button onClick={() => rejectInvite(inv.id)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-[#1A2845]">Reject</button>
+                    {incoming.map(inv => (
+                      <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(124,77,255,0.06)' }}>
+                        <OpponentAvatar id={inv.from_user} avatar={inv.avatar_url} size={36} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-white">{inv.username} <span className="text-slate-400 font-normal">challenged you</span></div>
+                          <div className="text-[11px] text-slate-500">{inv.title}</div>
                         </div>
-                      )
-                    })}
+                        <button onClick={() => void acceptInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>Accept</button>
+                        <button onClick={() => void rejectInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-[#1A2845] disabled:opacity-50">Reject</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -7728,27 +7889,31 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   <div className="text-sm font-bold text-white">Your battle stats</div>
                   <button onClick={() => setView('profile')} className="text-[11px] font-semibold" style={{ color: '#C4AAFF' }}>View profile</button>
                 </div>
-                <BAStatGrid battles={meBattles} wins={meWins} losses={meLosses} streak={meStreak} best={meBest} focusSecs={meFocusSecs} xp={meXp} />
+                <BAStatGrid battles={stats.total} wins={stats.wins} losses={stats.losses} streak={streak} best={best} focusSecs={stats.total_focus_seconds} xp={meXp} />
               </div>
 
               <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm font-bold text-white">🏆 Friends leaderboard</div>
+                  <div className="text-sm font-bold text-white">🏆 Leaderboard</div>
                   <div className="text-[11px] text-slate-500">Ranked by Battle XP</div>
                 </div>
-                <div className="space-y-1">
-                  {boardRows.map((r, i) => (
-                    <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(124,77,255,0.08)' } : undefined}>
-                      <div className="w-5 text-center text-xs font-bold text-slate-500">{i + 1}</div>
-                      <BattleAvatar color={r.color} variant={r.variant} size={32} />
-                      <div className="flex-1 min-w-0 flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white truncate">{r.name}</span>
-                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{baTierInfo(r.xp).cur.n}</span>
+                {boardRows.length <= 1 ? (
+                  <div className="text-[12px] text-slate-500 text-center py-6">No one else has Battle XP yet - challenge someone to get the board started.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {boardRows.map((r, i) => (
+                      <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(124,77,255,0.08)' } : undefined}>
+                        <div className="w-5 text-center text-xs font-bold text-slate-500">{i + 1}</div>
+                        <OpponentAvatar id={r.id} avatar={r.avatar} size={32} />
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <span className="text-sm font-semibold text-white truncate">{r.name}</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{baTierInfo(r.xp).cur.n}</span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-slate-600 font-normal">XP</span></div>
                       </div>
-                      <div className="text-xs font-bold text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-slate-600 font-normal">XP</span></div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -7760,30 +7925,33 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           <div className="w-full max-w-md rounded-2xl border bg-[#0B1530] border-[#1E3060] p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="text-base font-bold text-white">Challenge a friend</div>
-                <div className="text-xs text-slate-500 mt-0.5">Search by username or pick from your friends.</div>
+                <div className="text-base font-bold text-white">Challenge someone</div>
+                <div className="text-xs text-slate-500 mt-0.5">Search by username.</div>
               </div>
               <button onClick={closePicker} className="text-slate-500 hover:text-slate-300 text-lg leading-none">✕</button>
             </div>
             <div className="flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 border-[#1A2845]">
               <Ico n="search" cls="w-4 h-4 text-slate-500" />
-              <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-600 outline-none" />
+              <input autoFocus value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-600 outline-none" />
             </div>
             <div className="max-h-64 overflow-y-auto space-y-1 mb-3">
-              {BA_FRIENDS.filter(f => !pickerQuery.trim() || f.name.toLowerCase().includes(pickerQuery.trim().toLowerCase())).map(f => {
-                const offline = f.status !== 'online'
-                const sel = pickerSel === f.id
+              {pickerLoading && <div className="text-[12px] text-slate-500 text-center py-6">Searching…</div>}
+              {!pickerLoading && pickerResults.length === 0 && (
+                <div className="text-[12px] text-slate-500 text-center py-6">{pickerQuery.trim() ? 'No one matches that username.' : 'Type a username to search.'}</div>
+              )}
+              {!pickerLoading && pickerResults.map(f => {
+                const sel = pickerSel?.id === f.id
+                const look = battleAvatarLook(f.id)
                 return (
-                  <button key={f.id} disabled={offline} onClick={() => setPickerSel(f.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors ${offline ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
+                  <button key={f.id} onClick={() => setPickerSel(f)}
+                    className="w-full flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-white/5"
                     style={sel ? { background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.4)' } : { border: '1px solid transparent' }}>
-                    <BattleAvatar color={f.color} variant={f.variant} size={36} />
+                    {f.avatar_url
+                      ? <img src={f.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      : <BattleAvatar color={look.color} variant={look.variant} size={36} />}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-white">{f.name}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${f.status === 'online' ? 'bg-emerald-400' : f.status === 'busy' ? 'bg-amber-400' : 'bg-slate-600'}`} />
-                        {f.status === 'online' ? 'Online' : f.status === 'busy' ? 'In session' : 'Offline'}
-                      </div>
+                      <div className="text-sm font-semibold text-white">{f.username}</div>
+                      <div className="text-[11px] text-slate-500">{f.title} · {baFmtXP(f.battle_xp)} XP</div>
                     </div>
                     {sel && <Ico n="check" cls="w-4 h-4 text-[#7C4DFF]" />}
                   </button>
@@ -7796,8 +7964,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             </div>
             <div className="flex gap-2">
               <button onClick={closePicker} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
-              <button onClick={sendChallenge} disabled={!pickerSel} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
-                {pickerSel ? `Challenge ${byId(pickerSel).name}` : 'Send challenge'}
+              <button onClick={() => void sendChallenge()} disabled={!pickerSel || busy} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+                {pickerSel ? `Challenge ${pickerSel.username}` : 'Send challenge'}
               </button>
             </div>
           </div>
