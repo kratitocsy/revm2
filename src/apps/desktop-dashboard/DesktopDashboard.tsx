@@ -9464,12 +9464,25 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
   const [createName, setCreateName] = useState("")
   const [createDesc, setCreateDesc] = useState("")
 
-  const friendLink = "wynko.in/ref/jatin123"
-  const wynkoHeadLink = "wynko.in/wh/jatin-sinsinwar"
-  const wynkoins = 150
+  const coinsQ = useLoader(fetchCoinBalance, 0, [], 60_000)
+  const coinHistoryQ = useLoader(() => fetchCoinHistory(5), [] as CoinTransaction[], [], 60_000)
+  const referralQ = useLoader(fetchReferralSummary, null as ReferralSummary | null, [], 0)
+  const refCode = referralQ.data?.referral_code ?? null
+  // One referral link for everyone (migration 0079); shown without the scheme.
+  const friendLink = refCode ? referralLink(refCode) : ''
+  const wynkoHeadLink = friendLink
+  const linkLabel = (l: string) => l ? l.replace(/^https?:\/\//, '') : referralQ.status === 'error' ? 'Couldn’t load your link' : 'Loading your link…'
+  const wynkoins = coinsQ.data.toLocaleString('en-IN')
+  const coinHistory = coinHistoryQ.data.map(t => ({
+    label: t.reason === 'purchase_coins' ? 'Purchased WYNKOINS'
+      : t.reason.startsWith('redeem_') ? `Redeemed ${t.reason.slice(7).replace(/_/g, ' ')}`
+      : t.reason.replace(/_/g, ' '),
+    coins: `${t.amount >= 0 ? '+' : '−'}${Math.abs(t.amount).toLocaleString('en-IN')}`,
+    color: t.amount >= 0 ? '#19D3A2' : '#F87171',
+  }))
 
-  function copyFriend() { navigator.clipboard?.writeText(friendLink); setFriendCopied(true); setTimeout(() => setFriendCopied(false), 2000) }
-  function copyHeadLink() { navigator.clipboard?.writeText(wynkoHeadLink); setHeadLinkCopied(true); setTimeout(() => setHeadLinkCopied(false), 2000) }
+  function copyFriend() { if (!friendLink) return; navigator.clipboard?.writeText(friendLink); setFriendCopied(true); setTimeout(() => setFriendCopied(false), 2000) }
+  function copyHeadLink() { if (!wynkoHeadLink) return; navigator.clipboard?.writeText(wynkoHeadLink); setHeadLinkCopied(true); setTimeout(() => setHeadLinkCopied(false), 2000) }
 
   async function handleRegister() {
     if (!regName.trim() || earnBusy) return
@@ -9554,7 +9567,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                   <div className="text-[11px] text-slate-500 mb-3">Share this link — anyone who joins Wynko via this link is added to your community.</div>
                   <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
                     <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" >{wynkoHeadLink}</span>
+                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" >{linkLabel(wynkoHeadLink)}</span>
                     <button onClick={copyHeadLink} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
                       {headLinkCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -9672,19 +9685,17 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">WYNKOINS</span></div>
                   <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Earned from friend invites</div>
+                  <div className="text-[11px] text-slate-500 mb-3">Recent activity</div>
                   <div className="space-y-1.5 text-[11px]">
-                    {[
-                      { label: "Friend streak bonus", coins: "+50 (EXAMPLE)", color: "#19D3A2" },
-                      { label: "Welcome bonus", coins: "+100 (REAL)", color: "#9B6CFF" },
-                    ].map((e, i) => (
+                    {coinHistory.length === 0 && <div className="text-slate-600 py-1.5">{coinHistoryQ.status === 'loading' ? 'Loading…' : 'No coin activity yet'}</div>}
+                    {coinHistory.map((e, i) => (
                       <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
                         <span className="text-slate-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
                   </div>
-                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
+                  <button onClick={() => onNavigate('wynkoins')} className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
                     >Redeem WYNKOINS</button>
                 </div>
 
@@ -9947,7 +9958,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                   <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">YOUR INVITE LINK</div>
                   <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
                     <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold" >{friendLink}</span>
+                    <span className="text-sm text-slate-200 flex-1 font-bold" >{linkLabel(friendLink)}</span>
                     <button onClick={copyFriend} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
                       {friendCopied ? <span className="text-[10px] text-emerald-400">✓ Copied!</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
@@ -9981,22 +9992,17 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">Your WYNKOINS</span></div>
                   <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Earned from friend invites and bonuses</div>
-                  <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
-                    ⚠ BREAKDOWN BELOW IS FOR EXAMPLE — YOUR REAL HISTORY WILL APPEAR AS YOU INVITE FRIENDS
-                  </div>
+                  <div className="text-[11px] text-slate-500 mb-3">Recent activity</div>
                   <div className="space-y-1.5 text-[11px]">
-                    {[
-                      { label: "Friend streak bonus (EXAMPLE)", coins: "+50", color: "#19D3A2" },
-                      { label: "Welcome bonus (REAL)", coins: "+100", color: "#9B6CFF" },
-                    ].map((e, i) => (
+                    {coinHistory.length === 0 && <div className="text-slate-600 py-1.5">{coinHistoryQ.status === 'loading' ? 'Loading…' : 'No coin activity yet'}</div>}
+                    {coinHistory.map((e, i) => (
                       <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
                         <span className="text-slate-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
                   </div>
-                  <button className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
+                  <button onClick={() => onNavigate('wynkoins')} className="w-full mt-4 py-2 rounded-xl text-amber-400 text-[12px] font-semibold border transition-all hover:bg-amber-500/10 border-[rgba(245,158,11,0.3)]"
                     >Redeem WYNKOINS</button>
                 </div>
               </div>
