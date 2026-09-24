@@ -868,9 +868,10 @@ function buildTodayPlanRows(scheduleToday: ScheduleItem[], planTasks: StudyTask[
   return rows
 }
 
-function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
+function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
   rows: TodayPlanRow[]
   onStartTask: (subject: string, topic: string) => void
+  onRemoveTask: (subject: string, topic: string) => void
   onAddTask: () => void
 }) {
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -915,6 +916,11 @@ function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
                   <span className="text-[11px] text-slate-500">{r.minutes} min</span>
                 </div>
               </div>
+              <button onClick={() => onRemoveTask(r.subject, r.topic)} title="Remove task"
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all text-slate-500 hover:text-red-400 hover:bg-red-500/10"
+                style={{ background: 'rgba(148,163,184,0.08)' }}>
+                <Ico n="trash" cls="w-3.5 h-3.5" />
+              </button>
               <button onClick={() => onStartTask(r.subject, r.topic)}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg, #2979FF, #7C4DFF)', boxShadow: '0 0 14px rgba(41,98,255,0.5)' }}>
@@ -9786,6 +9792,29 @@ export default function DesktopDashboard() {
     setShowHomeAddTask(false)
   }
 
+  // Removes a Today's Study Plan row from wherever it actually lives: the
+  // live Focus Lock plan (if it's been started/added there) and/or today's
+  // schedule entry (if it came from Schedules) - a row built from either
+  // source, or both, disappears either way.
+  function handleHomeRemoveTask(subject: string, topic: string) {
+    const existing = loadFocusPlanSnapshot()
+    const baseTasks = existing?.tasks ?? focusPlan.tasks
+    const removedTask = baseTasks.find(t => t.subject === subject && t.topic === topic)
+    const nextTasks = baseTasks.filter(t => !(t.subject === subject && t.topic === topic))
+    const activeTaskId = existing?.activeTaskId ?? focusPlan.activeTaskId
+    const wasActive = !!removedTask && removedTask.id === activeTaskId
+    saveFocusPlanSnapshot({
+      tasks: nextTasks,
+      activeTaskId: wasActive ? null : activeTaskId,
+      running: wasActive ? false : (existing?.running ?? false),
+      runningStartedAtMs: wasActive ? null : (existing?.runningStartedAtMs ?? null),
+    })
+    setFocusPlan(prev => ({ tasks: nextTasks, activeTaskId: wasActive ? null : prev.activeTaskId }))
+    setSchedule(prev => prev.map((day, idx) =>
+      idx === todayIdx ? day.filter(s => !(s.subject === subject && (s.topic || s.subject) === topic)) : day
+    ))
+  }
+
   function handleAddUnit(u: StudyUnit) {
     addUnit(u.subject, u.topics)
   }
@@ -9925,6 +9954,7 @@ export default function DesktopDashboard() {
               <TodayStudyPlanCard
                 rows={todayPlanRows}
                 onStartTask={(subject, topic) => goFocus({ subject, topic })}
+                onRemoveTask={handleHomeRemoveTask}
                 onAddTask={() => setShowHomeAddTask(true)}
               />
               <HomeFocusTimerCard
