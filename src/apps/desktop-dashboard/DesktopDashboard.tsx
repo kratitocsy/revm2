@@ -33,6 +33,10 @@ import {
   type WynkoHeadStatus, type ScheduleChoice, type StudentAnalyticsRow, type JoinRequestRow,
 } from './lib/communities'
 import {
+  fetchCoinBalance, fetchCoinPackages, fetchShopItems, fetchCoinHistory, fetchAdFreeUntil, redeemShopItem, buyCoinPackage, packageCoins,
+  type CoinPackage, type ShopItem, type CoinTransaction,
+} from './lib/payments'
+import {
   initStudyPlanSync, getPlanSnapshot, setPlanSnapshot, subscribePlan, setStudyWeek, useStudyPlanStore, mergeRemotePlan,
   getQuickNotes, setQuickNotes,
   type TimerMode, type PomodoroPhase, type StudyTask, type FocusPlanSnapshot, type ScheduleItem, type StudyUnit,
@@ -8988,63 +8992,81 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 // ─── WYNKOINS Page ─────────────────────────────────────────────────────────────
 
 function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
-  const [balance, setBalance] = useState(150)
-  const [adsFree, setAdsFree] = useState(false)
-  const [adsFreeExpiry, setAdsFreeExpiry] = useState<string | null>(null)
+  const balanceQ = useLoader(fetchCoinBalance, 0, [], 60_000)
+  const packagesQ = useLoader(fetchCoinPackages, [] as CoinPackage[], [], 0)
+  const shopQ = useLoader(fetchShopItems, [] as ShopItem[], [], 0)
+  const historyQ = useLoader(() => fetchCoinHistory(20), [] as CoinTransaction[], [], 60_000)
+  const adFreeQ = useLoader(fetchAdFreeUntil, null as Date | null, [], 60_000)
   const [buying, setBuying] = useState<string | null>(null)
   const [spending, setSpending] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  const [history, setHistory] = useState<{ label: string; amount: number; date: string; type: 'credit' | 'debit' }[]>([
-    { label: 'Welcome bonus', amount: 100, date: 'Sep 1, 2026', type: 'credit' },
-    { label: 'Friend streak (EXAMPLE)', amount: 50, date: 'Sep 5, 2026', type: 'credit' },
-  ])
+
+  const balance = balanceQ.data
+  const adFreeItem = shopQ.data.find(i => i.item_type === 'ad_free' && i.duration_days === 30) ?? null
+  const adFreeCost = adFreeItem?.coin_cost ?? 0
+  const adsFree = !!adFreeQ.data && adFreeQ.data.getTime() > Date.now()
+  const fmtDate = (d: Date) => d.getTime() > 8e15 ? 'forever' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  const adsFreeExpiry = adsFree && adFreeQ.data ? fmtDate(adFreeQ.data) : null
+  const history = historyQ.data.map(t => ({
+    label: t.reason === 'purchase_coins' ? 'Purchased WYNKOINS'
+      : t.reason.startsWith('redeem_') ? `Redeemed ${t.reason.slice(7).replace(/_/g, ' ')}`
+      : t.reason.replace(/_/g, ' '),
+    amount: Math.abs(t.amount),
+    date: fmtDate(new Date(t.created_at)),
+    type: (t.amount >= 0 ? 'credit' : 'debit') as 'credit' | 'debit',
+  }))
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 2800)
   }
 
-  function handleBuy(pack: { id: string; coins: number; price: string }) {
+  async function handleBuy(pack: { id: string }) {
+    if (buying) return
     setBuying(pack.id)
-    setTimeout(() => {
+    try {
+      const added = await buyCoinPackage(pack.id)
+      if (added !== null) {
+        await Promise.all([balanceQ.refresh(), historyQ.refresh()])
+        showToast(`+${added.toLocaleString('en-IN')} WYNKOINS added to your wallet!`, 'success')
+      }
+    } catch (e) {
+      showToast((e as Error).message, 'error')
+    } finally {
       setBuying(null)
-      setBalance(b => b + pack.coins)
-      const now = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      setHistory(h => [{ label: `Purchased ${pack.coins} WYNKOINS`, amount: pack.coins, date: now, type: 'credit' }, ...h])
-      showToast(`+${pack.coins} WYNKOINS added to your wallet!`, 'success')
-    }, 1200)
+    }
   }
 
-  function handleUnlockAdFree() {
-    if (balance < 199) { showToast('Not enough WYNKOINS. Buy more to unlock!', 'error'); return }
+  async function handleUnlockAdFree() {
+    if (!adFreeItem || spending) return
+    if (balance < adFreeCost) { showToast('Not enough WYNKOINS. Buy more to unlock!', 'error'); return }
     setSpending(true)
-    setTimeout(() => {
-      setSpending(false)
-      setBalance(b => b - 199)
-      setAdsFree(true)
-      const expiry = new Date(); expiry.setMonth(expiry.getMonth() + 1)
-      const expiryStr = expiry.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      setAdsFreeExpiry(expiryStr)
-      const now = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      setHistory(h => [{ label: 'Ad-free for 1 month', amount: 199, date: now, type: 'debit' }, ...h])
+    try {
+      await redeemShopItem(adFreeItem.id)
+      await Promise.all([balanceQ.refresh(), historyQ.refresh(), adFreeQ.refresh()])
       showToast('🎉 Ads removed for 1 month!', 'success')
-    }, 1000)
+    } catch (e) {
+      showToast((e as Error).message, 'error')
+    } finally {
+      setSpending(false)
+    }
   }
 
-  const PACKS = [
-    {
-      id: 'pack_199', coins: 199, price: '₹29', priceNum: 29,
-      badge: '', color: '#7C4DFF', glow: '#2855CC',
-      grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)',
-      perCoin: '14.6p/coin', popular: false,
-    },
-    {
-      id: 'pack_399', coins: 399, price: '₹49', priceNum: 49,
-      badge: 'BEST VALUE', color: '#19B5E6', glow: 'rgba(25,181,230,0.40)',
-      grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)',
-      perCoin: '12.3p/coin', popular: true,
-    },
+  const PACK_STYLES = [
+    { color: '#7C4DFF', glow: '#2855CC', grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)' },
+    { color: '#19B5E6', glow: 'rgba(25,181,230,0.40)', grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)' },
+    { color: '#F59E0B', glow: 'rgba(245,158,11,0.40)', grad: 'linear-gradient(135deg,#F59E0B,#D97706)' },
   ]
+  const PACKS = packagesQ.data.map((p, i) => {
+    const coins = packageCoins(p)
+    return {
+      id: p.id, coins,
+      price: `₹${p.price_inr.toLocaleString('en-IN')}`,
+      badge: p.popular ? 'MOST POPULAR' : p.bonus_pct ? `+${p.bonus_pct}% BONUS` : '',
+      ...PACK_STYLES[i % PACK_STYLES.length],
+      perCoin: `${((p.price_inr * 100) / coins).toFixed(1)}p/coin`, popular: p.popular,
+    }
+  })
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]" >
@@ -9118,7 +9140,9 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               {/* ── BUY WYNKOINS ── */}
               <div>
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">BUY WYNKOINS</div>
-                <div className="grid grid-cols-2 gap-4">
+                {packagesQ.status === 'loading' && PACKS.length === 0 && <div className="text-[12px] text-slate-500">Loading coin packs…</div>}
+                {packagesQ.status === 'error' && PACKS.length === 0 && <div className="text-[12px] text-amber-300">{packagesQ.error}</div>}
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
                   {PACKS.map(pack => (
                     <div key={pack.id} className="relative rounded-2xl border overflow-hidden"
                       style={{ borderColor: pack.popular ? pack.color + '60' : '#1A2845', background: '#0B1530', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
@@ -9142,10 +9166,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                           </div>
                         </div>
                         <div className="text-2xl font-black mb-1" style={{ color: pack.color }}>{pack.price}</div>
-                        <div className="text-[11px] text-slate-500 mb-5">one-time purchase</div>
+                        <div className="text-[11px] text-slate-500 mb-5">one-time purchase · UPI, cards, net banking via Razorpay</div>
                         <button
                           onClick={() => handleBuy(pack)}
-                          disabled={buying === pack.id}
+                          disabled={!!buying}
                           className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
                           style={{ background: pack.grad, boxShadow: `0 0 20px ${pack.glow}`, opacity: buying === pack.id ? 0.7 : 1 }}>
                           {buying === pack.id
@@ -9180,24 +9204,24 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                       )}
                       {!adsFree && (
                         <div className="flex items-center gap-2">
-                          <span className="text-amber-400 font-black text-lg" >199</span>
+                          <span className="text-amber-400 font-black text-lg" >{adFreeCost}</span>
                           <span className="text-[11px] text-amber-600">WYNKOINS</span>
-                          {balance < 199 && <span className="text-[10px] text-red-400 ml-1">— need {199 - balance} more</span>}
+                          {balance < adFreeCost && <span className="text-[10px] text-red-400 ml-1">— need {adFreeCost - balance} more</span>}
                         </div>
                       )}
                     </div>
                     {!adsFree ? (
                       <button
                         onClick={handleUnlockAdFree}
-                        disabled={spending || balance < 199}
+                        disabled={spending || !adFreeItem || balance < adFreeCost}
                         className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                         style={{
-                          background: balance >= 199 ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(30,30,50,0.8)',
-                          color: balance >= 199 ? '#fff' : '#4E5E84',
-                          border: balance >= 199 ? 'none' : '1px solid #1A2845',
-                          boxShadow: balance >= 199 ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
+                          background: balance >= adFreeCost ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(30,30,50,0.8)',
+                          color: balance >= adFreeCost ? '#fff' : '#4E5E84',
+                          border: balance >= adFreeCost ? 'none' : '1px solid #1A2845',
+                          boxShadow: balance >= adFreeCost ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
                         }}>
-                        {spending ? 'Unlocking…' : balance >= 199 ? (<>Unlock for 199 <img src="/wynkoin.png" alt="Wynkoin" className="w-4 h-4 object-contain inline-block" style={{ verticalAlign: '-3px' }} /></>) : 'Not enough coins'}
+                        {spending ? 'Unlocking…' : balance >= adFreeCost ? (<>Unlock for {adFreeCost} <img src="/wynkoin.png" alt="Wynkoin" className="w-4 h-4 object-contain inline-block" style={{ verticalAlign: '-3px' }} /></>) : 'Not enough coins'}
                       </button>
                     ) : (
                       <div className="flex-shrink-0 text-2xl">✅</div>
@@ -9235,9 +9259,9 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   <div className="text-[11px] text-amber-600 mb-2">WYNKOINS</div>
                 </div>
                 <div className="w-full rounded-full h-2 mb-3 bg-[rgba(245,158,11,0.12)]" >
-                  <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (balance / 500) * 100)}%`, background: 'linear-gradient(90deg,#F59E0B,#D97706)' }} />
+                  <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (balance / Math.max(adFreeCost, 1)) * 100)}%`, background: 'linear-gradient(90deg,#F59E0B,#D97706)' }} />
                 </div>
-                <div className="text-[10px] text-slate-600 mb-4">{balance < 199 ? `${199 - balance} more coins needed to remove ads` : 'Enough to remove ads!'}</div>
+                <div className="text-[10px] text-slate-600 mb-4">{balance < adFreeCost ? `${adFreeCost - balance} more coins needed to remove ads` : 'Enough to remove ads!'}</div>
                 {adsFree && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3 bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.30)]"
                     >
