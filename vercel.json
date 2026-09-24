@@ -3,7 +3,9 @@
   "buildCommand": "npm run build:css && npm run build:shared && npm run build:sidebars && npm run build:mobile-home && npm run build:desktop-dashboard && npm run build:onboarding-quiz",
   "outputDirectory": ".",
   "redirects": [
-    { "source": "/index.html", "destination": "/", "permanent": true }
+    { "source": "/index.html", "destination": "/", "permanent": true },
+    { "source": "/battle", "destination": "/home?page=battleground", "permanent": false },
+    { "source": "/battle.html", "destination": "/home?page=battleground", "permanent": false }
   ],
   "cleanUrls": true,
   "rewrites": [
