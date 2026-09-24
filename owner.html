@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>WYNKO — Owner Control</title>
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#080A12">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="src/styles/pages/owner.css">
+</head>
+<body>
+
+<!-- Access gate: shown until we know this account is a platform owner. -->
+<div id="owGate" class="ow-gate">
+  <div class="ow-card glow">
+    <img src="wynko-mark.png" alt="Wynko">
+    <div class="ow-spin" style="margin-top:18px;"></div>
+  </div>
+</div>
+
+<div id="owApp" class="ow-shell ow-hidden">
+  <aside class="ow-side">
+    <div class="ow-brand">
+      <img src="wynko-mark.png" alt="Wynko">
+      <div>
+        <div class="ow-brand-name">Wynko</div>
+        <div class="ow-brand-sub">Owner Control</div>
+      </div>
+    </div>
+    <nav class="ow-nav" id="owNav" aria-label="Owner Control sections"></nav>
+    <div class="ow-side-foot">
+      <div class="ow-avatar" id="owMeAvatar"></div>
+      <div class="ow-me">
+        <div class="ow-me-name" id="owMeName"></div>
+        <div class="ow-me-role">● Owner</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="ow-main">
+    <header class="ow-head">
+      <div>
+        <div class="ow-crumb">Owner Control / <span id="owCrumb"></span></div>
+        <div class="ow-title" id="owTitle"></div>
+      </div>
+      <div class="ow-head-actions">
+        <button class="ow-btn" id="owRefresh" type="button"></button>
+        <a class="ow-btn" href="home" id="owBack"></a>
+      </div>
+    </header>
+    <div class="ow-content" id="owView"></div>
+  </main>
+</div>
+
+<div id="owModalRoot"></div>
+<div class="ow-toast" id="owToast" role="status" aria-live="polite"></div>
+
+<script src="shared.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* Owner Control — only the platform owner accounts (see
+   supabase_migrations/0085_owner_control.sql, platform_owner_emails) can use
+   this page. Every RPC re-checks that on the server; the gate here is only
+   so nobody else sees the UI. */
+const sb = window.supabase.createClient(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON);
+
+/* ── Icons (stroke, 24 grid) ───────────────────────────── */
+const ICON_PATHS = {
+  grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
+  badge: '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>',
+  users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.2c2.3.3 3.9 1.9 4.5 4.3"/>',
+  rupee: '<path d="M7 5h10M7 9h10M7 5c5 0 6.5 2 6.5 4S12 13 7 13l7 6"/>',
+  wallet: '<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.2"/><path d="M6 6l9-2.5 1 2.5"/>',
+  shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/>',
+  ban: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
+  home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V20h12V9.5"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  trash: '<path d="M4.5 7h15"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/>',
+  arrow: '<path d="M9 5l7 7-7 7"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  chart: '<path d="M4 20V4"/><path d="M4 20h16"/><rect x="7" y="12" width="3" height="5" rx="1"/><rect x="12" y="8" width="3" height="9" rx="1"/><rect x="17" y="5" width="3" height="12" rx="1"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+};
+function icon(name){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]||''}</svg>`;
+}
+
+/* ── Formatting ────────────────────────────────────────── */
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function num(n){ return Number(n||0).toLocaleString('en-IN'); }
+function inr(n){
+  const v = Number(n||0);
+  return (v < 0 ? '−₹' : '₹') + Math.abs(v).toLocaleString('en-IN', { maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 });
+}
+function hours(sec){
+  const s = Number(sec||0);
+  if(s < 3600) return Math.round(s/60) + 'm';
+  const h = s/3600;
+  return (h >= 100 ? Math.round(h).toLocaleString('en-IN') : h.toFixed(1).replace(/\.0$/,'')) + 'h';
+}
+function ago(ts){
+  if(!ts) return '—';
+  const d = (Date.now() - new Date(ts).getTime())/1000;
+  if(d < 60) return 'just now';
+  if(d < 3600) return Math.floor(d/60) + 'm ago';
+  if(d < 86400) return Math.floor(d/3600) + 'h ago';
+  if(d < 86400*30) return Math.floor(d/86400) + 'd ago';
+  return date(ts);
+}
+function date(ts){
+  if(!ts) return '—';
+  return new Date(ts).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+function dateTime(ts){
+  if(!ts) return '—';
+  return new Date(ts).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function monthLabel(ym){
+  const [y,m] = ym.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('en-IN', { month:'short' });
+}
+function personName(p){ return p.full_name || (p.username ? '@'+p.username : '') || p.email || 'Unknown'; }
+function avatar(p, big){
+  const cls = 'ow-avatar' + (big ? ' lg' : '');
+  if(p && p.avatar_url && /^https?:\/\//i.test(p.avatar_url)) return `<div class="${cls}"><img src="${esc(p.avatar_url)}" alt=""></div>`;
+  const letter = ((p && (p.full_name || p.username || p.email)) || '?').trim().charAt(0).toUpperCase();
+  return `<div class="${cls}">${esc(letter)}</div>`;
+}
+const EVENT_LABELS = { ad_impression:'Ads', premium_conversion:'Premium', store_purchase:'Store & coins', refund:'Refunds' };
+const KIND_LABELS = { user:'Account', community:'Community', room:'Study room', group_message:'Chat message', dm_message:'Direct message', announcement:'Announcement', material:'Material' };
+const REMOVABLE = new Set(['group_message','dm_message','announcement','material','community','room']);
+
+/* ── Data ──────────────────────────────────────────────── */
+async function rpc(name, args){
+  const { data, error } = await sb.rpc(name, args || {});
+  if(error) throw new Error(error.message || 'Something went wrong');
+  return data;
+}
+let me = { id:null, email:'', full_name:'', username:'', avatar_url:'' };
+let overview = null;
+const state = {
+  whStatus: 'pending',
+  commRooms: false, commSort: 'members', commFilter: '',
+  revWindow: '30d', revTable: false,
+  payStatus: 'pending',
+  bansAll: false,
+  modQuery: '', modPeople: null, modContent: null, modError: null,
+};
+const cache = { people: new Map(), content: new Map(), communities: new Map(), payouts: new Map(), applicants: new Map() };
+
+/* ── Views ─────────────────────────────────────────────── */
+const VIEWS = [
+  { id:'overview',    label:'Overview',         group:'CONTROL', icon:'grid',   render: renderOverview },
+  { id:'wynkoheads',  label:'WynkoHeads',       group:'PROGRAM', icon:'badge',  render: renderWynkoheads, badge:'wh' },
+  { id:'communities', label:'Communities',      group:'PROGRAM', icon:'users',  render: renderCommunities },
+  { id:'revenue',     label:'Revenue',          group:'MONEY',   icon:'rupee',  render: renderRevenue },
+  { id:'payouts',     label:'Payouts',          group:'MONEY',   icon:'wallet', render: renderPayouts, badge:'pay' },
+  { id:'moderation',  label:'Ban & remove',     group:'SAFETY',  icon:'shield', render: renderModeration },
+  { id:'bans',        label:'Banned accounts',  group:'SAFETY',  icon:'ban',    render: renderBans, badge:'bans' },
+  { id:'log',         label:'Activity log',     group:'SAFETY',  icon:'list',   render: renderLog },
+];
+let current = 'overview';
+
+function buildNav(){
+  const groups = [...new Set(VIEWS.map(v => v.group))];
+  document.getElementById('owNav').innerHTML = groups.map(g => `
+    <div class="ow-nav-group">
+      <div class="ow-nav-label">${g}</div>
+      ${VIEWS.filter(v => v.group === g).map(v => `
+        <button class="ow-nav-btn" type="button" data-nav="${v.id}">
+          ${icon(v.icon)}<span>${v.label}</span>
+          ${v.badge ? `<span class="ow-badge ow-hidden" id="badge-${v.badge}"></span>` : ''}
+        </button>`).join('')}
+    </div>`).join('');
+  document.getElementById('owNav').addEventListener('click', e => {
+    const b = e.target.closest('[data-nav]');
+    if(b) go(b.dataset.nav);
+  });
+}
+
+function go(view, opts){
+  if(!VIEWS.some(v => v.id === view)) view = 'overview';
+  if(location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
+  current = view;
+  show(view, opts);
+}
+
+async function show(view, opts){
+  const v = VIEWS.find(x => x.id === view);
+  document.querySelectorAll('.ow-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.nav === view));
+  const active = document.querySelector('.ow-nav-btn.active');
+  if(active && active.scrollIntoView && window.innerWidth <= 860) active.scrollIntoView({ block:'nearest', inline:'center' });
+  document.getElementById('owCrumb').textContent = v.label;
+  document.getElementById('owTitle').textContent = v.label;
+  const el = document.getElementById('owView');
+  el.innerHTML = `<div class="ow-loading"><div class="ow-spin"></div></div>`;
+  try{
+    await v.render(el, opts || {});
+  }catch(err){
+    if(current !== view) return;
+    el.innerHTML = `<div class="ow-err">${esc(err.message)}</div>`;
+  }
+}
+
+async function loadOverview(){
+  overview = await rpc('owner_overview');
+  setBadge('wh', overview.wynkoheads.pending, overview.wynkoheads.pending > 0);
+  setBadge('pay', overview.payouts.pending_count, overview.payouts.pending_count > 0);
+  setBadge('bans', overview.users.banned, false);
+  return overview;
+}
+function setBadge(id, n, hot){
+  const b = document.getElementById('badge-' + id);
+  if(!b) return;
+  b.textContent = n;
+  b.classList.toggle('ow-hidden', !n);
+  b.classList.toggle('hot', !!hot);
+}
+function refreshBadges(){ loadOverview().catch(() => {}); }
+
+/* ── Overview ──────────────────────────────────────────── */
+function kpi(label, value, foot, dot){
+  return `<div class="ow-kpi"><div class="ow-kpi-label"><i class="${dot||''}"></i>${label}</div><div class="ow-kpi-val">${value}</div>${foot ? `<div class="ow-kpi-foot">${foot}</div>` : ''}</div>`;
+}
+function greeting(){
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+async function renderOverview(el){
+  const o = await loadOverview();
+  if(current !== 'overview') return;
+  const first = (me.full_name || me.username || '').split(' ')[0];
+  const attention = [
+    o.wynkoheads.pending ? { view:'wynkoheads', ic:'badge', cls:'violet', t:`${o.wynkoheads.pending} WynkoHead application${o.wynkoheads.pending==1?'':'s'} to review`, s:'Approve or reject so they can start earning' } : null,
+    o.payouts.pending_count ? { view:'payouts', ic:'wallet', cls:'teal', t:`${o.payouts.pending_count} payout${o.payouts.pending_count==1?'':'s'} waiting · ${inr(o.payouts.pending_amount)}`, s:'Send the UPI transfer, then mark it paid' } : null,
+    o.users.banned ? { view:'bans', ic:'ban', cls:'red', t:`${o.users.banned} account${o.users.banned==1?'':'s'} banned right now`, s:'Review or lift bans' } : null,
+  ].filter(Boolean);
+
+  el.innerHTML = `
+    <div class="ow-card glow">
+      <div class="ow-card-head" style="margin-bottom:20px;">
+        <div>
+          <div class="ow-hero-title">${esc(greeting())}${first ? ', ' + esc(first) : ''} · <span>Owner Control</span></div>
+          <div class="ow-hero-sub">Everything across Wynko, live · updated ${esc(new Date(o.generated_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}))}</div>
+        </div>
+      </div>
+      <div class="ow-kpis big">
+        ${kpi('Total users', num(o.users.total), `+${num(o.users.new_7d)} this week`, 'cyan')}
+        ${kpi('Active this week', num(o.users.active_7d), `${num(o.users.active_1d)} in the last 24h`, 'teal')}
+        ${kpi('Net revenue · 30 days', inr(o.revenue.net_30d), `${inr(o.revenue.net_7d)} in the last 7 days`)}
+        ${kpi('Communities', num(o.communities.total), `${num(o.communities.monetized)} monetised`, 'amber')}
+      </div>
+    </div>
+
+    <div class="ow-grid-2" style="margin-bottom:16px;">
+      <div class="ow-card">
+        <div class="ow-card-head">
+          <div class="ow-card-icon violet">${icon('clock')}</div>
+          <div><div class="ow-card-title">Needs your attention</div><div class="ow-card-sub">Queues waiting on an owner</div></div>
+        </div>
+        <div class="ow-list">
+          ${attention.length ? attention.map(a => `
+            <button class="ow-action" type="button" data-go="${a.view}">
+              <div class="ow-card-icon ${a.cls}">${icon(a.ic)}</div>
+              <div><div class="ow-action-t">${esc(a.t)}</div><div class="ow-action-s">${esc(a.s)}</div></div>
+              <span class="ow-arrow">${icon('arrow').replace('<svg','<svg width="16" height="16"')}</span>
+            </button>`).join('') : `<div class="ow-empty">All clear — nothing is waiting on you.</div>`}
+        </div>
+      </div>
+      <div class="ow-card">
+        <div class="ow-card-head">
+          <div class="ow-card-icon red">${icon('shield')}</div>
+          <div><div class="ow-card-title">Find & ban</div><div class="ow-card-sub">Username, name, email, or any Wynko link</div></div>
+        </div>
+        <form class="ow-search" id="ovSearch">
+          <input class="ow-input" name="q" placeholder="@username or paste a link…" autocomplete="off">
+          <button class="ow-btn primary" type="submit">${icon('search')}Search</button>
+        </form>
+        <p class="ow-note" style="margin:12px 0 0;">Paste a community invite, study room, group, profile or referral link — or a message id — to find what it points at and who posted it.</p>
+      </div>
+    </div>
+
+    <div class="ow-grid-2">
+      <div class="ow-card">
+        <div class="ow-card-head"><div class="ow-card-icon">${icon('users')}</div><div><div class="ow-card-title">People</div><div class="ow-card-sub">Accounts and activity</div></div></div>
+        <div class="ow-kpis">
+          ${kpi('New · 30 days', num(o.users.new_30d), null, 'cyan')}
+          ${kpi('Active · 24h', num(o.users.active_1d), null, 'teal')}
+          ${kpi('Active · 30 days', num(o.users.active_30d), null, 'teal')}
+          ${kpi('Studied · 7 days', hours(o.study.seconds_7d), `${hours(o.study.seconds_30d)} in 30 days`)}
+          ${kpi('WynkoHeads', num(o.wynkoheads.verified), `${num(o.wynkoheads.pending)} pending · ${num(o.wynkoheads.rejected)} rejected`)}
+          ${kpi('Banned', num(o.users.banned), null, 'red')}
+        </div>
+      </div>
+      <div class="ow-card">
+        <div class="ow-card-head"><div class="ow-card-icon teal">${icon('rupee')}</div><div><div class="ow-card-title">Money</div><div class="ow-card-sub">Revenue is net of GST, store and gateway fees</div></div>
+          <div class="ow-right"><button class="ow-btn sm" type="button" data-go="revenue">Details ${icon('arrow')}</button></div></div>
+        <div class="ow-kpis">
+          ${kpi('Net revenue · all time', inr(o.revenue.net_all_time), `${inr(o.revenue.gross_all_time)} gross`)}
+          ${kpi('Creator earnings', inr(o.creators.earnings_all_time), 'credited to community owners', 'amber')}
+          ${kpi('Payouts paid', inr(o.payouts.paid_amount), `${num(o.payouts.paid_count)} transfers`, 'teal')}
+          ${kpi('Coins in wallets', num(o.coins_outstanding), 'WYNKOINS outstanding', 'cyan')}
+          ${kpi('Community members', num(o.communities.members), `${num(o.communities.home_members)} with a Home Community`)}
+          ${kpi('Join requests', num(o.communities.join_requests_pending), 'waiting on WynkoHeads', 'amber')}
+        </div>
+      </div>
+    </div>`;
+
+  el.querySelector('#ovSearch').addEventListener('submit', e => {
+    e.preventDefault();
+    const q = e.target.q.value.trim();
+    if(q) go('moderation', { query: q });
+  });
+}
+
+/* ── WynkoHeads ────────────────────────────────────────── */
+async function renderWynkoheads(el){
+  const rows = await rpc('owner_wynkohead_applicants', { p_status: state.whStatus });
+  if(current !== 'wynkoheads') return;
+  cache.applicants.clear();
+  rows.forEach(r => cache.applicants.set(r.user_id, r));
+  const pendingCount = overview ? overview.wynkoheads.pending : null;
+  el.innerHTML = `
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon violet">${icon('badge')}</div>
+        <div><div class="ow-card-title">WynkoHead applications</div><div class="ow-card-sub">Approved WynkoHeads can monetise their communities (50% of their Home Community members' revenue). Aim for a 24h turnaround.</div></div>
+      </div>
+      <div class="ow-toolbar">
+        <div class="ow-pills">
+          ${[['pending','Pending' + (pendingCount ? ` (${pendingCount})` : '')],['verified','Approved'],['rejected','Rejected']].map(([k,l]) =>
+            `<button class="ow-pill ${state.whStatus===k?'active':''}" type="button" data-wh-status="${k}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="ow-list">
+        ${rows.length ? rows.map(applicantRow).join('') : `<div class="ow-empty">${state.whStatus === 'pending' ? 'No applications waiting.' : 'Nothing here yet.'}</div>`}
+      </div>
+    </div>`;
+}
+function applicantRow(a){
+  const overdue = a.revhead_status === 'pending' && Number(a.hours_waiting) > 24;
+  const tags = [
+    overdue ? `<span class="ow-tag red">Overdue</span>` : '',
+    a.revhead_status === 'pending' && !overdue ? `<span class="ow-tag teal">On time</span>` : '',
+    a.is_adult === false ? `<span class="ow-tag amber">Under 18 — can't be paid</span>` : '',
+    a.banned ? `<span class="ow-tag red">Banned</span>` : '',
+  ].join('');
+  const waited = a.revhead_status === 'pending'
+    ? (a.applied_at ? (Number(a.hours_waiting) < 48 ? `${Math.round(a.hours_waiting)}h` : `${Math.floor(a.hours_waiting/24)}d`) : '—')
+    : date(a.verified_at || a.applied_at);
+  let actions = '';
+  if(a.revhead_status === 'pending'){
+    actions = `<button class="ow-btn sm good" type="button" data-act="wh-approve" data-id="${esc(a.user_id)}">${icon('check')}Approve</button>
+               <button class="ow-btn sm danger" type="button" data-act="wh-reject" data-id="${esc(a.user_id)}">${icon('x')}Reject</button>`;
+  }else if(a.revhead_status === 'rejected'){
+    actions = `<button class="ow-btn sm good" type="button" data-act="wh-approve" data-id="${esc(a.user_id)}">${icon('check')}Approve</button>`;
+  }
+  actions += `<button class="ow-btn sm ghost" type="button" data-act="lookup" data-q="${esc(a.user_id)}">${icon('search')}Look up</button>`;
+  return `
+    <div class="ow-row ${a.banned ? 'is-banned' : ''}">
+      <div class="ow-who">${avatar(a)}<div style="min-width:0;">
+        <div class="ow-who-name">${esc(personName(a))} ${tags}</div>
+        <div class="ow-who-sub">${a.username ? '@' + esc(a.username) + ' · ' : ''}${esc(a.email || '')}</div>
+      </div></div>
+      <div class="ow-facts">
+        <div class="ow-fact"><div class="ow-fact-k">${a.revhead_status === 'pending' ? 'Waiting' : a.revhead_status === 'verified' ? 'Approved' : 'Applied'}</div><div class="ow-fact-v">${esc(waited)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Communities</div><div class="ow-fact-v">${num(a.communities_owned)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Members</div><div class="ow-fact-v">${num(a.community_members)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Studied · 30d</div><div class="ow-fact-v">${hours(a.study_seconds_30d)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Joined</div><div class="ow-fact-v">${date(a.account_created_at)}</div></div>
+      </div>
+      <div class="ow-row-actions">${actions}</div>
+    </div>`;
+}
+
+/* ── Communities ───────────────────────────────────────── */
+async function renderCommunities(el){
+  const rows = await rpc('owner_communities', { p_include_rooms: state.commRooms });
+  if(current !== 'communities') return;
+  cache.communities.clear();
+  rows.forEach(r => cache.communities.set(r.group_id, r));
+  const communities = rows.filter(r => r.is_community);
+  const t = (k) => communities.reduce((s, r) => s + Number(r[k]||0), 0);
+
+  el.innerHTML = `
+    <div class="ow-card glow">
+      <div class="ow-kpis">
+        ${kpi('Communities', num(communities.length), `${num(communities.filter(c => c.monetization_enabled).length)} monetised`)}
+        ${kpi('Members', num(t('members')), `${num(t('home_members'))} call one Home`, 'cyan')}
+        ${kpi('Studied · 30 days', hours(t('study_seconds_30d')), 'inside communities', 'teal')}
+        ${kpi('Revenue · 30 days', inr(t('revenue_30d')), `${inr(t('revenue_all_time'))} all time`, 'amber')}
+      </div>
+    </div>
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon">${icon('users')}</div>
+        <div><div class="ow-card-title">${state.commRooms ? 'Communities & study rooms' : 'All communities'}</div><div class="ow-card-sub">Revenue is what the community brought in, before the owner's 50%</div></div>
+      </div>
+      <div class="ow-toolbar">
+        <input class="ow-input grow" id="commFilter" placeholder="Filter by name or owner…" value="${esc(state.commFilter)}" style="max-width:320px;">
+        <select class="ow-select" id="commSort" aria-label="Sort">
+          ${[['members','Most members'],['revenue','Most revenue · 30d'],['study','Most study · 30d'],['newest','Newest']].map(([k,l]) => `<option value="${k}" ${state.commSort===k?'selected':''}>${l}</option>`).join('')}
+        </select>
+        <label class="ow-check"><input type="checkbox" id="commRooms" ${state.commRooms?'checked':''}> Include study rooms</label>
+      </div>
+      <div class="ow-list" id="commList"></div>
+    </div>`;
+
+  const paint = () => {
+    const f = state.commFilter.toLowerCase();
+    const sorters = {
+      members: (a,b) => b.members - a.members,
+      revenue: (a,b) => Number(b.revenue_30d) - Number(a.revenue_30d),
+      study:   (a,b) => b.study_seconds_30d - a.study_seconds_30d,
+      newest:  (a,b) => new Date(b.created_at) - new Date(a.created_at),
+    };
+    const list = rows.filter(r => !f || [r.name, r.owner_username, r.owner_name].some(x => (x||'').toLowerCase().includes(f)))
+                     .sort(sorters[state.commSort]);
+    el.querySelector('#commList').innerHTML = list.length ? list.map(communityRow).join('') : `<div class="ow-empty">No communities match.</div>`;
+  };
+  paint();
+  el.querySelector('#commFilter').addEventListener('input', e => { state.commFilter = e.target.value; paint(); });
+  el.querySelector('#commSort').addEventListener('change', e => { state.commSort = e.target.value; paint(); });
+  el.querySelector('#commRooms').addEventListener('change', e => { state.commRooms = e.target.checked; show('communities'); });
+}
+function communityRow(c){
+  const kind = c.is_community ? 'community' : 'room';
+  const tags = [
+    `<span class="ow-tag ${c.is_community ? 'violet' : ''}">${c.is_community ? 'Community' : 'Study room'}</span>`,
+    c.monetization_enabled ? `<span class="ow-tag teal">Monetised</span>` : '',
+    c.visibility === 'private' ? `<span class="ow-tag">Private</span>` : '',
+    c.owner_banned ? `<span class="ow-tag red">Owner banned</span>` : '',
+  ].join('');
+  return `
+    <div class="ow-row ${c.owner_banned ? 'is-banned' : ''}">
+      <div class="ow-who">
+        <div class="ow-avatar" style="background:rgba(124,77,255,0.18);font-size:1rem;">${esc(c.emoji || (c.name||'?').charAt(0).toUpperCase())}</div>
+        <div style="min-width:0;">
+          <div class="ow-who-name">${esc(c.name)} ${tags}</div>
+          <div class="ow-who-sub">by ${c.owner_username ? '@' + esc(c.owner_username) : esc(c.owner_name || 'unknown')} · created ${date(c.created_at)}</div>
+        </div>
+      </div>
+      <div class="ow-facts">
+        <div class="ow-fact"><div class="ow-fact-k">Members</div><div class="ow-fact-v">${num(c.members)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Home</div><div class="ow-fact-v">${num(c.home_members)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Study · 30d</div><div class="ow-fact-v">${hours(c.study_seconds_30d)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Revenue · 30d</div><div class="ow-fact-v">${inr(c.revenue_30d)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">All time</div><div class="ow-fact-v">${inr(c.revenue_all_time)}</div></div>
+      </div>
+      <div class="ow-row-actions">
+        ${c.owner_id && !c.owner_banned ? `<button class="ow-btn sm danger" type="button" data-act="ban" data-id="${esc(c.owner_id)}" data-label="${esc(c.owner_username ? '@'+c.owner_username : c.owner_name || 'the owner')}">${icon('ban')}Ban owner</button>` : ''}
+        <button class="ow-btn sm danger" type="button" data-act="remove" data-kind="${kind}" data-id="${esc(c.group_id)}">${icon('trash')}Remove</button>
+      </div>
+    </div>`;
+}
+
+/* ── Revenue ───────────────────────────────────────────── */
+async function renderRevenue(el){
+  const o = await loadOverview();
+  if(current !== 'revenue') return;
+  const r = o.revenue;
+  const platform = Number(r.net_all_time) - Number(o.creators.earnings_all_time) - Number(o.creators.referral_shares_all_time);
+  const byType = state.revWindow === '30d' ? r.by_type_30d : r.by_type_all_time;
+  const types = Object.entries(byType || {}).sort((a,b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const maxType = Math.max(1, ...types.map(t => Math.abs(Number(t[1]))));
+  const months = r.monthly || [];
+  const maxMonth = Math.max(1, ...months.map(m => Math.abs(Number(m.net))));
+
+  el.innerHTML = `
+    <div class="ow-card glow">
+      <div class="ow-kpis big">
+        ${kpi('Net · 30 days', inr(r.net_30d), `${inr(r.net_7d)} in the last 7 days`)}
+        ${kpi('Net · all time', inr(r.net_all_time), `${inr(r.gross_all_time)} gross before fees`, 'cyan')}
+        ${kpi('Platform keeps', inr(platform), 'after creator & referral shares', 'teal')}
+        ${kpi('Refunded', inr(r.refunds_all_time), 'all time', 'red')}
+      </div>
+    </div>
+
+    <div class="ow-grid-2" style="margin-bottom:16px;">
+      <div class="ow-card">
+        <div class="ow-card-head">
+          <div class="ow-card-icon violet">${icon('chart')}</div>
+          <div><div class="ow-card-title">Net revenue by month</div><div class="ow-card-sub">Last 6 months · India time</div></div>
+          <div class="ow-right"><button class="ow-btn sm" type="button" data-act="rev-table">${state.revTable ? 'Show chart' : 'Show table'}</button></div>
+        </div>
+        ${state.revTable ? `
+          <table class="ow-table"><thead><tr><th>Month</th><th class="num">Net revenue</th></tr></thead>
+          <tbody>${months.map(m => `<tr><td>${esc(new Date(m.month + '-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'}))}</td><td class="num">${inr(m.net)}</td></tr>`).join('')}</tbody></table>` : `
+          <div class="ow-bars" id="revBars" role="img" aria-label="Net revenue by month">
+            ${months.map((m, i) => {
+              const v = Number(m.net);
+              const h = Math.max(1, Math.round(Math.abs(v) / maxMonth * 150));
+              const latest = i === months.length - 1;
+              return `<div class="ow-bar-col" tabindex="0" data-tip="${esc(new Date(m.month + '-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'}))}" data-val="${esc(inr(v))}" aria-label="${esc(monthLabel(m.month))}: ${esc(inr(v))}">
+                ${latest ? `<div class="ow-bar-val">${inr(v)}</div>` : ''}
+                <div class="ow-bar ${v < 0 ? 'neg' : ''} ${latest ? 'latest' : ''}" style="height:${h}px;"></div>
+              </div>`;
+            }).join('')}
+            <div class="ow-tip" id="revTip"></div>
+          </div>
+          <div class="ow-bar-x">${months.map(m => `<span>${esc(monthLabel(m.month))}</span>`).join('')}</div>`}
+      </div>
+
+      <div class="ow-card">
+        <div class="ow-card-head">
+          <div class="ow-card-icon">${icon('rupee')}</div>
+          <div><div class="ow-card-title">Where it comes from</div><div class="ow-card-sub">Net revenue by source</div></div>
+          <div class="ow-right">
+            <div class="ow-pills">
+              <button class="ow-pill ${state.revWindow==='30d'?'active':''}" type="button" data-act="rev-window" data-v="30d">30 days</button>
+              <button class="ow-pill ${state.revWindow==='all'?'active':''}" type="button" data-act="rev-window" data-v="all">All time</button>
+            </div>
+          </div>
+        </div>
+        ${types.length ? `<div class="ow-hbars">${types.map(([k, v]) => `
+          <div class="ow-hbar">
+            <div class="ow-hbar-k">${esc(EVENT_LABELS[k] || k)}</div>
+            <div class="ow-hbar-track"><div class="ow-hbar-fill ${Number(v) < 0 ? 'neg' : ''}" style="width:${Math.max(2, Math.abs(Number(v)) / maxType * 100)}%"></div></div>
+            <div class="ow-hbar-v">${inr(v)}</div>
+          </div>`).join('')}</div>` : `<div class="ow-empty">No revenue in this window yet.</div>`}
+      </div>
+    </div>
+
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon teal">${icon('wallet')}</div>
+        <div><div class="ow-card-title">Split & payments</div><div class="ow-card-sub">Community owners get 50% of their Home Community members' revenue; referrers get 10% of the platform's half for 6 months</div></div>
+      </div>
+      <div class="ow-kpis">
+        ${kpi('Creator earnings', inr(o.creators.earnings_all_time), `${inr(o.creators.earnings_unrequested)} not yet requested`, 'amber')}
+        ${kpi('Referral shares', inr(o.creators.referral_shares_all_time), 'all time', 'cyan')}
+        ${kpi('Payouts pending', inr(o.payouts.pending_amount), `${num(o.payouts.pending_count)} requests`, 'amber')}
+        ${kpi('Payouts paid', inr(o.payouts.paid_amount), `${num(o.payouts.paid_count)} transfers`, 'teal')}
+        ${kpi('Razorpay orders', num(r.orders_paid), `${inr(r.orders_paid_inr)} charged`)}
+        ${kpi('Razorpay refunds', inr(r.orders_refunded_inr), 'returned to buyers', 'red')}
+      </div>
+      <p class="ow-note" style="margin:14px 0 0;"><b>Net</b> is after GST, app-store and payment-gateway fees. <b>Platform keeps</b> = net revenue − creator earnings − referral shares.</p>
+    </div>`;
+
+  const bars = el.querySelector('#revBars');
+  if(bars){
+    const tip = bars.querySelector('#revTip');
+    const showTip = col => {
+      tip.innerHTML = `<b>${col.dataset.tip}</b>${col.dataset.val}`;
+      const bar = col.querySelector('.ow-bar');
+      tip.style.left = (col.offsetLeft + col.offsetWidth / 2) + 'px';
+      tip.style.top = (bar.offsetTop - 8) + 'px';
+      tip.style.display = 'block';
+    };
+    bars.querySelectorAll('.ow-bar-col').forEach(col => {
+      col.addEventListener('mouseenter', () => showTip(col));
+      col.addEventListener('focus', () => showTip(col));
+      col.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+      col.addEventListener('blur', () => { tip.style.display = 'none'; });
+    });
+  }
+}
+
+/* ── Payouts ───────────────────────────────────────────── */
+async function renderPayouts(el){
+  const rows = await rpc('owner_payout_requests', { p_status: state.payStatus });
+  if(current !== 'payouts') return;
+  cache.payouts.clear();
+  rows.forEach(r => cache.payouts.set(r.request_id, r));
+  el.innerHTML = `
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon teal">${icon('wallet')}</div>
+        <div><div class="ow-card-title">Payout requests</div><div class="ow-card-sub">Send the money by UPI first, then mark it paid with the transaction reference. Target 24–48h.</div></div>
+      </div>
+      <div class="ow-toolbar">
+        <div class="ow-pills">
+          ${[['pending','Pending'],['paid','Paid'],['rejected','Rejected']].map(([k,l]) =>
+            `<button class="ow-pill ${state.payStatus===k?'active':''}" type="button" data-pay-status="${k}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="ow-list">
+        ${rows.length ? rows.map(payoutRow).join('') : `<div class="ow-empty">${state.payStatus === 'pending' ? 'No payouts waiting.' : 'Nothing here yet.'}</div>`}
+      </div>
+    </div>`;
+}
+function payoutRow(p){
+  const overdue = state.payStatus === 'pending' && Number(p.hours_pending) > 48;
+  return `
+    <div class="ow-row ${p.banned ? 'is-banned' : ''}">
+      <div class="ow-who">${avatar(p)}<div style="min-width:0;">
+        <div class="ow-who-name">${esc(personName(p))}
+          ${overdue ? `<span class="ow-tag red">Overdue</span>` : ''}
+          ${p.banned ? `<span class="ow-tag red">Banned — hold this payout</span>` : ''}</div>
+        <div class="ow-who-sub">${p.username ? '@' + esc(p.username) + ' · ' : ''}${esc(p.email || '')}</div>
+      </div></div>
+      <div class="ow-facts">
+        <div class="ow-fact"><div class="ow-fact-k">Amount</div><div class="ow-fact-v" style="color:#fff;font-weight:700;">${inr(p.amount)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">UPI</div><div class="ow-fact-v">${esc(p.upi_id_snapshot || '—')}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Requested</div><div class="ow-fact-v">${ago(p.requested_at)}</div></div>
+        ${state.payStatus !== 'pending' ? `<div class="ow-fact"><div class="ow-fact-k">${state.payStatus === 'paid' ? 'Reference' : 'Note'}</div><div class="ow-fact-v">${esc(p.payment_reference || p.admin_note || '—')}</div></div>` : ''}
+      </div>
+      <div class="ow-row-actions">
+        ${state.payStatus === 'pending' ? `
+          <button class="ow-btn sm good" type="button" data-act="pay-paid" data-id="${esc(p.request_id)}">${icon('check')}Mark paid</button>
+          <button class="ow-btn sm danger" type="button" data-act="pay-reject" data-id="${esc(p.request_id)}">${icon('x')}Reject</button>` : ''}
+      </div>
+    </div>`;
+}
+
+/* ── Moderation: search + ban + remove ─────────────────── */
+const APP_PAGES = new Set(['home','groups','chat','login','partners','partner-analytics','product','landing','marketing','store',
+  'tracker','blocks','timer','battle','admin','owner','waitlist','onboarding','onboarding-quiz','explainer','pledge','telegram',
+  'film','index','about','mobile-home','privacy','terms','profile','u','c','r','community','room','invite']);
+
+// Everything in a pasted link that could identify something: query values,
+// path parts, #fragment parts and any ids inside. Plain text is sent as-is.
+function extractTokens(input){
+  const s = input.trim();
+  const out = new Set();
+  (s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) || []).forEach(u => out.add(u.toLowerCase()));
+  let url = null;
+  if(/^https?:\/\//i.test(s)) { try { url = new URL(s); } catch(_){} }
+  else if(/^(www\.)?[a-z0-9-]+\.[a-z]{2,}(\/|\?)/i.test(s) || /^\/|[?&][a-z_]+=/i.test(s)) {
+    try { url = new URL(s.startsWith('/') || s.startsWith('?') ? 'https://wynko.in' + (s.startsWith('?') ? '/' : '') + s : 'https://' + s); } catch(_){}
+  }
+  if(url){
+    url.searchParams.forEach(v => { if(v) out.add(v.trim()); });
+    url.pathname.split('/').map(p => { try { return decodeURIComponent(p); } catch(_) { return p; } })
+      .map(p => p.replace(/\.html$/i, '')).filter(p => p && !APP_PAGES.has(p.toLowerCase())).forEach(p => out.add(p));
+    if(url.hash.length > 1){
+      new URLSearchParams(url.hash.slice(1)).forEach((v, k) => { if(v) out.add(v); else if(k && !APP_PAGES.has(k)) out.add(k); });
+    }
+  } else if(!/\s/.test(s)) {
+    out.add(s);
+  }
+  return [...out].filter(t => t.length <= 200).slice(0, 20);
+}
+function looksLikeLink(s){ return /^(https?:\/\/|www\.|\/)/i.test(s.trim()) || /[?&][a-z_]+=/i.test(s) || /^[a-z0-9-]+\.[a-z]{2,}\//i.test(s.trim()); }
+
+async function renderModeration(el, opts){
+  if(opts.query != null){ state.modQuery = opts.query; state.modPeople = null; state.modContent = null; }
+  el.innerHTML = `
+    <div class="ow-card glow">
+      <div class="ow-card-head">
+        <div class="ow-card-icon red">${icon('shield')}</div>
+        <div><div class="ow-card-title">Find someone or something</div><div class="ow-card-sub">Search by @username, name or email — or paste any Wynko link or id</div></div>
+      </div>
+      <form class="ow-search" id="modForm">
+        <input class="ow-input" name="q" id="modQ" value="${esc(state.modQuery)}" placeholder="@username, email, or https://wynko.in/home?community=…" autocomplete="off" autofocus>
+        <button class="ow-btn primary" type="submit">${icon('search')}Search</button>
+      </form>
+      <p class="ow-note" style="margin:12px 0 0;">Links that work: community invites (<b>home?community=</b>), study rooms (<b>home?room=</b>), groups (<b>groups?invite=</b> / <b>groups?group=</b>), profiles (<b>partner-analytics?id=</b>, <b>chat?fid=</b>), referral links (<b>login?ref=</b>), and message / announcement / material ids.</p>
+    </div>
+    <div id="modResults"></div>`;
+  el.querySelector('#modForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const q = e.target.q.value.trim();
+    if(!q) return;
+    state.modQuery = q;
+    runSearch();
+  });
+  if(state.modQuery && (opts.query != null || !state.modPeople)) await runSearch();
+  else paintModResults();
+}
+
+async function runSearch(){
+  const box = document.getElementById('modResults');
+  if(!box) return;
+  const q = state.modQuery;
+  box.innerHTML = `<div class="ow-loading"><div class="ow-spin"></div></div>`;
+  state.modError = null;
+  try{
+    const tokens = extractTokens(q);
+    const [content, people] = await Promise.all([
+      tokens.length ? rpc('owner_resolve_content', { p_tokens: tokens }) : [],
+      looksLikeLink(q) ? [] : rpc('owner_search_users', { p_query: q }),
+    ]);
+    // Accounts a link pointed at: fetch their full row for the People list.
+    const seenPeople = new Set((people || []).map(p => p.user_id));
+    const linkedIds = [...new Set((content || []).filter(c => c.kind === 'user').map(c => c.id))].filter(id => !seenPeople.has(id));
+    const extra = (await Promise.all(linkedIds.map(id => rpc('owner_search_users', { p_query: id })))).flat();
+    const allPeople = [];
+    [...(people || []), ...extra].forEach(p => { if(!allPeople.some(x => x.user_id === p.user_id)) allPeople.push(p); });
+    const items = [];
+    (content || []).filter(c => c.kind !== 'user').forEach(c => { if(!items.some(x => x.kind === c.kind && x.id === c.id)) items.push(c); });
+    if(q !== state.modQuery) return;
+    state.modPeople = allPeople;
+    state.modContent = items;
+  }catch(err){
+    state.modError = err.message;
+    state.modPeople = []; state.modContent = [];
+  }
+  paintModResults();
+}
+
+function paintModResults(){
+  const box = document.getElementById('modResults');
+  if(!box || state.modPeople == null) return;
+  cache.people.clear(); cache.content.clear();
+  state.modPeople.forEach(p => cache.people.set(p.user_id, p));
+  state.modContent.forEach(c => cache.content.set(c.kind + ':' + c.id, c));
+  if(state.modError){ box.innerHTML = `<div class="ow-err">${esc(state.modError)}</div>`; return; }
+  if(!state.modPeople.length && !state.modContent.length){
+    box.innerHTML = `<div class="ow-empty" style="margin-top:4px;">Nothing found for “${esc(state.modQuery)}”. Try a username, an email, or the full link.</div>`;
+    return;
+  }
+  box.innerHTML = `
+    ${state.modContent.length ? `<div class="ow-section-label">Content (${state.modContent.length})</div><div class="ow-list">${state.modContent.map(contentRow).join('')}</div>` : ''}
+    ${state.modPeople.length ? `<div class="ow-section-label">People (${state.modPeople.length})</div><div class="ow-list">${state.modPeople.map(personRow).join('')}</div>` : ''}`;
+}
+
+function personRow(p){
+  const tags = [
+    p.is_platform_owner ? `<span class="ow-tag violet">Owner</span>` : '',
+    p.is_revhead ? `<span class="ow-tag cyan">WynkoHead</span>` : (p.revhead_status === 'pending' ? `<span class="ow-tag amber">WynkoHead pending</span>` : ''),
+    p.banned ? `<span class="ow-tag red">Banned ${p.ban_expires_at ? 'until ' + esc(date(p.ban_expires_at)) : 'permanently'}</span>` : '',
+  ].join('');
+  const label = p.username ? '@' + p.username : personName(p);
+  let actions = '';
+  if(p.banned) actions = `<button class="ow-btn sm good" type="button" data-act="unban" data-id="${esc(p.user_id)}" data-label="${esc(label)}">${icon('check')}Unban</button>`;
+  else if(!p.is_platform_owner && p.user_id !== me.id) actions = `<button class="ow-btn sm solid-danger" type="button" data-act="ban" data-id="${esc(p.user_id)}" data-label="${esc(label)}">${icon('ban')}Ban</button>`;
+  return `
+    <div class="ow-row ${p.banned ? 'is-banned' : ''}">
+      <div class="ow-who">${avatar(p, true)}<div style="min-width:0;">
+        <div class="ow-who-name">${esc(personName(p))} ${tags}</div>
+        <div class="ow-who-sub">${p.username ? '@' + esc(p.username) + ' · ' : ''}${esc(p.email || '')}</div>
+      </div></div>
+      <div class="ow-facts">
+        <div class="ow-fact"><div class="ow-fact-k">Joined</div><div class="ow-fact-v">${date(p.created_at)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Last active</div><div class="ow-fact-v">${ago(p.last_active_at)}</div></div>
+        <div class="ow-fact"><div class="ow-fact-k">Communities</div><div class="ow-fact-v">${num(p.communities_owned)}</div></div>
+      </div>
+      <div class="ow-row-actions">${actions}</div>
+      ${p.banned && p.ban_reason ? `<div class="ow-excerpt">Ban reason: ${esc(p.ban_reason)}</div>` : ''}
+    </div>`;
+}
+
+function contentRow(c){
+  const isGroup = c.kind === 'community' || c.kind === 'room';
+  const where = c.group_name && !isGroup ? ` in ${esc(c.group_name)}` : '';
+  return `
+    <div class="ow-row">
+      <div class="ow-who">
+        <div class="ow-card-icon ${isGroup ? 'violet' : ''}">${icon(isGroup ? 'users' : 'link')}</div>
+        <div style="min-width:0;">
+          <div class="ow-who-name">${esc(c.title || KIND_LABELS[c.kind])} <span class="ow-tag ${isGroup ? 'violet' : 'cyan'}">${esc(KIND_LABELS[c.kind] || c.kind)}</span>${c.removed ? ' <span class="ow-tag red">Already removed</span>' : ''}</div>
+          <div class="ow-who-sub">${isGroup ? 'owned by' : 'by'} ${esc(c.author_label || 'unknown')}${where} · ${dateTime(c.created_at)}</div>
+        </div>
+      </div>
+      <div class="ow-row-actions">
+        ${c.author_id ? `<button class="ow-btn sm ghost" type="button" data-act="lookup" data-q="${esc(c.author_id)}">${icon('search')}${isGroup ? 'Owner' : 'Author'}</button>` : ''}
+        ${c.author_id ? `<button class="ow-btn sm danger" type="button" data-act="ban" data-id="${esc(c.author_id)}" data-label="${esc(c.author_label || 'this account')}">${icon('ban')}Ban ${isGroup ? 'owner' : 'author'}</button>` : ''}
+        ${REMOVABLE.has(c.kind) && !c.removed ? `<button class="ow-btn sm solid-danger" type="button" data-act="remove" data-kind="${esc(c.kind)}" data-id="${esc(c.id)}">${icon('trash')}Remove</button>` : ''}
+      </div>
+      ${c.body && !isGroup && c.kind !== 'material' ? `<div class="ow-excerpt">${esc(c.body)}</div>` : ''}
+      ${c.body && isGroup ? `<div class="ow-excerpt">${esc(c.body)}</div>` : ''}
+    </div>`;
+}
+
+/* ── Banned accounts ───────────────────────────────────── */
+async function renderBans(el){
+  const rows = await rpc('owner_list_bans');
+  if(current !== 'bans') return;
+  const list = state.bansAll ? rows : rows.filter(r => r.active);
+  el.innerHTML = `
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon red">${icon('ban')}</div>
+        <div><div class="ow-card-title">Banned accounts</div><div class="ow-card-sub">Banned accounts are signed out everywhere, can't sign in, post or request payouts</div></div>
+        <div class="ow-right"><button class="ow-btn sm" type="button" data-go="moderation">${icon('search')}Ban someone</button></div>
+      </div>
+      <div class="ow-toolbar">
+        <div class="ow-pills">
+          <button class="ow-pill ${!state.bansAll?'active':''}" type="button" data-act="bans-filter" data-v="active">Active (${rows.filter(r => r.active).length})</button>
+          <button class="ow-pill ${state.bansAll?'active':''}" type="button" data-act="bans-filter" data-v="all">Last 90 days</button>
+        </div>
+      </div>
+      <div class="ow-list">
+        ${list.length ? list.map(b => {
+          const label = b.username ? '@' + b.username : personName(b);
+          const status = b.active ? `<span class="ow-tag red">Active</span>` : b.lifted_at ? `<span class="ow-tag teal">Lifted</span>` : `<span class="ow-tag">Expired</span>`;
+          return `
+          <div class="ow-row ${b.active ? 'is-banned' : ''}">
+            <div class="ow-who">${avatar(b)}<div style="min-width:0;">
+              <div class="ow-who-name">${esc(personName(b))} ${status}</div>
+              <div class="ow-who-sub">${b.username ? '@' + esc(b.username) + ' · ' : ''}${esc(b.email || '')}</div>
+            </div></div>
+            <div class="ow-facts">
+              <div class="ow-fact"><div class="ow-fact-k">Banned</div><div class="ow-fact-v">${date(b.banned_at)}</div></div>
+              <div class="ow-fact"><div class="ow-fact-k">${b.lifted_at ? 'Lifted' : 'Ends'}</div><div class="ow-fact-v">${b.lifted_at ? date(b.lifted_at) : b.expires_at ? date(b.expires_at) : 'Never'}</div></div>
+              <div class="ow-fact"><div class="ow-fact-k">By</div><div class="ow-fact-v">${esc(b.banned_by_label || '—')}</div></div>
+            </div>
+            <div class="ow-row-actions">
+              ${b.active ? `<button class="ow-btn sm good" type="button" data-act="unban" data-id="${esc(b.user_id)}" data-label="${esc(label)}">${icon('check')}Unban</button>` : ''}
+            </div>
+            <div class="ow-excerpt">${esc(b.reason)}</div>
+          </div>`;
+        }).join('') : `<div class="ow-empty">${state.bansAll ? 'No bans in the last 90 days.' : 'Nobody is banned right now.'}</div>`}
+      </div>
+    </div>`;
+}
+
+/* ── Activity log ──────────────────────────────────────── */
+async function renderLog(el){
+  const rows = await rpc('owner_recent_actions', { p_limit: 200 });
+  if(current !== 'log') return;
+  const tag = a => a === 'ban' ? '<span class="ow-tag red">Ban</span>' : a === 'unban' ? '<span class="ow-tag teal">Unban</span>' : '<span class="ow-tag amber">Removed</span>';
+  el.innerHTML = `
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon">${icon('list')}</div>
+        <div><div class="ow-card-title">Activity log</div><div class="ow-card-sub">Every ban, unban and removal made from Owner Control, newest first</div></div>
+      </div>
+      <div class="ow-list">
+        ${rows.length ? rows.map(a => {
+          const d = a.details || {};
+          const excerpt = d.body || d.message || '';
+          return `
+          <div class="ow-row">
+            <div class="ow-who" style="flex:3 1 320px;">
+              <div style="min-width:0;">
+                <div class="ow-who-name">${tag(a.action)} ${esc(a.target_label || '—')} <span class="ow-tag">${esc(KIND_LABELS[a.target_kind] || a.target_kind)}</span></div>
+                <div class="ow-who-sub">by ${esc(a.actor_label || 'unknown')} · ${dateTime(a.created_at)}${a.action === 'ban' ? (d.expires_at ? ' · until ' + esc(date(d.expires_at)) : ' · permanent') : ''}${d.messages_removed ? ' · ' + num(d.messages_removed) + ' messages removed' : ''}</div>
+              </div>
+            </div>
+            ${a.reason ? `<div class="ow-excerpt">${esc(a.reason)}</div>` : ''}
+            ${excerpt ? `<div class="ow-excerpt" style="color:var(--ow-muted);">“${esc(excerpt)}”</div>` : ''}
+          </div>`;
+        }).join('') : `<div class="ow-empty">No owner actions yet.</div>`}
+      </div>
+    </div>`;
+}
+
+/* ── Modal & toast ─────────────────────────────────────── */
+function toast(msg, kind){
+  const t = document.getElementById('owToast');
+  t.textContent = msg;
+  t.className = 'ow-toast show ' + (kind || '');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.className = 'ow-toast'; }, 3800);
+}
+function closeModal(){ document.getElementById('owModalRoot').innerHTML = ''; document.removeEventListener('keydown', modalKeys); }
+function modalKeys(e){ if(e.key === 'Escape') closeModal(); }
+function openModal({ title, body, confirm, confirmClass, onConfirm, onOpen }){
+  const root = document.getElementById('owModalRoot');
+  root.innerHTML = `
+    <div class="ow-modal-back" id="owModalBack">
+      <div class="ow-modal" role="dialog" aria-modal="true" aria-labelledby="owModalTitle">
+        <h3 id="owModalTitle">${title}</h3>
+        ${body}
+        <div class="ow-modal-err"></div>
+        <div class="ow-modal-actions">
+          <button class="ow-btn" type="button" id="owModalCancel">Cancel</button>
+          <button class="ow-btn ${confirmClass || 'primary'}" type="button" id="owModalOk">${confirm}</button>
+        </div>
+      </div>
+    </div>`;
+  const modal = root.querySelector('.ow-modal');
+  const ok = root.querySelector('#owModalOk');
+  root.querySelector('#owModalCancel').onclick = closeModal;
+  root.querySelector('#owModalBack').addEventListener('mousedown', e => { if(e.target.id === 'owModalBack') closeModal(); });
+  document.addEventListener('keydown', modalKeys);
+  ok.onclick = async () => {
+    const errBox = modal.querySelector('.ow-modal-err');
+    errBox.innerHTML = '';
+    ok.disabled = true;
+    const label = ok.innerHTML;
+    ok.textContent = 'Working…';
+    try{
+      await onConfirm(modal);
+      closeModal();
+    }catch(err){
+      errBox.innerHTML = `<div class="ow-err">${esc(err.message)}</div>`;
+      ok.disabled = false;
+      ok.innerHTML = label;
+    }
+  };
+  if(onOpen) onOpen(modal, ok);
+  const firstField = modal.querySelector('textarea, input');
+  if(firstField) firstField.focus();
+}
+
+function openBan(userId, label){
+  openModal({
+    title: `Ban ${esc(label)}?`,
+    confirm: `${icon('ban')}Ban account`,
+    confirmClass: 'solid-danger',
+    body: `
+      <p>They'll be signed out on every device and won't be able to sign back in until the ban ends.</p>
+      <label class="ow-field-label" for="banReason">Reason <span style="color:var(--ow-dim)">(required · kept in the activity log)</span></label>
+      <textarea class="ow-textarea" id="banReason" maxlength="500" placeholder="e.g. Spamming invite links in community chats"></textarea>
+      <label class="ow-field-label">How long</label>
+      <div class="ow-pills" id="banLen">
+        ${[['1','1 day'],['7','7 days'],['30','30 days'],['90','90 days'],['','Permanent']].map(([v,l]) => `<button class="ow-pill ${v===''?'active':''}" type="button" data-v="${v}">${l}</button>`).join('')}
+      </div>
+      <label class="ow-check" style="margin-top:14px;"><input type="checkbox" id="banWipe"> Also remove all their group chat messages</label>
+      <ul class="ow-effects">
+        <li>Signed out everywhere · sign-in blocked</li>
+        <li>Can't post, message, create or join anything</li>
+        <li>Payout requests blocked · community earnings held until unbanned</li>
+      </ul>`,
+    onOpen: modal => {
+      modal.querySelector('#banLen').addEventListener('click', e => {
+        const b = e.target.closest('.ow-pill');
+        if(!b) return;
+        modal.querySelectorAll('#banLen .ow-pill').forEach(x => x.classList.toggle('active', x === b));
+      });
+    },
+    onConfirm: async modal => {
+      const reason = modal.querySelector('#banReason').value.trim();
+      if(!reason) throw new Error('Add a reason for the ban.');
+      const v = modal.querySelector('#banLen .ow-pill.active').dataset.v;
+      const res = await rpc('owner_ban_user', {
+        p_user_id: userId, p_reason: reason,
+        p_days: v ? Number(v) : null,
+        p_remove_messages: modal.querySelector('#banWipe').checked,
+      });
+      toast(`${label} is banned${res && res.messages_removed ? ` · ${res.messages_removed} messages removed` : ''}.`, 'good');
+      afterAction();
+    },
+  });
+}
+
+function openUnban(userId, label){
+  openModal({
+    title: `Unban ${esc(label)}?`,
+    confirm: `${icon('check')}Lift ban`,
+    confirmClass: 'good',
+    body: `
+      <p>They'll be able to sign in, post and request payouts again. Held community earnings start paying out on the next hourly run.</p>
+      <label class="ow-field-label" for="unbanNote">Note <span style="color:var(--ow-dim)">(optional)</span></label>
+      <input class="ow-input" id="unbanNote" maxlength="300" placeholder="e.g. Appeal accepted">`,
+    onConfirm: async modal => {
+      await rpc('owner_unban_user', { p_user_id: userId, p_note: modal.querySelector('#unbanNote').value.trim() || null });
+      toast(`${label} can use Wynko again.`, 'good');
+      afterAction();
+    },
+  });
+}
+
+function openRemove(kind, id){
+  const item = cache.content.get(kind + ':' + id) || {};
+  const isGroup = kind === 'community' || kind === 'room';
+  const name = isGroup ? ((cache.communities.get(id) || {}).name || item.group_name || '') : '';
+  const what = {
+    group_message: 'The message is replaced with “message deleted” for everyone in that chat.',
+    dm_message: 'The message is deleted from both people’s conversation.',
+    announcement: 'The announcement is deleted from the community feed.',
+    material: 'The file is removed from the group’s materials.',
+    community: 'This permanently deletes the community with its member list, chat, schedules, announcements and materials. Members who called it home are moved to their other community, or asked to pick a new one. Revenue history is kept.',
+    room: 'This permanently deletes the study room with its member list, chat and materials.',
+  }[kind];
+  openModal({
+    title: `Remove ${esc(KIND_LABELS[kind].toLowerCase())}${isGroup && name ? ` “${esc(name)}”` : ''}?`,
+    confirm: `${icon('trash')}Remove`,
+    confirmClass: 'solid-danger',
+    body: `
+      <p>${what} This can't be undone.</p>
+      ${isGroup ? `
+        <label class="ow-field-label" for="rmConfirm">Type <b style="color:var(--ow-ink)">${esc(name)}</b> to confirm</label>
+        <input class="ow-input" id="rmConfirm" autocomplete="off">` : ''}
+      <label class="ow-field-label" for="rmReason">Reason <span style="color:var(--ow-dim)">(kept in the activity log)</span></label>
+      <textarea class="ow-textarea" id="rmReason" maxlength="500" placeholder="e.g. Sharing leaked exam papers"></textarea>`,
+    onConfirm: async modal => {
+      if(isGroup && modal.querySelector('#rmConfirm').value.trim() !== String(name).trim()) throw new Error('The name doesn’t match.');
+      await rpc('owner_remove_content', { p_kind: kind, p_id: id, p_reason: modal.querySelector('#rmReason').value.trim() || null });
+      toast(`${KIND_LABELS[kind]} removed.`, 'good');
+      afterAction();
+    },
+  });
+}
+
+async function approveWynkohead(userId){
+  const a = cache.applicants.get(userId) || {};
+  try{
+    const code = await rpc('admin_verify_revhead', { p_user_id: userId, p_approve: true });
+    toast(`${personName(a)} is now a WynkoHead${code ? ` · code ${code}` : ''}.`, 'good');
+    afterAction();
+  }catch(err){ toast(err.message, 'bad'); }
+}
+function openRejectWynkohead(userId){
+  const a = cache.applicants.get(userId) || {};
+  openModal({
+    title: `Reject ${esc(personName(a))}?`,
+    confirm: `${icon('x')}Reject application`,
+    confirmClass: 'solid-danger',
+    body: `<p>They won't be able to monetise their communities. You can still approve them later from the Rejected tab.</p>`,
+    onConfirm: async () => {
+      await rpc('admin_verify_revhead', { p_user_id: userId, p_approve: false });
+      toast('Application rejected.', 'good');
+      afterAction();
+    },
+  });
+}
+
+function openMarkPaid(id){
+  const p = cache.payouts.get(id) || {};
+  openModal({
+    title: `Mark ${inr(p.amount)} paid?`,
+    confirm: `${icon('check')}Mark paid`,
+    confirmClass: 'good',
+    body: `
+      <p>Only do this after sending ${inr(p.amount)} to <b style="color:var(--ow-ink)">${esc(p.upi_id_snapshot || '')}</b> (${esc(personName(p))}).</p>
+      ${p.banned ? `<div class="ow-err" style="margin-top:12px;">This account is banned. You may want to reject this payout instead.</div>` : ''}
+      <label class="ow-field-label" for="payRef">UPI transaction reference</label>
+      <input class="ow-input" id="payRef" maxlength="120" placeholder="e.g. 4271 8890 1123" autocomplete="off">`,
+    onConfirm: async modal => {
+      const ref = modal.querySelector('#payRef').value.trim();
+      if(!ref) throw new Error('Add the UPI transaction reference.');
+      await rpc('admin_mark_payout_paid', { p_request_id: id, p_payment_reference: ref });
+      toast('Payout marked paid.', 'good');
+      afterAction();
+    },
+  });
+}
+function openRejectPayout(id){
+  const p = cache.payouts.get(id) || {};
+  openModal({
+    title: `Reject ${inr(p.amount)} payout?`,
+    confirm: `${icon('x')}Reject payout`,
+    confirmClass: 'solid-danger',
+    body: `
+      <p>${esc(personName(p))} will see the payout as rejected.</p>
+      <label class="ow-field-label" for="payReason">Reason <span style="color:var(--ow-dim)">(optional, shown to them)</span></label>
+      <textarea class="ow-textarea" id="payReason" maxlength="300"></textarea>`,
+    onConfirm: async modal => {
+      await rpc('admin_reject_payout', { p_request_id: id, p_reason: modal.querySelector('#payReason').value.trim() || null });
+      toast('Payout rejected.', 'good');
+      afterAction();
+    },
+  });
+}
+
+// After any change: redraw the current view and the nav counts.
+function afterAction(){
+  if(current === 'moderation'){ refreshBadges(); runSearch(); }
+  else if(current === 'overview' || current === 'revenue') show(current);
+  else { refreshBadges(); show(current); }
+}
+
+/* ── One click handler for the whole view ──────────────── */
+document.getElementById('owView').addEventListener('click', e => {
+  const goBtn = e.target.closest('[data-go]');
+  if(goBtn){ go(goBtn.dataset.go); return; }
+  const wh = e.target.closest('[data-wh-status]');
+  if(wh){ state.whStatus = wh.dataset.whStatus; show('wynkoheads'); return; }
+  const ps = e.target.closest('[data-pay-status]');
+  if(ps){ state.payStatus = ps.dataset.payStatus; show('payouts'); return; }
+  const b = e.target.closest('[data-act]');
+  if(!b) return;
+  const { act, id, kind, label } = b.dataset;
+  if(act === 'ban') openBan(id, label);
+  else if(act === 'unban') openUnban(id, label);
+  else if(act === 'remove') openRemove(kind, id);
+  else if(act === 'lookup') go('moderation', { query: b.dataset.q });
+  else if(act === 'wh-approve') { b.disabled = true; approveWynkohead(id); }
+  else if(act === 'wh-reject') openRejectWynkohead(id);
+  else if(act === 'pay-paid') openMarkPaid(id);
+  else if(act === 'pay-reject') openRejectPayout(id);
+  else if(act === 'rev-window') { state.revWindow = b.dataset.v; show('revenue'); }
+  else if(act === 'rev-table') { state.revTable = !state.revTable; show('revenue'); }
+  else if(act === 'bans-filter') { state.bansAll = b.dataset.v === 'all'; show('bans'); }
+});
+
+/* ── Boot ──────────────────────────────────────────────── */
+function denied(){
+  document.getElementById('owGate').innerHTML = `
+    <div class="ow-card glow">
+      <img src="wynko-mark.png" alt="Wynko">
+      <h1>This page isn't available</h1>
+      <p>Owner Control is only for the Wynko owner accounts.</p>
+      <a class="ow-btn primary" href="home">${icon('home')}Back to Wynko</a>
+    </div>`;
+}
+
+async function init(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session){ window.location.href = 'login.html'; return; }
+  let isOwner = false;
+  try{ isOwner = !!(await rpc('is_platform_owner')); }catch(_){ isOwner = false; }
+  if(!isOwner){ denied(); return; }
+
+  me.id = session.user.id;
+  me.email = session.user.email || '';
+  const { data: prof } = await sb.from('user_profiles').select('full_name,display_name,username,avatar_url').eq('id', me.id).maybeSingle();
+  if(prof){ me.full_name = prof.full_name || prof.display_name || ''; me.username = prof.username || ''; me.avatar_url = prof.avatar_url || ''; }
+  document.getElementById('owMeAvatar').outerHTML = avatar({ full_name: me.full_name, username: me.username, email: me.email, avatar_url: me.avatar_url });
+  document.getElementById('owMeName').textContent = me.full_name || (me.username ? '@' + me.username : me.email);
+  document.getElementById('owRefresh').innerHTML = `${icon('refresh')}<span>Refresh</span>`;
+  document.getElementById('owBack').innerHTML = `${icon('home')}<span>Back to app</span>`;
+  document.getElementById('owRefresh').onclick = () => { refreshBadges(); show(current); };
+
+  buildNav();
+  document.getElementById('owGate').classList.add('ow-hidden');
+  document.getElementById('owApp').classList.remove('ow-hidden');
+  window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if(v && v !== current) go(v); });
+  sb.auth.onAuthStateChange(ev => { if(ev === 'SIGNED_OUT') window.location.href = 'login.html'; });
+
+  const start = location.hash.slice(1) || 'overview';
+  if(start !== 'overview') refreshBadges();
+  go(start);
+}
+init().catch(err => {
+  document.getElementById('owGate').innerHTML = `<div class="ow-card glow"><h1>Couldn't load Owner Control</h1><p>${esc(err.message)}</p><a class="ow-btn primary" href="owner">Try again</a></div>`;
+});
+</script>
+</body>
+</html>

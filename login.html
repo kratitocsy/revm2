@@ -200,6 +200,19 @@ async function checkSession(){
 }
 checkSession();
 
+// Accounts banned from Owner Control: Supabase Auth refuses them with
+// "User is banned" (OAuth sends it back in the URL, password sign-in as the error).
+const BANNED_MSG = 'This account has been suspended. If you think this is a mistake, contact Wynko support.';
+function isBannedError(msg){ return /banned/i.test(msg || ''); }
+(function showAuthRedirectError(){
+  const params = new URLSearchParams(location.search);
+  new URLSearchParams(location.hash.slice(1)).forEach((v, k) => params.set(k, v));
+  const desc = params.get('error_description') || params.get('error');
+  if(!desc) return;
+  openLoginDrawer();
+  setStatus(isBannedError(desc) ? BANNED_MSG : desc.replace(/\+/g, ' '), 'err');
+})();
+
 sb.auth.onAuthStateChange(async(event,session)=>{
   if(event==='SIGNED_IN'&&session) redirect(session.user);
   // Fires when the user lands here via a password-reset email link — show
@@ -319,7 +332,7 @@ async function emailSignIn(e){
   btn.disabled = true; btn.textContent = 'Signing in...'; setStatus('');
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if(error){
-    setStatus(error.message === 'Invalid login credentials' ? 'Wrong email or password.' : error.message, 'err');
+    setStatus(error.message === 'Invalid login credentials' ? 'Wrong email or password.' : isBannedError(error.message) ? BANNED_MSG : error.message, 'err');
     btn.disabled = false; btn.textContent = 'Sign in';
   }
   // On success, onAuthStateChange's SIGNED_IN handler takes it from here.
