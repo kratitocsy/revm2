@@ -41,6 +41,16 @@ import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
   type RoomRow, type RoomMember,
 } from './lib/studyRooms'
+import {
+  fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
+  sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
+  type BattlegroundState, type ActiveBattle, type BattleOpponent, type BattleHistoryRow,
+} from './lib/battleground'
+import {
+  loadSettings, saveProfileFields, saveUsername, changeEmail, changePassword, listIdentities, hasPasswordLogin,
+  linkProvider, unlinkProvider, exportMyData, deleteMyAccount, signOut, DEFAULT_PREFERENCES,
+  type SettingsProfile, type SettingsPreferences, type LinkedIdentity, type LinkableProvider, type ProfilePatch,
+} from './lib/settings'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
@@ -868,9 +878,10 @@ function buildTodayPlanRows(scheduleToday: ScheduleItem[], planTasks: StudyTask[
   return rows
 }
 
-function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
+function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
   rows: TodayPlanRow[]
   onStartTask: (subject: string, topic: string) => void
+  onRemoveTask: (subject: string, topic: string) => void
   onAddTask: () => void
 }) {
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -915,6 +926,11 @@ function TodayStudyPlanCard({ rows, onStartTask, onAddTask }: {
                   <span className="text-[11px] text-slate-500">{r.minutes} min</span>
                 </div>
               </div>
+              <button onClick={() => onRemoveTask(r.subject, r.topic)} title="Remove task"
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all text-slate-500 hover:text-red-400 hover:bg-red-500/10"
+                style={{ background: 'rgba(148,163,184,0.08)' }}>
+                <Ico n="trash" cls="w-3.5 h-3.5" />
+              </button>
               <button onClick={() => onStartTask(r.subject, r.topic)}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg, #2979FF, #7C4DFF)', boxShadow: '0 0 14px rgba(41,98,255,0.5)' }}>
@@ -3446,6 +3462,12 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
   const [showDiscover, setShowDiscover] = useState(false)
   const discoverQ = useLoader(showDiscover ? fetchDiscoverCommunities : null, [] as DiscoverCommunity[], [showDiscover], 0)
   const [discoverMsg, setDiscoverMsg] = useState<Record<string, string>>({})
+  const [discoverSearch, setDiscoverSearch] = useState('')
+  const discoverResults = discoverQ.data.filter(c => {
+    const q = discoverSearch.trim().toLowerCase()
+    if (!q) return true
+    return c.name.toLowerCase().includes(q) || c.head_name.toLowerCase().includes(q) || !!c.description?.toLowerCase().includes(q)
+  })
 
   const joinedCommunities = communities
   const home = joinedCommunities.find(c => c.isHome) || null
@@ -3488,6 +3510,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
   }
 
   function handleExplore() {
+    setDiscoverSearch('')
     setShowDiscover(true)
   }
 
@@ -3721,15 +3744,26 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
               <div className="text-2xl mb-2">🧭</div>
               <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">DISCOVER</div>
               <div className="text-lg font-bold text-white">Communities you can join</div>
-              <div className="text-slate-500 text-[12px] mt-1">Run by verified WynkoHeads.</div>
+              <div className="text-slate-500 text-[12px] mt-1">Run by verified WynkoHeads. Joining or a join request is decided by that community's WynkoHead.</div>
+            </div>
+            <div className="relative mb-4">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+              <input
+                autoFocus type="text" value={discoverSearch} onChange={e => setDiscoverSearch(e.target.value)}
+                placeholder="Search communities by name or WynkoHead…"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
+                style={{ borderColor: '#1E3060' }} />
             </div>
             {discoverQ.status === 'loading' && <div className="text-[13px] text-slate-500 text-center py-6">Loading communities…</div>}
             {discoverQ.status === 'error' && <div className="text-[13px] text-amber-300 text-center py-6">{discoverQ.error}</div>}
             {discoverQ.status === 'ready' && discoverQ.data.length === 0 && (
               <div className="text-[13px] text-slate-500 text-center py-6">No other communities to join right now.</div>
             )}
+            {discoverQ.status === 'ready' && discoverQ.data.length > 0 && discoverResults.length === 0 && (
+              <div className="text-[13px] text-slate-500 text-center py-6">No communities match "{discoverSearch}".</div>
+            )}
             <div className="space-y-2 mb-5">
-              {discoverQ.data.map(c => (
+              {discoverResults.map(c => (
                 <div key={c.id} className="p-3 rounded-xl border" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(124,58,237,0.16)' }}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: communityLook(c.name).iconBg }}>{c.emoji || '👥'}</div>
@@ -7217,28 +7251,25 @@ const TROPHY_TIERS = [
   { label: '60 Battles', sub: '60 battles', tier: 'Diamond', img: trophyDiamond, color: '#B9F2FF', bg: 'rgba(185,242,255,0.08)', border: 'rgba(185,242,255,0.3)' },
 ]
 
-interface BAFriend { id: string; name: string; color: string; variant: number; xp: number; status: 'online' | 'busy' | 'offline' }
-
+// Thresholds mirror battle_title_for_xp() in 0062_battleground.sql exactly -
+// the server is the source of truth for the title string, this is only for
+// the client-side progress bar (% to next title, XP needed).
 const BA_TIERS = [
   { n: 'Rookie', min: 0 },
-  { n: 'Challenger', min: 500 },
-  { n: 'Focused', min: 1200 },
-  { n: 'Warrior', min: 2000 },
-  { n: 'Elite', min: 3200 },
-  { n: 'Unstoppable', min: 5000 },
+  { n: 'Challenger', min: 100 },
+  { n: 'Focused', min: 300 },
+  { n: 'Warrior', min: 700 },
+  { n: 'Elite', min: 1500 },
+  { n: 'Unstoppable', min: 3000 },
 ]
-const BA_XP_WIN = 120
-const BA_XP_LOSS = 25
 const BA_MILESTONES = [1, 10, 30, 60]
 
-const BA_FRIENDS: BAFriend[] = [
-  { id: 'aryan', name: 'Aryan', color: '#F59E0B', variant: 1, xp: 3460, status: 'online' },
-  { id: 'meera', name: 'Meera', color: '#A855F7', variant: 2, xp: 2420, status: 'online' },
-  { id: 'kabir', name: 'Kabir', color: '#19B5E6', variant: 1, xp: 1780, status: 'online' },
-  { id: 'dev', name: 'Dev', color: '#19B5E6', variant: 3, xp: 1240, status: 'busy' },
-  { id: 'riya', name: 'Riya', color: '#EC4899', variant: 0, xp: 860, status: 'offline' },
-  { id: 'nain', name: 'Nain', color: '#3B82F6', variant: 3, xp: 310, status: 'offline' },
-]
+// Deterministic look for a real opponent (no "pick an avatar" step exists
+// for Battleground) - same hash-based approach as FACE_COLORS elsewhere.
+function battleAvatarLook(id: string): { color: string; variant: number } {
+  const h = hashSubject(id)
+  return { color: FACE_COLORS[h % FACE_COLORS.length], variant: h }
+}
 
 function baFmtTime(s: number) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
@@ -7281,161 +7312,319 @@ function BAStatGrid({ battles, wins, losses, streak, best, focusSecs, xp }: {
 
 function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type BAView = 'home' | 'waiting' | 'profile'
-  type ArenaPhase = 'countdown' | 'live' | 'result' | null
 
   const [view, setView] = useState<BAView>('home')
-  const [arenaPhase, setArenaPhase] = useState<ArenaPhase>(null)
+  const [, setNowTick] = useState(0) // forces a re-render every second for live timers/countdowns below
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const [meXp, setMeXp] = useState(2610)
-  const [meBattles, setMeBattles] = useState(47)
-  const [meWins, setMeWins] = useState(31)
-  const [meLosses, setMeLosses] = useState(16)
-  const [meStreak, setMeStreak] = useState(4)
-  const [meBest, setMeBest] = useState(9)
-  const [meFocusSecs, setMeFocusSecs] = useState(38 * 3600 + 42 * 60)
+  const bg = useLoader(fetchBattlegroundState, null as BattlegroundState | null, [], 0)
+  const board = useLoader(fetchTopBattlers, [] as BattleOpponent[], [], 0)
+  const history = useLoader(() => fetchBattleHistory(100), [] as BattleHistoryRow[], [], 0)
 
-  const [invites, setInvites] = useState<{ id: string; ago: string }[]>([
-    { id: 'aryan', ago: '2 min ago' },
-    { id: 'kabir', ago: '14 min ago' },
-  ])
+  // RLS already scopes `battles`/`battle_invitations` selects to rows the
+  // caller is part of, so no extra filter is needed - any change visible
+  // to this user (challenge sent/accepted, opponent ready, either player
+  // pausing) re-pulls the one-round-trip hub snapshot.
+  useRealtimeRefresh('battles', '', bg.refresh)
+  useRealtimeRefresh('battle_invitations', '', bg.refresh)
 
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerQuery, setPickerQuery] = useState('')
-  const [pickerSel, setPickerSel] = useState<string | null>(null)
-
-  const [pendingOpp, setPendingOpp] = useState<BAFriend | null>(null)
-  const [expirySecs, setExpirySecs] = useState(300)
-  const [countdownN, setCountdownN] = useState(3)
-  const [battleOpp, setBattleOpp] = useState<BAFriend | null>(null)
-  const [elapsedSecs, setElapsedSecs] = useState(0)
-  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
-  const [result, setResult] = useState<{ kind: 'won' | 'lost'; opp: BAFriend; elapsed: number; before: number; after: number; gain: number } | null>(null)
-
-  const waitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const expiryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  function clearAllTimers() {
-    if (waitTimeoutRef.current) clearTimeout(waitTimeoutRef.current)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    if (liveIntervalRef.current) clearInterval(liveIntervalRef.current)
-    if (expiryIntervalRef.current) clearInterval(expiryIntervalRef.current)
-    waitTimeoutRef.current = null; countdownIntervalRef.current = null; liveIntervalRef.current = null; expiryIntervalRef.current = null
-  }
-  useEffect(() => () => clearAllTimers(), [])
+  const activeBattle = bg.data?.active ?? null
+  const outgoing = bg.data?.outgoing_invite ?? null
 
   useEffect(() => {
-    if (arenaPhase === 'live') {
-      liveIntervalRef.current = setInterval(() => setElapsedSecs(s => s + 1), 1000)
-    } else if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current); liveIntervalRef.current = null
-    }
-    return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current) }
-  }, [arenaPhase])
+    if (!activeBattle && !outgoing) return
+    const id = setInterval(() => setNowTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [activeBattle, outgoing])
 
-  function byId(id: string) { return (BA_FRIENDS.find(f => f.id === id) || BA_FRIENDS[0]) as BAFriend }
+  // Safety net alongside realtime: also catches server-side invite/battle
+  // expiry, which only takes effect the next time get_battleground_state()
+  // itself runs (nothing pushes a change for time simply passing).
+  useEffect(() => {
+    const need = view === 'waiting' || !!activeBattle
+    if (!need) return
+    const id = setInterval(() => void bg.refresh(), 5000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, activeBattle])
 
-  function openPicker() { setPickerOpen(true); setPickerQuery(''); setPickerSel(null) }
+  // ── Challenge picker: username search against real accounts (no
+  // friends system exists - see search_battle_opponents in 0072) ────────
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerResults, setPickerResults] = useState<BattleOpponent[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [pickerSel, setPickerSel] = useState<BattleOpponent | null>(null)
+
+  useEffect(() => {
+    if (!pickerOpen) return
+    setPickerLoading(true)
+    const t = setTimeout(() => {
+      searchBattleOpponents(pickerQuery)
+        .then(setPickerResults)
+        .catch(e => setActionError((e as Error).message))
+        .finally(() => setPickerLoading(false))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [pickerOpen, pickerQuery])
+
+  function openPicker() { setPickerOpen(true); setPickerQuery(''); setPickerSel(null); setPickerResults([]) }
   function closePicker() { setPickerOpen(false) }
 
-  function sendChallenge() {
-    if (!pickerSel) return
-    const f = byId(pickerSel)
-    setPickerOpen(false)
-    setPendingOpp(f)
-    setExpirySecs(300)
-    setView('waiting')
-    waitTimeoutRef.current = setTimeout(() => startCountdown(f), 5500)
-    expiryIntervalRef.current = setInterval(() => {
-      setExpirySecs(s => {
-        if (s <= 1) { clearAllTimers(); setPendingOpp(null); setView('home'); return 300 }
-        return s - 1
+  async function sendChallenge() {
+    if (!pickerSel || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await sendBattleChallenge(pickerSel.id)
+      setPickerOpen(false)
+      await bg.refresh()
+      setView('waiting')
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cancelChallenge() {
+    if (!outgoing || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await cancelBattleChallenge(outgoing.id)
+      await bg.refresh()
+      setView('home')
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function acceptInvite(id: string) {
+    if (busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await respondBattleChallenge(id, true)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function rejectInvite(id: string) {
+    if (busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await respondBattleChallenge(id, false)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function markReady() {
+    if (!activeBattle || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await readyBattle(activeBattle.id)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cancelWaitingRoom() {
+    if (!activeBattle || busy) return
+    setBusy(true); setActionError(null)
+    try {
+      await cancelPendingBattle(activeBattle.id)
+      await bg.refresh()
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── Pause / result ──────────────────────────────────────────────────────
+  // pauseBattle() always makes the caller lose (server-enforced) and
+  // returns the finished row directly, so pausing myself shows the result
+  // instantly. Losing because the OPPONENT paused first is detected from
+  // realtime instead: `active` disappears from the hub snapshot while we
+  // still remember its id, and the newest battle_history row is that result.
+  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
+  const [result, setResult] = useState<{
+    kind: 'won' | 'lost'; opponentName: string; opponentAvatar: string | null; opponentId: string
+    elapsed: number; xpBefore: number; xpAfter: number; gain: number
+  } | null>(null)
+  const lastActiveRef = useRef<ActiveBattle | null>(null)
+  const xpBeforeRef = useRef(0)
+
+  useEffect(() => {
+    if (bg.status !== 'ready' || !bg.data) return
+    if (bg.data.active) {
+      lastActiveRef.current = bg.data.active
+      xpBeforeRef.current = bg.data.me.xp
+      return
+    }
+    const prev = lastActiveRef.current
+    if (!prev || result) return
+    lastActiveRef.current = null
+    fetchBattleHistory(1).then(rows => {
+      const row = rows[0]
+      if (!row || row.id !== prev.id) return
+      setResult({
+        kind: row.result, opponentName: row.opponent_username, opponentAvatar: row.opponent_avatar, opponentId: row.opponent_id,
+        elapsed: row.focus_seconds, xpBefore: xpBeforeRef.current, xpAfter: xpBeforeRef.current + row.xp_earned, gain: row.xp_earned,
       })
-    }, 1000)
-  }
-
-  function cancelChallenge() {
-    clearAllTimers(); setPendingOpp(null); setView('home')
-  }
-
-  function acceptInvite(id: string) {
-    if (battleOpp) return
-    const f = byId(id)
-    setInvites(prev => prev.filter(i => i.id !== id))
-    startCountdown(f)
-  }
-  function rejectInvite(id: string) {
-    setInvites(prev => prev.filter(i => i.id !== id))
-  }
-
-  function startCountdown(opp: BAFriend) {
-    clearAllTimers()
-    setPendingOpp(opp); setCountdownN(3); setArenaPhase('countdown')
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdownN(n => {
-        if (n <= 1) {
-          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-          setBattleOpp(opp); setElapsedSecs(0); setPendingOpp(null)
-          setArenaPhase('live')
-          return 3
-        }
-        return n - 1
-      })
-    }, 1000)
-  }
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bg.status, bg.data, result])
 
   function requestPause() { setPauseConfirmOpen(true) }
   function keepFocusing() { setPauseConfirmOpen(false) }
-  function confirmPause() { finishBattle('lost', true) }
-  function opponentPausesFirst() { finishBattle('won', true) }
-
-  function finishBattle(kind: 'won' | 'lost', apply: boolean) {
-    const opp = battleOpp || byId('aryan')
-    const gain = kind === 'won' ? BA_XP_WIN : BA_XP_LOSS
-    const before = meXp
-    setResult({ kind, opp, elapsed: elapsedSecs, before, after: before + gain, gain })
-    if (apply) {
-      setMeBattles(b => b + 1); setMeXp(x => x + gain); setMeFocusSecs(f => f + elapsedSecs)
-      if (kind === 'won') { setMeWins(w => w + 1); setMeStreak(s => { const ns = s + 1; setMeBest(b => Math.max(b, ns)); return ns }) }
-      else { setMeLosses(l => l + 1); setMeStreak(0) }
+  async function confirmPause() {
+    if (!activeBattle || !bg.data || busy) return
+    setBusy(true); setPauseConfirmOpen(false); setActionError(null)
+    try {
+      const before = bg.data.me.xp
+      const row = await pauseBattle(activeBattle.id)
+      lastActiveRef.current = null
+      const elapsed = row.started_at && row.ended_at
+        ? Math.max(0, Math.round((new Date(row.ended_at).getTime() - new Date(row.started_at).getTime()) / 1000)) : 0
+      setResult({
+        kind: 'lost', opponentName: activeBattle.opponent_username, opponentAvatar: activeBattle.opponent_avatar, opponentId: activeBattle.opponent_id,
+        elapsed, xpBefore: before, xpAfter: before + row.loser_xp_awarded, gain: row.loser_xp_awarded,
+      })
+      await bg.refresh()
+      void Promise.all([history.refresh(), board.refresh()])
+    } catch (e) {
+      setActionError((e as Error).message)
+    } finally {
+      setBusy(false)
     }
-    setPauseConfirmOpen(false); setBattleOpp(null)
-    setArenaPhase('result')
   }
 
   function backToBattlegroundFromResult() {
-    setArenaPhase(null); setResult(null); setView('home')
+    setResult(null); setView('home')
+    void Promise.all([history.refresh(), board.refresh()])
   }
 
-  // ── Fullscreen arena: countdown / live duel / result ──────────────────────
-  if (arenaPhase) {
+  const meXp = bg.data?.me.xp ?? 0
+  const rank = baTierInfo(meXp)
+  const stats = bg.data?.stats ?? { total: 0, wins: 0, losses: 0, total_focus_seconds: 0 }
+  const earnedTrophies = TROPHY_TIERS.filter((_, i) => stats.total >= BA_MILESTONES[i])
+  // Win streak/best aren't tracked server-side (battles carries totals
+  // only) - derive both from battle history, which is ordered newest-first.
+  const { streak, best } = (() => {
+    let curStreak = 0, bestStreak = 0, running = 0, stillCurrent = true
+    for (const h of history.data) {
+      if (h.result === 'won') {
+        running += 1
+        if (stillCurrent) curStreak = running
+        bestStreak = Math.max(bestStreak, running)
+      } else {
+        running = 0
+        stillCurrent = false
+      }
+    }
+    return { streak: curStreak, best: bestStreak }
+  })()
+  const boardRows = [
+    ...board.data.map(b => ({ id: b.id, name: b.username, avatar: b.avatar_url, xp: b.battle_xp, me: false })),
+    { id: 'me', name: 'You', avatar: profile?.avatarUrl ?? null, xp: meXp, me: true },
+  ].sort((a, b) => b.xp - a.xp)
+
+  function OpponentAvatar({ id, avatar, size, glow, ringColor }: { id: string; avatar: string | null; size: number; glow?: boolean; ringColor?: string }) {
+    if (avatar) {
+      return (
+        <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: `2.5px solid ${ringColor || '#7C4DFF'}`, boxShadow: glow ? `0 0 16px ${ringColor || '#7C4DFF'}80` : 'none' }}>
+          <img src={avatar} alt="" className="w-full h-full object-cover" />
+        </div>
+      )
+    }
+    const look = battleAvatarLook(id)
+    return <BattleAvatar color={look.color} variant={look.variant} size={size} glow={glow} ringColor={ringColor || look.color} />
+  }
+
+  if (bg.status === 'loading' && !bg.data) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[#020615]">
+        <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
+        <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Loading Battleground…</div>
+      </div>
+    )
+  }
+  if (bg.status === 'error' && !bg.data) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[#020615]">
+        <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
+          <div className="text-slate-200 text-sm font-semibold">Couldn't load Battleground</div>
+          <div className="text-slate-500 text-xs max-w-xs">{bg.error}</div>
+          <button onClick={() => void bg.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fullscreen arena: ready room / live duel / result ──────────────────
+  if (result || activeBattle) {
+    const phase: 'ready' | 'live' | 'result' = result ? 'result' : activeBattle!.status === 'pending' ? 'ready' : 'live'
+    const elapsedSecs = phase === 'live' && activeBattle?.started_at
+      ? Math.max(0, Math.floor((Date.now() - new Date(activeBattle.started_at).getTime()) / 1000)) : 0
+
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020615] text-center px-6">
         <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6">
           <div className="text-sm font-bold tracking-wider text-white">WYN<span className="text-[#7C4DFF]">KO</span></div>
-          {arenaPhase === 'live' && (
+          {phase === 'live' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
               <Ico n="lock" cls="w-3.5 h-3.5" /> Focus Lock on
             </div>
           )}
         </div>
 
-        {arenaPhase === 'countdown' && pendingOpp && (
+        {actionError && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl text-[12px] text-amber-300" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)' }}>
+            {actionError}
+          </div>
+        )}
+
+        {phase === 'ready' && activeBattle && (
           <div>
-            <p className="text-slate-400 text-sm mb-2"><b className="text-white">{pendingOpp.name}</b> accepted</p>
-            <div className="text-8xl font-black text-white mb-3" style={{ textShadow: '0 0 40px rgba(124,77,255,0.5)' }}>{countdownN}</div>
-            <p className="text-slate-300 text-sm mb-1">Battle starts now. Don't pause.</p>
-            <p className="text-slate-500 text-xs mb-6">Focus Lock is turning on.</p>
-            <div className="flex items-center justify-center gap-3">
-              <BattleAvatar color="#7C4DFF" variant={0} size={40} />
+            <p className="text-slate-400 text-sm mb-4">Both players ready up. Focus Lock turns on and the clock starts the moment you're both in.</p>
+            <div className="flex items-center justify-center gap-6 mb-6">
+              <div className="flex flex-col items-center gap-2">
+                <BattleAvatar color="#7C4DFF" variant={0} size={64} glow={activeBattle.i_am_ready} />
+                <div className="text-sm font-semibold text-white">You</div>
+                <div className="text-[11px]" style={{ color: activeBattle.i_am_ready ? '#4ade80' : '#64748b' }}>{activeBattle.i_am_ready ? 'Ready' : 'Not ready'}</div>
+              </div>
               <span className="text-slate-500 text-xs font-bold">VS</span>
-              <BattleAvatar color={pendingOpp.color} variant={pendingOpp.variant} size={40} />
+              <div className="flex flex-col items-center gap-2">
+                <OpponentAvatar id={activeBattle.opponent_id} avatar={activeBattle.opponent_avatar} size={64} glow={activeBattle.opponent_ready} ringColor={battleAvatarLook(activeBattle.opponent_id).color} />
+                <div className="text-sm font-semibold text-white">{activeBattle.opponent_username}</div>
+                <div className="text-[11px]" style={{ color: activeBattle.opponent_ready ? '#4ade80' : '#64748b' }}>{activeBattle.opponent_ready ? 'Ready' : 'Not ready'}</div>
+              </div>
+            </div>
+            {activeBattle.i_am_ready ? (
+              <p className="text-slate-500 text-xs mb-6">Waiting for {activeBattle.opponent_username} to ready up…</p>
+            ) : (
+              <button onClick={markReady} disabled={busy} className="px-8 py-3 rounded-2xl font-bold text-white disabled:opacity-50 mb-4" style={{ background: '#7C4DFF' }}>I'm ready</button>
+            )}
+            <div>
+              <button onClick={cancelWaitingRoom} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845] disabled:opacity-50">Cancel battle</button>
             </div>
           </div>
         )}
 
-        {arenaPhase === 'live' && battleOpp && (
+        {phase === 'live' && activeBattle && (
           <div className="w-full max-w-xl">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mb-8" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" /> BATTLE ACTIVE
@@ -7450,29 +7639,28 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               </div>
               <div className="text-slate-600 text-xs font-bold">VS</div>
               <div className="flex flex-col items-center gap-2">
-                <BattleAvatar color={battleOpp.color} variant={battleOpp.variant} size={88} glow ringColor={battleOpp.color} />
-                <div className="text-sm font-semibold text-white">{battleOpp.name}</div>
-                <div className="text-[11px] text-slate-500">{battleOpp.name}'s focus time</div>
+                <OpponentAvatar id={activeBattle.opponent_id} avatar={activeBattle.opponent_avatar} size={88} glow ringColor={battleAvatarLook(activeBattle.opponent_id).color} />
+                <div className="text-sm font-semibold text-white">{activeBattle.opponent_username}</div>
+                <div className="text-[11px] text-slate-500">{activeBattle.opponent_username}'s focus time</div>
                 <div className="text-3xl font-black text-white" style={{ fontFamily: 'monospace' }}>{baFmtTime(elapsedSecs)}</div>
                 <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Focusing</div>
               </div>
             </div>
             <p className="text-slate-500 text-xs mb-5">First person to pause loses.</p>
-            <button onClick={requestPause} className="mx-auto flex items-center gap-2 px-8 py-3 rounded-2xl font-bold" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
+            <button onClick={requestPause} disabled={busy} className="mx-auto flex items-center gap-2 px-8 py-3 rounded-2xl font-bold disabled:opacity-50" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
               PAUSE
             </button>
             <p className="text-slate-600 text-[11px] mt-4">Pausing Focus Lock counts as pausing the battle.</p>
-            <button onClick={opponentPausesFirst} className="mt-8 text-[11px] text-slate-600 hover:text-slate-400 underline">Simulate: opponent pauses first</button>
 
             {pauseConfirmOpen && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 px-4">
                 <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[#1E3060] p-6">
                   <h2 className="text-lg font-bold text-white mb-2">Pause and lose the battle?</h2>
-                  <p className="text-slate-400 text-sm mb-5">{battleOpp.name} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
+                  <p className="text-slate-400 text-sm mb-5">{activeBattle.opponent_username} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
                   <div className="flex flex-col gap-2">
                     <button onClick={keepFocusing} className="w-full py-2.5 rounded-xl font-bold text-white" style={{ background: '#7C4DFF' }}>Keep focusing</button>
-                    <button onClick={confirmPause} className="w-full py-2.5 rounded-xl font-semibold text-sm" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>Pause and lose</button>
+                    <button onClick={confirmPause} disabled={busy} className="w-full py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>Pause and lose</button>
                   </div>
                 </div>
               </div>
@@ -7480,23 +7668,23 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           </div>
         )}
 
-        {arenaPhase === 'result' && result && (
+        {phase === 'result' && result && (
           <div className="w-full max-w-md">
             <div className="text-6xl mb-3">{result.kind === 'won' ? '🏆' : '💀'}</div>
             <h1 className="text-3xl font-black text-white mb-1">{result.kind === 'won' ? 'YOU WIN' : 'DEFEAT'}</h1>
             <p className="text-slate-400 text-sm mb-1">{result.kind === 'won' ? 'Your opponent paused first.' : 'You paused first.'}</p>
-            <p className="text-slate-500 text-xs mb-6">You vs {result.opp.name}</p>
+            <p className="text-slate-500 text-xs mb-6">You vs {result.opponentName}</p>
             <div className="flex items-center justify-center gap-8 mb-6">
               <div><div className="text-[11px] text-slate-500 mb-1">Focus time</div><div className="text-xl font-bold text-white">{baFmtTime(result.elapsed)}</div></div>
               <div><div className="text-[11px] text-slate-500 mb-1">Battle XP</div><div className="text-xl font-bold text-emerald-400">+{result.gain}</div></div>
             </div>
             {(() => {
-              const a = baTierInfo(result.before), b = baTierInfo(result.after), promoted = b.i > a.i
+              const a = baTierInfo(result.xpBefore), b = baTierInfo(result.xpAfter), promoted = b.i > a.i
               return (
                 <div className="mb-6">
                   <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{b.cur.n}</span>
-                    <span className="text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.after)} XP</span>
+                    <span className="text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.xpAfter)} XP</span>
                   </div>
                   <div className="h-2 rounded-full bg-[#1A2845] overflow-hidden">
                     <div className="h-full rounded-full bg-[#7C4DFF]" style={{ width: `${promoted ? b.pct : a.pct}%` }} />
@@ -7514,12 +7702,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
     )
   }
 
-  const rank = baTierInfo(meXp)
-  const earnedTrophies = TROPHY_TIERS.filter((_, i) => meBattles >= BA_MILESTONES[i])
-  const boardRows = [
-    ...BA_FRIENDS.map(f => ({ id: f.id, name: f.name, color: f.color, variant: f.variant, xp: f.xp, me: false })),
-    { id: 'me', name: 'You', color: '#7C4DFF', variant: 0, xp: meXp, me: true },
-  ].sort((a, b) => b.xp - a.xp)
+  const incoming = bg.data?.incoming_invites ?? []
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#020615]">
@@ -7541,27 +7724,37 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           </div>
           <div className="relative p-2 text-slate-400">
             <Ico n="bell" cls="w-5 h-5" />
-            {invites.length > 0 && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]">{invites.length}</div>
+            {incoming.length > 0 && (
+              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]">{incoming.length}</div>
             )}
           </div>
           <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {view === 'waiting' && pendingOpp && (
+          {actionError && (
+            <div className="px-4 py-2.5 rounded-xl text-[12px] text-amber-300 flex items-center justify-between gap-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.3)' }}>
+              <span>{actionError}</span>
+              <button onClick={() => setActionError(null)} className="text-amber-300/70 hover:text-amber-200">✕</button>
+            </div>
+          )}
+
+          {view === 'waiting' && outgoing && (
             <div className="max-w-md mx-auto text-center py-16">
               <div className="flex items-center justify-center gap-4 mb-6">
                 <BattleAvatar color="#7C4DFF" variant={0} size={64} />
                 <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />)}</div>
-                <BattleAvatar color={pendingOpp.color} variant={pendingOpp.variant} size={64} glow ringColor={pendingOpp.color} />
+                <OpponentAvatar id={outgoing.to_user} avatar={outgoing.avatar_url} size={64} glow ringColor={battleAvatarLook(outgoing.to_user).color} />
               </div>
-              <h2 className="text-lg font-bold text-white mb-2">Waiting for {pendingOpp.name} to accept</h2>
-              <p className="text-slate-400 text-sm mb-6">Once they accept, you both get a 3-2-1 countdown and the battle begins.</p>
-              <div className="text-xs text-slate-500 mb-6">Invitation expires in <b className="text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(expirySecs)}</b></div>
-              <button onClick={cancelChallenge} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel challenge</button>
+              <h2 className="text-lg font-bold text-white mb-2">Waiting for {outgoing.username} to accept</h2>
+              <p className="text-slate-400 text-sm mb-6">Once they accept, you'll both ready up and the battle begins.</p>
+              <div className="text-xs text-slate-500 mb-6">
+                Invitation expires in <b className="text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(Math.max(0, Math.floor((new Date(outgoing.expires_at).getTime() - Date.now()) / 1000)))}</b>
+              </div>
+              <button onClick={cancelChallenge} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845] disabled:opacity-50">Cancel challenge</button>
             </div>
           )}
+          {view === 'waiting' && !outgoing && (() => { setView('home'); return null })()}
 
           {view === 'profile' && (
             <div className="max-w-2xl mx-auto space-y-4">
@@ -7598,20 +7791,20 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   })}
                 </div>
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1A2845] text-[11px] text-slate-500">
-                  <span>Win a battle <b className="text-emerald-400">+{BA_XP_WIN} XP</b></span>
-                  <span>Lose a battle <b className="text-slate-400">+{BA_XP_LOSS} XP</b></span>
+                  <span>Win a battle <b className="text-emerald-400">+20-60 XP</b></span>
+                  <span>Lose a battle <b className="text-slate-400">+0-20 XP</b></span>
                 </div>
               </div>
 
               <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
                 <div className="text-sm font-bold text-white mb-4">Battle stats</div>
-                <BAStatGrid battles={meBattles} wins={meWins} losses={meLosses} streak={meStreak} best={meBest} focusSecs={meFocusSecs} xp={meXp} />
+                <BAStatGrid battles={stats.total} wins={stats.wins} losses={stats.losses} streak={streak} best={best} focusSecs={stats.total_focus_seconds} xp={meXp} />
                 <div className="mt-4 flex items-center gap-3 text-xs text-slate-400">
-                  <span><b className="text-emerald-400">{meWins}</b> wins</span>
-                  <span><b className="text-red-400">{meLosses}</b> losses</span>
+                  <span><b className="text-emerald-400">{stats.wins}</b> wins</span>
+                  <span><b className="text-red-400">{stats.losses}</b> losses</span>
                 </div>
                 <div className="h-1.5 rounded-full overflow-hidden flex mt-1.5 bg-[#1A2845]">
-                  <div className="h-full bg-emerald-400" style={{ width: `${meBattles > 0 ? Math.round((meWins / meBattles) * 100) : 0}%` }} />
+                  <div className="h-full bg-emerald-400" style={{ width: `${stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0}%` }} />
                   <div className="h-full flex-1" style={{ background: 'rgba(248,113,113,0.7)' }} />
                 </div>
               </div>
@@ -7642,7 +7835,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>⚔️</div>
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold text-white">Battleground</h1>
-                  <p className="text-slate-400 text-sm">Challenge your friends. Stay focused. Don't pause.</p>
+                  <p className="text-slate-400 text-sm">Challenge someone. Stay focused. Don't pause.</p>
                 </div>
                 <button onClick={() => setView('profile')} className="text-right hover:opacity-80 transition-opacity">
                   <div className="text-[10px] text-slate-500 mb-0.5">Your battle title</div>
@@ -7657,8 +7850,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                   <div>
                     <h2 className="text-lg font-bold text-white mb-1.5">Ready for a challenge?</h2>
-                    <p className="text-slate-400 text-sm mb-4">Challenge a friend and see who can stay focused longer.</p>
-                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-white text-sm" style={{ background: '#7C4DFF' }}>⚔️ Challenge friend</button>
+                    <p className="text-slate-400 text-sm mb-4">Challenge someone and see who can stay focused longer.</p>
+                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-white text-sm" style={{ background: '#7C4DFF' }}>⚔️ Challenge someone</button>
                   </div>
                   <div className="flex items-center gap-3">
                     <BattleAvatar color="#7C4DFF" variant={0} size={56} />
@@ -7673,28 +7866,25 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 </div>
               </div>
 
-              {invites.length > 0 && (
+              {incoming.length > 0 && (
                 <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]">
                   <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
                     <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
                     <div className="text-sm font-bold text-white">Battle Invitations</div>
-                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]">{invites.length} pending</div>
+                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]">{incoming.length} pending</div>
                   </div>
                   <div className="px-4 pb-4 space-y-2">
-                    {invites.map(inv => {
-                      const f = byId(inv.id)
-                      return (
-                        <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(124,77,255,0.06)' }}>
-                          <BattleAvatar color={f.color} variant={f.variant} size={36} />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-white">{f.name} <span className="text-slate-400 font-normal">challenged you</span></div>
-                            <div className="text-[11px] text-slate-500">{inv.ago}</div>
-                          </div>
-                          <button onClick={() => acceptInvite(inv.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#7C4DFF' }}>Accept</button>
-                          <button onClick={() => rejectInvite(inv.id)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-[#1A2845]">Reject</button>
+                    {incoming.map(inv => (
+                      <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(124,77,255,0.06)' }}>
+                        <OpponentAvatar id={inv.from_user} avatar={inv.avatar_url} size={36} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-white">{inv.username} <span className="text-slate-400 font-normal">challenged you</span></div>
+                          <div className="text-[11px] text-slate-500">{inv.title}</div>
                         </div>
-                      )
-                    })}
+                        <button onClick={() => void acceptInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>Accept</button>
+                        <button onClick={() => void rejectInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-[#1A2845] disabled:opacity-50">Reject</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -7704,27 +7894,31 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                   <div className="text-sm font-bold text-white">Your battle stats</div>
                   <button onClick={() => setView('profile')} className="text-[11px] font-semibold" style={{ color: '#C4AAFF' }}>View profile</button>
                 </div>
-                <BAStatGrid battles={meBattles} wins={meWins} losses={meLosses} streak={meStreak} best={meBest} focusSecs={meFocusSecs} xp={meXp} />
+                <BAStatGrid battles={stats.total} wins={stats.wins} losses={stats.losses} streak={streak} best={best} focusSecs={stats.total_focus_seconds} xp={meXp} />
               </div>
 
               <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm font-bold text-white">🏆 Friends leaderboard</div>
+                  <div className="text-sm font-bold text-white">🏆 Leaderboard</div>
                   <div className="text-[11px] text-slate-500">Ranked by Battle XP</div>
                 </div>
-                <div className="space-y-1">
-                  {boardRows.map((r, i) => (
-                    <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(124,77,255,0.08)' } : undefined}>
-                      <div className="w-5 text-center text-xs font-bold text-slate-500">{i + 1}</div>
-                      <BattleAvatar color={r.color} variant={r.variant} size={32} />
-                      <div className="flex-1 min-w-0 flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white truncate">{r.name}</span>
-                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{baTierInfo(r.xp).cur.n}</span>
+                {boardRows.length <= 1 ? (
+                  <div className="text-[12px] text-slate-500 text-center py-6">No one else has Battle XP yet - challenge someone to get the board started.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {boardRows.map((r, i) => (
+                      <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(124,77,255,0.08)' } : undefined}>
+                        <div className="w-5 text-center text-xs font-bold text-slate-500">{i + 1}</div>
+                        <OpponentAvatar id={r.id} avatar={r.avatar} size={32} />
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <span className="text-sm font-semibold text-white truncate">{r.name}</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{baTierInfo(r.xp).cur.n}</span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-slate-600 font-normal">XP</span></div>
                       </div>
-                      <div className="text-xs font-bold text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-slate-600 font-normal">XP</span></div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -7736,30 +7930,33 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           <div className="w-full max-w-md rounded-2xl border bg-[#0B1530] border-[#1E3060] p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="text-base font-bold text-white">Challenge a friend</div>
-                <div className="text-xs text-slate-500 mt-0.5">Search by username or pick from your friends.</div>
+                <div className="text-base font-bold text-white">Challenge someone</div>
+                <div className="text-xs text-slate-500 mt-0.5">Search by username.</div>
               </div>
               <button onClick={closePicker} className="text-slate-500 hover:text-slate-300 text-lg leading-none">✕</button>
             </div>
             <div className="flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 border-[#1A2845]">
               <Ico n="search" cls="w-4 h-4 text-slate-500" />
-              <input value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-600 outline-none" />
+              <input autoFocus value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-600 outline-none" />
             </div>
             <div className="max-h-64 overflow-y-auto space-y-1 mb-3">
-              {BA_FRIENDS.filter(f => !pickerQuery.trim() || f.name.toLowerCase().includes(pickerQuery.trim().toLowerCase())).map(f => {
-                const offline = f.status !== 'online'
-                const sel = pickerSel === f.id
+              {pickerLoading && <div className="text-[12px] text-slate-500 text-center py-6">Searching…</div>}
+              {!pickerLoading && pickerResults.length === 0 && (
+                <div className="text-[12px] text-slate-500 text-center py-6">{pickerQuery.trim() ? 'No one matches that username.' : 'Type a username to search.'}</div>
+              )}
+              {!pickerLoading && pickerResults.map(f => {
+                const sel = pickerSel?.id === f.id
+                const look = battleAvatarLook(f.id)
                 return (
-                  <button key={f.id} disabled={offline} onClick={() => setPickerSel(f.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors ${offline ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
+                  <button key={f.id} onClick={() => setPickerSel(f)}
+                    className="w-full flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-white/5"
                     style={sel ? { background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.4)' } : { border: '1px solid transparent' }}>
-                    <BattleAvatar color={f.color} variant={f.variant} size={36} />
+                    {f.avatar_url
+                      ? <img src={f.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      : <BattleAvatar color={look.color} variant={look.variant} size={36} />}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-white">{f.name}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${f.status === 'online' ? 'bg-emerald-400' : f.status === 'busy' ? 'bg-amber-400' : 'bg-slate-600'}`} />
-                        {f.status === 'online' ? 'Online' : f.status === 'busy' ? 'In session' : 'Offline'}
-                      </div>
+                      <div className="text-sm font-semibold text-white">{f.username}</div>
+                      <div className="text-[11px] text-slate-500">{f.title} · {baFmtXP(f.battle_xp)} XP</div>
                     </div>
                     {sel && <Ico n="check" cls="w-4 h-4 text-[#7C4DFF]" />}
                   </button>
@@ -7772,8 +7969,8 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             </div>
             <div className="flex gap-2">
               <button onClick={closePicker} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
-              <button onClick={sendChallenge} disabled={!pickerSel} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
-                {pickerSel ? `Challenge ${byId(pickerSel).name}` : 'Send challenge'}
+              <button onClick={() => void sendChallenge()} disabled={!pickerSel || busy} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+                {pickerSel ? `Challenge ${pickerSel.username}` : 'Send challenge'}
               </button>
             </div>
           </div>
@@ -7785,56 +7982,286 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
 
 // ─── Settings Page ─────────────────────────────────────────────────────────────
+// Wired to user_profiles (own row) + Supabase Auth via lib/settings.ts.
+// The small form components live at module scope: declared inside
+// SettingsPage they'd be a new component type every render, so each
+// keystroke remounted the <input> and dropped focus.
+
+function StToggle({ val, onChange, disabled }: { val: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button onClick={() => onChange(!val)} disabled={disabled} role="switch" aria-checked={val}
+      className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative disabled:opacity-50"
+      style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
+      <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
+        style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
+    </button>
+  )
+}
+
+function StRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]">
+      <div>
+        <div className="text-sm font-medium text-slate-200">{label}</div>
+        {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+      </div>
+      <div className="ml-4 flex-shrink-0">{children}</div>
+    </div>
+  )
+}
+
+function StSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]">
+      <div className="px-5 pt-5 pb-1">
+        <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
+        {children}
+      </div>
+      <div className="h-2" />
+    </div>
+  )
+}
+
+function StField({ label, value, onChange, placeholder, type = 'text', maxLength, hint }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; maxLength?: number; hint?: string
+}) {
+  return (
+    <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+      <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength}
+        className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]" />
+      {hint && <div className="text-[10px] text-slate-600 mt-1">{hint}</div>}
+    </div>
+  )
+}
+
+function StChoice({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+      <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {options.map(o => (
+          <button key={o} onClick={() => onChange(value === o ? '' : o)}
+            className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
+            style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const ST_PRIMARY_BTN = 'w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50'
+const ST_PRIMARY_STYLE = { background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }
+const ST_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
+const ST_GOAL_HOURS = [2, 3, 4, 6, 8, 10, 12]
+const ST_PROVIDERS: { id: LinkableProvider; name: string; dot: string }[] = [
+  { id: 'google', name: 'Google', dot: 'radial-gradient(circle at 35% 35%,#7BAAF7,#2A62D6)' },
+  { id: 'discord', name: 'Discord', dot: 'radial-gradient(circle at 35% 35%,#A48BFF,#5865F2)' },
+]
 
 function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
   type SettingsTab = 'profile' | 'account' | 'notifications' | 'privacy' | 'study' | 'about'
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
-  const [saved, setSaved] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function notify(msg: string, ok = true) {
+    setToast({ msg, ok })
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), ok ? 2600 : 5000)
+  }
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
-  // Profile state
-  // displayName/avatar seed from the real signed-in account (same
-  // profile useHomeData already loads for Home/Sidebar); the rest of
-  // this form (username, bio, gender, age, course, school, phone,
-  // email, dailyGoal) is still local-only mock state - a real Settings
-  // read/write pass is a separate, larger module than this name fix.
-  const { avatar: selectedAvatar, setAvatar: setSelectedAvatar } = useContext(UserAvatarCtx)
-  const [displayName, setDisplayName] = useState(profile?.displayName || 'Jatin Sinsinwar')
-  const [username, setUsername] = useState('jatin_sinsinwar')
-  const [bio, setBio] = useState('Aspiring engineer. JEE 2026.')
-  const [gender, setGender] = useState('Male')
-  const [age, setAge] = useState('18')
-  const [course, setCourse] = useState('Engineering')
-  const [classYear, setClassYear] = useState('12th Grade')
-  const [school, setSchool] = useState('Delhi Public School')
-  const [targetExam, setTargetExam] = useState('JEE Advanced 2026')
-  const [phone, setPhone] = useState('+91 98765 43210')
-  const [email, setEmail] = useState('jatin@example.com')
-  const [dailyGoal, setDailyGoal] = useState('6')
-  const [studyReminders, setStudyReminders] = useState(true)
-  const [battleNotifs, setBattleNotifs] = useState(true)
-  const [roomNotifs, setRoomNotifs] = useState(true)
-  const [achievementNotifs, setAchievementNotifs] = useState(true)
-  const [profilePublic, setProfilePublic] = useState(true)
-  const [showStreak, setShowStreak] = useState(true)
-  const [showStats, setShowStats] = useState(true)
+  const settingsQ = useLoader(loadSettings, null as SettingsProfile | null, [], 0)
+  const identitiesQ = useLoader(listIdentities, [] as LinkedIdentity[], [], 0)
+  const s = settingsQ.data
+  const { setAvatar } = useContext(UserAvatarCtx)
+  const timerMode = useTimerMode()
+  const { settings: pomo } = usePomodoroSettings()
+
+  // Editable copies of the loaded profile. Re-seeded whenever a fresh load lands.
+  const [displayName, setDisplayName] = useState('')
+  const [username, setUsername] = useState('')
+  const [bio, setBio] = useState('')
+  const [school, setSchool] = useState('')
+  const [classYear, setClassYear] = useState('')
+  const [course, setCourse] = useState('')
+  const [exam, setExam] = useState('')
+  const [prefs, setPrefs] = useState<SettingsPreferences>(DEFAULT_PREFERENCES)
+  const [remindersEnabled, setRemindersEnabled] = useState(true)
   const [allowBattleInvites, setAllowBattleInvites] = useState(true)
-  const [soundEffects, setSoundEffects] = useState(true)
-  const [focusMode, setFocusMode] = useState(false)
+  const [goalMinutes, setGoalMinutes] = useState(180)
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
 
-  function saveProfile() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2200)
+  useEffect(() => {
+    if (!s) return
+    setDisplayName(s.displayName); setUsername(s.username); setBio(s.bio)
+    setSchool(s.school); setClassYear(s.classYear); setCourse(s.course); setExam(s.exam)
+    setPrefs(s.preferences); setRemindersEnabled(s.remindersEnabled)
+    setAllowBattleInvites(s.allowBattleInvites); setGoalMinutes(s.dailyGoalMinutes)
+  }, [s])
+
+  const profileDirty = !!s && (
+    displayName !== s.displayName || username !== s.username || bio !== s.bio || school !== s.school ||
+    classYear !== s.classYear || course !== s.course || exam !== s.exam)
+  const usernameValid = /^[a-z0-9_]{3,20}$/.test(username)
+
+  async function saveProfile() {
+    if (!s || busy) return
+    if (!displayName.trim()) { notify('Display name can’t be empty.', false); return }
+    if (username !== s.username && !usernameValid) { notify('Usernames are 3-20 characters: lowercase letters, numbers, underscore.', false); return }
+    setBusy('profile')
+    try {
+      await saveProfileFields(s.userId, {
+        display_name: displayName.trim(), bio: bio.trim() || null, school: school.trim() || null,
+        class_year: classYear || null, course: course || null, exam: exam.trim() || null,
+      })
+      if (username !== s.username) await saveUsername(username)
+      await settingsQ.refresh()
+      notify('✓ Profile saved')
+    } catch (e) {
+      notify((e as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
   }
 
-  // profile arrives asynchronously (a fresh sign-in navigating straight
-  // to Settings can beat useHomeData's fetch) - resync once it lands,
-  // but only if the person hasn't already typed something of their own
-  // in this field this session.
-  const [displayNameTouched, setDisplayNameTouched] = useState(false)
-  useEffect(() => {
-    if (!displayNameTouched && profile?.displayName) setDisplayName(profile.displayName)
-  }, [profile?.displayName, displayNameTouched])
+  // Toggles and single-choice settings save immediately, rolling back on failure.
+  async function updatePrefs(patch: Partial<SettingsPreferences>) {
+    if (!s) return
+    const prev = prefsRef.current
+    const next = { ...prev, ...patch }
+    setPrefs(next)
+    try {
+      await saveProfileFields(s.userId, { preferences: next })
+    } catch (e) {
+      setPrefs(prev)
+      notify((e as Error).message, false)
+    }
+  }
+  async function updateColumn<T>(set: (v: T) => void, prev: T, next: T, patch: ProfilePatch, okMsg?: string) {
+    if (!s) return
+    set(next)
+    try {
+      await saveProfileFields(s.userId, patch)
+      if (okMsg) notify(okMsg)
+    } catch (e) {
+      set(prev)
+      notify((e as Error).message, false)
+    }
+  }
+
+  function pickAvatar(preset: number | null) {
+    if (preset === null) { if (s?.avatarUrl) setAvatar(s.avatarUrl) } else setAvatar(AVATAR_OPTIONS[preset])
+    void updatePrefs({ avatar_preset: preset })
+  }
+
+  // ── Account: email / password / linked providers ──
+  const [newEmail, setNewEmail] = useState('')
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const hasPassword = hasPasswordLogin(identitiesQ.data)
+
+  async function submitEmail() {
+    const e = newEmail.trim()
+    if (!s || busy || !e) return
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { notify('That doesn’t look like an email address.', false); return }
+    if (e.toLowerCase() === s.email.toLowerCase()) { notify('That’s already your email.', false); return }
+    setBusy('email')
+    try {
+      await changeEmail(e)
+      setNewEmail('')
+      notify('✓ Check both inboxes — the change applies once you confirm the link.')
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function submitPassword() {
+    if (!s || busy) return
+    if (hasPassword && !pwCurrent) { notify('Enter your current password.', false); return }
+    if (pwNew.length < 8) { notify('New password must be at least 8 characters.', false); return }
+    if (pwNew !== pwConfirm) { notify('New passwords don’t match.', false); return }
+    setBusy('password')
+    try {
+      await changePassword(s.email, hasPassword ? pwCurrent : null, pwNew)
+      setPwCurrent(''); setPwNew(''); setPwConfirm('')
+      await identitiesQ.refresh()
+      notify(hasPassword ? '✓ Password changed' : '✓ Password set — you can now also sign in with email')
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function toggleProvider(provider: LinkableProvider) {
+    if (busy) return
+    const linked = identitiesQ.data.find(i => i.provider === provider)
+    setBusy(`provider:${provider}`)
+    try {
+      if (linked) {
+        await unlinkProvider(linked)
+        await identitiesQ.refresh()
+        notify(`✓ ${provider === 'google' ? 'Google' : 'Discord'} disconnected`)
+      } else {
+        await linkProvider(provider) // redirects to the provider on success
+      }
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // ── Data, deletion, sign-out ──
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteText, setDeleteText] = useState('')
+
+  async function downloadData() {
+    if (!s || busy) return
+    setBusy('export')
+    try {
+      const blob = await exportMyData(s.userId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `wynko-data-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      notify('✓ Your data export has downloaded')
+    } catch (err) {
+      notify((err as Error).message, false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function confirmDelete() {
+    if (deleteText !== 'DELETE' || busy) return
+    setBusy('delete')
+    try {
+      await deleteMyAccount()
+      window.location.href = '/login.html'
+    } catch (err) {
+      notify((err as Error).message, false)
+      setBusy(null)
+    }
+  }
+
+  async function handleLogout() {
+    if (busy) return
+    setBusy('logout')
+    const blocked = await signOut()
+    if (blocked) { notify(blocked, false); setBusy(null) }
+  }
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'profile', label: 'Profile', icon: '👤' },
@@ -7845,96 +8272,329 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     { id: 'about', label: 'About', icon: 'ℹ️' },
   ]
 
-  function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => void }) {
-    return (
-      <button onClick={() => onChange(!val)}
-        className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-        style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
-        <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
-          style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
-      </button>
-    )
-  }
+  const selectedPreset = prefs.avatar_preset
+  const previewAvatar = selectedPreset !== null ? AVATAR_OPTIONS[selectedPreset] : (s?.avatarUrl || AVATAR_OPTIONS[0])
+  const goalHoursOptions = ST_GOAL_HOURS.includes(goalMinutes / 60) || goalMinutes % 60 !== 0
+    ? ST_GOAL_HOURS : [...ST_GOAL_HOURS, goalMinutes / 60].sort((a, b) => a - b)
 
-  function SettingRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
-    return (
-      <div className="flex items-center justify-between py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
+  let content: React.ReactNode
+  if (settingsQ.status === 'loading' && !s) {
+    content = <div className="text-sm text-slate-500 py-16 text-center">Loading your settings…</div>
+  } else if (!s) {
+    content = (
+      <div className="py-16 text-center space-y-3">
+        <div className="text-sm text-slate-300 font-semibold">Couldn’t load your settings</div>
+        <div className="text-xs text-slate-500">{settingsQ.error}</div>
+        <button onClick={() => void settingsQ.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+      </div>
+    )
+  } else if (activeTab === 'profile') {
+    content = (
+      <>
         <div>
-          <div className="text-sm font-medium text-slate-200">{label}</div>
-          {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+          <h2 className="text-xl font-bold text-white">Profile</h2>
+          <p className="text-slate-400 text-sm mt-0.5">How others see you on Wynko.</p>
         </div>
-        <div className="ml-4 flex-shrink-0">{children}</div>
-      </div>
-    )
-  }
 
-  function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-      <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]" >
-        <div className="px-5 pt-5 pb-1">
-          <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
-          {children}
+        <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]">
+          <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
+              style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
+              <img src={previewAvatar} alt="Selected avatar" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[11px] text-slate-500 mb-3">Choose avatar <span className="text-slate-600">· saves instantly</span></div>
+              <div className="grid grid-cols-7 gap-2">
+                {s.avatarUrl && (
+                  <button onClick={() => pickAvatar(null)} title="Use my photo"
+                    className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
+                    style={{ borderColor: selectedPreset === null ? '#8B5CFF' : 'transparent', boxShadow: selectedPreset === null ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
+                    <img src={s.avatarUrl} alt="My photo" className="w-full aspect-square object-cover bg-[rgba(26,40,69,0.4)]" />
+                  </button>
+                )}
+                {AVATAR_OPTIONS.map((av, i) => (
+                  <button key={i} onClick={() => pickAvatar(i)}
+                    className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
+                    style={{ borderColor: selectedPreset === i ? '#8B5CFF' : 'transparent', boxShadow: selectedPreset === i ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
+                    <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="h-2" />
-      </div>
-    )
-  }
 
-  function FieldInput({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
-    return (
-      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-        <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
-        <input type={type} value={value} onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]"
-           />
-      </div>
-    )
-  }
+        <StSection title="PERSONAL INFORMATION">
+          <StField label="DISPLAY NAME" value={displayName} onChange={setDisplayName} placeholder="Your name" maxLength={50} />
+          <StField label="USERNAME" value={username} onChange={v => setUsername(v.toLowerCase().replace(/\s/g, ''))} placeholder="username" maxLength={20}
+            hint={username !== s.username && !usernameValid ? '3-20 characters: lowercase letters, numbers, underscore.' : 'Friends find and challenge you by this.'} />
+          <StField label="BIO" value={bio} onChange={setBio} placeholder="Tell others about yourself..." maxLength={160} hint={`${bio.length}/160`} />
+        </StSection>
 
-  function SelectInput({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
-    return (
-      <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-        <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
-        <div className="flex flex-wrap gap-2">
-          {options.map(o => (
-            <button key={o} onClick={() => onChange(o)}
-              className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
-              style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
-              {o}
+        <StSection title="ACADEMIC INFORMATION">
+          <StField label="SCHOOL / INSTITUTION" value={school} onChange={setSchool} placeholder="Your school or college" maxLength={100} />
+          <StChoice label="CLASS / YEAR" value={classYear} onChange={setClassYear} options={['9th Grade', '10th Grade', '11th Grade', '12th Grade', 'Dropper', '1st Year', '2nd Year', '3rd Year', '4th Year']} />
+          <StChoice label="COURSE / STREAM" value={course} onChange={setCourse} options={['Engineering', 'Medical', 'Commerce', 'Arts', 'Science', 'Law', 'Other']} />
+          <StField label="TARGET EXAM" value={exam} onChange={setExam} placeholder="e.g. JEE Advanced, NEET, UPSC" maxLength={60} />
+        </StSection>
+
+        <button onClick={() => void saveProfile()} disabled={!profileDirty || busy === 'profile'} className={ST_PRIMARY_BTN} style={ST_PRIMARY_STYLE}>
+          {busy === 'profile' ? 'Saving…' : profileDirty ? 'Save Profile Changes' : 'All changes saved'}
+        </button>
+      </>
+    )
+  } else if (activeTab === 'account') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Account</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Manage your login details and security.</p>
+        </div>
+
+        <StSection title="EMAIL ADDRESS">
+          <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT EMAIL</div>
+            <div className="text-sm text-slate-200">{s.email || '—'}</div>
+          </div>
+          <div className="py-3.5">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CHANGE EMAIL</div>
+            <div className="flex gap-2">
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="new@email.com" className={ST_INPUT} />
+              <button onClick={() => void submitEmail()} disabled={!newEmail.trim() || busy === 'email'}
+                className="px-4 rounded-xl text-[12px] font-semibold text-white flex-shrink-0 disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+                {busy === 'email' ? 'Sending…' : 'Update'}
+              </button>
+            </div>
+            <div className="text-[10px] text-slate-600 mt-1">We’ll email a confirmation link to both addresses.</div>
+          </div>
+        </StSection>
+
+        <StSection title={hasPassword ? 'CHANGE PASSWORD' : 'SET A PASSWORD'}>
+          {!hasPassword && (
+            <div className="text-[12px] text-slate-400 pb-2">You sign in with {identitiesQ.data.map(i => i.provider === 'google' ? 'Google' : i.provider === 'discord' ? 'Discord' : i.provider).join(' / ') || 'a linked account'}. Set a password to also sign in with your email.</div>
+          )}
+          {hasPassword && (
+            <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+              <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
+              <input type="password" autoComplete="current-password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} placeholder="Enter current password" className={ST_INPUT} />
+            </div>
+          )}
+          <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
+            <input type="password" autoComplete="new-password" value={pwNew} onChange={e => setPwNew(e.target.value)} placeholder="At least 8 characters" className={ST_INPUT} />
+          </div>
+          <div className="py-3.5">
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
+            <input type="password" autoComplete="new-password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} placeholder="Confirm new password" className={ST_INPUT} />
+          </div>
+          <div className="pb-3">
+            <button onClick={() => void submitPassword()} disabled={!pwNew || busy === 'password'}
+              className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+              {busy === 'password' ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
+            </button>
+          </div>
+        </StSection>
+
+        <StSection title="CONNECTED ACCOUNTS">
+          {ST_PROVIDERS.map(p => {
+            const linked = identitiesQ.data.find(i => i.provider === p.id)
+            const onlyLogin = !!linked && identitiesQ.data.length <= 1
+            return (
+              <div key={p.id} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]">
+                <div className="flex items-center gap-3">
+                  <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: p.dot }} />
+                  <div>
+                    <div className="text-sm font-medium text-slate-200">{p.name}</div>
+                    <div className="text-[11px]" style={{ color: linked ? '#19D3A2' : '#4E5E84' }}>
+                      {identitiesQ.status === 'loading' ? 'Checking…' : linked ? `Connected${linked.email ? ` · ${linked.email}` : ''}` : 'Not connected'}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => void toggleProvider(p.id)} disabled={onlyLogin || identitiesQ.status === 'loading' || busy === `provider:${p.id}`}
+                  title={onlyLogin ? 'This is your only way to sign in — connect another account or set a password first.' : undefined}
+                  className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40 disabled:opacity-40"
+                  style={{ borderColor: '#1A2845', color: linked ? '#F87171' : '#9B6CFF' }}>
+                  {busy === `provider:${p.id}` ? '…' : linked ? 'Disconnect' : 'Connect'}
+                </button>
+              </div>
+            )
+          })}
+        </StSection>
+
+        <div className="rounded-2xl border p-5 bg-[rgba(239,68,68,0.04)] border-[rgba(239,68,68,0.2)]">
+          <div className="text-[10px] font-mono tracking-[0.18em] text-red-400 mb-3">DANGER ZONE</div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-red-300">Delete Account</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data. This can’t be undone.</div>
+            </div>
+            <button onClick={() => { setDeleteText(''); setDeleteOpen(true) }}
+              className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]">Delete</button>
+          </div>
+        </div>
+      </>
+    )
+  } else if (activeTab === 'notifications') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Notifications</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Control what alerts you receive. Changes save instantly.</p>
+        </div>
+        <StSection title="STUDY ALERTS">
+          <StRow label="Study Reminders" sub="Reminders to start your scheduled sessions (Telegram)">
+            <StToggle val={remindersEnabled} onChange={v => void updateColumn(setRemindersEnabled, remindersEnabled, v, { reminders_enabled: v })} />
+          </StRow>
+          <StRow label="Focus Session Alerts" sub="Notified when your focus timer ends"><StToggle val={prefs.notif_focus_alerts} onChange={v => void updatePrefs({ notif_focus_alerts: v })} /></StRow>
+          <StRow label="Streak Alerts" sub="Don't break your study streak"><StToggle val={prefs.notif_streak} onChange={v => void updatePrefs({ notif_streak: v })} /></StRow>
+        </StSection>
+        <StSection title="SOCIAL ALERTS">
+          <StRow label="Battle Invitations" sub="Get notified when someone challenges you"><StToggle val={prefs.notif_battle} onChange={v => void updatePrefs({ notif_battle: v })} /></StRow>
+          <StRow label="Study Room Invites" sub="Notified when friends invite you to rooms"><StToggle val={prefs.notif_rooms} onChange={v => void updatePrefs({ notif_rooms: v })} /></StRow>
+          <StRow label="Achievements" sub="Get notified for new badges and trophies"><StToggle val={prefs.notif_achievements} onChange={v => void updatePrefs({ notif_achievements: v })} /></StRow>
+        </StSection>
+        <StSection title="APP SOUNDS">
+          <StRow label="Sound Effects" sub="Play sounds for timers and events"><StToggle val={prefs.sound_effects} onChange={v => void updatePrefs({ sound_effects: v })} /></StRow>
+        </StSection>
+      </>
+    )
+  } else if (activeTab === 'privacy') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Privacy</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Control who can see your data. Changes save instantly.</p>
+        </div>
+        <StSection title="PROFILE VISIBILITY">
+          <StRow label="Public Profile" sub="Anyone on Wynko can see your profile"><StToggle val={prefs.privacy_public_profile} onChange={v => void updatePrefs({ privacy_public_profile: v })} /></StRow>
+          <StRow label="Show Study Streak" sub="Display your streak on your public profile"><StToggle val={prefs.privacy_show_streak} onChange={v => void updatePrefs({ privacy_show_streak: v })} /></StRow>
+          <StRow label="Show Study Stats" sub="Others can see your study hours and progress"><StToggle val={prefs.privacy_show_stats} onChange={v => void updatePrefs({ privacy_show_stats: v })} /></StRow>
+        </StSection>
+        <StSection title="INTERACTIONS">
+          <StRow label="Allow Battle Invites" sub="When off, nobody can find or challenge you in Battleground">
+            <StToggle val={allowBattleInvites} onChange={v => void updateColumn(setAllowBattleInvites, allowBattleInvites, v, { allow_battle_invites: v })} />
+          </StRow>
+          <StRow label="Allow Room Invites" sub="Let others invite you to study rooms"><StToggle val={prefs.privacy_allow_room_invites} onChange={v => void updatePrefs({ privacy_allow_room_invites: v })} /></StRow>
+        </StSection>
+        <StSection title="DATA & PRIVACY">
+          <StRow label="Download My Data" sub="Your profile, study sessions, plan and battle history as JSON">
+            <button onClick={() => void downloadData()} disabled={busy === 'export'}
+              className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060] disabled:opacity-50">
+              {busy === 'export' ? 'Preparing…' : 'Download'}
+            </button>
+          </StRow>
+        </StSection>
+      </>
+    )
+  } else if (activeTab === 'study') {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">Study Preferences</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience. Changes save instantly.</p>
+        </div>
+        <StSection title="DAILY GOALS">
+          <div className="py-3.5">
+            <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS) · drives Home’s Today’s Focus</div>
+            <div className="flex gap-2 flex-wrap">
+              {goalHoursOptions.map(h => {
+                const m = Math.round(h * 60), on = goalMinutes === m
+                return (
+                  <button key={h} onClick={() => { if (!on) void updateColumn(setGoalMinutes, goalMinutes, m, { daily_focus_goal_minutes: m }, `✓ Daily goal set to ${h}h`) }}
+                    className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
+                    style={{ background: on ? '#1A2845' : '#0B1530', color: on ? '#C4AAFF' : '#4E5E84', borderColor: on ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+                    {h}h
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </StSection>
+        <StSection title="DEFAULT TIMER">
+          {([
+            { mode: 'pomodoro' as const, name: 'Pomodoro', sub: pomodoroSummaryLabel(pomo) },
+            { mode: 'regular' as const, name: 'Regular (count up)', sub: 'No time limit — stop when you’re done' },
+          ]).map(t => (
+            <button key={t.mode} onClick={() => setTimerMode(t.mode)}
+              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)] text-left">
+              <div>
+                <div className="text-sm font-medium text-slate-200">{t.name}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
+              </div>
+              <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                style={{ borderColor: timerMode === t.mode ? '#7C4DFF' : '#1E3060' }}>
+                {timerMode === t.mode && <div className="w-2 h-2 rounded-full bg-violet-500" />}
+              </div>
             </button>
           ))}
+          <div className="text-[10px] text-slate-600 pb-3">Pomodoro lengths are edited from the Pomodoro card in Focus Lock.</div>
+        </StSection>
+        <StSection title="FOCUS SESSION">
+          <StRow label="Auto-start Breaks" sub="Automatically start break timer after focus"><StToggle val={prefs.focus_auto_start_breaks} onChange={v => void updatePrefs({ focus_auto_start_breaks: v })} /></StRow>
+          <StRow label="Focus Mode (block distractions)" sub="Lock notifications during focus sessions"><StToggle val={prefs.focus_block_distractions} onChange={v => void updatePrefs({ focus_block_distractions: v })} /></StRow>
+          <StRow label="Sound during Focus" sub="Play ambient sounds during study sessions"><StToggle val={prefs.focus_ambient_sound} onChange={v => void updatePrefs({ focus_ambient_sound: v })} /></StRow>
+        </StSection>
+      </>
+    )
+  } else {
+    content = (
+      <>
+        <div>
+          <h2 className="text-xl font-bold text-white">About Wynko</h2>
+          <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
         </div>
-      </div>
+        <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
+            style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
+          <div className="text-xl font-black text-white mb-1">Wynko</div>
+          <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
+          <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
+        </div>
+        <StSection title="LEGAL & INFO">
+          {[
+            { label: 'Terms of Service', icon: '📄', href: '/terms' },
+            { label: 'Privacy Policy', icon: '🔒', href: '/privacy' },
+          ].map(item => (
+            <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer"
+              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]">
+              <div className="flex items-center gap-3">
+                <span className="text-base">{item.icon}</span>
+                <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
+              </div>
+              <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+            </a>
+          ))}
+        </StSection>
+      </>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+    <div className="flex h-screen overflow-hidden bg-[#020615]">
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
-          >
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
           <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >SETTINGS</div>
+            <div className="text-[10px] text-slate-600 mb-0.5">SETTINGS</div>
             <div className="text-sm font-semibold text-slate-200">Manage your account & preferences.</div>
           </div>
-          {saved && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-              style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
-              ✓ Changes saved
+          {toast && (
+            <div role="status" className="max-w-md px-3 py-1.5 rounded-full text-[11px] font-semibold truncate"
+              style={toast.ok
+                ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                : { background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.35)' }}>
+              {toast.msg}
             </div>
           )}
           <UserAvatar size={32} />
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Settings nav sidebar */}
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]"
-            >
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]">
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
@@ -7947,295 +8607,38 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 {tab.label}
               </button>
             ))}
-            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]" >
-              <button className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10">
-                <span className="text-base">🚪</span> Log Out
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]">
+              <button onClick={() => void handleLogout()} disabled={busy === 'logout'}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                <span className="text-base">🚪</span> {busy === 'logout' ? 'Signing out…' : 'Log Out'}
               </button>
             </div>
           </div>
 
-          {/* Content area */}
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-
-            {/* ── PROFILE TAB ── */}
-            {activeTab === 'profile' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Profile</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">How others see you on Wynko.</p>
-                </div>
-
-                {/* Avatar picker */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
-                  <div className="flex items-center gap-6">
-                    {/* Big avatar preview */}
-                    <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
-                      style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
-                      <img src={selectedAvatar} alt="Selected avatar" className="w-full h-full object-contain" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-[11px] text-slate-500 mb-3">Choose avatar</div>
-                      <div className="grid grid-cols-6 gap-2">
-                        {AVATAR_OPTIONS.map((av, i) => (
-                          <button key={i} onClick={() => setSelectedAvatar(av)}
-                            className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
-                            style={{ borderColor: selectedAvatar === av ? '#8B5CFF' : 'transparent', boxShadow: selectedAvatar === av ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
-                            <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]"  />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <SectionCard title="PERSONAL INFORMATION">
-                  <FieldInput label="DISPLAY NAME" value={displayName} onChange={v => { setDisplayName(v); setDisplayNameTouched(true) }} placeholder="Your full name" />
-                  <FieldInput label="USERNAME" value={username} onChange={setUsername} placeholder="@username" />
-                  <FieldInput label="BIO" value={bio} onChange={setBio} placeholder="Tell others about yourself..." />
-                  <SelectInput label="GENDER" value={gender} onChange={setGender} options={['Male', 'Female', 'Non-binary', 'Prefer not to say']} />
-                  <FieldInput label="AGE" value={age} onChange={setAge} type="number" placeholder="Your age" />
-                </SectionCard>
-
-                <SectionCard title="ACADEMIC INFORMATION">
-                  <FieldInput label="SCHOOL / INSTITUTION" value={school} onChange={setSchool} placeholder="Your school or college" />
-                  <SelectInput label="CLASS / YEAR" value={classYear} onChange={setClassYear} options={['9th Grade', '10th Grade', '11th Grade', '12th Grade', '1st Year', '2nd Year', '3rd Year', '4th Year']} />
-                  <SelectInput label="COURSE / STREAM" value={course} onChange={setCourse} options={['Engineering', 'Medical', 'Commerce', 'Arts', 'Science', 'Law', 'Other']} />
-                  <FieldInput label="TARGET EXAM" value={targetExam} onChange={setTargetExam} placeholder="e.g. JEE Advanced, NEET, UPSC" />
-                </SectionCard>
-
-                <button onClick={saveProfile}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-                  Save Profile Changes
-                </button>
-              </>
-            )}
-
-            {/* ── ACCOUNT TAB ── */}
-            {activeTab === 'account' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Account</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Manage your login details and security.</p>
-                </div>
-
-                <SectionCard title="CONTACT INFORMATION">
-                  <FieldInput label="EMAIL ADDRESS" value={email} onChange={setEmail} type="email" placeholder="your@email.com" />
-                  <FieldInput label="PHONE NUMBER" value={phone} onChange={setPhone} type="tel" placeholder="+91 00000 00000" />
-                </SectionCard>
-
-                <SectionCard title="SECURITY">
-                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
-                    <input type="password" placeholder="Enter current password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       />
-                  </div>
-                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
-                    <input type="password" placeholder="Enter new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       />
-                  </div>
-                  <div className="py-3.5">
-                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
-                    <input type="password" placeholder="Confirm new password"
-                      className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
-                       />
-                  </div>
-                </SectionCard>
-
-                <SectionCard title="CONNECTED ACCOUNTS">
-                  {[
-                    { name: 'Google', icon: '🔵', connected: true },
-                    { name: 'Discord', icon: '🟣', connected: false },
-                    { name: 'GitHub', icon: '⚫', connected: false },
-                  ].map(acc => (
-                    <div key={acc.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{acc.icon}</span>
-                        <div>
-                          <div className="text-sm font-medium text-slate-200">{acc.name}</div>
-                          <div className="text-[11px]" style={{ color: acc.connected ? '#19D3A2' : '#4E5E84' }}>{acc.connected ? 'Connected' : 'Not connected'}</div>
-                        </div>
-                      </div>
-                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40"
-                        style={{ borderColor: '#1A2845', color: acc.connected ? '#F87171' : '#9B6CFF' }}>
-                        {acc.connected ? 'Disconnect' : 'Connect'}
-                      </button>
-                    </div>
-                  ))}
-                </SectionCard>
-
-                <button onClick={saveProfile}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-                  Save Account Changes
-                </button>
-
-                <div className="rounded-2xl border p-5 bg-[rgba(239,68,68,0.04)] border-[rgba(239,68,68,0.2)]" >
-                  <div className="text-[10px] font-mono tracking-[0.18em] text-red-400 mb-3">DANGER ZONE</div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-red-300">Delete Account</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data.</div>
-                    </div>
-                    <button className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]"
-                      >Delete</button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── NOTIFICATIONS TAB ── */}
-            {activeTab === 'notifications' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Notifications</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Control what alerts you receive.</p>
-                </div>
-                <SectionCard title="STUDY ALERTS">
-                  <SettingRow label="Study Reminders" sub="Get reminded to start your study sessions"><Toggle val={studyReminders} onChange={setStudyReminders} /></SettingRow>
-                  <SettingRow label="Focus Session Alerts" sub="Notified when your focus timer ends"><Toggle val={focusMode} onChange={setFocusMode} /></SettingRow>
-                  <SettingRow label="Streak Alerts" sub="Don't break your study streak"><Toggle val={showStreak} onChange={setShowStreak} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="SOCIAL ALERTS">
-                  <SettingRow label="Battle Invitations" sub="Get notified when someone challenges you"><Toggle val={battleNotifs} onChange={setBattleNotifs} /></SettingRow>
-                  <SettingRow label="Study Room Invites" sub="Notified when friends invite you to rooms"><Toggle val={roomNotifs} onChange={setRoomNotifs} /></SettingRow>
-                  <SettingRow label="Achievements" sub="Get notified for new badges and trophies"><Toggle val={achievementNotifs} onChange={setAchievementNotifs} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="APP SOUNDS">
-                  <SettingRow label="Sound Effects" sub="Play sounds for timers and events"><Toggle val={soundEffects} onChange={setSoundEffects} /></SettingRow>
-                </SectionCard>
-              </>
-            )}
-
-            {/* ── PRIVACY TAB ── */}
-            {activeTab === 'privacy' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Privacy</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Control who can see your data.</p>
-                </div>
-                <SectionCard title="PROFILE VISIBILITY">
-                  <SettingRow label="Public Profile" sub="Anyone on Wynko can see your profile"><Toggle val={profilePublic} onChange={setProfilePublic} /></SettingRow>
-                  <SettingRow label="Show Study Streak" sub="Display your streak on your public profile"><Toggle val={showStreak} onChange={setShowStreak} /></SettingRow>
-                  <SettingRow label="Show Study Stats" sub="Others can see your study hours and progress"><Toggle val={showStats} onChange={setShowStats} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="INTERACTIONS">
-                  <SettingRow label="Allow Battle Invites" sub="Let other users challenge you to battles"><Toggle val={allowBattleInvites} onChange={setAllowBattleInvites} /></SettingRow>
-                  <SettingRow label="Allow Room Invites" sub="Let others invite you to study rooms"><Toggle val={roomNotifs} onChange={setRoomNotifs} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="DATA & PRIVACY">
-                  {[
-                    { label: 'Download My Data', sub: 'Export all your study data and history', action: 'Download' },
-                    { label: 'Clear Study History', sub: 'Remove all session and progress records', action: 'Clear' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
-                      <div>
-                        <div className="text-sm font-medium text-slate-200">{item.label}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{item.sub}</div>
-                      </div>
-                      <button className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060]"
-                        >{item.action}</button>
-                    </div>
-                  ))}
-                </SectionCard>
-              </>
-            )}
-
-            {/* ── STUDY PREFS TAB ── */}
-            {activeTab === 'study' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Study Preferences</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience.</p>
-                </div>
-                <SectionCard title="DAILY GOALS">
-                  <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS)</div>
-                    <div className="flex gap-2 flex-wrap">
-                      {['2', '4', '6', '8', '10', '12'].map(h => (
-                        <button key={h} onClick={() => setDailyGoal(h)}
-                          className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
-                          style={{ background: dailyGoal === h ? '#1A2845' : '#0B1530', color: dailyGoal === h ? '#C4AAFF' : '#4E5E84', borderColor: dailyGoal === h ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
-                          {h}h
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </SectionCard>
-                <SectionCard title="FOCUS SESSION">
-                  <SettingRow label="Auto-start Breaks" sub="Automatically start break timer after focus"><Toggle val={focusMode} onChange={setFocusMode} /></SettingRow>
-                  <SettingRow label="Focus Mode (block distractions)" sub="Lock notifications during focus sessions"><Toggle val={studyReminders} onChange={setStudyReminders} /></SettingRow>
-                  <SettingRow label="Sound during Focus" sub="Play ambient sounds during study sessions"><Toggle val={soundEffects} onChange={setSoundEffects} /></SettingRow>
-                </SectionCard>
-                <SectionCard title="PREFERRED TECHNIQUE">
-                  {[
-                    { name: 'Pomodoro', sub: '25 min focus, 5 min break' },
-                    { name: 'Deep Work', sub: '90 min sessions, longer breaks' },
-                    { name: 'Time Blocking', sub: 'Fixed time slots per subject' },
-                    { name: 'Custom', sub: 'Set your own timer intervals' },
-                  ].map((t, i) => (
-                    <div key={t.name} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]" >
-                      <div>
-                        <div className="text-sm font-medium text-slate-200">{t.name}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
-                      </div>
-                      <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                        style={{ borderColor: i === 0 ? '#7C4DFF' : '#1E3060' }}>
-                        {i === 0 && <div className="w-2 h-2 rounded-full bg-violet-500" />}
-                      </div>
-                    </div>
-                  ))}
-                </SectionCard>
-                <button onClick={saveProfile}
-                  className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
-                  Save Study Preferences
-                </button>
-              </>
-            )}
-
-            {/* ── ABOUT TAB ── */}
-            {activeTab === 'about' && (
-              <>
-                <div>
-                  <h2 className="text-xl font-bold text-white">About Wynko</h2>
-                  <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
-                </div>
-                <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]" >
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
-                  <div className="text-xl font-black text-white mb-1">Wynko</div>
-                  <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
-                  <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
-                </div>
-                <SectionCard title="LEGAL & INFO">
-                  {[
-                    { label: 'Terms of Service', icon: '📄' },
-                    { label: 'Privacy Policy', icon: '🔒' },
-                    { label: 'Licenses', icon: '📋' },
-                    { label: 'Contact Support', icon: '💬' },
-                    { label: 'Rate Wynko ⭐', icon: '🌟' },
-                  ].map(item => (
-                    <button key={item.label} className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]" >
-                      <div className="flex items-center gap-3">
-                        <span className="text-base">{item.icon}</span>
-                        <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
-                      </div>
-                      <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
-                    </button>
-                  ))}
-                </SectionCard>
-              </>
-            )}
-
+            {content}
             <div className="h-6" />
           </div>
         </div>
       </div>
+
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => { if (busy !== 'delete') setDeleteOpen(false) }}>
+          <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[rgba(239,68,68,0.35)] p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-white mb-2">Delete your account?</h2>
+            <p className="text-slate-400 text-sm mb-4">This permanently deletes your profile, study history, plans, battles and everything else tied to your account. It can’t be undone.</p>
+            <div className="text-[10px] text-slate-500 font-mono mb-1.5">TYPE DELETE TO CONFIRM</div>
+            <input value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="DELETE" className={`${ST_INPUT} mb-4`} autoFocus />
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteOpen(false)} disabled={busy === 'delete'} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
+              <button onClick={() => void confirmDelete()} disabled={deleteText !== 'DELETE' || busy === 'delete'}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#DC2626' }}>
+                {busy === 'delete' ? 'Deleting…' : 'Delete forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -9590,13 +9993,14 @@ export default function DesktopDashboard() {
     return () => clearInterval(id)
   }, [authState, activeNav])
 
-  // A real uploaded photo wins over the 6 illustrated presets, same
-  // "resync until touched" pattern as Settings' displayName field -
-  // once someone picks a preset in Settings this session, that choice
-  // sticks even if profile re-fetches.
+  // A preset explicitly saved in Settings (preferences.avatar_preset) wins;
+  // otherwise the real uploaded/OAuth photo; otherwise the default preset.
   useEffect(() => {
-    if (!avatarTouched && profile?.avatarUrl) setUserAvatar(profile.avatarUrl)
-  }, [profile?.avatarUrl, avatarTouched])
+    if (avatarTouched) return
+    const preset = profile?.avatarPreset
+    if (preset !== null && preset !== undefined && AVATAR_OPTIONS[preset]) setUserAvatar(AVATAR_OPTIONS[preset])
+    else if (profile?.avatarUrl) setUserAvatar(profile.avatarUrl)
+  }, [profile?.avatarUrl, profile?.avatarPreset, avatarTouched])
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 
@@ -9786,6 +10190,29 @@ export default function DesktopDashboard() {
     setShowHomeAddTask(false)
   }
 
+  // Removes a Today's Study Plan row from wherever it actually lives: the
+  // live Focus Lock plan (if it's been started/added there) and/or today's
+  // schedule entry (if it came from Schedules) - a row built from either
+  // source, or both, disappears either way.
+  function handleHomeRemoveTask(subject: string, topic: string) {
+    const existing = loadFocusPlanSnapshot()
+    const baseTasks = existing?.tasks ?? focusPlan.tasks
+    const removedTask = baseTasks.find(t => t.subject === subject && t.topic === topic)
+    const nextTasks = baseTasks.filter(t => !(t.subject === subject && t.topic === topic))
+    const activeTaskId = existing?.activeTaskId ?? focusPlan.activeTaskId
+    const wasActive = !!removedTask && removedTask.id === activeTaskId
+    saveFocusPlanSnapshot({
+      tasks: nextTasks,
+      activeTaskId: wasActive ? null : activeTaskId,
+      running: wasActive ? false : (existing?.running ?? false),
+      runningStartedAtMs: wasActive ? null : (existing?.runningStartedAtMs ?? null),
+    })
+    setFocusPlan(prev => ({ tasks: nextTasks, activeTaskId: wasActive ? null : prev.activeTaskId }))
+    setSchedule(prev => prev.map((day, idx) =>
+      idx === todayIdx ? day.filter(s => !(s.subject === subject && (s.topic || s.subject) === topic)) : day
+    ))
+  }
+
   function handleAddUnit(u: StudyUnit) {
     addUnit(u.subject, u.topics)
   }
@@ -9925,6 +10352,7 @@ export default function DesktopDashboard() {
               <TodayStudyPlanCard
                 rows={todayPlanRows}
                 onStartTask={(subject, topic) => goFocus({ subject, topic })}
+                onRemoveTask={handleHomeRemoveTask}
                 onAddTask={() => setShowHomeAddTask(true)}
               />
               <HomeFocusTimerCard
