@@ -1,5 +1,7 @@
 /* RevM² Service Worker — Offline Support */
-const CACHE = 'revm2-v9'; // bumped: was v8. Pages are now served at clean
+const CACHE = 'revm2-v10'; // bumped: was v9 - responsive fixes in style.css
+// and page CSS should reach returning users on their first load.
+// v9 note: was v8. Pages are now served at clean
 // URLs (vercel.json cleanUrls: /tracker, not /tracker.html - the .html
 // forms redirect), so SHELL caches the clean URLs; caching the .html forms
 // would store redirects, which browsers refuse to use for navigations.

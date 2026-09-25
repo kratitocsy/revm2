@@ -701,11 +701,11 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .flex-grid{ grid-template-columns:repeat(2,1fr); }
   .earn-panel{ grid-template-columns:1fr; padding:30px; }
   .foot-grid{ grid-template-columns:1fr 1fr; }
+  /* single-column hero: keep the floating chips inside the viewport */
+  .float-badge-a{ left:0; }
+  .float-badge-b{ right:0; }
 }
 @media (max-width:760px){
-  .nav-links{ display:none; }
-  .nav-toggle{ display:block; }
-  .nav-right .login{ display:none; }
   section{ padding:70px 0; }
   .cards-4,.flex-grid{ grid-template-columns:1fr; }
   .xp-grid{ grid-template-columns:1fr; }
@@ -717,8 +717,33 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   /* keep decorative glow + floating chips from pushing the page wider than the viewport */
   .hero-device-wrap{ overflow:visible; max-width:100%; }
   .hero-device-wrap .halo{ inset:-40px 0; }
-  .float-badge-a{ left:0; }
-  .float-badge-b{ right:0; }
+}
+/* ---------- nav: collapses to a dropdown below 960px (the full row of links doesn't fit) ---------- */
+.lbl-short, .nav-links .nav-mobile-only{ display:none; }
+@media (max-width:960px){
+  .nav{ gap:16px; }
+  .nav-toggle{ display:block; }
+  .nav-right{ gap:12px; }
+  .nav-right .login{ display:none; }
+  .nav-links{
+    display:none; position:absolute; top:100%; left:0; right:0; margin:0;
+    flex-direction:column; align-items:stretch; gap:0; padding:6px 28px 14px;
+    background:rgba(10,10,18,.97); border-bottom:1px solid var(--border);
+  }
+  header.nav-open .nav-links{ display:flex; }
+  .nav-links a{ padding:13px 0; font-size:1rem; border-bottom:1px solid var(--border); }
+  .nav-links a:last-child{ border-bottom:0; }
+  .nav-links a.active::after{ display:none; }
+  .nav-links .nav-mobile-only{ display:block; }
+}
+@media (max-width:480px){
+  header .wrap.nav{ padding:0 18px; }
+  .nav-links{ padding:6px 18px 14px; }
+  .lbl-long{ display:none; }
+  .lbl-short{ display:inline; }
+}
+@media (max-width:360px){
+  .brand-word{ display:none; }
 }
 </style>
 </head>
@@ -731,18 +756,19 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
       <span class="brand-word grad-text">WYNKO</span>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" onclick="if(event.target.closest('a')){const h=this.closest('header');h.classList.remove('nav-open');h.querySelector('.nav-toggle').setAttribute('aria-expanded','false');}">
       <a href="#product" class="active">Product</a>
       <a href="#features">Features</a>
       <a href="#founders">Founders</a>
       <a href="#earn">Earn</a>
       <a href="#reviews">Reviews</a>
       <a href="#faq">FAQ</a>
+      <a class="nav-mobile-only" href="/login">Log in</a>
     </nav>
     <div class="nav-right">
       <a class="login" href="/login">Log in</a>
-      <a class="btn btn-primary btn-sm" href="downloads/">Download Desktop App</a>
-      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display=(getComputedStyle(document.querySelector('.nav-links')).display==='none'?'flex':'none')">&#9776;</button>
+      <a class="btn btn-primary btn-sm" href="downloads/"><span class="lbl-long">Download Desktop App</span><span class="lbl-short">Download</span></a>
+      <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.closest('header').classList.toggle('nav-open'))">&#9776;</button>
     </div>
   </div>
 </header>
