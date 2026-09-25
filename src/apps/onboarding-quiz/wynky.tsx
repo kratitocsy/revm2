@@ -223,6 +223,39 @@ export function playHero(
   };
 }
 
+/**
+ * The language-select screen's static "Hii!" hero - a single flattened
+ * image (her wave pose + speech bubble + a W-wave squiggle baked in) shown
+ * unclipped over the usual circular glow ring, so the bubble spills past
+ * the ring's edge exactly like the reference mock. Not a WynkyHero: no
+ * video, no voice, nothing to play - just a picture, replaced any time a
+ * new one is dropped in (see wynky-hii.webp).
+ */
+export function WynkyHiiHero({ src }: { src: string }) {
+  return (
+    <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
+      <div
+        style={{
+          position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
+          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 999,
+          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
+          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+        }}
+      />
+      <img
+        src={src}
+        alt="Wynky waving and saying Hii"
+        style={{ position: 'absolute', width: '117.6%', maxWidth: 'none', left: '5.3%', top: '-9.7%', pointerEvents: 'none', userSelect: 'none' }}
+      />
+    </div>
+  );
+}
+
 export function SpeechBubble({ text, lang, compact = false }: { text: string; lang: Lang; compact?: boolean }) {
   const [n, setN] = useState(0);
   useEffect(() => {

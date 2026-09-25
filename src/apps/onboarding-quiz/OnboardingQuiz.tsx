@@ -26,7 +26,7 @@ import {
   type QuizSupabaseClient,
   type StudyDnaResult,
 } from '../_shared/quizPersistence';
-import { SpeechBubble, WynkyHero, WynkyStage, playHero, sfx, speak, type Expression, type Lang, type Line } from './wynky';
+import { SpeechBubble, WynkyHero, WynkyHiiHero, WynkyStage, playHero, sfx, speak, type Expression, type Lang, type Line } from './wynky';
 import {
   INTRO,
   OPTION_LABELS_HI,
@@ -40,6 +40,7 @@ import {
 } from './quizCopy';
 import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
+import wynkyHiiImg from './imports/wynky-hii.webp';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 /*
@@ -671,7 +672,9 @@ export default function OnboardingQuiz() {
         <main className="wq-main">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
-            {phase === 'lang' || phase === 'intro' ? (
+            {phase === 'lang' ? (
+              <WynkyHiiHero src={wynkyHiiImg} />
+            ) : phase === 'intro' ? (
               <WynkyHero src={wynkyHelloVideo} videoRef={heroRef} />
             ) : (
               <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase || phase === 'profile' ? 'small' : 'large'} />
@@ -689,7 +692,7 @@ export default function OnboardingQuiz() {
                   Choose the language Wynky talks to you in.
                 </p>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
-                  <OptionChip label="हिंदी · Hindi" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
+                  <OptionChip label="हिंदी" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
                   <OptionChip label="English" on={langPick === 'en'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('en'); }} />
                 </div>
                 <PrimaryButton
