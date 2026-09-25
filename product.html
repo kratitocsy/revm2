@@ -584,9 +584,33 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 }
 .founders-dots button.active{ background:var(--violet-2); width:20px; border-radius:4px; }
 
+/* Prev / next arrows (desktop only) — sit in the stage's side gutters */
+.founders-stage{ position:relative; }
+.founders-arrow{
+  position:absolute; top:50%; z-index:2; width:46px; height:46px; margin-top:-23px; padding:0;
+  display:none; place-items:center; border-radius:50%; cursor:pointer;
+  border:1px solid var(--border-2); background:rgba(14,14,24,.85); color:#fff;
+  backdrop-filter:blur(10px); box-shadow:0 10px 30px -10px rgba(0,0,0,.6);
+  transition:opacity .25s, background .2s, border-color .2s;
+}
+.founders-arrow:hover{ background:rgba(124,77,255,.25); border-color:var(--violet-2); }
+.founders-arrow:focus-visible{ outline:2px solid var(--violet-2); outline-offset:3px; }
+.founders-arrow svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.founders-arrow.prev{ left:0; }
+.founders-arrow.next{ right:0; }
+.founders-arrow[disabled]{ opacity:0; pointer-events:none; }
+
 /* Desktop / tablet — 2 cards per slide, exactly 2 slides */
 @media (min-width:769px){
   .founder-tile{ flex:0 0 50%; }
+  .founders-stage{ padding:0 58px; }
+  .founders-arrow{ display:grid; }
+}
+/* Wide screens have room for the arrows outside the cards */
+@media (min-width:1320px){
+  .founders-stage{ padding:0; }
+  .founders-arrow.prev{ left:-64px; }
+  .founders-arrow.next{ right:-64px; }
 }
 @media (min-width:769px) and (max-width:999px){
   .founder-photo{ aspect-ratio:16/9; }
@@ -1096,8 +1120,12 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <p class="lead">Wynko is being built by a team that understands the pressure, distractions, and discipline behind serious preparation — and wants to make the journey more focused, consistent, and connected.</p>
     </div>
 
-    <div class="founders reveal" id="foundersCarousel">
-      <div class="founders-track" id="foundersTrack"></div>
+    <div class="founders-stage reveal">
+      <button class="founders-arrow prev" id="foundersPrev" type="button" aria-label="Previous founders"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="founders" id="foundersCarousel">
+        <div class="founders-track" id="foundersTrack"></div>
+      </div>
+      <button class="founders-arrow next" id="foundersNext" type="button" aria-label="More founders"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
     <div class="founders-dots" id="foundersDots"></div>
   </div>
@@ -1391,11 +1419,10 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       '</div></div></div>';
   }
 
+  const prevBtn = document.getElementById('foundersPrev');
+  const nextBtn = document.getElementById('foundersNext');
   const mq = window.matchMedia('(min-width: 769px)');
-  let autoplayTimer = null;
   let cleanupFns = [];
-
-  function stopAutoplay(){ if(autoplayTimer){ clearInterval(autoplayTimer); autoplayTimer = null; } }
 
   function addCleanup(el, evt, fn, opts){
     el.addEventListener(evt, fn, opts);
@@ -1403,14 +1430,15 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   }
 
   function teardown(){
-    stopAutoplay();
     cleanupFns.forEach(fn=>fn());
     cleanupFns = [];
     track.style.transition = 'none';
     track.style.transform = 'none';
   }
 
-  /* ---- Desktop / tablet: 2 cards per slide, exactly 2 slides ---- */
+  /* ---- Desktop / tablet: 2 cards per slide, exactly 2 slides.
+     Opens on the Founder & CTO + Co-founder & CEO slide and only moves
+     when the visitor uses the arrows, dots or a swipe (no autoplay). ---- */
   function setupDesktop(){
     track.innerHTML = FOUNDERS.map(tileHTML).join('');
     dotsWrap.innerHTML = ['1','2'].map((_,i)=>'<button data-i="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>').join('');
@@ -1425,32 +1453,27 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       track.style.transition = withTransition !== false ? 'transform .6s cubic-bezier(.22,.61,.36,1)' : 'none';
       track.style.transform = 'translateX(' + (-(page * viewW)) + 'px)';
       dots.forEach((d,i)=> d.classList.toggle('active', i===page));
+      if(prevBtn) prevBtn.disabled = page === 0;
+      if(nextBtn) nextBtn.disabled = page === 1;
     }
 
-    function goTo(p){ page = ((p % 2) + 2) % 2; render(true); }
-    function next(){ goTo(page+1); }
-    function start(){ stopAutoplay(); autoplayTimer = setInterval(next, 4500); }
+    function goTo(p){ page = Math.max(0, Math.min(1, p)); render(true); }
 
     computeWidth();
     render(false);
-    start();
 
     addCleanup(window, 'resize', ()=>{ computeWidth(); render(false); });
-    addCleanup(viewport, 'mouseenter', stopAutoplay);
-    addCleanup(viewport, 'mouseleave', start);
+    if(prevBtn) addCleanup(prevBtn, 'click', ()=> goTo(page-1));
+    if(nextBtn) addCleanup(nextBtn, 'click', ()=> goTo(page+1));
 
     dots.forEach(dot=>{
-      addCleanup(dot, 'click', ()=>{
-        stopAutoplay();
-        goTo(parseInt(dot.dataset.i, 10));
-        setTimeout(start, 2500);
-      });
+      addCleanup(dot, 'click', ()=> goTo(parseInt(dot.dataset.i, 10)));
     });
 
     let isDown = false, startX = 0, curX = 0;
-    const onDown = (e)=>{ isDown = true; startX = (e.touches?e.touches[0].clientX:e.clientX); curX = startX; stopAutoplay(); track.style.transition = 'none'; };
+    const onDown = (e)=>{ isDown = true; startX = (e.touches?e.touches[0].clientX:e.clientX); curX = startX; track.style.transition = 'none'; };
     const onMove = (e)=>{ if(!isDown) return; curX = (e.touches?e.touches[0].clientX:e.clientX); const delta = curX - startX; track.style.transform = 'translateX(' + (-(page*viewW) + delta) + 'px)'; };
-    const onUp = ()=>{ if(!isDown) return; isDown = false; const delta = curX - startX; const threshold = viewW * 0.15; if(delta > threshold) goTo(page-1); else if(delta < -threshold) goTo(page+1); else render(true); setTimeout(start, 2500); };
+    const onUp = ()=>{ if(!isDown) return; isDown = false; const delta = curX - startX; const threshold = viewW * 0.15; if(delta > threshold) goTo(page-1); else if(delta < -threshold) goTo(page+1); else render(true); };
 
     addCleanup(viewport, 'touchstart', onDown, {passive:true});
     addCleanup(viewport, 'touchmove', onMove, {passive:true});
