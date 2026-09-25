@@ -26,7 +26,7 @@ import {
   type QuizSupabaseClient,
   type StudyDnaResult,
 } from '../_shared/quizPersistence';
-import { SpeechBubble, WynkyHero, WynkyStage, sfx, speak, type Expression, type Lang, type Line } from './wynky';
+import { SpeechBubble, WynkyHero, WynkyStage, playHero, sfx, speak, type Expression, type Lang, type Line } from './wynky';
 import {
   INTRO,
   OPTION_LABELS_HI,
@@ -254,6 +254,8 @@ interface SpeechEntry {
   line: Line;
   after?: () => void;
   cancel: () => void;
+  /** Set while the hello clip itself is the voice: mute/unmute it in place. */
+  setVoice?: (on: boolean) => void;
 }
 
 type UsernameState = { state: 'idle' | 'checking' | 'ok' | 'bad'; message: string | null };
@@ -288,22 +290,45 @@ export default function OnboardingQuiz() {
   const langRef = useRef(lang);
   const mutedRef = useRef(muted);
   const speech = useRef<SpeechEntry | null>(null);
+  const heroRef = useRef<HTMLVideoElement>(null);
   const checkSeq = useRef(0);
   const t = TEXT[lang];
 
   // `after` runs once, when the line finishes. Re-speaking the same line
   // (language switch, mute) carries over an `after` that hasn't run yet.
+  //
+  // The hello (INTRO) is tied to the hello clip on screen: in Hindi the
+  // clip's own soundtrack is her voice (lip-synced), so it plays with sound;
+  // in English the clip plays muted, starting the moment the voice does.
   const say = useCallback((ln: Line, after?: () => void) => {
     speech.current?.cancel();
     const entry: SpeechEntry = { line: ln, after, cancel: () => {} };
     speech.current = entry;
     const l = langRef.current;
-    entry.cancel = speak(ln, l, mutedRef.current, () => setSpeaking(true), () => {
+    const onStart = () => setSpeaking(true);
+    const onEnd = () => {
       setSpeaking(false);
       const cb = entry.after;
       entry.after = undefined;
       cb?.();
-    });
+    };
+    const hero = ln === INTRO ? heroRef.current : null;
+    if (hero && l === 'hi') {
+      const clip = playHero(hero, !mutedRef.current, onStart, onEnd);
+      entry.cancel = clip.stop;
+      entry.setVoice = clip.setVoice;
+      return;
+    }
+    if (hero) {
+      let clip: ReturnType<typeof playHero> | null = null;
+      const cancelVoice = speak(ln, l, mutedRef.current, () => {
+        onStart();
+        clip = playHero(hero, false, () => {}, () => {});
+      }, onEnd);
+      entry.cancel = () => { cancelVoice(); clip?.stop(); };
+      return;
+    }
+    entry.cancel = speak(ln, l, mutedRef.current, onStart, onEnd);
   }, []);
 
   const resay = useCallback(() => {
@@ -411,7 +436,8 @@ export default function OnboardingQuiz() {
     setMuted(m);
     mutedRef.current = m;
     writePref(MUTED_KEY, m ? '1' : '0');
-    if (m && speech.current && (speaking || speech.current.after)) resay();
+    if (speech.current?.setVoice) speech.current.setVoice(!m);
+    else if (m && speech.current && (speaking || speech.current.after)) resay();
   };
 
   const fail = (message: string, signedOut: boolean) => {
@@ -646,7 +672,7 @@ export default function OnboardingQuiz() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
             {phase === 'lang' || phase === 'intro' ? (
-              <WynkyHero src={wynkyHelloVideo} />
+              <WynkyHero src={wynkyHelloVideo} videoRef={heroRef} />
             ) : (
               <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase || phase === 'profile' ? 'small' : 'large'} />
             )}

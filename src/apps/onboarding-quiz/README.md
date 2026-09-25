@@ -15,8 +15,9 @@ Same build model as `src/apps/mobile-home` and `src/apps/desktop-dashboard`
 ## Files
 
 - `OnboardingQuiz.tsx` — the flow: start → intro → questions → saving → result.
-- `wynky.tsx` — `WynkyStage` (looping video clips), `SpeechBubble` (typewriter),
-  `speak()` (Web Speech, recorded voice-over is a future swap — see below),
+- `wynky.tsx` — `WynkyStage` (looping video clips), `WynkyHero` + `playHero()`
+  (the hello clip, played in step with her voice), `SpeechBubble` (typewriter),
+  `speak()` (recorded voice-over file, else Web Speech — see below),
   `sfx()` (WebAudio beeps, no files).
 - `quizCopy.ts` — Wynky's lines: the hello, each question (English text and
   Wynky's Hindi line, verbatim) and Hindi labels for every option. The
@@ -49,22 +50,40 @@ npm run build:onboarding-quiz   # builds Tailwind CSS, then the bundle —
 
 ## Voice
 
-`speak()` in `wynky.tsx` tries a recorded voice-over file first —
-`/audio/wynky/{lang}/{lineId}.mp3` (line ids: `intro`, `reaction_1..4`,
+**The hello (language → "Meet Wynky" screens)** is tied to
+`imports/wynky-hello.mp4`, which has Wynky's Hindi hello baked into its own
+soundtrack, lip-synced (`/audio/wynky/hi/intro.mp3` is that same recording,
+cut from 1.05s into the clip). The clip holds a still on the language
+screen; tapping "Let's go" plays it once (`playHero()` in `wynky.tsx`) from
+0.7s and holds it at 9.5s, just before its fade to black:
+
+- Hindi: the clip plays **with its own sound**, so voice and lips come
+  from one media element and can't drift apart (even if it's still
+  buffering, both wait together).
+- English: the clip plays muted, started the moment the English voice
+  starts (a recorded `/audio/wynky/en/intro.mp3` if one is added, else
+  browser TTS). Lips won't match English words — that needs an English
+  version of the clip.
+- Mute/unmute mid-hello just toggles the clip's sound; "Hear Wynky again"
+  replays it.
+
+**Every other line**: `speak()` in `wynky.tsx` tries a recorded voice-over
+file first — `/audio/wynky/{lang}/{lineId}.mp3` (line ids: `reaction_1..4`,
 each question id `q1..q5`, `saving`, `save_failed`,
 `result_{archetype-slug}`, e.g. `result_dawn-warrior`) — and falls back to
-`speechSynthesis` (browser TTS) transparently on a 404/load error or if it
-doesn't start within ~1.2s. No recordings exist yet, so every line
-currently falls back; **dropping real files into that path is a
-content-only change, no code edit needed.** A failed URL is remembered for
-the session so repeat lines skip straight to the fallback instead of
-re-requesting a file that's already 404'd. Muted skips both and just times
-the (silent) bubble reveal off text length.
+`speechSynthesis` (browser TTS) on a 404/load error or if it doesn't start
+within ~2.5s. When it falls back, the file is stopped for good first, so a
+slow recording can never play on top of the TTS voice. No recordings exist
+for these yet, so they all use the fallback; **dropping real files into
+that path is a content-only change, no code edit needed.** A failed URL is
+remembered for the session so repeat lines skip straight to the fallback.
+Muted skips both and just times the (silent) bubble reveal off text length.
 
 ## Status
 
-Wired into `onboarding.html`'s finish step. No recorded voice-over files
-exist yet, so it runs on the Web Speech fallback (see Voice above). The
+Wired into `onboarding.html`'s finish step. Only the Hindi hello has a real
+voice (the hello clip's soundtrack); everything else runs on the Web Speech
+fallback (see Voice above). The
 after-session channel-learning features from later build-plan steps are
 separate, unbuilt pieces of the wider quiz-bot spec
 (`Wynko_Quiz_Bot_Schedule_Plan.pdf`, steps 6–9).
