@@ -88,6 +88,8 @@ const ICON_PATHS = {
   arrow: '<path d="M9 5l7 7-7 7"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   chart: '<path d="M4 20V4"/><path d="M4 20h16"/><rect x="7" y="12" width="3" height="5" rx="1"/><rect x="12" y="8" width="3" height="9" rx="1"/><rect x="17" y="5" width="3" height="12" rx="1"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
+  unlock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.7-1.5"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 function icon(name){
@@ -140,7 +142,7 @@ function avatar(p, big){
   return `<div class="${cls}">${esc(letter)}</div>`;
 }
 const EVENT_LABELS = { ad_impression:'Ads', premium_conversion:'Premium', store_purchase:'Store & coins', refund:'Refunds' };
-const KIND_LABELS = { user:'Account', community:'Community', room:'Study room', group_message:'Chat message', dm_message:'Direct message', announcement:'Announcement', material:'Material' };
+const KIND_LABELS = { app:'App access', user:'Account', community:'Community', room:'Study room', group_message:'Chat message', dm_message:'Direct message', announcement:'Announcement', material:'Material' };
 const REMOVABLE = new Set(['group_message','dm_message','announcement','material','community','room']);
 
 /* ── Data ──────────────────────────────────────────────── */
@@ -164,6 +166,7 @@ const cache = { people: new Map(), content: new Map(), communities: new Map(), p
 /* ── Views ─────────────────────────────────────────────── */
 const VIEWS = [
   { id:'overview',    label:'Overview',         group:'CONTROL', icon:'grid',   render: renderOverview },
+  { id:'access',      label:'App access',       group:'CONTROL', icon:'lock',   render: renderAccess },
   { id:'wynkoheads',  label:'WynkoHeads',       group:'PROGRAM', icon:'badge',  render: renderWynkoheads, badge:'wh' },
   { id:'communities', label:'Communities',      group:'PROGRAM', icon:'users',  render: renderCommunities },
   { id:'revenue',     label:'Revenue',          group:'MONEY',   icon:'rupee',  render: renderRevenue },
@@ -241,7 +244,7 @@ function greeting(){
 }
 
 async function renderOverview(el){
-  const o = await loadOverview();
+  const [o, access] = await Promise.all([loadOverview(), rpc('owner_app_access').catch(() => null)]);
   if(current !== 'overview') return;
   const first = (me.full_name || me.username || '').split(' ')[0];
   const attention = [
@@ -257,6 +260,7 @@ async function renderOverview(el){
           <div class="ow-hero-title">${esc(greeting())}${first ? ', ' + esc(first) : ''} · <span>Owner Control</span></div>
           <div class="ow-hero-sub">Everything across Wynko, live · updated ${esc(new Date(o.generated_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}))}</div>
         </div>
+        ${access ? `<div class="ow-right"><button class="ow-btn sm" type="button" data-go="access">${icon(access.invite_only ? 'lock' : 'unlock')}${access.invite_only ? 'Invite-only' : 'Open to everyone'}</button></div>` : ''}
       </div>
       <div class="ow-kpis big">
         ${kpi('Total users', num(o.users.total), `+${num(o.users.new_7d)} this week`, 'cyan')}
@@ -767,6 +771,82 @@ function contentRow(c){
     </div>`;
 }
 
+/* ── App access (invite-only switch) ───────────────────── */
+async function renderAccess(el){
+  const a = await rpc('owner_app_access');
+  if(current !== 'access') return;
+  const closed = a.invite_only;
+  const list = a.allowlist || [];
+  el.innerHTML = `
+    <div class="ow-card glow">
+      <div class="ow-card-head" style="margin-bottom:18px;">
+        <div class="ow-card-icon ${closed ? 'violet' : 'teal'}">${icon(closed ? 'lock' : 'unlock')}</div>
+        <div>
+          <div class="ow-hero-title" style="font-size:1.35rem;">${closed ? 'Invite-only' : '<span>Open to everyone</span>'}</div>
+          <div class="ow-hero-sub">${closed
+            ? `Only the ${list.length} accounts below can sign up, sign in or stay signed in. Everyone else is turned away by the server.`
+            : 'Anyone can sign up and sign in.'}</div>
+        </div>
+        <div class="ow-right">
+          ${closed
+            ? `<button class="ow-btn primary" type="button" data-act="access-set" data-v="open">${icon('unlock')}Open Wynko to everyone</button>`
+            : `<button class="ow-btn solid-danger" type="button" data-act="access-set" data-v="closed">${icon('lock')}Make invite-only</button>`}
+        </div>
+      </div>
+      <div class="ow-kpis">
+        ${kpi('Allowed accounts', num(closed ? list.length : a.other_accounts + list.filter(x => x.has_account).length), closed ? 'on the allowlist' : 'everyone', closed ? '' : 'teal')}
+        ${kpi('Other accounts', num(a.other_accounts), closed ? "can't sign in" : 'can sign in', closed ? 'red' : 'cyan')}
+        ${kpi('Others signed in now', num(a.other_signed_in), closed ? 'should be 0' : '', 'amber')}
+        ${kpi('Last changed', a.updated_at ? esc(ago(a.updated_at)) : '—', a.updated_by ? 'by ' + esc(a.updated_by) : '')}
+      </div>
+    </div>
+
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon violet">${icon('shield')}</div>
+        <div><div class="ow-card-title">Allowlist</div><div class="ow-card-sub">Who can sign in while Wynko is invite-only. Changing it is a database change (app_allowlist_emails); owners are always allowed.</div></div>
+      </div>
+      <div class="ow-list">
+        ${list.map(x => `
+          <div class="ow-row">
+            <div class="ow-who">${avatar({ username: x.username, email: x.email })}<div style="min-width:0;">
+              <div class="ow-who-name">${esc(x.email)} ${x.is_owner ? '<span class="ow-tag violet">Owner</span>' : ''} ${!x.has_account ? '<span class="ow-tag amber">No account yet</span>' : !x.confirmed ? '<span class="ow-tag amber">Email not confirmed</span>' : '<span class="ow-tag teal">Can sign in</span>'}</div>
+              <div class="ow-who-sub">${x.username ? '@' + esc(x.username) : '—'}</div>
+            </div></div>
+            <div class="ow-facts"><div class="ow-fact"><div class="ow-fact-k">Last active</div><div class="ow-fact-v">${ago(x.last_active_at)}</div></div></div>
+          </div>`).join('')}
+      </div>
+      <p class="ow-note" style="margin:14px 0 0;"><b>How it's enforced:</b> while invite-only, Supabase Auth itself refuses new accounts for any other email and refuses to sign in or refresh any other account — email/password, Google and Telegram alike. Making Wynko invite-only again signs every other account out immediately.</p>
+    </div>`;
+}
+
+function openAccessChange(toClosed){
+  rpc('owner_app_access').then(a => {
+    openModal({
+      title: toClosed ? 'Make Wynko invite-only?' : 'Open Wynko to everyone?',
+      confirm: toClosed ? `${icon('lock')}Make invite-only` : `${icon('unlock')}Open to everyone`,
+      confirmClass: toClosed ? 'solid-danger' : 'primary',
+      body: toClosed
+        ? `<p>Only the ${(a.allowlist || []).length} allowlisted accounts will be able to sign up or sign in.</p>
+           <ul class="ow-effects">
+             <li>${num(a.other_signed_in)} signed-in account${a.other_signed_in == 1 ? '' : 's'} outside the list will be signed out now</li>
+             <li>${num(a.other_accounts)} other account${a.other_accounts == 1 ? '' : 's'} won't be able to sign in (their data is kept)</li>
+             <li>New sign-ups are refused</li>
+           </ul>`
+        : `<p>Anyone will be able to create an account and sign in.</p>
+           <ul class="ow-effects">
+             <li>New sign-ups are accepted (email, Google, Telegram)</li>
+             <li>${num(a.other_accounts)} existing account${a.other_accounts == 1 ? '' : 's'} outside the owner list can sign in again</li>
+           </ul>`,
+      onConfirm: async () => {
+        const res = await rpc('owner_set_app_access', { p_invite_only: toClosed });
+        toast(toClosed ? `Wynko is invite-only${res.signed_out ? ` · ${res.signed_out} signed out` : ''}.` : 'Wynko is open to everyone.', 'good');
+        afterAction();
+      },
+    });
+  }).catch(err => toast(err.message, 'bad'));
+}
+
 /* ── Banned accounts ───────────────────────────────────── */
 async function renderBans(el){
   const rows = await rpc('owner_list_bans');
@@ -814,7 +894,8 @@ async function renderBans(el){
 async function renderLog(el){
   const rows = await rpc('owner_recent_actions', { p_limit: 200 });
   if(current !== 'log') return;
-  const tag = a => a === 'ban' ? '<span class="ow-tag red">Ban</span>' : a === 'unban' ? '<span class="ow-tag teal">Unban</span>' : '<span class="ow-tag amber">Removed</span>';
+  const tag = a => a === 'ban' ? '<span class="ow-tag red">Ban</span>' : a === 'unban' ? '<span class="ow-tag teal">Unban</span>'
+    : a === 'access' ? '<span class="ow-tag violet">Access</span>' : '<span class="ow-tag amber">Removed</span>';
   el.innerHTML = `
     <div class="ow-card">
       <div class="ow-card-head">
@@ -830,7 +911,7 @@ async function renderLog(el){
             <div class="ow-who" style="flex:3 1 320px;">
               <div style="min-width:0;">
                 <div class="ow-who-name">${tag(a.action)} ${esc(a.target_label || '—')} <span class="ow-tag">${esc(KIND_LABELS[a.target_kind] || a.target_kind)}</span></div>
-                <div class="ow-who-sub">by ${esc(a.actor_label || 'unknown')} · ${dateTime(a.created_at)}${a.action === 'ban' ? (d.expires_at ? ' · until ' + esc(date(d.expires_at)) : ' · permanent') : ''}${d.messages_removed ? ' · ' + num(d.messages_removed) + ' messages removed' : ''}</div>
+                <div class="ow-who-sub">by ${esc(a.actor_label || 'unknown')} · ${dateTime(a.created_at)}${a.action === 'ban' ? (d.expires_at ? ' · until ' + esc(date(d.expires_at)) : ' · permanent') : ''}${d.messages_removed ? ' · ' + num(d.messages_removed) + ' messages removed' : ''}${d.signed_out ? ' · ' + num(d.signed_out) + ' signed out' : ''}</div>
               </div>
             </div>
             ${a.reason ? `<div class="ow-excerpt">${esc(a.reason)}</div>` : ''}
@@ -1044,7 +1125,7 @@ function openRejectPayout(id){
 // After any change: redraw the current view and the nav counts.
 function afterAction(){
   if(current === 'moderation'){ refreshBadges(); runSearch(); }
-  else if(current === 'overview' || current === 'revenue') show(current);
+  else if(current === 'overview' || current === 'revenue' || current === 'access') show(current);
   else { refreshBadges(); show(current); }
 }
 
@@ -1070,6 +1151,7 @@ document.getElementById('owView').addEventListener('click', e => {
   else if(act === 'rev-window') { state.revWindow = b.dataset.v; show('revenue'); }
   else if(act === 'rev-table') { state.revTable = !state.revTable; show('revenue'); }
   else if(act === 'bans-filter') { state.bansAll = b.dataset.v === 'all'; show('bans'); }
+  else if(act === 'access-set') openAccessChange(b.dataset.v === 'closed');
 });
 
 /* ── Boot ──────────────────────────────────────────────── */

@@ -1,133 +1,91 @@
 import { describe, it, expect, vi } from 'vitest';
-import { completeQuiz, type QuizSupabaseClient } from './quizPersistence';
+import { checkUsername, finishOnboarding, submitStudyDna, suggestUsername, type QuizSupabaseClient } from './quizPersistence';
 import type { QuizAnswers } from './quizEngine';
 
-const COMPLETE_ANSWERS: QuizAnswers = {
-  exam: 'JEE',
-  student_type: '12th',
-  fixed_commitment_type: 'school_and_coaching',
-  focus_time: 'after_9pm',
-  daily_hours: '6-7',
-  distractions: ['instagram'],
-  study_mode: 'books',
+const ANSWERS: QuizAnswers = {
+  day_type: 'school_coaching',
+  daily_hours: '4-6',
+  distractions: ['procrastination'],
+  study_style: ['books', 'practice'],
+  challenges: ['consistency'],
 };
 
-function mockSupabase(opts: {
-  usernameTakenAlways?: boolean;
-  rpcImpl?: QuizSupabaseClient['rpc'];
-}): QuizSupabaseClient {
-  return {
-    from: () => ({
-      select: () => ({
-        eq: async () => ({ count: opts.usernameTakenAlways ? 1 : 0, error: null }),
-      }),
-    }),
-    rpc: opts.rpcImpl ?? (async () => ({
-      data: { archetype: 'Night Owl', username: 'nightowl42', coins_awarded: 115, is_first_time: true },
-      error: null,
-    })),
-  };
+function client(rpc: QuizSupabaseClient['rpc']): QuizSupabaseClient {
+  return { rpc };
 }
 
-describe('completeQuiz', () => {
-  it('happy path: generates a username, calls the RPC, returns coin/first-time info', async () => {
+describe('submitStudyDna', () => {
+  it('sends the answers with the scored archetype and returns the server-side reward', async () => {
     const rpc = vi.fn().mockResolvedValue({
-      data: { archetype: 'Night Owl', username: 'nightowl42', coins_awarded: 115, is_first_time: true },
+      data: { archetype: 'Focus Seeker', answered: 5, coins_awarded: 50, is_first_time: true, balance: 50 },
       error: null,
     });
-    const supabase = mockSupabase({ rpcImpl: rpc });
-
-    const result = await completeQuiz(supabase, COMPLETE_ANSWERS);
-
-    expect(result.archetype).toBe('Night Owl');
-    expect(result.coinsAwarded).toBe(115);
-    expect(result.isFirstTime).toBe(true);
-    expect(result.storedUsername).toBe('nightowl42');
-    expect(result.displayUsername).not.toBeNull();
-
-    // The RPC was called with a lowercase username and the raw answers/archetype.
-    expect(rpc).toHaveBeenCalledWith(
-      'rpc_complete_quiz',
-      expect.objectContaining({
-        p_archetype: 'Night Owl',
-        p_quiz_answers: COMPLETE_ANSWERS,
-        p_username: expect.stringMatching(/^[a-z0-9]+$/),
-      })
-    );
+    const r = await submitStudyDna(client(rpc), ANSWERS);
+    expect(rpc).toHaveBeenCalledWith('rpc_submit_study_dna', { p_quiz_answers: ANSWERS, p_archetype: 'Focus Seeker' });
+    expect(r).toEqual({ archetype: 'Focus Seeker', answered: 5, coinsAwarded: 50, isFirstTime: true, balance: 50 });
   });
 
-  it('shows the mixed-case generated username when that is what the RPC stored', async () => {
-    const rpc = vi.fn().mockImplementation(async (_fn: string, args: Record<string, unknown>) => ({
-      data: { archetype: 'Night Owl', username: args.p_username, coins_awarded: 115, is_first_time: true },
-      error: null,
+  it('throws the server error message', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'The Study DNA quiz was skipped for this account' } });
+    await expect(submitStudyDna(client(rpc), ANSWERS)).rejects.toThrow('skipped');
+  });
+});
+
+describe('checkUsername', () => {
+  it('rejects a badly formed username without asking the server', async () => {
+    const rpc = vi.fn();
+    const r = await checkUsername(client(rpc), '_x');
+    expect(r.available).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('asks the server whether a well-formed username is free', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { username: 'focusseeker42', available: true, message: null }, error: null });
+    const r = await checkUsername(client(rpc), 'focusseeker42');
+    expect(rpc).toHaveBeenCalledWith('rpc_check_username', { p_username: 'focusseeker42' });
+    expect(r.available).toBe(true);
+  });
+});
+
+describe('suggestUsername', () => {
+  it('suggests a lowercase Study DNA username for quiz finishers', async () => {
+    const rpc = vi.fn(async (_fn: string, args: Record<string, unknown>) => ({
+      data: { username: args.p_username, available: true, message: null }, error: null,
     }));
-    const result = await completeQuiz(mockSupabase({ rpcImpl: rpc }), COMPLETE_ANSWERS);
-    expect(result.displayUsername).toMatch(/^NightOwl\d{2}$/);
-    expect(result.storedUsername).toBe(result.displayUsername!.toLowerCase());
+    const u = await suggestUsername(client(rpc), { archetype: 'Focus Seeker', name: 'Rohan' });
+    expect(u).toMatch(/^focusseeker\d{2}$/);
   });
 
-  it('shows the existing username, not the generated one, when the account already had one', async () => {
-    const supabase = mockSupabase({
-      rpcImpl: async () => ({
-        data: { archetype: 'Night Owl', username: 'aryan_s', coins_awarded: 115, is_first_time: true },
-        error: null,
-      }),
-    });
-    const result = await completeQuiz(supabase, COMPLETE_ANSWERS);
-    expect(result.displayUsername).toBe('aryan_s');
-    expect(result.storedUsername).toBe('aryan_s');
+  it('suggests a name-based username for people who skipped the quiz', async () => {
+    const rpc = vi.fn(async (_fn: string, args: Record<string, unknown>) => ({
+      data: { username: args.p_username, available: true, message: null }, error: null,
+    }));
+    const u = await suggestUsername(client(rpc), { name: 'Rohan Mehta' });
+    expect(u).toMatch(/^rohan\d{3}$/);
   });
 
-  it('retakes (isFirstTime=false) still return successfully with zero coins', async () => {
-    const supabase = mockSupabase({
-      rpcImpl: async () => ({
-        data: { archetype: 'Balanced Planner', username: 'existinguser', coins_awarded: 0, is_first_time: false },
-        error: null,
-      }),
+  it('tries another candidate when the first one is taken', async () => {
+    let calls = 0;
+    const rpc = vi.fn(async (_fn: string, args: Record<string, unknown>) => {
+      calls++;
+      return { data: { username: args.p_username, available: calls > 1, message: calls > 1 ? null : 'That username is already taken.' }, error: null };
     });
-    const result = await completeQuiz(supabase, COMPLETE_ANSWERS);
-    expect(result.coinsAwarded).toBe(0);
-    expect(result.isFirstTime).toBe(false);
+    const u = await suggestUsername(client(rpc), { name: 'Rohan' });
+    expect(calls).toBe(2);
+    expect(u).toMatch(/^rohan\d{3}$/);
+  });
+});
+
+describe('finishOnboarding', () => {
+  it('saves name, exam and username through the RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { username: 'rohan347' }, error: null });
+    const r = await finishOnboarding(client(rpc), { fullName: 'Rohan Mehta', exam: 'JEE', username: 'rohan347' });
+    expect(rpc).toHaveBeenCalledWith('rpc_finish_onboarding', { p_full_name: 'Rohan Mehta', p_exam: 'JEE', p_username: 'rohan347' });
+    expect(r.username).toBe('rohan347');
   });
 
-  it('retries once with no username on a username_taken race, and succeeds', async () => {
-    let callCount = 0;
-    const rpc = vi.fn().mockImplementation(async (_fn: string, args: Record<string, unknown>) => {
-      callCount++;
-      if (callCount === 1) {
-        expect(args.p_username).not.toBeNull();
-        return { data: null, error: { message: 'username_taken' } };
-      }
-      expect(args.p_username).toBeNull(); // retry drops the username
-      return {
-        data: { archetype: 'Night Owl', username: null, coins_awarded: 115, is_first_time: true },
-        error: null,
-      };
-    });
-    const supabase = mockSupabase({ rpcImpl: rpc });
-
-    const result = await completeQuiz(supabase, COMPLETE_ANSWERS);
-    expect(callCount).toBe(2);
-    expect(result.storedUsername).toBeNull();
-    expect(result.displayUsername).toBeNull();
-    expect(result.coinsAwarded).toBe(115);
-  });
-
-  it('throws on a non-username-collision RPC error instead of silently swallowing it', async () => {
-    const supabase = mockSupabase({
-      rpcImpl: async () => ({ data: null, error: { message: 'Quiz answers are incomplete' } }),
-    });
-    await expect(completeQuiz(supabase, COMPLETE_ANSWERS)).rejects.toThrow('Quiz answers are incomplete');
-  });
-
-  it('when every generated username candidate is taken, sends p_username: null to the RPC', async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: { archetype: 'Night Owl', username: null, coins_awarded: 115, is_first_time: true },
-      error: null,
-    });
-    const supabase = mockSupabase({ usernameTakenAlways: true, rpcImpl: rpc });
-
-    await completeQuiz(supabase, COMPLETE_ANSWERS);
-    expect(rpc).toHaveBeenCalledWith('rpc_complete_quiz', expect.objectContaining({ p_username: null }));
+  it('surfaces "already taken" from the server', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'That username is already taken.' } });
+    await expect(finishOnboarding(client(rpc), { fullName: 'A', exam: 'JEE', username: 'taken1' })).rejects.toThrow('already taken');
   });
 });

@@ -319,7 +319,7 @@ begin
     'creators', jsonb_build_object(
       'earnings_all_time',    (select coalesce(sum(amount), 0) from public.revhead_earnings_ledger),
       'earnings_unrequested', (select coalesce(sum(amount), 0) from public.revhead_earnings_ledger where payout_request_id is null),
-      'referral_shares_all_time', (select coalesce(sum(amount), 0) from public.revhead_referral_shares)
+      'referral_shares_all_time', (select coalesce(sum(share_amount), 0) from public.revhead_referral_shares)
     ),
     'payouts', jsonb_build_object(
       'pending_count',  (select count(*) from public.payout_requests where status = 'pending'),

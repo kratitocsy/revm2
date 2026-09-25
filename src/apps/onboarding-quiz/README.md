@@ -1,10 +1,12 @@
 # Onboarding Quiz (React island)
 
-Wynky's 7-question "study identity" game, shown after `onboarding.html`
-finishes (see that file's `finish()` — it now redirects here instead of
-straight to `home.html`). Built from the design handoff in
-`design_handoff_onboarding_quiz/` (Wynky video mascot, speech bubble,
-Hinglish/English voice, archetype reveal).
+First-run onboarding, shown once per account (login.html sends anyone
+without `onboarding_completed_at` here): "Select Your Language" (Hindi /
+English) -> Wynky says hello with "Find Your Study DNA" / "Skip for Now" ->
+the 5-question Study DNA quiz (each question skippable, +10 Wynkoins per
+answer, 50 max) -> name / exam / username -> Home. "Skip for Now" goes
+straight to the name / exam / username step. Server side: migration
+`0088_study_dna_onboarding.sql`.
 
 Same build model as `src/apps/mobile-home` and `src/apps/desktop-dashboard`
 — see those READMEs / `vite.mobile-home.config.js`'s header comment for why
@@ -16,9 +18,10 @@ Same build model as `src/apps/mobile-home` and `src/apps/desktop-dashboard`
 - `wynky.tsx` — `WynkyStage` (looping video clips), `SpeechBubble` (typewriter),
   `speak()` (Web Speech, recorded voice-over is a future swap — see below),
   `sfx()` (WebAudio beeps, no files).
-- `quizCopy.ts` — Wynky's lines (draft copy per question) and the verbatim
-  intro lines. Question branching/scoring itself lives in
-  `../_shared/quizEngine.ts` — this file only supplies prompt text.
+- `quizCopy.ts` — Wynky's lines: the hello, each question (English text and
+  Wynky's Hindi line, verbatim) and Hindi labels for every option. The
+  questions, options, scoring and Study DNA rules live in
+  `../_shared/quizEngine.ts`.
 - `imports/wynky-dance.mp4` — the mascot clip, cut into expression segments
   by timestamp in `wynky.tsx` (`WYNKY_CLIPS`).
 - `main.tsx` / `onboarding-quiz.html` / `onboarding-quiz.css` — same shape
@@ -29,11 +32,11 @@ Same build model as `src/apps/mobile-home` and `src/apps/desktop-dashboard`
 The design handoff's `prototype/Quiz.jsx` (kept in `design_handoff_onboarding_quiz/`
 at the repo root, not shipped) reimplements branching/scoring locally for a
 standalone demo. This app does **not** do that — it calls the real,
-unit-tested `../_shared/quizEngine.ts` (`getNextQuestion`, `scoreArchetype`
-via `completeQuiz`, `calculateQuizReward` server-side, `generateUsername`)
-and persists through `../_shared/quizPersistence.ts` (`rpc_complete_quiz`,
-migration `0066_rpc_complete_quiz.sql`). Coins and the stored username are
-authoritative from the server response, not computed client-side.
+unit-tested `../_shared/quizEngine.ts` (`getNextQuestion`, `scoreArchetype`,
+`generateUsername`) and saves through `../_shared/quizPersistence.ts`
+(`rpc_submit_study_dna`, `rpc_check_username`, `rpc_finish_onboarding` —
+migration `0088_study_dna_onboarding.sql`). Coins are counted by the server,
+never trusted from the page.
 
 ## Commands
 
@@ -48,7 +51,7 @@ npm run build:onboarding-quiz   # builds Tailwind CSS, then the bundle —
 
 `speak()` in `wynky.tsx` tries a recorded voice-over file first —
 `/audio/wynky/{lang}/{lineId}.mp3` (line ids: `intro`, `reaction_1..4`,
-each question id `q1..q7`/`q6b`, `saving`, `save_failed`,
+each question id `q1..q5`, `saving`, `save_failed`,
 `result_{archetype-slug}`, e.g. `result_dawn-warrior`) — and falls back to
 `speechSynthesis` (browser TTS) transparently on a 404/load error or if it
 doesn't start within ~1.2s. No recordings exist yet, so every line

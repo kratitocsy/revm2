@@ -204,13 +204,29 @@ checkSession();
 // "User is banned" (OAuth sends it back in the URL, password sign-in as the error).
 const BANNED_MSG = 'This account has been suspended. If you think this is a mistake, contact Wynko support.';
 function isBannedError(msg){ return /banned/i.test(msg || ''); }
+
+// Invite-only (owner switch, migration 0086): Supabase Auth's own writes are
+// refused for accounts not on the list, which it reports as a generic
+// "Database error saving new user" / "... granting user".
+const INVITE_ONLY_MSG = "Wynko is invite-only right now, so this account can't sign in or sign up yet.";
+function isInviteOnlyError(msg){ return /invite-only|database error (saving new user|granting user|creating|updating)/i.test(msg || ''); }
+function authErrorMessage(msg){
+  if(isBannedError(msg)) return BANNED_MSG;
+  if(isInviteOnlyError(msg)) return INVITE_ONLY_MSG;
+  return msg;
+}
+sb.rpc('app_access_status').then(({ data }) => {
+  if(data && data.invite_only){
+    document.getElementById('loginNote').textContent = 'Wynko is invite-only right now.';
+  }
+}).catch(() => {});
 (function showAuthRedirectError(){
   const params = new URLSearchParams(location.search);
   new URLSearchParams(location.hash.slice(1)).forEach((v, k) => params.set(k, v));
   const desc = params.get('error_description') || params.get('error');
   if(!desc) return;
   openLoginDrawer();
-  setStatus(isBannedError(desc) ? BANNED_MSG : desc.replace(/\+/g, ' '), 'err');
+  setStatus(authErrorMessage(desc.replace(/\+/g, ' ')), 'err');
 })();
 
 sb.auth.onAuthStateChange(async(event,session)=>{
@@ -311,7 +327,7 @@ function signInTelegram(){
         if(error) throw error;
         // onAuthStateChange's SIGNED_IN handler takes it from here.
       }catch(e){
-        setStatus(e.message || 'Telegram sign-in failed. Try again.', 'err');
+        setStatus(authErrorMessage(e.message) || 'Telegram sign-in failed. Try again.', 'err');
         buttons.forEach(b => b.disabled = false);
         btn.querySelector('.oauth-label').textContent = btn.querySelector('.oauth-label').dataset.orig;
         btn.querySelector('.btn-spinner').style.display = 'none';
@@ -332,7 +348,7 @@ async function emailSignIn(e){
   btn.disabled = true; btn.textContent = 'Signing in...'; setStatus('');
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if(error){
-    setStatus(error.message === 'Invalid login credentials' ? 'Wrong email or password.' : isBannedError(error.message) ? BANNED_MSG : error.message, 'err');
+    setStatus(error.message === 'Invalid login credentials' ? 'Wrong email or password.' : authErrorMessage(error.message), 'err');
     btn.disabled = false; btn.textContent = 'Sign in';
   }
   // On success, onAuthStateChange's SIGNED_IN handler takes it from here.
@@ -355,7 +371,7 @@ async function emailSignUp(e){
     options: { emailRedirectTo: window.location.origin + '/login.html' },
   });
   if(error){
-    setStatus(error.message, 'err');
+    setStatus(authErrorMessage(error.message), 'err');
     btn.disabled = false; btn.textContent = 'Create account';
     return false;
   }
@@ -410,6 +426,18 @@ async function emailSetNewPassword(e){
 }
 
 async function redirect(user){
+  // Invite-only: a session that isn't on the list (e.g. one from before the
+  // switch) is signed out here instead of being let into the app.
+  try {
+    const { data: access } = await sb.rpc('my_app_access');
+    if (access && access.allowed === false) {
+      await sb.auth.signOut();
+      openLoginDrawer();
+      setStatus(INVITE_ONLY_MSG, 'err');
+      return;
+    }
+  } catch(e) { /* the server still refuses the account either way */ }
+
   // Save email + name into user_profiles. The row itself is guaranteed to
   // already exist by this point (created server-side by the
   // on_auth_user_created DB trigger the instant the auth account was
@@ -434,11 +462,11 @@ async function redirect(user){
     }
   } catch(e) { /* never block sign-in on this */ }
 
-  // Wynky's "study identity" quiz is the onboarding gate: every sign-in
-  // (new account or returning without a finished quiz) lands on it first,
-  // then it sends the student to home.html itself once they finish.
-  const {data:profile}=await sb.from('user_profiles').select('quiz_completed_at').eq('id',user.id).single();
-  if(!profile||!profile.quiz_completed_at) window.location.href='onboarding-quiz.html';
+  // First-run onboarding (Wynky: language -> Study DNA quiz or "Skip for
+  // Now" -> name / exam / username) is shown until it's finished once
+  // (onboarding_completed_at, migration 0088); after that, always Home.
+  const {data:profile}=await sb.from('user_profiles').select('onboarding_completed_at').eq('id',user.id).single();
+  if(!profile||!profile.onboarding_completed_at) window.location.href='onboarding-quiz.html';
   else window.location.href='home.html';
 }
 

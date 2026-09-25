@@ -1,300 +1,194 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  QUESTIONS,
+  MAX_QUIZ_COINS,
+  CUSTOM_ANSWER_MAX_LENGTH,
   getNextQuestion,
   isQuizComplete,
   answeredQuestionCount,
   calculateQuizReward,
   scoreArchetype,
-  blockLengthMinutesFor,
   generateUsername,
-  q3AutoDefault,
   validateCustomAnswer,
-  CUSTOM_ANSWER_MAX_LENGTH,
+  questionNumber,
+  usernameProblem,
+  cleanUsernameInput,
+  usernameFromName,
   type QuizAnswers,
 } from './quizEngine';
 
-describe('getNextQuestion branching', () => {
-  it('starts at q1 (exam) on an empty quiz', () => {
-    expect(getNextQuestion({})?.id).toBe('q1');
+const FULL: QuizAnswers = {
+  day_type: 'school_coaching',
+  daily_hours: '2-4',
+  distractions: ['instagram'],
+  study_style: ['books'],
+  challenges: ['revision'],
+};
+
+describe('the 5 questions', () => {
+  it('asks q1..q5 in order', () => {
+    expect(QUESTIONS.map((q) => q.id)).toEqual(['q1', 'q2', 'q3', 'q4', 'q5']);
+    let answers: QuizAnswers = {};
+    const seen: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const q = getNextQuestion(answers);
+      if (!q) break;
+      seen.push(q.id);
+      answers = { ...answers, [q.field]: q.multiSelect ? [q.options[0].value] : q.options[0].value };
+    }
+    expect(seen).toEqual(['q1', 'q2', 'q3', 'q4', 'q5']);
+    expect(isQuizComplete(answers)).toBe(true);
   });
 
-  it('asks q2 with JEE/NEET-style options after exam is set', () => {
-    const q = getNextQuestion({ exam: 'JEE' });
-    expect(q?.id).toBe('q2');
-    expect(q?.options.map((o) => o.value)).toContain('dropper');
+  it('every question has 4 choices plus "Something else" last', () => {
+    for (const q of QUESTIONS) {
+      expect(q.options).toHaveLength(5);
+      expect(q.options[4].value).toBe('custom');
+    }
   });
 
-  it('asks q2 with UPSC-specific options for UPSC, plus the custom chip', () => {
-    const q = getNextQuestion({ exam: 'UPSC' });
-    expect(q?.options.map((o) => o.value)).toEqual(['upsc_1st', 'upsc_2nd', 'upsc_3rd_plus', 'custom']);
+  it('Q3 is multi-select with no limit; Q4 and Q5 allow up to 2', () => {
+    const [, , q3, q4, q5] = QUESTIONS;
+    expect(q3.multiSelect).toBe(true);
+    expect(q3.maxSelect).toBeUndefined();
+    expect(q4.maxSelect).toBe(2);
+    expect(q5.maxSelect).toBe(2);
+    expect(QUESTIONS[0].multiSelect).toBeFalsy();
+    expect(QUESTIONS[1].multiSelect).toBeFalsy();
   });
 
-  it('skips q3 for dropper and auto-defaults to coaching_only', () => {
-    const q = getNextQuestion({ exam: 'JEE', student_type: 'dropper' });
-    // Should skip straight past q3 to q4.
+  it('more than 2 picks on Q4 is not a valid answer', () => {
+    const q = getNextQuestion({ day_type: 'working', daily_hours: '1-2', distractions: ['youtube'], study_style: ['videos', 'books', 'practice'] });
     expect(q?.id).toBe('q4');
   });
 
-  it('q3AutoDefault matches the spec: dropper -> coaching_only, appeared -> self_study', () => {
-    expect(q3AutoDefault('dropper')).toBe('coaching_only');
-    expect(q3AutoDefault('appeared')).toBe('full_self_study');
-    expect(q3AutoDefault('12th')).toBeUndefined();
-  });
-
-  it('does NOT skip q3 for 12th', () => {
-    const q = getNextQuestion({ exam: 'JEE', student_type: '12th' });
-    expect(q?.id).toBe('q3');
-  });
-
-  it('asks q6b only when distractions is exactly ["nothing"]', () => {
-    const base: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-    };
-    const withNothing = getNextQuestion({ ...base, distractions: ['nothing'] });
-    expect(withNothing?.id).toBe('q6b');
-
-    const withMultiple = getNextQuestion({ ...base, distractions: ['instagram', 'youtube'] });
-    expect(withMultiple?.id).toBe('q7'); // skips q6b straight to q7
-  });
-
-  it('reaches null (complete) after all required fields are set', () => {
-    const answers: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      distractions: ['instagram'],
-      study_mode: 'mix',
-    };
-    expect(getNextQuestion(answers)).toBeNull();
-    expect(isQuizComplete(answers)).toBe(true);
+  it('questionNumber is 1-5', () => {
+    expect(QUESTIONS.map((q) => questionNumber(q.id))).toEqual([1, 2, 3, 4, 5]);
   });
 });
 
 describe('custom free-text answers', () => {
-  it('every question includes the "custom" chip as its last option', () => {
-    const seenIds = new Set<string>();
-    let answers: QuizAnswers = {};
-    for (let i = 0; i < 10; i++) {
-      const q = getNextQuestion(answers);
-      if (!q || seenIds.has(q.id)) break;
-      seenIds.add(q.id);
-      expect(q.options[q.options.length - 1].value).toBe('custom');
-      // Answer with the first real (non-custom) option to advance.
-      const realOption = q.options[0];
-      answers = { ...answers, [q.field]: q.multiSelect ? [realOption.value] : realOption.value };
-    }
-    expect(seenIds.size).toBeGreaterThan(0);
+  it('"Something else" without text does not advance', () => {
+    expect(getNextQuestion({ day_type: 'custom' })?.id).toBe('q1');
   });
 
-  it('picking "custom" without valid text does NOT advance past the question', () => {
-    const q = getNextQuestion({ exam: 'custom' });
-    expect(q?.id).toBe('q1'); // still stuck on q1 - custom_exam is missing
+  it('"Something else" with text advances', () => {
+    expect(getNextQuestion({ day_type: 'custom', custom_day_type: 'Night shifts + self study' })?.id).toBe('q2');
   });
 
-  it('picking "custom" with valid text advances to the next question', () => {
-    const q = getNextQuestion({ exam: 'custom', custom_exam: 'GATE' });
-    expect(q?.id).toBe('q2');
+  it('a multi-select with "Something else" needs the text too', () => {
+    const base: QuizAnswers = { day_type: 'working', daily_hours: '4-6' };
+    expect(getNextQuestion({ ...base, distractions: ['instagram', 'custom'] })?.id).toBe('q3');
+    expect(getNextQuestion({ ...base, distractions: ['instagram', 'custom'], custom_distraction: 'Cricket' })?.id).toBe('q4');
   });
 
   it('validateCustomAnswer enforces the character limit', () => {
     expect(validateCustomAnswer('GATE').valid).toBe(true);
-    expect(validateCustomAnswer('   ').valid).toBe(false); // empty after trim
+    expect(validateCustomAnswer('   ').valid).toBe(false);
     expect(validateCustomAnswer('x'.repeat(CUSTOM_ANSWER_MAX_LENGTH)).valid).toBe(true);
     expect(validateCustomAnswer('x'.repeat(CUSTOM_ANSWER_MAX_LENGTH + 1)).valid).toBe(false);
   });
+});
 
-  it('custom distraction text gates completion the same way as a custom single-select', () => {
-    const base: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      study_mode: 'mix',
-    };
-    const stuck = getNextQuestion({ ...base, distractions: ['custom'] });
-    expect(stuck?.id).toBe('q6'); // no custom_distraction text yet
-
-    const unstuck = getNextQuestion({ ...base, distractions: ['custom'], custom_distraction: 'Reddit doomscrolling' });
-    expect(unstuck).toBeNull(); // now complete
+describe('coins: +10 per answer, nothing else (50 max)', () => {
+  it('all 5 answered, first time = 50', () => {
+    expect(answeredQuestionCount(FULL)).toBe(5);
+    expect(calculateQuizReward(FULL, true)).toBe(50);
+    expect(MAX_QUIZ_COINS).toBe(50);
   });
 
-  it('a custom exam still falls through q2Options to the JEE/NEET fallback set without crashing', () => {
-    const q = getNextQuestion({ exam: 'custom', custom_exam: 'GATE' });
-    expect(q?.options.map((o) => o.value)).toContain('dropper');
+  it('skipped questions earn nothing and there is no finishing bonus', () => {
+    const answers: QuizAnswers = { day_type: 'working', daily_hours: '4-6', skipped: ['q3', 'q4', 'q5'] };
+    expect(getNextQuestion(answers)).toBeNull();
+    expect(calculateQuizReward(answers, true)).toBe(20);
   });
 
-  it('custom answers count toward the coin reward once validated', () => {
-    const answers: QuizAnswers = {
-      exam: 'custom',
-      custom_exam: 'GATE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      distractions: ['instagram'],
-      study_mode: 'mix',
-    };
-    expect(answeredQuestionCount(answers)).toBe(7);
-    expect(isQuizComplete(answers)).toBe(true);
+  it('skipping everything earns 0', () => {
+    const answers: QuizAnswers = { skipped: ['q1', 'q2', 'q3', 'q4', 'q5'] };
+    expect(getNextQuestion(answers)).toBeNull();
+    expect(calculateQuizReward(answers, true)).toBe(0);
+  });
+
+  it('re-taking the quiz earns nothing', () => {
+    expect(calculateQuizReward(FULL, false)).toBe(0);
   });
 });
 
-describe('answeredQuestionCount + coin reward', () => {
-  it('full first-time completion (7 real questions, no q3 skip) = 115 coins, matching the spec max', () => {
-    const answers: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      distractions: ['instagram'],
-      study_mode: 'mix',
-    };
-    expect(answeredQuestionCount(answers)).toBe(7);
-    expect(calculateQuizReward(answers, true)).toBe(7 * 5 + 50 + 30); // 115
-  });
-
-  it('dropper skips q3, so only 6 questions counted (auto-default not counted)', () => {
-    const answers: QuizAnswers = {
-      exam: 'JEE',
-      student_type: 'dropper',
-      fixed_commitment_type: 'coaching_only', // auto-defaulted, not user-answered
-      focus_time: 'before_7am',
-      daily_hours: '10+',
-      distractions: ['nothing'],
-      block_social_anyway: true,
-      study_mode: 'problems',
-    };
-    expect(answeredQuestionCount(answers)).toBe(7); // q1,q2,q4,q5,q6,q6b,q7 (q3 excluded)
-    expect(isQuizComplete(answers)).toBe(true);
-  });
-
-  it('re-taking the quiz (isFirstTimeCompletion=false) gets no first-time bonus', () => {
-    const answers: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      distractions: ['instagram'],
-      study_mode: 'mix',
-    };
-    expect(calculateQuizReward(answers, false)).toBe(7 * 5 + 50); // 85, no +30
-  });
-
-  it('incomplete quiz gets no completion or first-time bonus, only per-question coins', () => {
-    const answers: QuizAnswers = { exam: 'JEE', student_type: '12th' };
-    expect(calculateQuizReward(answers, true)).toBe(2 * 5); // 10
+describe('skipping questions', () => {
+  it('a skipped question moves on to the next one', () => {
+    expect(getNextQuestion({ skipped: ['q1'] })?.id).toBe('q2');
+    expect(getNextQuestion({ day_type: 'working', skipped: ['q2', 'q3'] })?.id).toBe('q4');
   });
 });
 
-describe('scoreArchetype', () => {
-  it('heavy social distractions -> Social Battler', () => {
-    expect(
-      scoreArchetype({ distractions: ['instagram', 'whatsapp'], study_mode: 'mix' })
-    ).toBe('Social Battler');
+describe('scoreArchetype (Study DNA)', () => {
+  it('2+ social apps -> Social Battler', () => {
+    expect(scoreArchetype({ ...FULL, distractions: ['instagram', 'whatsapp'] })).toBe('Social Battler');
   });
-
-  it('youtube study mode -> Visual Learner (when not overridden by heavy social)', () => {
-    expect(scoreArchetype({ study_mode: 'youtube', distractions: ['games'] })).toBe('Visual Learner');
+  it('6-8 hours + practice -> Grind Machine; 6-8 hours otherwise -> Marathoner', () => {
+    expect(scoreArchetype({ ...FULL, daily_hours: '6-8', study_style: ['practice'] })).toBe('Grind Machine');
+    expect(scoreArchetype({ ...FULL, daily_hours: '6-8' })).toBe('Marathoner');
   });
-
-  it('dropper + problems + early focus time -> Grind Machine', () => {
-    expect(
-      scoreArchetype({
-        student_type: 'dropper',
-        study_mode: 'problems',
-        focus_time: 'before_7am',
-        distractions: [],
-      })
-    ).toBe('Grind Machine');
+  it('procrastination or consistency trouble -> Focus Seeker', () => {
+    expect(scoreArchetype({ ...FULL, distractions: ['procrastination'] })).toBe('Focus Seeker');
+    expect(scoreArchetype({ ...FULL, challenges: ['consistency'] })).toBe('Focus Seeker');
   });
-
-  it('before_7am alone (not dropper/problems) -> Dawn Warrior', () => {
-    expect(scoreArchetype({ focus_time: 'before_7am', study_mode: 'books', distractions: [] })).toBe(
-      'Dawn Warrior'
-    );
+  it('study style decides the rest', () => {
+    expect(scoreArchetype({ ...FULL, study_style: ['friends'] })).toBe('Team Player');
+    expect(scoreArchetype({ ...FULL, study_style: ['videos'] })).toBe('Visual Learner');
+    expect(scoreArchetype(FULL)).toBe('Deep Reader');
+    expect(scoreArchetype({ ...FULL, study_style: ['practice'] })).toBe('Sprinter');
   });
-
-  it('after_9pm -> Night Owl', () => {
-    expect(scoreArchetype({ focus_time: 'after_9pm', study_mode: 'books', distractions: [] })).toBe(
-      'Night Owl'
-    );
-  });
-
-  it('short daily hours + problems -> Sprinter', () => {
-    expect(
-      scoreArchetype({ study_mode: 'problems', daily_hours: '2-3', focus_time: 'afternoon', distractions: [] })
-    ).toBe('Sprinter');
-  });
-
-  it('morning + long daily hours -> Marathoner', () => {
-    expect(
-      scoreArchetype({ focus_time: 'morning', daily_hours: '10+', study_mode: 'books', distractions: [] })
-    ).toBe('Marathoner');
-  });
-
-  it('falls back to Balanced Planner when nothing else matches', () => {
-    expect(
-      scoreArchetype({ focus_time: 'afternoon', daily_hours: '4-5', study_mode: 'mix', distractions: [] })
-    ).toBe('Balanced Planner');
-  });
-});
-
-describe('blockLengthMinutesFor', () => {
-  it('maps daily hours buckets to a representative session length', () => {
-    expect(blockLengthMinutesFor({ daily_hours: '2-3' })).toBe(25);
-    expect(blockLengthMinutesFor({ daily_hours: '10+' })).toBe(120);
-  });
-
-  it('defaults to 45 when daily_hours is unset', () => {
-    expect(blockLengthMinutesFor({})).toBe(45);
+  it('nothing to go on -> Balanced Planner', () => {
+    expect(scoreArchetype({})).toBe('Balanced Planner');
+    expect(scoreArchetype({ skipped: ['q1', 'q2', 'q3', 'q4', 'q5'] })).toBe('Balanced Planner');
   });
 });
 
 describe('generateUsername', () => {
-  it('produces a format-valid username on the first attempt when nothing is taken', async () => {
-    const isTaken = vi.fn().mockResolvedValue(false);
-    const name = await generateUsername('after_9pm', 'Night Owl', { isTaken });
-    expect(name).toMatch(/^[a-zA-Z0-9][a-zA-Z0-9_]{1,18}[a-zA-Z0-9]$/); // matches user_profiles.username check
-    expect(name).toMatch(/^Night/);
-    expect(isTaken).toHaveBeenCalledTimes(1);
+  it('builds <Archetype><digits> and returns the first free one', async () => {
+    const isTaken = vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false);
+    const u = await generateUsername('Focus Seeker', { isTaken });
+    expect(u).toMatch(/^FocusSeeker\d{2}$/);
+    expect(isTaken).toHaveBeenCalledTimes(2);
   });
 
-  it('swaps to the fallback word after exhausting number attempts on the primary word', async () => {
-    let calls = 0;
-    const isTaken = vi.fn().mockImplementation(async (candidate: string) => {
-      calls++;
-      return !candidate.includes('Guardian'); // only the fallback word succeeds
-    });
-    const name = await generateUsername('before_7am', 'Dawn Warrior', { isTaken, maxAttemptsPerWord: 3 });
-    expect(name).toContain('Guardian');
-    expect(calls).toBe(4); // 3 failed attempts on "Warrior" + 1 success on "Guardian"
+  it('falls back to 3 digits, then gives up with null', async () => {
+    const calls: string[] = [];
+    const u = await generateUsername('Balanced Planner', { isTaken: async (c) => { calls.push(c); return true; }, maxAttempts: 2 });
+    expect(u).toBeNull();
+    expect(calls.map((c) => c.replace('BalancedPlanner', '').length)).toEqual([2, 2, 3, 3]);
   });
 
-  it('returns null when both words are exhausted (caller should fall back to manual input)', async () => {
-    const isTaken = vi.fn().mockResolvedValue(true);
-    const name = await generateUsername('morning', 'Sprinter', { isTaken, maxAttemptsPerWord: 2 });
-    expect(name).toBeNull();
+  it('every archetype makes a valid username once lowercased', async () => {
+    for (const a of ['Social Battler', 'Grind Machine', 'Marathoner', 'Focus Seeker', 'Team Player', 'Visual Learner', 'Deep Reader', 'Sprinter', 'Balanced Planner'] as const) {
+      const u = await generateUsername(a, { isTaken: async () => false });
+      expect(usernameProblem(u!.toLowerCase())).toBeNull();
+    }
+  });
+});
+
+describe('username helpers', () => {
+  it('usernameProblem matches the database rules', () => {
+    expect(usernameProblem('focusseeker42')).toBeNull();
+    expect(usernameProblem('ab')).not.toBeNull();
+    expect(usernameProblem('a'.repeat(21))).not.toBeNull();
+    expect(usernameProblem('_rohan')).not.toBeNull();
+    expect(usernameProblem('rohan_')).not.toBeNull();
+    expect(usernameProblem('Rohan')).not.toBeNull();
+    expect(usernameProblem('ro_han')).toBeNull();
   });
 
-  it('respects the blocklist and never calls isTaken with a blocked candidate', async () => {
-    const isTaken = vi.fn().mockResolvedValue(false);
-    const name = await generateUsername('evening', 'Grind Machine', {
-      isTaken,
-      blocklist: ['dusk'], // blocks the entire "Dusk..." time-word family for this test
-      maxAttemptsPerWord: 3,
-    });
-    // Every candidate contains "Dusk" (evening's time word) so all attempts
-    // should be blocked before ever reaching isTaken, exhausting to null.
-    expect(name).toBeNull();
-    expect(isTaken).not.toHaveBeenCalled();
+  it('cleanUsernameInput lowercases and drops characters usernames cannot have', () => {
+    expect(cleanUsernameInput('Rohan Mehta!')).toBe('rohanmehta');
+    expect(cleanUsernameInput('x'.repeat(30))).toHaveLength(20);
+  });
+
+  it('usernameFromName builds a valid username from a first name, or falls back to wynko', () => {
+    for (const name of ['Rohan Mehta', 'ANU SINGH', '', 'विंकी', 'Jo']) {
+      expect(usernameProblem(usernameFromName(name))).toBeNull();
+    }
+    expect(usernameFromName('Rohan Mehta')).toMatch(/^rohan\d{3}$/);
+    expect(usernameFromName('')).toMatch(/^wynko\d{4}$/);
   });
 });
