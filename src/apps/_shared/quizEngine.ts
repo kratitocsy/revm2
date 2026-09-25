@@ -207,8 +207,18 @@ export function scoreArchetype(answers: QuizAnswers): Archetype {
 // ── Username generation ("socialbattler42"-style, from the Study DNA) ──
 const USERNAME_MAX_LEN = 20; // matches the DB check
 
+/** A uniform random integer in [0, max), from the browser's crypto RNG. */
+function randomInt(max: number): number {
+  const buf = new Uint32Array(1);
+  const limit = Math.floor(0x100000000 / max) * max; // reject the biased tail
+  do {
+    globalThis.crypto.getRandomValues(buf);
+  } while (buf[0] >= limit);
+  return buf[0] % max;
+}
+
 function randomDigits(n: 2 | 3): string {
-  return n === 2 ? String(10 + Math.floor(Math.random() * 90)) : String(100 + Math.floor(Math.random() * 900));
+  return n === 2 ? String(10 + randomInt(90)) : String(100 + randomInt(900));
 }
 
 export interface UsernameGenOptions {
@@ -267,6 +277,6 @@ export function usernameFromName(name: string | null | undefined): string {
   const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
   let base = first.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '').slice(0, 14);
   if (base.length < 2) base = 'wynko';
-  const digits = String(Math.floor(Math.random() * (base === 'wynko' ? 9000 : 900)) + (base === 'wynko' ? 1000 : 100));
+  const digits = base === 'wynko' ? String(1000 + randomInt(9000)) : String(100 + randomInt(900));
   return base + digits;
 }
