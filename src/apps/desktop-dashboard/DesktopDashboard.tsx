@@ -45,7 +45,6 @@ import {
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
 import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
 import { useNotifications, notificationHref, notificationIcon, timeAgo, type AppNotification } from './lib/notifications'
-import { useActiveBlock, endMyFocusBlock, canEndEarly, blockUntilLabel, type ActiveBlock } from './lib/focusBlock'
 import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
   type RoomRow, type RoomMember,
@@ -445,81 +444,6 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
       <NotificationBell />
       <UserAvatar size={32} className="cursor-pointer" />
     </header>
-  )
-}
-
-// ─── Active focus block pill (every page) ─────────────────────────────────────
-// A site/app block (focus_lock_sessions) is otherwise invisible here - it's
-// started by schedules or the older Blocks/Timer pages - so whenever one is
-// on, say so and let the student end it (typing a short code first, same
-// friction as the Blocks page; blocks started with early unlock off can't
-// be ended until their time is up - the server enforces that too).
-function blockCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const bytes = crypto.getRandomValues(new Uint8Array(6))
-  return Array.from(bytes, b => chars[b % chars.length]).join('')
-}
-
-function ActiveBlockPill({ block, onChanged }: { block: ActiveBlock; onChanged: () => void }) {
-  const [confirming, setConfirming] = useState(false)
-  const [code, setCode] = useState('')
-  const [typed, setTyped] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const endable = canEndEarly(block)
-
-  const start = () => { setCode(blockCode()); setTyped(''); setError(null); setConfirming(true) }
-  const end = async () => {
-    if (typed.trim().toUpperCase() !== code || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      await endMyFocusBlock()
-      setConfirming(false)
-      onChanged()
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div role="status" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[75] max-w-[calc(100vw-24px)] rounded-2xl border px-4 py-2.5 text-[13px] text-slate-200"
-      style={{ background: '#0B1530', borderColor: 'rgba(124,77,255,0.5)', boxShadow: '0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(124,77,255,0.18)' }}>
-      {!confirming ? (
-        <div className="flex items-center gap-3">
-          <span className="text-base">🔒</span>
-          <span className="min-w-0">
-            <span className="font-semibold text-white">{block.block_name || 'Focus block'}</span>
-            <span className="text-slate-400"> is on · {blockUntilLabel(block)}</span>
-          </span>
-          {endable ? (
-            <button type="button" onClick={start}
-              className="ml-1 px-3 py-1 rounded-lg text-[12px] font-semibold text-[#F87171] border border-[rgba(248,113,113,0.4)] hover:bg-[rgba(248,113,113,0.1)] transition-colors">
-              End block
-            </button>
-          ) : (
-            <span className="ml-1 text-[11px] text-slate-500">can't be ended early</span>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2 min-w-[280px]">
-          <div className="text-slate-300">Type <span className="font-mono font-bold text-white tracking-widest">{code}</span> to end this block early.</div>
-          <div className="flex items-center gap-2">
-            <input autoFocus value={typed} onChange={e => setTyped(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void end() }}
-              maxLength={6} aria-label="Code to end the block"
-              className="flex-1 h-8 px-3 rounded-lg text-[13px] font-mono uppercase tracking-widest text-white outline-none border bg-[#060D1A] border-[#1A2845] focus:border-[rgba(124,77,255,0.6)]" />
-            <button type="button" onClick={() => void end()} disabled={typed.trim().toUpperCase() !== code || busy}
-              className="h-8 px-3 rounded-lg text-[12px] font-semibold text-white bg-[#DC2626] disabled:opacity-40">
-              {busy ? 'Ending…' : 'End'}
-            </button>
-            <button type="button" onClick={() => setConfirming(false)} className="h-8 px-2 text-[12px] text-slate-400 hover:text-slate-200">Cancel</button>
-          </div>
-          {error && <div className="text-[12px] text-[#F87171]">{error}</div>}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -10551,7 +10475,6 @@ export default function DesktopDashboard() {
 
   // ── Communities (lib/communities.ts, migration 0071) ──
   const signedIn = authState === 'ready'
-  const { block: activeBlock, refresh: refreshActiveBlock } = useActiveBlock(signedIn)
   const myCommunitiesQ = useLoader(signedIn ? fetchMyCommunities : null, [] as MyCommunity[], [signedIn])
   const communitySchedulesQ = useLoader(signedIn ? fetchMyCommunitySchedules : null, [] as CommunityScheduleRow[], [signedIn])
   // A WynkoHead publishing shows up for their students right away (RLS limits
@@ -11066,9 +10989,6 @@ export default function DesktopDashboard() {
           onAccept={() => { void acceptCommunitySchedule(scheduleNotif.id) }}
           onCreateOwn={() => { void rejectCommunitySchedule(scheduleNotif.id); handleNav('schedules') }}
           onDismiss={dismissScheduleNotif} />
-      )}
-      {activeBlock && authState === 'ready' && (
-        <ActiveBlockPill block={activeBlock} onChanged={() => void refreshActiveBlock()} />
       )}
       {communityNotice && (
         <div role="status" className="fixed bottom-5 right-5 z-[80] max-w-[360px] rounded-xl border px-4 py-3 flex items-start gap-3 text-[13px] text-slate-200"
