@@ -49,13 +49,13 @@ import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 /*
   First-run flow (shown once per account — see migration 0088):
     lang   "Select Your Language" (Hindi / English) -> Let's go
-    start  Meet Wynky -> Tap to say hi
-    intro  Wynky says hello -> "Find Your Study DNA" | "Skip for Now"
+    intro  Meet Wynky: she says hello right away (the Let's go tap lets the
+           browser play her voice) -> "Find Your Study DNA" | "Skip for Now"
     q      7 questions, each skippable; +10 Wynkoins per answer
     saving -> profile (Study DNA + Wynkoins + name / exam / username) -> Home
   "Skip for Now" goes straight to the profile step (no Study DNA, no coins).
 */
-type Phase = 'loading' | 'lang' | 'start' | 'intro' | 'q' | 'saving' | 'profile' | 'error';
+type Phase = 'loading' | 'lang' | 'intro' | 'q' | 'saving' | 'profile' | 'error';
 type ProfileMode = 'dna' | 'skipped';
 
 const LANG_KEY = 'wynko_quiz_lang_v1';
@@ -70,7 +70,6 @@ const TEXT = {
   en: {
     meetTitle: 'Meet', meetTitleEnd: ', your study buddy',
     meetSub: 'A quick 7-question game to find your Study DNA. Sound on for the full experience.',
-    sayHi: '🔊 Tap to say hi',
     findDna: 'Find Your Study DNA', skipForNow: 'Skip for Now', hearAgain: '↻ Hear it again',
     question: (n: number) => `QUESTION ${n} OF ${DNA_QUESTION_COUNT}`,
     followUp: ' · FOLLOW-UP', pickAll: ' · PICK ALL THAT APPLY',
@@ -89,7 +88,6 @@ const TEXT = {
   hi: {
     meetTitle: 'Milo', meetTitleEnd: ' se, aapki study buddy',
     meetSub: '7 sawaalon ka chhota sa game — aapka Study DNA pata karne ke liye. Sound on rakhna!',
-    sayHi: '🔊 Hi bolo',
     findDna: 'Find Your Study DNA', skipForNow: 'Skip for Now', hearAgain: '↻ Phir se suno',
     question: (n: number) => `SAWAAL ${n} / ${DNA_QUESTION_COUNT}`,
     followUp: ' · EK AUR', pickAll: ' · JITNE CHAHO CHUNO',
@@ -443,7 +441,7 @@ export default function OnboardingQuiz() {
     setLang(l);
     langRef.current = l;
     writePref(LANG_KEY, l);
-    if (phase !== 'start' && phase !== 'lang') resay();
+    if (phase !== 'lang') resay();
   };
 
   const toggleMute = () => {
@@ -516,11 +514,7 @@ export default function OnboardingQuiz() {
     setLang(langPick);
     langRef.current = langPick;
     writePref(LANG_KEY, langPick);
-    setPhase('start');
-  };
-
-  const begin = () => {
-    sfx('whoosh', mutedRef.current);
+    // Straight into Wynky's hello - this tap is what lets the browser play her voice.
     setPhase('intro');
     setExpr('wave');
     setBubble(INTRO);
@@ -692,8 +686,8 @@ export default function OnboardingQuiz() {
 
         <main className="wq-main">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
-            {phase !== 'lang' && phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
-            {phase === 'lang' || phase === 'start' || phase === 'intro' ? (
+            {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
+            {phase === 'lang' || phase === 'intro' ? (
               <WynkyHero src={wynkyHelloVideo} />
             ) : (
               <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase || phase === 'profile' ? 'small' : 'large'} />
@@ -726,8 +720,8 @@ export default function OnboardingQuiz() {
               </div>
             )}
 
-            {phase === 'start' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440 }}>
+            {phase === 'intro' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 440 }}>
                 <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 2 · MEET WYNKY</div>
                 <h1 className="wq-h1" style={{ margin: 0, fontSize: 40, fontWeight: 700, lineHeight: 1.15, color: '#fff' }}>
                   {t.meetTitle}{' '}
@@ -736,21 +730,7 @@ export default function OnboardingQuiz() {
                   </span>
                   {t.meetTitleEnd}
                 </h1>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#94A3B8' }}>{t.meetSub}</p>
-                <PrimaryButton
-                  onClick={begin}
-                  background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
-                  glow="0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)"
-                  style={{ alignSelf: 'flex-start', marginTop: 8, padding: '0 28px' }}
-                >
-                  {t.sayHi}
-                </PrimaryButton>
-              </div>
-            )}
-
-            {phase === 'intro' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 420 }}>
-                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 3 · SAY HELLO</div>
+                <p style={{ margin: '0 0 10px', fontSize: 14, lineHeight: 1.6, color: '#94A3B8' }}>{t.meetSub}</p>
                 <PrimaryButton onClick={play} background="linear-gradient(135deg,#19D3A2,#22D3EE)" color="#04140F" glow="0 0 26px rgba(25,211,162,0.45)" style={{ fontWeight: 700, height: 52, fontSize: 16 }}>
                   🧬 Find Your Study DNA
                 </PrimaryButton>
