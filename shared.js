@@ -134,15 +134,13 @@ var RevM2Shared = function(exports) {
         const { data: { session } } = await sb.auth.getSession();
         if (session) {
           try {
-            const { data: activeSession } = await sb.from("focus_lock_sessions").select("ends_at, unlimited, paused_until").eq("user_id", session.user.id).eq("active", true).maybeSingle();
-            const genuinelyActive = activeSession && !(activeSession.paused_until && new Date(activeSession.paused_until) > /* @__PURE__ */ new Date());
-            if (genuinelyActive) {
-              const until = !activeSession.unlimited && activeSession.ends_at ? " (ends " + new Date(activeSession.ends_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ")" : "";
-              alert("You have an active focus block right now" + until + " — signing out is disabled while it's running. Go to Blocks to end it early (code unlock / emergency unlock still work) if you need to stop.");
+            const { data: running } = await sb.from("study_sessions").select("id").eq("user_id", session.user.id).is("ended_at", null).is("paused_at", null).limit(1).maybeSingle();
+            if (running) {
+              alert("Your focus timer is running — stop it first, then you can sign out.");
               return;
             }
           } catch (checkErr) {
-            console.error("RM2 active-session check failed, proceeding with sign-out:", checkErr);
+            console.error("RM2 running-timer check failed, proceeding with sign-out:", checkErr);
           }
         }
         await sb.auth.signOut();

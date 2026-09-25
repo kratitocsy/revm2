@@ -221,25 +221,25 @@ export async function deleteMyAccount(): Promise<void> {
 }
 
 /**
- * Same rule as the site-wide signOutRevM2(): signing out is blocked while a
- * Focus Lock block is genuinely active, otherwise "sign out, do whatever,
- * sign back in" would bypass every block. Returns an error message if blocked.
+ * Same rule as the site-wide signOutRevM2(): signing out is blocked only
+ * while the focus timer is actually running (a live, unpaused
+ * study_sessions row), so "sign out mid-session" can't be used to dodge
+ * it. Leftover focus_lock_sessions rows no longer lock anyone out.
+ * Returns an error message if blocked.
  */
 export async function signOut(): Promise<string | null> {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
       try {
-        const { data: active } = await sb.from('focus_lock_sessions')
-          .select('ends_at, unlimited, paused_until')
-          .eq('user_id', session.user.id).eq('active', true).maybeSingle();
-        const genuinelyActive = active && !(active.paused_until && new Date(active.paused_until) > new Date());
-        if (genuinelyActive) {
-          const until = !active.unlimited && active.ends_at
-            ? ` (ends ${new Date(active.ends_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : '';
-          return `You have an active focus block right now${until} — signing out is disabled while it’s running.`;
+        const { data: running } = await sb.from('study_sessions')
+          .select('id')
+          .eq('user_id', session.user.id).is('ended_at', null).is('paused_at', null)
+          .limit(1).maybeSingle();
+        if (running) {
+          return 'Your focus timer is running — stop it first, then you can sign out.';
         }
-      } catch { /* couldn't verify - don't trap someone with no active block */ }
+      } catch { /* couldn't verify - don't trap someone whose timer isn't running */ }
       await sb.auth.signOut();
     }
   } catch { /* still redirect */ }
