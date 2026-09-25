@@ -794,7 +794,7 @@ async function renderAccess(el){
         </div>
       </div>
       <div class="ow-kpis">
-        ${kpi('Allowed accounts', num(closed ? list.length : a.other_accounts + list.filter(x => x.has_account).length), closed ? 'owner accounts only' : 'everyone', closed ? '' : 'teal')}
+        ${kpi('Allowed accounts', num(closed ? list.length : a.other_accounts + list.filter(x => x.has_account).length), closed ? 'on the allowlist' : 'everyone', closed ? '' : 'teal')}
         ${kpi('Other accounts', num(a.other_accounts), closed ? "can't sign in" : 'can sign in', closed ? 'red' : 'cyan')}
         ${kpi('Others signed in now', num(a.other_signed_in), closed ? 'should be 0' : '', 'amber')}
         ${kpi('Last changed', a.updated_at ? esc(ago(a.updated_at)) : '—', a.updated_by ? 'by ' + esc(a.updated_by) : '')}
@@ -804,13 +804,13 @@ async function renderAccess(el){
     <div class="ow-card">
       <div class="ow-card-head">
         <div class="ow-card-icon violet">${icon('shield')}</div>
-        <div><div class="ow-card-title">Allowed while invite-only</div><div class="ow-card-sub">The owner accounts. Changing this list is a code change (platform_owner_emails).</div></div>
+        <div><div class="ow-card-title">Allowlist</div><div class="ow-card-sub">Who can sign in while Wynko is invite-only. Changing it is a database change (app_allowlist_emails); owners are always allowed.</div></div>
       </div>
       <div class="ow-list">
         ${list.map(x => `
           <div class="ow-row">
             <div class="ow-who">${avatar({ username: x.username, email: x.email })}<div style="min-width:0;">
-              <div class="ow-who-name">${esc(x.email)} ${!x.has_account ? '<span class="ow-tag amber">No account yet</span>' : !x.confirmed ? '<span class="ow-tag amber">Email not confirmed</span>' : '<span class="ow-tag teal">Can sign in</span>'}</div>
+              <div class="ow-who-name">${esc(x.email)} ${x.is_owner ? '<span class="ow-tag violet">Owner</span>' : ''} ${!x.has_account ? '<span class="ow-tag amber">No account yet</span>' : !x.confirmed ? '<span class="ow-tag amber">Email not confirmed</span>' : '<span class="ow-tag teal">Can sign in</span>'}</div>
               <div class="ow-who-sub">${x.username ? '@' + esc(x.username) : '—'}</div>
             </div></div>
             <div class="ow-facts"><div class="ow-fact"><div class="ow-fact-k">Last active</div><div class="ow-fact-v">${ago(x.last_active_at)}</div></div></div>
@@ -827,7 +827,7 @@ function openAccessChange(toClosed){
       confirm: toClosed ? `${icon('lock')}Make invite-only` : `${icon('unlock')}Open to everyone`,
       confirmClass: toClosed ? 'solid-danger' : 'primary',
       body: toClosed
-        ? `<p>Only the ${(a.allowlist || []).length} owner accounts will be able to sign up or sign in.</p>
+        ? `<p>Only the ${(a.allowlist || []).length} allowlisted accounts will be able to sign up or sign in.</p>
            <ul class="ow-effects">
              <li>${num(a.other_signed_in)} signed-in account${a.other_signed_in == 1 ? '' : 's'} outside the list will be signed out now</li>
              <li>${num(a.other_accounts)} other account${a.other_accounts == 1 ? '' : 's'} won't be able to sign in (their data is kept)</li>
