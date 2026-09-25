@@ -193,16 +193,41 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .foot-grid{ grid-template-columns:1.4fr 1fr 1fr; }
 }
 @media (max-width:760px){
-  .nav-links{ display:none; }
-  .nav-toggle{ display:block; }
-  .nav-right .login{ display:none; }
   .foot-grid{ grid-template-columns:1fr 1fr; }
   .legal-wrap{ padding:36px 0 24px; }
   .legal-doc{ padding:28px 20px 36px; border-radius:var(--r); }
   .legal-doc table{ font-size:.8rem; }
   .legal-doc th, .legal-doc td{ padding:8px 10px; }
 }
+/* ---------- nav: collapses to a dropdown below 960px (the full row of links doesn't fit) ---------- */
+.lbl-short, .nav-links .nav-mobile-only{ display:none; }
+@media (max-width:960px){
+  .nav{ gap:16px; }
+  .nav-toggle{ display:block; }
+  .nav-right{ gap:12px; }
+  .nav-right .login{ display:none; }
+  .nav-links{
+    display:none; position:absolute; top:100%; left:0; right:0; margin:0;
+    flex-direction:column; align-items:stretch; gap:0; padding:6px 28px 14px;
+    background:rgba(10,10,18,.97); border-bottom:1px solid var(--border);
+  }
+  header.nav-open .nav-links{ display:flex; }
+  .nav-links a{ padding:13px 0; font-size:1rem; border-bottom:1px solid var(--border); }
+  .nav-links a:last-child{ border-bottom:0; }
+  .nav-links a.active::after{ display:none; }
+  .nav-links .nav-mobile-only{ display:block; }
+}
+@media (max-width:480px){
+  header .wrap.nav{ padding:0 18px; }
+  .nav-links{ padding:6px 18px 14px; }
+  .lbl-long{ display:none; }
+  .lbl-short{ display:inline; }
+}
+@media (max-width:360px){
+  .brand-word{ display:none; }
+}
 </style>
+</head>
 <body>
 
 <!-- ===================== NAV ===================== -->
@@ -212,17 +237,18 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
       <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
       <span class="brand-word grad-text">WYNKO</span>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" onclick="if(event.target.closest('a')){const h=this.closest('header');h.classList.remove('nav-open');h.querySelector('.nav-toggle').setAttribute('aria-expanded','false');}">
       <a href="/#product">Product</a>
       <a href="/#features">Features</a>
       <a href="/#founders">Founders</a>
       <a href="/#reviews">Reviews</a>
       <a href="/#faq">FAQ</a>
+      <a class="nav-mobile-only" href="/login">Log in</a>
     </nav>
     <div class="nav-right">
       <a class="login" href="/login">Log in</a>
-      <a class="btn btn-primary btn-sm" href="downloads/">Download Desktop App</a>
-      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display=(getComputedStyle(document.querySelector('.nav-links')).display==='none'?'flex':'none')">&#9776;</button>
+      <a class="btn btn-primary btn-sm" href="downloads/"><span class="lbl-long">Download Desktop App</span><span class="lbl-short">Download</span></a>
+      <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.closest('header').classList.toggle('nav-open'))">&#9776;</button>
     </div>
   </div>
 </header>

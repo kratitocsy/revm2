@@ -195,7 +195,7 @@ body{
 }
 
 /* ── APP MAIN ── */
-.app-main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.app-main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh;min-width:0;}
 
 /* ── TOPBAR ── */
 .topbar{
@@ -563,6 +563,10 @@ select{color-scheme:dark;}
     border-radius:var(--r-sm);
   }
   .app-main{margin-left:0;}
+  /* long page titles/subtitles truncate instead of wrapping out of the 56px bar */
+  .topbar > div:not(.topbar-right){min-width:0;flex:1;}
+  .topbar > div:not(.topbar-right) div{min-width:0;}
+  .topbar-title,.topbar-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .topnav-links{display:none;}
   .stats-grid{grid-template-columns:repeat(2,1fr)!important;}
 }

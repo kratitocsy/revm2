@@ -1,7 +1,7 @@
 /* Extracted from store.html — page-specific overrides on top of base.css */
 
 :root{ --coin:#f59e0b; --coin-dim:rgba(245,158,11,0.12); }
-.sw{max-width:1000px;margin:0 auto;padding:1.5rem;}
+.sw{width:100%;box-sizing:border-box;max-width:1000px;margin:0 auto;padding:1.5rem;}
 
 /* WALLET HERO */
 .wallet-hero{background:linear-gradient(135deg,var(--s1) 0%,rgba(139,92,246,0.08) 100%);border:1px solid var(--violet-bright);border-radius:8px;padding:1.4rem 1.6rem;display:flex;align-items:center;gap:1.5rem;margin-bottom:1.8rem;flex-wrap:wrap;}
@@ -81,6 +81,15 @@
 
 /* Responsive */
 @media(max-width:640px){
+  .sw{padding:1.25rem 1rem;}
+  .wallet-hero{padding:1.1rem 1.2rem;gap:1rem;}
+  .rank-pill{margin-left:0;width:100%;}
+  .rank-pill > div{flex:1;min-width:0;}
+  .rank-bar-wrap{width:100%;}
+  /* five tabs don't fit a phone — scroll the row instead of widening the page */
+  .store-tabs{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+  .store-tabs::-webkit-scrollbar{display:none;}
+  .store-tab{flex-shrink:0;white-space:nowrap;}
   .vault-badges-row{gap:0.4rem;}
   .vault-sec-badge{font-size:0.62rem;padding:0.3rem 0.55rem;}
   .vault-file-card{padding:0.8rem 0.9rem;gap:0.7rem;}

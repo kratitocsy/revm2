@@ -100,6 +100,11 @@ header{
   background:rgba(245,166,35,.08); border-radius:999px; padding:7px 14px;
 }
 .header-meta b{ color:var(--amber); font-weight:600; }
+/* Phones: drop the prefix and let the pill wrap rather than run off-screen */
+@media (max-width:520px){
+  .header-meta .hide-sm{ display:none; }
+  .header-meta{ min-width:0; white-space:normal; text-align:center; line-height:1.4; }
+}
  
 .hero{
   position:relative; min-height:100svh; display:flex; align-items:center; justify-content:center;
@@ -434,7 +439,7 @@ footer{ border-top:1px solid var(--border); padding:30px 0 40px; background:#0a0
         <span class="brand-sub">Memory Instrument</span>
       </span>
     </a>
-    <div class="header-meta"><span>Founding cohort · </span><b id="headerSeatNote">Top 200 get founder access</b></div>
+    <div class="header-meta"><span class="hide-sm">Founding cohort · </span><b id="headerSeatNote">Top 200 get founder access</b></div>
   </div>
 </header>
  
