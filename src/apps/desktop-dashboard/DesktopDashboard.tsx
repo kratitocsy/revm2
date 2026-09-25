@@ -61,9 +61,9 @@ import {
 } from './lib/settings'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
-// A real uploaded photo (profile.avatarUrl) always wins - this picker of 6
-// illustrated presets is only the default/fallback identity, picked in
-// Settings > Profile. Context (rather than threading yet another prop
+// Everyone's picture is one of these 6 illustrated presets, picked in
+// Settings > Profile. Uploaded and Google photos aren't used (the database
+// keeps user_profiles.avatar_url empty, migration 0090). Context (rather than threading yet another prop
 // through every page) because nearly every page's header needs it, and
 // App Root already seeds it from the real profile once that loads.
 const AVATAR_OPTIONS = [avatar7, avatar8, avatar9, avatar10, avatar11, avatar12]
@@ -8592,8 +8592,8 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     }
   }
 
-  function pickAvatar(preset: number | null) {
-    if (preset === null) { if (s?.avatarUrl) setAvatar(s.avatarUrl) } else setAvatar(AVATAR_OPTIONS[preset])
+  function pickAvatar(preset: number) {
+    setAvatar(AVATAR_OPTIONS[preset])
     void updatePrefs({ avatar_preset: preset })
   }
 
@@ -8709,8 +8709,8 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     { id: 'about', label: 'About', icon: 'ℹ️' },
   ]
 
-  const selectedPreset = prefs.avatar_preset
-  const previewAvatar = selectedPreset !== null ? AVATAR_OPTIONS[selectedPreset] : (s?.avatarUrl || AVATAR_OPTIONS[0])
+  const selectedPreset = prefs.avatar_preset ?? 0
+  const previewAvatar = AVATAR_OPTIONS[selectedPreset] ?? AVATAR_OPTIONS[0]
   const goalHoursOptions = ST_GOAL_HOURS.includes(goalMinutes / 60) || goalMinutes % 60 !== 0
     ? ST_GOAL_HOURS : [...ST_GOAL_HOURS, goalMinutes / 60].sort((a, b) => a - b)
 
@@ -8742,14 +8742,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             </div>
             <div className="flex-1">
               <div className="text-[11px] text-slate-500 mb-3">Choose avatar <span className="text-slate-600">· saves instantly</span></div>
-              <div className="grid grid-cols-7 gap-2">
-                {s.avatarUrl && (
-                  <button onClick={() => pickAvatar(null)} title="Use my photo"
-                    className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
-                    style={{ borderColor: selectedPreset === null ? '#8B5CFF' : 'transparent', boxShadow: selectedPreset === null ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
-                    <img src={s.avatarUrl} alt="My photo" className="w-full aspect-square object-cover bg-[rgba(26,40,69,0.4)]" />
-                  </button>
-                )}
+              <div className="grid grid-cols-6 gap-2">
                 {AVATAR_OPTIONS.map((av, i) => (
                   <button key={i} onClick={() => pickAvatar(i)}
                     className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
@@ -10591,14 +10584,12 @@ export default function DesktopDashboard() {
     return () => clearInterval(id)
   }, [authState, activeNav])
 
-  // A preset explicitly saved in Settings (preferences.avatar_preset) wins;
-  // otherwise the real uploaded/OAuth photo; otherwise the default preset.
+  // The preset saved in Settings (preferences.avatar_preset), else the first one.
   useEffect(() => {
     if (avatarTouched) return
     const preset = profile?.avatarPreset
-    if (preset !== null && preset !== undefined && AVATAR_OPTIONS[preset]) setUserAvatar(AVATAR_OPTIONS[preset])
-    else if (profile?.avatarUrl) setUserAvatar(profile.avatarUrl)
-  }, [profile?.avatarUrl, profile?.avatarPreset, avatarTouched])
+    setUserAvatar(preset !== null && preset !== undefined && AVATAR_OPTIONS[preset] ? AVATAR_OPTIONS[preset] : AVATAR_OPTIONS[0])
+  }, [profile?.avatarPreset, avatarTouched])
 
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
 

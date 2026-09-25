@@ -12,7 +12,7 @@ import { sb } from '../../_shared/supabaseClient';
 export type LinkableProvider = 'google' | 'discord';
 
 export interface SettingsPreferences {
-  avatar_preset: number | null; // index into the 6 bundled avatars; null = use real photo
+  avatar_preset: number | null; // index into the 6 bundled avatars; null = the first one
   notif_focus_alerts: boolean;
   notif_streak: boolean;
   notif_battle: boolean;
