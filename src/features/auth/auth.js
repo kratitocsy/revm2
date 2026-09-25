@@ -9,37 +9,26 @@ export async function signOutRevM2(){
     if(typeof sb !== 'undefined'){
       const {data:{session}} = await sb.auth.getSession();
       if(session){
-        // Signing out was a zero-friction way around every layer of
-        // enforcement this app has (blocked apps, blocked sites, the
-        // desktop app's close-lock) - none of that cares whether you're
-        // still signed in, it cares whether focus_lock_sessions has an
-        // active row for you. "Sign out, do whatever, sign back in
-        // later" bypassed all of it without even touching the
-        // code-unlock/emergency-unlock flow that's supposed to be the
-        // only way out of an active block. This closes that at the
-        // root instead of chasing it through every enforcement layer
-        // individually.
+        // Signing out is blocked only while the focus timer is actually
+        // running (a live, unpaused study_sessions row), so "sign out
+        // mid-session" can't be used to dodge it. Leftover
+        // focus_lock_sessions rows (a block started on an old page and
+        // never ended, or one past its end time) used to lock people out
+        // with no timer running at all.
         try{
-          const { data: activeSession } = await sb.from('focus_lock_sessions')
-            .select('ends_at, unlimited, paused_until')
-            .eq('user_id', session.user.id).eq('active', true).maybeSingle();
-          // A session someone already paused via the legitimate
-          // code-unlock flow doesn't re-block sign-out for its
-          // remaining grace window - they've already gone through the
-          // real escape valve; this isn't a second one on top of it.
-          const genuinelyActive = activeSession && !(activeSession.paused_until && new Date(activeSession.paused_until) > new Date());
-          if(genuinelyActive){
-            const until = (!activeSession.unlimited && activeSession.ends_at)
-              ? ' (ends ' + new Date(activeSession.ends_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + ')'
-              : '';
-            alert('You have an active focus block right now'+until+' — signing out is disabled while it\'s running. Go to Blocks to end it early (code unlock / emergency unlock still work) if you need to stop.');
+          const { data: running } = await sb.from('study_sessions')
+            .select('id')
+            .eq('user_id', session.user.id).is('ended_at', null).is('paused_at', null)
+            .limit(1).maybeSingle();
+          if(running){
+            alert('Your focus timer is running — stop it first, then you can sign out.');
             return;
           }
         }catch(checkErr){
           // Couldn't verify either way - a network blip here shouldn't
-          // itself become a reason to trap someone who has no active
-          // block at all. Only a CONFIRMED active session blocks sign-out.
-          console.error('RM2 active-session check failed, proceeding with sign-out:', checkErr);
+          // itself become a reason to trap someone. Only a CONFIRMED
+          // running timer blocks sign-out.
+          console.error('RM2 running-timer check failed, proceeding with sign-out:', checkErr);
         }
       }
       await sb.auth.signOut();
