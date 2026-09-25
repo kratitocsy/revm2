@@ -462,11 +462,11 @@ async function redirect(user){
     }
   } catch(e) { /* never block sign-in on this */ }
 
-  // Wynky's "study identity" quiz is the onboarding gate: every sign-in
-  // (new account or returning without a finished quiz) lands on it first,
-  // then it sends the student to home.html itself once they finish.
-  const {data:profile}=await sb.from('user_profiles').select('quiz_completed_at').eq('id',user.id).single();
-  if(!profile||!profile.quiz_completed_at) window.location.href='onboarding-quiz.html';
+  // First-run onboarding (Wynky: language -> Study DNA quiz or "Skip for
+  // Now" -> name / exam / username) is shown until it's finished once
+  // (onboarding_completed_at, migration 0088); after that, always Home.
+  const {data:profile}=await sb.from('user_profiles').select('onboarding_completed_at').eq('id',user.id).single();
+  if(!profile||!profile.onboarding_completed_at) window.location.href='onboarding-quiz.html';
   else window.location.href='home.html';
 }
 

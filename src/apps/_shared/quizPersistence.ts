@@ -6,128 +6,121 @@
    purpose so quizEngine's branching/scoring stays unit-testable
    without mocking Supabase.
 
-   Flow: scoreArchetype -> generateUsername (client-side candidate
-   generation + uniqueness probe) -> rpc_complete_quiz (server
-   re-validates completeness, computes the coin reward itself, and
-   is the only place coins actually get credited - see the
-   migration's comments for why the reward isn't trusted from here).
+   First-run flow (migration 0088_study_dna_onboarding.sql):
+     submitStudyDna      -> rpc_submit_study_dna: saves the answers and
+                            archetype; the server counts the answers and
+                            credits the Wynkoins itself (never trusted
+                            from here).
+     suggestUsername /
+     checkUsername       -> rpc_check_username: availability is checked on
+                            the server - other people's profiles aren't
+                            readable from the app.
+     finishOnboarding    -> rpc_finish_onboarding: name, exam, username;
+                            marks onboarding done so it's never shown again.
 */
 
 import {
-  type QuizAnswers,
   type Archetype,
-  scoreArchetype,
+  type FocusTime,
+  type QuizAnswers,
   generateUsername,
+  scoreArchetype,
+  usernameFromName,
+  usernameProblem,
 } from './quizEngine';
 
 // Minimal shape of the Supabase client methods this module needs, so it
 // doesn't have to import the full generated client type.
 export interface QuizSupabaseClient {
-  from(table: string): {
-    select(columns: string, opts?: { count?: 'exact'; head?: boolean }): {
-      eq(column: string, value: string): Promise<{ count: number | null; error: unknown }>;
-    };
-  };
   rpc(
     fn: string,
     args: Record<string, unknown>
-  ): Promise<{ data: unknown; error: { message: string } | null }>;
+  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 }
 
-export interface CompleteQuizResult {
+export interface StudyDnaResult {
   archetype: Archetype;
-  /**
-   * What the result screen should show: the mixed-case generated name (e.g.
-   * "NightOwl83") if that's what got stored, otherwise the account's existing
-   * username (the RPC never overwrites one), or null if the account has none.
-   */
-  displayUsername: string | null;
-  /** What actually got stored (lowercase), or null. */
-  storedUsername: string | null;
+  answered: number;
   coinsAwarded: number;
   isFirstTime: boolean;
+  /** Wallet balance after the reward, when the server reports it. */
+  balance: number | null;
 }
 
-function resolveFocusTimeForUsername(answers: QuizAnswers): Parameters<typeof generateUsername>[0] {
-  // generateUsername already degrades 'custom' to a neutral word (see
-  // resolveTimeWord in quizEngine.ts), so any value here is safe to pass
-  // through as-is.
-  return (answers.focus_time as Parameters<typeof generateUsername>[0]) ?? 'morning';
+export async function submitStudyDna(supabase: QuizSupabaseClient, answers: QuizAnswers): Promise<StudyDnaResult> {
+  const archetype = scoreArchetype(answers);
+  const { data, error } = await supabase.rpc('rpc_submit_study_dna', {
+    p_quiz_answers: answers,
+    p_archetype: archetype,
+  });
+  if (error) throw new Error(error.message);
+  const r = data as { archetype: Archetype; answered: number; coins_awarded: number; is_first_time: boolean; balance: number | null };
+  return {
+    archetype: r.archetype,
+    answered: r.answered,
+    coinsAwarded: r.coins_awarded,
+    isFirstTime: r.is_first_time,
+    balance: r.balance ?? null,
+  };
 }
 
-async function isUsernameTaken(supabase: QuizSupabaseClient, candidateLower: string): Promise<boolean> {
-  const { count, error } = await supabase
-    .from('user_profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('username', candidateLower);
-  if (error) {
-    // Fail closed on lookup errors - better to retry generation than to
-    // risk a collision the DB's unique index would reject anyway.
-    return true;
+export interface UsernameCheck {
+  username: string;
+  available: boolean;
+  message: string | null;
+}
+
+export async function checkUsername(supabase: QuizSupabaseClient, username: string): Promise<UsernameCheck> {
+  const problem = usernameProblem(username);
+  if (problem) return { username, available: false, message: problem };
+  const { data, error } = await supabase.rpc('rpc_check_username', { p_username: username });
+  if (error) throw new Error(error.message);
+  const r = data as { username: string; available: boolean; message: string | null };
+  return { username: r.username, available: r.available, message: r.message };
+}
+
+async function isFree(supabase: QuizSupabaseClient, candidate: string): Promise<boolean> {
+  try {
+    return (await checkUsername(supabase, candidate)).available;
+  } catch {
+    return false; // fail closed: try another candidate
   }
-  return (count ?? 0) > 0;
 }
 
 /**
- * Completes the quiz: scores the archetype, generates+claims a username
- * (if the account doesn't already have one), and persists everything via
- * rpc_complete_quiz. Coins are awarded server-side; see that RPC's
- * comments for the anti-farming guard.
- *
- * Caller should have already confirmed `isQuizComplete(answers)` before
- * calling this - the RPC will reject an incomplete payload regardless.
+ * A free username to pre-fill the profile step with (lowercase, the form the
+ * database stores). Quiz finishers get one from their Study DNA
+ * ("nightowl83"), skippers one from their name ("rohan347"). Returns the
+ * last candidate even if none was confirmed free - the student can edit it,
+ * and the profile step checks it again anyway.
  */
-export async function completeQuiz(
+export async function suggestUsername(
   supabase: QuizSupabaseClient,
-  answers: QuizAnswers,
-  opts?: { usernameBlocklist?: string[] }
-): Promise<CompleteQuizResult> {
-  const archetype = scoreArchetype(answers);
-  const focusTime = resolveFocusTimeForUsername(answers);
-
-  const displayUsername = await generateUsername(focusTime, archetype, {
-    isTaken: (candidate) => isUsernameTaken(supabase, candidate.toLowerCase()),
-    blocklist: opts?.usernameBlocklist,
-  });
-  const usernameToSend = displayUsername ? displayUsername.toLowerCase() : null;
-
-  const { data, error } = await supabase.rpc('rpc_complete_quiz', {
-    p_quiz_answers: answers,
-    p_archetype: archetype,
-    p_username: usernameToSend,
-  });
-
-  if (error) {
-    if (error.message.includes('username_taken')) {
-      // Rare race: someone else claimed it between our probe and the
-      // write. Retry once without a username - the student keeps
-      // whatever default they already had; a fresh username can be
-      // generated again from the profile screen later.
-      const { data: retryData, error: retryError } = await supabase.rpc('rpc_complete_quiz', {
-        p_quiz_answers: answers,
-        p_archetype: archetype,
-        p_username: null,
-      });
-      if (retryError) throw new Error(retryError.message);
-      const r = retryData as { archetype: Archetype; username: string | null; coins_awarded: number; is_first_time: boolean };
-      return {
-        archetype: r.archetype,
-        displayUsername: r.username,
-        storedUsername: r.username,
-        coinsAwarded: r.coins_awarded,
-        isFirstTime: r.is_first_time,
-      };
-    }
-    throw new Error(error.message);
+  from: { archetype?: Archetype | null; focusTime?: FocusTime | null; name?: string | null }
+): Promise<string> {
+  if (from.archetype) {
+    const generated = await generateUsername(from.focusTime ?? 'morning', from.archetype, {
+      isTaken: async (c) => !(await isFree(supabase, c.toLowerCase())),
+    });
+    if (generated) return generated.toLowerCase();
   }
+  let candidate = usernameFromName(from.name);
+  for (let i = 0; i < 5; i++) {
+    if (await isFree(supabase, candidate)) return candidate;
+    candidate = usernameFromName(i < 2 ? from.name : null);
+  }
+  return candidate;
+}
 
-  const result = data as { archetype: Archetype; username: string | null; coins_awarded: number; is_first_time: boolean };
-  const storedIsGenerated = displayUsername !== null && result.username === usernameToSend;
-  return {
-    archetype: result.archetype,
-    displayUsername: storedIsGenerated ? displayUsername : result.username,
-    storedUsername: result.username,
-    coinsAwarded: result.coins_awarded,
-    isFirstTime: result.is_first_time,
-  };
+export async function finishOnboarding(
+  supabase: QuizSupabaseClient,
+  profile: { fullName: string; exam: string; username: string }
+): Promise<{ username: string }> {
+  const { data, error } = await supabase.rpc('rpc_finish_onboarding', {
+    p_full_name: profile.fullName,
+    p_exam: profile.exam,
+    p_username: profile.username,
+  });
+  if (error) throw new Error(error.message);
+  return { username: (data as { username: string }).username };
 }

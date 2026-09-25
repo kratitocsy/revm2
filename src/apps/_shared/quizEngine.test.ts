@@ -9,7 +9,12 @@ import {
   generateUsername,
   q3AutoDefault,
   validateCustomAnswer,
+  questionNumber,
+  usernameProblem,
+  cleanUsernameInput,
+  usernameFromName,
   CUSTOM_ANSWER_MAX_LENGTH,
+  MAX_QUIZ_COINS,
   type QuizAnswers,
 } from './quizEngine';
 
@@ -146,52 +151,101 @@ describe('custom free-text answers', () => {
   });
 });
 
-describe('answeredQuestionCount + coin reward', () => {
-  it('full first-time completion (7 real questions, no q3 skip) = 115 coins, matching the spec max', () => {
-    const answers: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      distractions: ['instagram'],
-      study_mode: 'mix',
-    };
-    expect(answeredQuestionCount(answers)).toBe(7);
-    expect(calculateQuizReward(answers, true)).toBe(7 * 5 + 50 + 30); // 115
+describe('answeredQuestionCount + coin reward (+10 per answer, +30 finish, 100 max)', () => {
+  const full: QuizAnswers = {
+    exam: 'JEE',
+    student_type: '12th',
+    fixed_commitment_type: 'school_and_coaching',
+    focus_time: 'morning',
+    daily_hours: '4-5',
+    distractions: ['instagram'],
+    study_mode: 'mix',
+  };
+
+  it('all 7 answered, first time = 100 coins', () => {
+    expect(answeredQuestionCount(full)).toBe(7);
+    expect(calculateQuizReward(full, true)).toBe(7 * 10 + 30);
+    expect(calculateQuizReward(full, true)).toBe(MAX_QUIZ_COINS);
   });
 
-  it('dropper skips q3, so only 6 questions counted (auto-default not counted)', () => {
+  it("dropper: Q3's automatic answer counts, the Q6 follow-up doesn't - still 7, still 100", () => {
     const answers: QuizAnswers = {
       exam: 'JEE',
       student_type: 'dropper',
-      fixed_commitment_type: 'coaching_only', // auto-defaulted, not user-answered
+      fixed_commitment_type: 'coaching_only', // auto-defaulted
       focus_time: 'before_7am',
       daily_hours: '10+',
       distractions: ['nothing'],
       block_social_anyway: true,
       study_mode: 'problems',
     };
-    expect(answeredQuestionCount(answers)).toBe(7); // q1,q2,q4,q5,q6,q6b,q7 (q3 excluded)
-    expect(isQuizComplete(answers)).toBe(true);
+    expect(answeredQuestionCount(answers)).toBe(7);
+    expect(calculateQuizReward(answers, true)).toBe(100);
   });
 
-  it('re-taking the quiz (isFirstTimeCompletion=false) gets no first-time bonus', () => {
-    const answers: QuizAnswers = {
-      exam: 'JEE',
-      student_type: '12th',
-      fixed_commitment_type: 'school_and_coaching',
-      focus_time: 'morning',
-      daily_hours: '4-5',
-      distractions: ['instagram'],
-      study_mode: 'mix',
-    };
-    expect(calculateQuizReward(answers, false)).toBe(7 * 5 + 50); // 85, no +30
+  it('re-taking the quiz earns nothing', () => {
+    expect(calculateQuizReward(full, false)).toBe(0);
   });
 
-  it('incomplete quiz gets no completion or first-time bonus, only per-question coins', () => {
-    const answers: QuizAnswers = { exam: 'JEE', student_type: '12th' };
-    expect(calculateQuizReward(answers, true)).toBe(2 * 5); // 10
+  it('skipped questions earn nothing, finishing still earns +30', () => {
+    const answers: QuizAnswers = { exam: 'JEE', student_type: '12th', skipped: ['q3', 'q4', 'q5', 'q6', 'q7'] };
+    expect(getNextQuestion(answers)).toBeNull();
+    expect(answeredQuestionCount(answers)).toBe(2);
+    expect(calculateQuizReward(answers, true)).toBe(2 * 10 + 30);
+  });
+
+  it('questionNumber folds the Q6 follow-up into question 6', () => {
+    expect(questionNumber('q1')).toBe(1);
+    expect(questionNumber('q6b')).toBe(6);
+    expect(questionNumber('q7')).toBe(7);
+  });
+});
+
+describe('skipping questions', () => {
+  it('skipping q1 moves on to q2 with the default (JEE/NEET) options', () => {
+    const q = getNextQuestion({ skipped: ['q1'] });
+    expect(q?.id).toBe('q2');
+    expect(q?.options.map((o) => o.value)).toContain('dropper');
+  });
+
+  it('skipping q6 never asks the q6b follow-up', () => {
+    const q = getNextQuestion({
+      exam: 'JEE', student_type: '12th', fixed_commitment_type: 'school_and_coaching',
+      focus_time: 'morning', daily_hours: '4-5', skipped: ['q6'],
+    });
+    expect(q?.id).toBe('q7');
+  });
+
+  it('skipping every question ends the quiz with 0 answers', () => {
+    const answers: QuizAnswers = { skipped: ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'] };
+    expect(getNextQuestion(answers)).toBeNull();
+    expect(answeredQuestionCount(answers)).toBe(0);
+  });
+});
+
+describe('username helpers', () => {
+  it('usernameProblem matches the database rules', () => {
+    expect(usernameProblem('nightowl83')).toBeNull();
+    expect(usernameProblem('ab')).not.toBeNull();
+    expect(usernameProblem('a'.repeat(21))).not.toBeNull();
+    expect(usernameProblem('_rohan')).not.toBeNull();
+    expect(usernameProblem('rohan_')).not.toBeNull();
+    expect(usernameProblem('Rohan')).not.toBeNull();
+    expect(usernameProblem('ro_han')).toBeNull();
+  });
+
+  it('cleanUsernameInput lowercases and drops characters usernames cannot have', () => {
+    expect(cleanUsernameInput('Rohan Mehta!')).toBe('rohanmehta');
+    expect(cleanUsernameInput('x'.repeat(30))).toHaveLength(20);
+  });
+
+  it('usernameFromName builds a valid username from a first name, or falls back to wynko', () => {
+    for (const name of ['Rohan Mehta', 'ANU SINGH', '', 'विंकी', 'Jo']) {
+      const u = usernameFromName(name);
+      expect(usernameProblem(u)).toBeNull();
+    }
+    expect(usernameFromName('Rohan Mehta')).toMatch(/^rohan\d{3}$/);
+    expect(usernameFromName('')).toMatch(/^wynko\d{4}$/);
   });
 });
 

@@ -90,6 +90,8 @@ export interface QuizAnswers {
   custom_block_social_anyway?: string;
   study_mode?: StudyMode;
   custom_study_mode?: string;
+  /** Questions the student skipped with the Skip button (stored with the answers). */
+  skipped?: QuestionId[];
 }
 
 export type QuestionId = 'q1' | 'q2' | 'q3' | 'q4' | 'q5' | 'q6' | 'q6b' | 'q7';
@@ -217,15 +219,17 @@ function hasValidAnswer(value: unknown, customText: string | undefined): boolean
  * - Q6b ("Block social anyway?") only appears if Q6 = ['nothing'] exactly.
  * - Any question answered with the 'custom' chip isn't considered
  *   complete until its paired custom_* text passes validation.
+ * - A question the student skipped (answers.skipped) counts as done.
  */
 export function getNextQuestion(answers: QuizAnswers): QuizQuestion | null {
-  if (!hasValidAnswer(answers.exam, answers.custom_exam)) {
+  const open = (id: QuestionId) => !answers.skipped?.includes(id);
+  if (open('q1') && !hasValidAnswer(answers.exam, answers.custom_exam)) {
     return { id: 'q1', field: 'exam', customField: 'custom_exam', options: Q1_OPTIONS };
   }
-  if (!hasValidAnswer(answers.student_type, answers.custom_student_type)) {
+  if (open('q2') && !hasValidAnswer(answers.student_type, answers.custom_student_type)) {
     return { id: 'q2', field: 'student_type', customField: 'custom_student_type', options: q2Options(answers.exam) };
   }
-  if (!hasValidAnswer(answers.fixed_commitment_type, answers.custom_fixed_commitment_type)) {
+  if (open('q3') && !hasValidAnswer(answers.fixed_commitment_type, answers.custom_fixed_commitment_type)) {
     const auto = q3AutoDefault(answers.student_type);
     if (auto !== undefined) {
       // Caller should apply this default and not render a question.
@@ -238,13 +242,13 @@ export function getNextQuestion(answers: QuizAnswers): QuizQuestion | null {
       options: Q3_OPTIONS,
     };
   }
-  if (!hasValidAnswer(answers.focus_time, answers.custom_focus_time)) {
+  if (open('q4') && !hasValidAnswer(answers.focus_time, answers.custom_focus_time)) {
     return { id: 'q4', field: 'focus_time', customField: 'custom_focus_time', options: Q4_OPTIONS };
   }
-  if (!hasValidAnswer(answers.daily_hours, answers.custom_daily_hours)) {
+  if (open('q5') && !hasValidAnswer(answers.daily_hours, answers.custom_daily_hours)) {
     return { id: 'q5', field: 'daily_hours', customField: 'custom_daily_hours', options: Q5_OPTIONS };
   }
-  if (!hasValidAnswer(answers.distractions, answers.custom_distraction)) {
+  if (open('q6') && !hasValidAnswer(answers.distractions, answers.custom_distraction)) {
     return {
       id: 'q6',
       field: 'distractions',
@@ -254,8 +258,8 @@ export function getNextQuestion(answers: QuizAnswers): QuizQuestion | null {
     };
   }
   const distractionsIsExactlyNothing =
-    answers.distractions!.length === 1 && answers.distractions![0] === 'nothing';
-  if (distractionsIsExactlyNothing && !hasValidAnswer(answers.block_social_anyway, answers.custom_block_social_anyway)) {
+    answers.distractions?.length === 1 && answers.distractions[0] === 'nothing';
+  if (open('q6b') && distractionsIsExactlyNothing && !hasValidAnswer(answers.block_social_anyway, answers.custom_block_social_anyway)) {
     return {
       id: 'q6b',
       field: 'block_social_anyway',
@@ -263,7 +267,7 @@ export function getNextQuestion(answers: QuizAnswers): QuizQuestion | null {
       options: Q6B_OPTIONS,
     };
   }
-  if (!hasValidAnswer(answers.study_mode, answers.custom_study_mode)) {
+  if (open('q7') && !hasValidAnswer(answers.study_mode, answers.custom_study_mode)) {
     return { id: 'q7', field: 'study_mode', customField: 'custom_study_mode', options: Q7_OPTIONS };
   }
   return null;
@@ -273,32 +277,44 @@ export function isQuizComplete(answers: QuizAnswers): boolean {
   return getNextQuestion(answers) === null;
 }
 
-/** Number of questions actually presented to (and answered by) this student, for the coin calc. */
-export function answeredQuestionCount(answers: QuizAnswers): number {
-  let count = 0;
-  if (hasValidAnswer(answers.exam, answers.custom_exam)) count++;
-  if (hasValidAnswer(answers.student_type, answers.custom_student_type)) count++;
-  // Q3 only counts if it wasn't auto-defaulted, i.e. the student wasn't dropper/appeared.
-  if (
-    hasValidAnswer(answers.fixed_commitment_type, answers.custom_fixed_commitment_type) &&
-    q3AutoDefault(answers.student_type) === undefined
-  ) {
-    count++;
-  }
-  if (hasValidAnswer(answers.focus_time, answers.custom_focus_time)) count++;
-  if (hasValidAnswer(answers.daily_hours, answers.custom_daily_hours)) count++;
-  if (hasValidAnswer(answers.distractions, answers.custom_distraction)) count++;
-  if (hasValidAnswer(answers.block_social_anyway, answers.custom_block_social_anyway)) count++;
-  if (hasValidAnswer(answers.study_mode, answers.custom_study_mode)) count++;
-  return count;
+// ── Study DNA questions + Wynkoins reward ────────────────────────────
+// The quiz is 7 questions (Q1-Q7). Q6b is a follow-up to Q6, not a
+// question of its own, and Q3's automatic answer for dropper/appeared
+// counts as answered. Reward (first completion only, recomputed by the
+// server in rpc_submit_study_dna - migration 0088): +10 per answered
+// question + 30 for finishing = 100 max. Skipped questions earn nothing.
+export const DNA_QUESTION_COUNT = 7;
+export const COINS_PER_ANSWER = 10;
+export const FINISH_BONUS = 30;
+export const MAX_QUIZ_COINS = DNA_QUESTION_COUNT * COINS_PER_ANSWER + FINISH_BONUS; // 100
+
+/** Which of the 7 questions (1-7) a question belongs to; Q6b is part of Q6. */
+export function questionNumber(id: QuestionId): number {
+  return id === 'q6b' ? 6 : Number(id.slice(1));
 }
 
-// ── Wynkoins reward (spec: 5/question + 50 completion + 30 first-time) ──
+/** For each of the 7 questions (index 0 = Q1), whether it holds a real answer. */
+export function answeredQuestions(answers: QuizAnswers): boolean[] {
+  return [
+    hasValidAnswer(answers.exam, answers.custom_exam),
+    hasValidAnswer(answers.student_type, answers.custom_student_type),
+    hasValidAnswer(answers.fixed_commitment_type, answers.custom_fixed_commitment_type),
+    hasValidAnswer(answers.focus_time, answers.custom_focus_time),
+    hasValidAnswer(answers.daily_hours, answers.custom_daily_hours),
+    hasValidAnswer(answers.distractions, answers.custom_distraction),
+    hasValidAnswer(answers.study_mode, answers.custom_study_mode),
+  ];
+}
+
+/** How many of the 7 questions hold a real answer (Q6b excluded). */
+export function answeredQuestionCount(answers: QuizAnswers): number {
+  return answeredQuestions(answers).filter(Boolean).length;
+}
+
+/** Coins for finishing the quiz: 0 unless it's the account's first completion. */
 export function calculateQuizReward(answers: QuizAnswers, isFirstTimeCompletion: boolean): number {
-  const perQuestion = answeredQuestionCount(answers) * 5;
-  const completionBonus = isQuizComplete(answers) ? 50 : 0;
-  const firstTimeBonus = isFirstTimeCompletion && isQuizComplete(answers) ? 30 : 0;
-  return perQuestion + completionBonus + firstTimeBonus;
+  if (!isFirstTimeCompletion) return 0;
+  return answeredQuestionCount(answers) * COINS_PER_ANSWER + FINISH_BONUS;
 }
 
 // ── Archetype scoring (Section 3) ────────────────────────────────
@@ -422,4 +438,35 @@ export async function generateUsername(
     }
   }
   return null; // caller falls through to manual input
+}
+
+// ── Username rules (match the database: rpc_check_username, migration 0088) ──
+// 3-20 characters of a-z 0-9 _, starting and ending with a letter or number.
+export const USERNAME_RE = /^[a-z0-9][a-z0-9_]{1,18}[a-z0-9]$/;
+
+/** Lowercases and drops anything a username can't contain (for typing). */
+export function cleanUsernameInput(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, USERNAME_MAX_LEN);
+}
+
+/** null when the username is fine, otherwise what's wrong with it. */
+export function usernameProblem(u: string): string | null {
+  if (u.length < 3) return 'Usernames need at least 3 characters.';
+  if (u.length > USERNAME_MAX_LEN) return 'Usernames can be at most 20 characters.';
+  if (!/^[a-z0-9_]+$/.test(u)) return 'Use only lowercase letters, numbers and _.';
+  if (!USERNAME_RE.test(u)) return 'Start and end with a letter or number.';
+  return null;
+}
+
+/**
+ * A starting username for someone who skipped the quiz: their first name
+ * plus 2-3 digits ("rohan47"), or "wynko" + digits without a usable name.
+ * The caller checks availability and retries with a new call.
+ */
+export function usernameFromName(name: string | null | undefined): string {
+  const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
+  let base = first.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '').slice(0, 14);
+  if (base.length < 2) base = 'wynko';
+  const digits = String(Math.floor(Math.random() * (base === 'wynko' ? 9000 : 900)) + (base === 'wynko' ? 1000 : 100));
+  return base + digits;
 }

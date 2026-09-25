@@ -52,6 +52,7 @@ body {
   .wq-stage-small { --wq-stage: 84px; }
   .wq-header { padding: 14px 16px !important; gap: 10px !important; flex-wrap: wrap; }
   .wq-header-eyebrow { display: none; }
+  .wq-header-title { display: none; }
   .wq-progress { padding: 0 16px !important; }
 }
 

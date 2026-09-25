@@ -3,35 +3,109 @@ import { sb } from '../_shared/supabaseClient';
 import {
   CUSTOM_ANSWER_MAX_LENGTH,
   CUSTOM_VALUE,
+  COINS_PER_ANSWER,
+  DNA_QUESTION_COUNT,
+  FINISH_BONUS,
+  MAX_QUIZ_COINS,
+  answeredQuestionCount,
+  answeredQuestions,
+  cleanUsernameInput,
   getNextQuestion,
   q3AutoDefault,
+  questionNumber,
+  usernameProblem,
   validateCustomAnswer,
+  type Archetype,
+  type FocusTime,
+  type QuestionId,
   type QuizAnswers,
   type QuizQuestion,
   type StudentType,
 } from '../_shared/quizEngine';
-import { completeQuiz, type CompleteQuizResult, type QuizSupabaseClient } from '../_shared/quizPersistence';
+import {
+  checkUsername,
+  finishOnboarding,
+  submitStudyDna,
+  suggestUsername,
+  type QuizSupabaseClient,
+  type StudyDnaResult,
+} from '../_shared/quizPersistence';
 import { SpeechBubble, WynkyHero, WynkyStage, sfx, speak, type Expression, type Lang, type Line } from './wynky';
-import { INTRO, QUESTION_COPY, REACTIONS, SAVE_FAILED, SAVING, resultLine } from './quizCopy';
+import {
+  INTRO,
+  OPTION_LABELS_HI,
+  PROFILE_AFTER_SKIP,
+  QUESTION_COPY,
+  REACTIONS,
+  SAVE_FAILED,
+  SAVING,
+  SKIPPED_QUESTION,
+  resultLine,
+} from './quizCopy';
 import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
-type Phase = 'lang' | 'start' | 'intro' | 'q' | 'saving' | 'result' | 'error';
+/*
+  First-run flow (shown once per account — see migration 0088):
+    lang   "Select Your Language" (Hindi / English) -> Let's go
+    start  Meet Wynky -> Tap to say hi
+    intro  Wynky says hello -> "Find Your Study DNA" | "Skip for Now"
+    q      7 questions, each skippable; +10 Wynkoins per answer
+    saving -> profile (Study DNA + Wynkoins + name / exam / username) -> Home
+  "Skip for Now" goes straight to the profile step (no Study DNA, no coins).
+*/
+type Phase = 'loading' | 'lang' | 'start' | 'intro' | 'q' | 'saving' | 'profile' | 'error';
+type ProfileMode = 'dna' | 'skipped';
 
 const LANG_KEY = 'wynko_quiz_lang_v1';
 const MUTED_KEY = 'wynko_quiz_muted_v1';
-const CUSTOM_LANG_KEY = 'wynko_quiz_custom_lang_v1';
 const MONO = "'JetBrains Mono', monospace";
+const client = sb as unknown as QuizSupabaseClient;
 
-// Shown once, right after login, before the Hinglish/English toggle even
-// applies to anything — mirrors it in both scripts since we don't know
-// yet which the student reads.
-const LANG_PROMPT = { hi: 'Aap kaunsi bhasha mein baat karoge?', en: 'Which language should I talk in?' };
-const LANG_SUBTITLE = {
-  hi: 'Wynky Hinglish aur English dono mein baat kar sakti hai.',
-  en: 'Wynky can talk in Hinglish or English.',
-};
+const EXAMS = ['JEE', 'NEET', 'UPSC', 'CAT', 'Boards', 'Other'] as const;
+type ExamChoice = (typeof EXAMS)[number];
+
+const TEXT = {
+  en: {
+    meetTitle: 'Meet', meetTitleEnd: ', your study buddy',
+    meetSub: 'A quick 7-question game to find your Study DNA. Sound on for the full experience.',
+    sayHi: '🔊 Tap to say hi',
+    findDna: 'Find Your Study DNA', skipForNow: 'Skip for Now', hearAgain: '↻ Hear it again',
+    question: (n: number) => `QUESTION ${n} OF ${DNA_QUESTION_COUNT}`,
+    followUp: ' · FOLLOW-UP', pickAll: ' · PICK ALL THAT APPLY',
+    skip: 'Skip', next: 'Next →', typeAnswer: 'Type your answer…',
+    coinRule: `+${COINS_PER_ANSWER} per answer · +${FINISH_BONUS} for finishing`,
+    working: 'Working out your Study DNA…',
+    yourDna: 'YOUR STUDY DNA', earned: 'Wynkoins earned', balance: 'Your Wynkoins',
+    alreadyClaimed: 'Already claimed before',
+    setupEyebrow: 'SET UP YOUR PROFILE', setupTitle: 'Tell us a bit about you',
+    formTitle: 'Almost there — tell us about you',
+    name: 'Your name', namePh: 'e.g. Aarav Sharma', exam: 'Your exam', examOtherPh: 'Which exam?',
+    username: 'Username', checking: 'Checking…', available: '✓ Available — it’s yours', taken: '✗ Already taken',
+    letsGo: "Let's go →", saving: 'Saving…',
+    other: 'Other', tryAgain: 'Try again', logIn: 'Log in →', couldntSave: "COULDN'T SAVE",
+  },
+  hi: {
+    meetTitle: 'Milo', meetTitleEnd: ' se, aapki study buddy',
+    meetSub: '7 sawaalon ka chhota sa game — aapka Study DNA pata karne ke liye. Sound on rakhna!',
+    sayHi: '🔊 Hi bolo',
+    findDna: 'Find Your Study DNA', skipForNow: 'Skip for Now', hearAgain: '↻ Phir se suno',
+    question: (n: number) => `SAWAAL ${n} / ${DNA_QUESTION_COUNT}`,
+    followUp: ' · EK AUR', pickAll: ' · JITNE CHAHO CHUNO',
+    skip: 'Skip', next: 'Aage badho →', typeAnswer: 'Apna answer likho…',
+    coinRule: `Har jawaab pe +${COINS_PER_ANSWER} · khatam karne pe +${FINISH_BONUS}`,
+    working: 'Aapka Study DNA ban raha hai…',
+    yourDna: 'AAPKA STUDY DNA', earned: 'Wynkoins mile', balance: 'Aapke Wynkoins',
+    alreadyClaimed: 'Pehle hi mil chuke hain',
+    setupEyebrow: 'APNI PROFILE BANAO', setupTitle: 'Apne baare mein thoda batao',
+    formTitle: 'Bas ek step aur — apne baare mein batao',
+    name: 'Aapka naam', namePh: 'jaise Aarav Sharma', exam: 'Aapka exam', examOtherPh: 'Kaunsa exam?',
+    username: 'Username', checking: 'Check ho raha hai…', available: '✓ Available — ye aapka hai', taken: '✗ Ye pehle se liya hua hai',
+    letsGo: "Let's go →", saving: 'Save ho raha hai…',
+    other: 'Other', tryAgain: 'Phir se try karo', logIn: 'Login karo →', couldntSave: 'SAVE NAHI HUA',
+  },
+} as const;
 
 function readPref(key: string): string | null {
   try {
@@ -66,11 +140,19 @@ function applyAnswer(answers: QuizAnswers, q: QuizQuestion, pick: string[], cust
   return next as QuizAnswers;
 }
 
-function totalQuestions(a: QuizAnswers): number {
-  let n = 7;
-  if (q3AutoDefault(a.student_type)) n -= 1;
-  if (a.distractions?.length === 1 && a.distractions[0] === 'nothing') n += 1;
-  return n;
+function optionLabel(lang: Lang, q: QuizQuestion, value: string, fallback: string): string {
+  if (lang !== 'hi') return fallback;
+  if (value === CUSTOM_VALUE) return OPTION_LABELS_HI.custom;
+  return OPTION_LABELS_HI[`${q.id}:${value}`] ?? fallback;
+}
+
+/** The exam chip + "other" text to pre-fill from the Q1 answer (or a saved exam). */
+function examPrefill(exam: string | null | undefined, customExam?: string): { choice: ExamChoice | null; other: string } {
+  if (!exam) return { choice: null, other: '' };
+  if ((EXAMS as readonly string[]).includes(exam) && exam !== 'Other') return { choice: exam as ExamChoice, other: '' };
+  if (exam === CUSTOM_VALUE) return { choice: 'Other', other: customExam ?? '' };
+  if (exam === 'Something else') return { choice: 'Other', other: '' };
+  return { choice: 'Other', other: exam };
 }
 
 function MountainBackdrop() {
@@ -89,9 +171,9 @@ function MountainBackdrop() {
   );
 }
 
-function CoinIcon() {
+function CoinIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
       <circle cx="8" cy="8" r="7" fill="#F59E0B" stroke="#FBBF24" strokeWidth="1" />
       <circle cx="8" cy="8" r="4.5" fill="none" stroke="#FDE68A" strokeWidth="1" opacity="0.8" />
       <text x="8" y="10.5" textAnchor="middle" fontSize="7" fontWeight="700" fill="#78350F" fontFamily="Poppins, sans-serif">W</text>
@@ -125,9 +207,16 @@ function OptionChip({ label, on, onClick }: { label: string; on: boolean; onClic
 const eyebrow: CSSProperties = { fontFamily: MONO, fontSize: 10, letterSpacing: '0.2em', color: '#A78BFA' };
 
 const panel: CSSProperties = {
-  maxWidth: 440, padding: 28, borderRadius: 20, background: 'linear-gradient(160deg, #0F1240 0%, #0A0E28 100%)',
+  maxWidth: 460, padding: 28, borderRadius: 20, background: 'linear-gradient(160deg, #0F1240 0%, #0A0E28 100%)',
   border: '1px solid rgba(124,77,255,0.4)', boxShadow: '0 0 60px rgba(124,77,255,0.2)',
 };
+
+const inputStyle: CSSProperties = {
+  width: '100%', height: 46, padding: '0 16px', borderRadius: 14, fontFamily: 'Poppins, sans-serif', fontSize: 14,
+  color: '#F1F5F9', background: 'rgba(14,21,40,0.75)', border: '1px solid #1A2845', outline: 'none', boxSizing: 'border-box',
+};
+
+const fieldLabel: CSSProperties = { display: 'block', fontSize: 12, fontWeight: 500, color: '#94A3B8', margin: '16px 0 6px' };
 
 function PrimaryButton({ children, onClick, disabled, background, color = '#fff', glow, style }: {
   children: ReactNode; onClick: () => void; disabled?: boolean; background: string; color?: string; glow: string; style?: CSSProperties;
@@ -148,38 +237,95 @@ function PrimaryButton({ children, onClick, disabled, background, color = '#fff'
   );
 }
 
+/** Segmented coin bar: one +10 segment per question, then the +30 finish bonus. */
+function CoinBar({ answers, current, finished, label, coins }: {
+  answers: QuizAnswers; current: number | null; finished: boolean; label: string; coins: number;
+}) {
+  const done = answeredQuestions(answers);
+  const skipped = new Set(answers.skipped ?? []);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, fontSize: 11, color: '#8B9AC7' }}>
+        <span>{label}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, color: '#FBBF24', fontWeight: 600 }}>
+          <CoinIcon size={13} /> {coins} / {MAX_QUIZ_COINS}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 4 }} role="img" aria-label={`${coins} of ${MAX_QUIZ_COINS} Wynkoins`}>
+        {done.map((isDone, i) => {
+          const n = i + 1;
+          const wasSkipped = !isDone && skipped.has(`q${n}` as QuestionId);
+          const isCurrent = current === n && !isDone;
+          return (
+            <div key={n} title={isDone ? `+${COINS_PER_ANSWER}` : wasSkipped ? 'Skipped' : `+${COINS_PER_ANSWER}`}
+              style={{
+                flex: 1, height: 22, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: MONO, fontSize: 10, fontWeight: 600, transition: 'all 300ms',
+                background: isDone ? 'linear-gradient(135deg,#F59E0B,#FBBF24)' : 'rgba(14,21,40,0.7)',
+                color: isDone ? '#3B2203' : wasSkipped ? '#3A4668' : isCurrent ? '#C4AAFF' : '#4E5E84',
+                border: `1px solid ${isDone ? '#FBBF24' : isCurrent ? '#7C4DFF' : '#1A2845'}`,
+                boxShadow: isDone ? '0 0 10px rgba(245,158,11,0.35)' : isCurrent ? '0 0 10px rgba(124,77,255,0.35)' : 'none',
+                textDecoration: wasSkipped ? 'line-through' : 'none',
+              }}>
+              +{COINS_PER_ANSWER}
+            </div>
+          );
+        })}
+        <div title={`+${FINISH_BONUS} for finishing`}
+          style={{
+            flex: 1.6, height: 22, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+            fontFamily: MONO, fontSize: 10, fontWeight: 700, transition: 'all 300ms',
+            background: finished ? 'linear-gradient(135deg,#7C4DFF,#22D3EE)' : 'rgba(14,21,40,0.7)',
+            color: finished ? '#fff' : '#4E5E84', border: `1px solid ${finished ? '#22D3EE' : '#1A2845'}`,
+          }}>
+          🏁 +{FINISH_BONUS}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface SpeechEntry {
   line: Line;
   after?: () => void;
   cancel: () => void;
 }
 
+type UsernameState = { state: 'idle' | 'checking' | 'ok' | 'bad'; message: string | null };
+
 export default function OnboardingQuiz() {
   const [lang, setLang] = useState<Lang>(() => (readPref(LANG_KEY) === 'en' ? 'en' : 'hi'));
   const [muted, setMuted] = useState(() => readPref(MUTED_KEY) === '1');
-  // Skip the language-pick screen for a returning student who already chose
-  // one (LANG_KEY set) — only first-time visitors see it.
-  const [phase, setPhase] = useState<Phase>(() => (readPref(LANG_KEY) ? 'start' : 'lang'));
-  const [langPick, setLangPick] = useState<Lang | 'custom' | null>(null);
-  const [customLangText, setCustomLangText] = useState('');
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [langPick, setLangPick] = useState<Lang | null>(() => (readPref(LANG_KEY) === 'en' ? 'en' : readPref(LANG_KEY) === 'hi' ? 'hi' : null));
   const [answers, setAnswers] = useState<QuizAnswers>({});
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [pick, setPick] = useState<string[]>([]);
   const [customText, setCustomText] = useState('');
-  const [answered, setAnswered] = useState(0);
   const [reacting, setReacting] = useState(false);
   const [bubble, setBubble] = useState<Line>(INTRO);
   const [expr, setExpr] = useState<Expression>('wave');
   const [speaking, setSpeaking] = useState(false);
-  const [coins, setCoins] = useState(0);
   const [coinPop, setCoinPop] = useState<number | null>(null);
-  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
-  const [result, setResult] = useState<CompleteQuizResult | null>(null);
+  const [dna, setDna] = useState<StudyDnaResult | null>(null);
   const [error, setError] = useState<{ message: string; signedOut: boolean } | null>(null);
+
+  // Profile step
+  const [profileMode, setProfileMode] = useState<ProfileMode>('skipped');
+  const [fullName, setFullName] = useState('');
+  const [examChoice, setExamChoice] = useState<ExamChoice | null>(null);
+  const [examOther, setExamOther] = useState('');
+  const [username, setUsername] = useState('');
+  const [uname, setUname] = useState<UsernameState>({ state: 'idle', message: null });
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
 
   const langRef = useRef(lang);
   const mutedRef = useRef(muted);
   const speech = useRef<SpeechEntry | null>(null);
+  const checkSeq = useRef(0);
+  const t = TEXT[lang];
 
   // `after` runs once, when the line finishes. Re-speaking the same line
   // (language switch, mute) carries over an `after` that hasn't run yet.
@@ -203,24 +349,101 @@ export default function OnboardingQuiz() {
 
   useEffect(() => () => speech.current?.cancel(), []);
 
+  // Pre-fills the profile step and switches to it.
+  const openProfile = useCallback(async (mode: ProfileMode, from: {
+    name: string; exam?: string | null; customExam?: string; archetype?: Archetype | null; focusTime?: FocusTime | null;
+  }) => {
+    setProfileMode(mode);
+    setFullName((cur) => cur || from.name);
+    const pre = examPrefill(from.exam, from.customExam);
+    setExamChoice((cur) => cur ?? pre.choice);
+    setExamOther((cur) => cur || pre.other);
+    setPhase('profile');
+    try {
+      const suggested = await suggestUsername(client, { archetype: from.archetype, focusTime: from.focusTime, name: from.name });
+      setUsername((cur) => cur || suggested);
+    } catch {
+      // Leave it empty; the student types one.
+    }
+  }, []);
+
+  // Where does this account stand? Onboarded -> Home; quiz done but no
+  // profile yet -> straight to the profile step; otherwise start.
+  const defaults = useRef<{ name: string; exam: string | null }>({ name: '', exam: null });
   useEffect(() => {
     let live = true;
-    sb.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return;
-      const { data } = await sb.from('user_profiles').select('quiz_completed_at').eq('id', session.user.id).maybeSingle();
-      if (live && data?.quiz_completed_at) setAlreadyCompleted(true);
-    });
+    (async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!live) return;
+      if (!session) {
+        window.location.replace('/login.html');
+        return;
+      }
+      const { data: prof } = await sb
+        .from('user_profiles')
+        .select('full_name, display_name, exam, quiz_completed_at, onboarding_completed_at, archetype, quiz_answers')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (!live) return;
+      if (prof?.onboarding_completed_at) {
+        window.location.replace('/home.html');
+        return;
+      }
+      const md = (session.user.user_metadata ?? {}) as Record<string, string | undefined>;
+      const name = (prof?.full_name || prof?.display_name || md.full_name || md.name || '').trim();
+      defaults.current = { name, exam: prof?.exam ?? null };
+      if (prof?.quiz_completed_at && prof.archetype) {
+        const saved = (prof.quiz_answers ?? {}) as QuizAnswers;
+        const { data: wallet } = await sb.from('user_wallets').select('coins').eq('user_id', session.user.id).maybeSingle();
+        if (!live) return;
+        setAnswers(saved);
+        setBalance(wallet?.coins ?? null);
+        setDna({ archetype: prof.archetype as Archetype, answered: answeredQuestionCount(saved), coinsAwarded: 0, isFirstTime: false, balance: wallet?.coins ?? null });
+        setExpr('happy');
+        setBubble(resultLine(prof.archetype as Archetype));
+        void openProfile('dna', { name, exam: prof.exam ?? saved.exam, customExam: saved.custom_exam, archetype: prof.archetype as Archetype, focusTime: saved.focus_time });
+        return;
+      }
+      setPhase('lang');
+    })();
     return () => {
       live = false;
     };
-  }, []);
+  }, [openProfile]);
+
+  // Username: check format here, availability on the server (debounced).
+  useEffect(() => {
+    if (phase !== 'profile') return;
+    if (!username) {
+      setUname({ state: 'idle', message: null });
+      return;
+    }
+    const problem = usernameProblem(username);
+    if (problem) {
+      setUname({ state: 'bad', message: problem });
+      return;
+    }
+    const seq = ++checkSeq.current;
+    setUname({ state: 'checking', message: null });
+    const timer = setTimeout(async () => {
+      try {
+        const r = await checkUsername(client, username);
+        if (seq !== checkSeq.current) return;
+        setUname(r.available ? { state: 'ok', message: null } : { state: 'bad', message: r.message });
+      } catch (e) {
+        if (seq !== checkSeq.current) return;
+        setUname({ state: 'bad', message: e instanceof Error ? e.message : 'Could not check that username.' });
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [username, phase]);
 
   const changeLang = (l: Lang) => {
     if (l === lang) return;
     setLang(l);
     langRef.current = l;
     writePref(LANG_KEY, l);
-    if (phase !== 'start') resay();
+    if (phase !== 'start' && phase !== 'lang') resay();
   };
 
   const toggleMute = () => {
@@ -251,21 +474,24 @@ export default function OnboardingQuiz() {
       fail('Your sign-in expired. Log in again to save your result.', true);
       return;
     }
-    let r: CompleteQuizResult;
+    let r: StudyDnaResult;
     try {
-      r = await completeQuiz(sb as unknown as QuizSupabaseClient, a);
+      r = await submitStudyDna(client, a);
     } catch (e) {
       fail(e instanceof Error ? e.message : 'Something went wrong.', false);
       return;
     }
-    setResult(r);
-    if (r.coinsAwarded > 0) setCoins(r.coinsAwarded);
-    setPhase('result');
+    setDna(r);
+    setBalance(r.balance);
     setExpr('wave');
     sfx('tada', mutedRef.current);
     const ln = resultLine(r.archetype);
     setBubble(ln);
     say(ln, () => setExpr('happy'));
+    void openProfile('dna', {
+      name: defaults.current.name, exam: a.exam ?? defaults.current.exam, customExam: a.custom_exam,
+      archetype: r.archetype, focusTime: a.focus_time,
+    });
   };
 
   const showQuestion = (a: QuizAnswers) => {
@@ -284,24 +510,12 @@ export default function OnboardingQuiz() {
     say(copy.ask);
   };
 
-  const canSubmitLangPick = langPick !== null && (langPick !== 'custom' || customLangText.trim().length > 0);
-
   const submitLangPick = () => {
-    if (!canSubmitLangPick) return;
+    if (!langPick) return;
     sfx('pop', mutedRef.current);
-    // Set + persist directly rather than via changeLang(), which no-ops
-    // when the target already matches the default 'hi' state — that guard
-    // is for the header toggle avoiding a redundant re-speak, not for this
-    // first-ever pick, which must always persist so 'lang' isn't shown again.
-    const picked: Lang = langPick === 'custom' ? 'en' : langPick!;
-    if (langPick === 'custom') {
-      // No third UI language exists yet — remember what they typed (for a
-      // future addition) and default the actual screen to English.
-      writePref(CUSTOM_LANG_KEY, customLangText.trim());
-    }
-    setLang(picked);
-    langRef.current = picked;
-    writePref(LANG_KEY, picked);
+    setLang(langPick);
+    langRef.current = langPick;
+    writePref(LANG_KEY, langPick);
     setPhase('start');
   };
 
@@ -319,24 +533,42 @@ export default function OnboardingQuiz() {
     showQuestion(answers);
   };
 
+  const skipForNow = () => {
+    sfx('pop', mutedRef.current);
+    setDna(null);
+    setExpr('wave');
+    setBubble(PROFILE_AFTER_SKIP);
+    say(PROFILE_AFTER_SKIP, () => setExpr('happy'));
+    void openProfile('skipped', { name: defaults.current.name, exam: defaults.current.exam });
+  };
+
   const customPicked = pick.includes(CUSTOM_VALUE);
   const canSubmit = !!question && !reacting && pick.length > 0 && (!customPicked || validateCustomAnswer(customText).valid);
+  const coins = answeredQuestionCount(answers) * COINS_PER_ANSWER;
 
   const submit = () => {
     if (!question || !canSubmit) return;
     const a = applyAnswer(answers, question, pick, customText);
+    const gained = answeredQuestionCount(a) > answeredQuestionCount(answers);
     setAnswers(a);
-    setAnswered((n) => n + 1);
     setReacting(true);
     sfx('coin', mutedRef.current);
-    if (!alreadyCompleted) {
-      setCoins((c) => c + 5);
-      setCoinPop(Date.now());
-    }
+    if (gained) setCoinPop(Date.now());
     const r = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
     setExpr(r.expr);
     setBubble(r.line);
     say(r.line, () => showQuestion(a));
+  };
+
+  const skipQuestion = () => {
+    if (!question || reacting) return;
+    const a: QuizAnswers = { ...answers, skipped: [...(answers.skipped ?? []), question.id] };
+    setAnswers(a);
+    setReacting(true);
+    sfx('whoosh', mutedRef.current);
+    setExpr('wink');
+    setBubble(SKIPPED_QUESTION);
+    say(SKIPPED_QUESTION, () => showQuestion(a));
   };
 
   const toggle = (v: string) => {
@@ -349,10 +581,29 @@ export default function OnboardingQuiz() {
     if (!speaking) setExpr(wasOn ? QUESTION_COPY[question.id].expr : 'wink');
   };
 
+  const examValue = examChoice === 'Other' ? examOther.trim() : examChoice ?? '';
+  const canFinish = !submitting && fullName.trim().length > 0 && examValue.length > 0 && uname.state === 'ok';
+
+  const letsGo = async () => {
+    if (!canFinish) return;
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await finishOnboarding(client, { fullName: fullName.trim(), exam: examValue, username });
+      sfx('tada', mutedRef.current);
+      window.location.href = '/home.html';
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Something went wrong.';
+      if (/username/i.test(msg)) setUname({ state: 'bad', message: msg });
+      else setFormError(msg);
+      setSubmitting(false);
+    }
+  };
+
   const hi = lang === 'hi';
   const isQPhase = phase === 'q';
-  const total = totalQuestions(answers);
-  const progress = phase === 'q' ? Math.min(answered / total, 1) : 1;
+  const showBar = phase === 'q' || phase === 'saving' || (phase === 'profile' && profileMode === 'dna');
+  const headerCoins = phase === 'profile' && dna ? (dna.isFirstTime ? dna.coinsAwarded : balance ?? 0) : coins;
   const segBtn = (on: boolean, label: string, onClick: () => void) => (
     <button
       type="button"
@@ -367,6 +618,10 @@ export default function OnboardingQuiz() {
       {label}
     </button>
   );
+
+  if (phase === 'loading') {
+    return <div style={{ minHeight: '100%', background: '#020615' }} />;
+  }
 
   return (
     <div style={{ position: 'relative', minHeight: '100%', overflowX: 'hidden', background: '#020615', display: 'flex', flexDirection: 'column' }}>
@@ -387,13 +642,15 @@ export default function OnboardingQuiz() {
             style={{ width: 32, height: 32, objectFit: 'contain', mixBlendMode: 'screen', filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.8)) brightness(1.1)' }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="wq-header-eyebrow" style={{ fontSize: 10, letterSpacing: '0.18em', color: '#68728A' }}>ONBOARDING · STUDY IDENTITY QUIZ</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#F3F4F6' }}>Play with Wynky</div>
+            <div className="wq-header-eyebrow" style={{ fontSize: 10, letterSpacing: '0.18em', color: '#68728A' }}>WELCOME TO WYNKO</div>
+            <div className="wq-header-title" style={{ fontSize: 14, fontWeight: 600, color: '#F3F4F6' }}>{phase === 'profile' ? (profileMode === 'dna' ? 'Your Study DNA' : 'Your profile') : 'Play with Wynky'}</div>
           </div>
-          <div role="group" aria-label="Language" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#0B1530', border: '1px solid #1A2845' }}>
-            {segBtn(hi, 'Hinglish', () => changeLang('hi'))}
-            {segBtn(!hi, 'English', () => changeLang('en'))}
-          </div>
+          {phase !== 'lang' && (
+            <div role="group" aria-label="Language" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#0B1530', border: '1px solid #1A2845' }}>
+              {segBtn(hi, 'Hindi', () => changeLang('hi'))}
+              {segBtn(!hi, 'English', () => changeLang('en'))}
+            </div>
+          )}
           <button
             type="button"
             onClick={toggleMute}
@@ -404,7 +661,7 @@ export default function OnboardingQuiz() {
             {muted ? '🔇' : '🔊'}
           </button>
           <div
-            aria-label={`${coins} Wynkoins`}
+            aria-label={`${headerCoins} Wynkoins`}
             style={{
               position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
               background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', color: '#FBBF24',
@@ -412,144 +669,133 @@ export default function OnboardingQuiz() {
             }}
           >
             <CoinIcon />
-            {coins}
+            {headerCoins}
             {coinPop && (
               <span key={coinPop} aria-hidden="true" style={{ position: 'absolute', right: 6, top: -4, fontSize: 11, animation: 'wkCoin 900ms ease-out forwards' }}>
-                +5
+                +{COINS_PER_ANSWER}
               </span>
             )}
           </div>
         </header>
 
-        {phase !== 'lang' && phase !== 'start' && phase !== 'intro' && (
+        {showBar && (
           <div className="wq-progress" style={{ padding: '0 32px' }}>
-            <div
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(progress * 100)}
-              style={{ height: 4, borderRadius: 99, background: '#1A2845', overflow: 'hidden' }}
-            >
-              <div style={{ height: '100%', width: `${progress * 100}%`, background: 'linear-gradient(90deg,#7C4DFF,#2979FF,#22D3EE)', transition: 'width 500ms' }} />
-            </div>
+            <CoinBar
+              answers={answers}
+              current={question ? questionNumber(question.id) : null}
+              finished={phase !== 'q'}
+              label={t.coinRule}
+              coins={phase === 'q' ? coins : coins + FINISH_BONUS}
+            />
           </div>
         )}
 
         <main className="wq-main">
-          {/* Big hero mascot for the start/intro "kya aap khelenge" moment (its own
-              wynky-hello.mp4 clip, played straight through); a small companion beside
-              each question after that (Duolingo-style), and the big expression-driven
-              mascot again for the result reveal. */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
-            {phase !== 'lang' && phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase} />}
-            {phase === 'start' || phase === 'intro' ? (
+            {phase !== 'lang' && phase !== 'start' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
+            {phase === 'lang' || phase === 'start' || phase === 'intro' ? (
               <WynkyHero src={wynkyHelloVideo} />
             ) : (
-              <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase ? 'small' : 'large'} />
+              <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase || phase === 'profile' ? 'small' : 'large'} />
             )}
           </div>
 
           <div>
             {phase === 'lang' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440 }}>
-                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 1 OF 2 · LANGUAGE</div>
-                <h1 className="wq-h1" style={{ margin: 0, fontSize: 32, fontWeight: 700, lineHeight: 1.2, color: '#fff' }}>{LANG_PROMPT.en}</h1>
+                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 1 · LANGUAGE</div>
+                <h1 className="wq-h1" style={{ margin: 0, fontSize: 36, fontWeight: 700, lineHeight: 1.15, color: '#fff' }}>Select Your Language</h1>
                 <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: '#94A3B8' }}>
-                  {LANG_PROMPT.hi}
+                  Apni bhasha chuno — Wynky usi mein baat karegi.
                   <br />
-                  {LANG_SUBTITLE.en}
+                  Choose the language Wynky talks to you in.
                 </p>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
-                  <OptionChip label="मैं हिन्दी में बात करूँगी" on={langPick === 'hi'} onClick={() => setLangPick('hi')} />
-                  <OptionChip label="I speak English" on={langPick === 'en'} onClick={() => setLangPick('en')} />
+                  <OptionChip label="हिंदी · Hindi" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
+                  <OptionChip label="English" on={langPick === 'en'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('en'); }} />
                 </div>
-                <div style={{ marginTop: -2 }}>
-                  <OptionChip label="I speak another language" on={langPick === 'custom'} onClick={() => setLangPick('custom')} />
-                </div>
-                {langPick === 'custom' && (
-                  <input
-                    autoFocus
-                    value={customLangText}
-                    onChange={(e) => setCustomLangText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitLangPick();
-                    }}
-                    placeholder="Which language? (e.g. Tamil, Bengali...)"
-                    aria-label="Your language"
-                    style={{
-                      height: 46, padding: '0 16px', borderRadius: 14, fontFamily: 'Poppins, sans-serif', fontSize: 14,
-                      color: '#F1F5F9', background: 'rgba(14,21,40,0.75)', border: '1px solid #6B44EE', outline: 'none',
-                      boxShadow: '0 0 18px rgba(124,77,255,0.25)',
-                    }}
-                  />
-                )}
-                {langPick === 'custom' && (
-                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: '#64748B' }}>
-                    Wynky doesn't speak that one yet — she'll use English for now, and we'll let you know when it's added.
-                  </p>
-                )}
                 <PrimaryButton
                   onClick={submitLangPick}
-                  disabled={!canSubmitLangPick}
+                  disabled={!langPick}
                   background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
                   glow="0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)"
-                  style={{ marginTop: 6, height: 46, fontSize: 14 }}
+                  style={{ marginTop: 6, height: 48, fontSize: 15 }}
                 >
-                  Continue
+                  Let's go →
                 </PrimaryButton>
               </div>
             )}
 
             {phase === 'start' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440 }}>
-                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>FINAL STEP · ABOUT YOU</div>
+                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 2 · MEET WYNKY</div>
                 <h1 className="wq-h1" style={{ margin: 0, fontSize: 40, fontWeight: 700, lineHeight: 1.15, color: '#fff' }}>
-                  Meet{' '}
+                  {t.meetTitle}{' '}
                   <span style={{ background: 'linear-gradient(90deg,#7C4DFF,#A855F7)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     Wynky
                   </span>
-                  , your study buddy
+                  {t.meetTitleEnd}
                 </h1>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#94A3B8' }}>
-                  A quick 7-question game to find your study identity. Sound on for the full experience.
-                </p>
+                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#94A3B8' }}>{t.meetSub}</p>
                 <PrimaryButton
                   onClick={begin}
                   background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
                   glow="0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)"
                   style={{ alignSelf: 'flex-start', marginTop: 8, padding: '0 28px' }}
                 >
-                  🔊 Tap to say hi
+                  {t.sayHi}
                 </PrimaryButton>
               </div>
             )}
 
             {phase === 'intro' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9' }}>{hi ? 'Game khelein?' : 'Wanna play?'}</div>
-                <PrimaryButton onClick={play} background="#19D3A2" color="#04140F" glow="0 0 24px rgba(25,211,162,0.4)" style={{ fontWeight: 700 }}>
-                  {hi ? 'Haan, chalo khelte hain! 🎮' : "Yes, let's play! 🎮"}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 420 }}>
+                <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 3 · SAY HELLO</div>
+                <PrimaryButton onClick={play} background="linear-gradient(135deg,#19D3A2,#22D3EE)" color="#04140F" glow="0 0 26px rgba(25,211,162,0.45)" style={{ fontWeight: 700, height: 52, fontSize: 16 }}>
+                  🧬 Find Your Study DNA
                 </PrimaryButton>
                 <button
                   type="button"
-                  onClick={() => say(INTRO, speech.current?.after)}
-                  style={{ height: 40, borderRadius: 14, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 13, background: 'transparent', color: '#8B9AC7', border: '1px solid #1A2845' }}
+                  onClick={skipForNow}
+                  style={{ height: 48, borderRadius: 16, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600, background: 'rgba(14,21,40,0.55)', color: '#CBD5E1', border: '1px solid #1A2845' }}
                 >
-                  ↻ {hi ? 'Phir se suno' : 'Hear it again'}
+                  Skip for Now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => say(INTRO, speech.current?.after)}
+                  style={{ alignSelf: 'center', marginTop: 2, background: 'none', border: 0, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 13, color: '#8B9AC7' }}
+                >
+                  {t.hearAgain}
                 </button>
               </div>
             )}
 
             {phase === 'q' && question && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 480 }}>
-                <div style={eyebrow}>
-                  QUESTION {Math.min(answered + 1, total)} OF {total}
-                  {question.multiSelect ? ' · PICK ALL THAT APPLY' : ''}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={eyebrow}>
+                    {t.question(questionNumber(question.id))}
+                    {question.id === 'q6b' ? t.followUp : question.multiSelect ? t.pickAll : ''}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={skipQuestion}
+                    disabled={reacting}
+                    aria-label="Skip this question"
+                    style={{
+                      padding: '6px 14px', borderRadius: 999, cursor: reacting ? 'default' : 'pointer', fontFamily: 'Poppins, sans-serif',
+                      fontSize: 12, fontWeight: 600, background: 'rgba(14,21,40,0.7)', color: '#8B9AC7', border: '1px solid #1A2845',
+                      opacity: reacting ? 0.5 : 1,
+                    }}
+                  >
+                    {t.skip} ⏭
+                  </button>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>{QUESTION_COPY[question.id].ask[lang].text}</div>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: question.options.length > 4 ? '1fr 1fr' : '1fr', gap: 10 }}>
                   {question.options.map((o) => (
-                    <OptionChip key={o.value} label={o.label} on={pick.includes(o.value)} onClick={() => toggle(o.value)} />
+                    <OptionChip key={o.value} label={optionLabel(lang, question, o.value, o.label)} on={pick.includes(o.value)} onClick={() => toggle(o.value)} />
                   ))}
                 </div>
                 {customPicked && (
@@ -562,13 +808,9 @@ export default function OnboardingQuiz() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') submit();
                       }}
-                      placeholder={hi ? 'Apna answer likho…' : 'Type your answer…'}
+                      placeholder={t.typeAnswer}
                       aria-label="Your own answer"
-                      style={{
-                        height: 46, padding: '0 16px', borderRadius: 14, fontFamily: 'Poppins, sans-serif', fontSize: 14,
-                        color: '#F1F5F9', background: 'rgba(14,21,40,0.75)', border: '1px solid #6B44EE', outline: 'none',
-                        boxShadow: '0 0 18px rgba(124,77,255,0.25)',
-                      }}
+                      style={{ ...inputStyle, border: '1px solid #6B44EE', boxShadow: '0 0 18px rgba(124,77,255,0.25)' }}
                     />
                     <div style={{ alignSelf: 'flex-end', fontFamily: MONO, fontSize: 10, color: '#64748B' }}>
                       {customText.trim().length}/{CUSTOM_ANSWER_MAX_LENGTH}
@@ -582,22 +824,22 @@ export default function OnboardingQuiz() {
                   glow="0 0 24px rgba(41,98,255,0.5)"
                   style={{ marginTop: 6, height: 46, fontSize: 14 }}
                 >
-                  {hi ? 'Aage badho →' : 'Next →'}{' '}
-                  {!alreadyCompleted && <span style={{ opacity: 0.7, fontSize: 12 }}>+5</span>}
+                  {t.next}{' '}
+                  {question.id !== 'q6b' && <span style={{ opacity: 0.8, fontSize: 12 }}>+{COINS_PER_ANSWER} 🪙</span>}
                 </PrimaryButton>
               </div>
             )}
 
             {phase === 'saving' && (
               <div style={{ ...panel, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={eyebrow}>YOUR STUDY IDENTITY</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#CBD5E1' }}>{hi ? 'Result ban raha hai…' : 'Working out your result…'}</div>
+                <div style={eyebrow}>{t.yourDna}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#CBD5E1' }}>{t.working}</div>
               </div>
             )}
 
             {phase === 'error' && error && (
               <div style={{ ...panel, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={eyebrow}>COULDN'T SAVE</div>
+                <div style={eyebrow}>{t.couldntSave}</div>
                 <div style={{ fontSize: 15, lineHeight: 1.55, color: '#CBD5E1' }}>{error.message}</div>
                 {error.signedOut ? (
                   <PrimaryButton
@@ -606,7 +848,7 @@ export default function OnboardingQuiz() {
                     glow="0 0 22px rgba(124,77,255,0.6)"
                     style={{ height: 46, fontSize: 14 }}
                   >
-                    {hi ? 'Login karo →' : 'Log in →'}
+                    {t.logIn}
                   </PrimaryButton>
                 ) : (
                   <PrimaryButton
@@ -615,36 +857,97 @@ export default function OnboardingQuiz() {
                     glow="0 0 22px rgba(124,77,255,0.6)"
                     style={{ height: 46, fontSize: 14 }}
                   >
-                    {hi ? 'Phir se try karo' : 'Try again'}
+                    {t.tryAgain}
                   </PrimaryButton>
                 )}
               </div>
             )}
 
-            {phase === 'result' && result && (
-              <div style={panel}>
-                <div style={eyebrow}>YOUR STUDY IDENTITY</div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', marginTop: 8, textShadow: '0 0 40px #563FA0' }}>{result.archetype}</div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-                  <div style={{ flex: 1, minWidth: 0, padding: 14, borderRadius: 14, background: 'rgba(14,21,40,0.55)', border: '1px solid rgba(26,40,69,0.6)' }}>
-                    <div style={{ fontSize: 10, color: '#64748B' }}>Username</div>
-                    <div style={{ fontFamily: MONO, fontSize: 15, color: '#C4AAFF', marginTop: 4, overflowWrap: 'anywhere' }}>
-                      {result.displayUsername ? `@${result.displayUsername}` : '—'}
+            {phase === 'profile' && (
+              <div style={{ ...panel, padding: 26 }}>
+                {profileMode === 'dna' && dna ? (
+                  <>
+                    <div style={eyebrow}>{t.yourDna}</div>
+                    <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', marginTop: 6, textShadow: '0 0 40px #563FA0', lineHeight: 1.1 }}>🧬 {dna.archetype}</div>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                      <div style={{ flex: 1, minWidth: 0, padding: 12, borderRadius: 14, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                        <div style={{ fontSize: 10, color: '#94A3B8' }}>{t.earned}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 18, fontWeight: 700, color: '#FBBF24', marginTop: 4 }}>
+                          <CoinIcon /> +{dna.coinsAwarded}
+                        </div>
+                        {!dna.isFirstTime && <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>{t.alreadyClaimed}</div>}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, padding: 12, borderRadius: 14, background: 'rgba(14,21,40,0.55)', border: '1px solid rgba(26,40,69,0.6)' }}>
+                        <div style={{ fontSize: 10, color: '#94A3B8' }}>{t.balance}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 18, fontWeight: 700, color: '#F1F5F9', marginTop: 4 }}>
+                          <CoinIcon /> {balance ?? dna.coinsAwarded}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0, padding: 14, borderRadius: 14, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                    <div style={{ fontSize: 10, color: '#64748B' }}>Wynkoins earned</div>
-                    <div style={{ fontFamily: MONO, fontSize: 15, color: '#FBBF24', marginTop: 4 }}>+{result.coinsAwarded}</div>
-                    {!result.isFirstTime && <div style={{ fontSize: 10, color: '#64748B', marginTop: 4 }}>{hi ? 'Pehli baar mein mil chuke' : 'Already claimed first time'}</div>}
-                  </div>
+                    <div style={{ height: 1, background: 'rgba(124,77,255,0.25)', margin: '20px 0 4px' }} />
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#E2E8F0', marginTop: 12 }}>{t.formTitle}</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={eyebrow}>{t.setupEyebrow}</div>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: '#fff', marginTop: 6, lineHeight: 1.2 }}>{t.setupTitle}</div>
+                  </>
+                )}
+
+                <label style={fieldLabel} htmlFor="wq-name">{t.name}</label>
+                <input id="wq-name" value={fullName} maxLength={60} onChange={(e) => setFullName(e.target.value)} placeholder={t.namePh} style={inputStyle} autoComplete="name" />
+
+                <span style={fieldLabel}>{t.exam}</span>
+                <div role="group" aria-label={t.exam} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {EXAMS.map((ex) => {
+                    const on = examChoice === ex;
+                    return (
+                      <button key={ex} type="button" aria-pressed={on} onClick={() => setExamChoice(ex)}
+                        style={{
+                          height: 40, borderRadius: 12, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 600,
+                          background: on ? 'linear-gradient(135deg, rgba(124,77,255,0.32), rgba(41,98,255,0.18))' : 'rgba(14,21,40,0.55)',
+                          color: on ? '#fff' : '#CBD5E1', border: `1px solid ${on ? '#6B44EE' : 'rgba(26,40,69,0.8)'}`,
+                          boxShadow: on ? '0 0 16px rgba(124,77,255,0.3)' : 'none',
+                        }}>
+                        {ex === 'Other' ? t.other : ex}
+                      </button>
+                    );
+                  })}
                 </div>
+                {examChoice === 'Other' && (
+                  <input value={examOther} maxLength={40} onChange={(e) => setExamOther(e.target.value)} placeholder={t.examOtherPh} aria-label={t.examOtherPh} style={{ ...inputStyle, marginTop: 8 }} autoFocus />
+                )}
+
+                <label style={fieldLabel} htmlFor="wq-username">{t.username}</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#7C4DFF', fontWeight: 600, fontSize: 14 }}>@</span>
+                  <input
+                    id="wq-username"
+                    value={username}
+                    onChange={(e) => setUsername(cleanUsernameInput(e.target.value))}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    style={{
+                      ...inputStyle, paddingLeft: 34, fontFamily: MONO,
+                      border: `1px solid ${uname.state === 'ok' ? 'rgba(25,211,162,0.6)' : uname.state === 'bad' ? 'rgba(248,113,113,0.6)' : '#1A2845'}`,
+                    }}
+                  />
+                </div>
+                <div style={{ minHeight: 18, marginTop: 6, fontSize: 12, color: uname.state === 'ok' ? '#19D3A2' : uname.state === 'bad' ? '#F87171' : '#64748B' }}>
+                  {uname.state === 'checking' ? t.checking : uname.state === 'ok' ? t.available : uname.state === 'bad' ? (uname.message === 'That username is already taken.' ? t.taken : uname.message) : ''}
+                </div>
+
+                {formError && <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 12, fontSize: 13, color: '#FCA5A5', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)' }}>{formError}</div>}
+
                 <PrimaryButton
-                  onClick={() => { window.location.href = '/home.html'; }}
+                  onClick={() => void letsGo()}
+                  disabled={!canFinish}
                   background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
                   glow="0 0 22px rgba(124,77,255,0.6)"
-                  style={{ marginTop: 20, width: '100%', height: 46, fontSize: 14 }}
+                  style={{ marginTop: 14, width: '100%', height: 50, fontSize: 15 }}
                 >
-                  {hi ? 'Dashboard pe chalo →' : 'Go to my dashboard →'}
+                  {submitting ? t.saving : t.letsGo}
                 </PrimaryButton>
               </div>
             )}
