@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 export type Lang = 'hi' | 'en';
 export type Expression = 'idle' | 'wink' | 'talk' | 'curious' | 'happy' | 'wave';
@@ -101,17 +101,25 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
 }
 
 /**
- * The big hero mascot for the start/intro "hello, wanna play?" moment —
- * plays its source video through on a plain loop (no expression-clip
- * switching; unlike WynkyStage/wynky-dance.mp4, this clip is one
- * continuous wave-then-happy performance, not cut into labeled segments).
+ * The big hero mascot for the language + "hello, wanna play?" screens,
+ * playing wynky-hello.mp4. That clip is one continuous performance with
+ * Wynky's Hindi hello baked into its own soundtrack, lip-synced (it is the
+ * same recording as /audio/wynky/hi/intro.mp3, which starts 1.05s into the
+ * clip). So it doesn't autoplay or loop on its own: it holds a still until
+ * playHero() plays it, in step with her voice, and stops before the clip's
+ * closing fade to black.
  * Same circular framing/glow/crop transform as WynkyStage's large size, so
  * the two read as the same character. That crop also happens to push the
  * source clip's bottom-right generator watermark entirely outside the
  * visible circle — checked frame-by-frame against the actual clip, not
  * assumed.
  */
-export function WynkyHero({ src }: { src: string }) {
+// Seconds into wynky-hello.mp4: `start` is already mid-wave (her voice
+// comes in ~0.35s later); by `end` she has finished talking and the clip
+// is about to fade to black (~9.55s), so it's held there.
+export const HELLO_CLIP = { start: 0.7, end: 9.5 };
+
+export function WynkyHero({ src, videoRef }: { src: string; videoRef: RefObject<HTMLVideoElement | null> }) {
   return (
     <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
       <div
@@ -128,18 +136,91 @@ export function WynkyHero({ src }: { src: string }) {
         }}
       >
         <video
+          ref={videoRef}
           src={src}
           muted
           playsInline
-          autoPlay
-          loop
           preload="auto"
           aria-hidden="true"
+          onLoadedMetadata={(e) => { if (e.currentTarget.paused) e.currentTarget.currentTime = HELLO_CLIP.start; }}
           style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
         />
       </div>
     </div>
   );
+}
+
+/**
+ * Plays the hello clip once from HELLO_CLIP.start and holds it at
+ * HELLO_CLIP.end. With `voice` it plays with its own soundtrack (Wynky's
+ * Hindi hello), so voice and lips come from one media element and can't
+ * drift apart; otherwise it plays muted (English, or muted). Call it from
+ * the tap that starts the hello — browsers only allow sound after a tap.
+ *
+ * onStart fires when frames (and sound) actually start, onEnd when the
+ * clip reaches its end; each at most once. Returns `stop` (suppresses
+ * onEnd) and `setVoice` (mute/unmute without restarting).
+ */
+export function playHero(
+  video: HTMLVideoElement,
+  voice: boolean,
+  onStart: () => void,
+  onEnd: () => void,
+): { stop: () => void; setVoice: (on: boolean) => void } {
+  let started = false;
+  let done = false;
+  let raf = 0;
+  const start = () => {
+    if (started || done) return;
+    started = true;
+    onStart();
+  };
+  const finish = () => {
+    if (done) return;
+    start();
+    done = true;
+    cleanup();
+    onEnd();
+  };
+  const tick = () => {
+    if (video.currentTime >= HELLO_CLIP.end) {
+      video.pause();
+      finish();
+      return;
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  // If the clip can't load at all, don't leave the intro stuck "speaking".
+  const safety = setTimeout(finish, 20000);
+  const cleanup = () => {
+    cancelAnimationFrame(raf);
+    clearTimeout(safety);
+    video.removeEventListener('playing', start);
+    video.removeEventListener('ended', finish);
+  };
+
+  video.pause();
+  video.muted = !voice;
+  video.currentTime = HELLO_CLIP.start;
+  video.addEventListener('playing', start);
+  video.addEventListener('ended', finish);
+  raf = requestAnimationFrame(tick);
+  video.play().catch(() => {
+    // Sound refused (no tap to go with it): still animate, silently.
+    if (done) return;
+    video.muted = true;
+    video.play().catch(finish);
+  });
+
+  return {
+    stop: () => {
+      done = true;
+      cleanup();
+      video.pause();
+      video.muted = true;
+    },
+    setVoice: (on: boolean) => { video.muted = !on; },
+  };
 }
 
 export function SpeechBubble({ text, lang, compact = false }: { text: string; lang: Lang; compact?: boolean }) {
@@ -300,6 +381,13 @@ export function speak(line: Line, lang: Lang, muted: boolean, onStart: () => voi
   const fallback = () => {
     if (settled) return;
     settled = true;
+    // Silence the file for good before the synth voice starts - otherwise a
+    // recording that was merely slow to load starts playing on top of it
+    // (the garbled "two voices at once" Hindi intro).
+    detach();
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
     missingAudio.add(src);
     cancelSynth = speakSynth(line, lang, onStart, onEnd);
   };
@@ -312,21 +400,25 @@ export function speak(line: Line, lang: Lang, muted: boolean, onStart: () => voi
     if (settled && !cancelSynth) onEnd();
   };
 
+  const detach = () => {
+    clearTimeout(guard);
+    audio.removeEventListener('error', fallback);
+    audio.removeEventListener('playing', started);
+  };
+
   audio.addEventListener('error', fallback);
   audio.addEventListener('playing', started);
   audio.addEventListener('ended', ended);
   // A same-origin static file either 404s almost immediately or plays; if
-  // neither happened within a beat (slow network, unexpected MIME error),
-  // don't leave Wynky stuck mid-question — fall back and move on.
-  const guard = setTimeout(fallback, 1200);
+  // neither happened within a couple of seconds (slow network, unexpected
+  // MIME error), don't leave Wynky stuck mid-question — fall back and move on.
+  const guard = setTimeout(fallback, 2500);
   audio.play().catch(fallback);
 
   return () => {
     settled = true;
-    clearTimeout(guard);
+    detach();
     audio.pause();
-    audio.removeEventListener('error', fallback);
-    audio.removeEventListener('playing', started);
     audio.removeEventListener('ended', ended);
     cancelSynth?.();
   };
