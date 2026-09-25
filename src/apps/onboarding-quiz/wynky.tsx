@@ -242,16 +242,17 @@ export function WynkyHiiHero({ src }: { src: string }) {
       />
       <div
         style={{
-          position: 'absolute', inset: 0, borderRadius: 999,
+          position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
           border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
           boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
         }}
-      />
-      <img
-        src={src}
-        alt="Wynky waving and saying Hii"
-        style={{ position: 'absolute', width: '117.6%', maxWidth: 'none', left: '5.3%', top: '-9.7%', pointerEvents: 'none', userSelect: 'none' }}
-      />
+      >
+        <img
+          src={src}
+          alt="Wynky waving and saying Hii"
+          style={{ position: 'absolute', inset: '8%', width: '84%', height: '84%', objectFit: 'contain', pointerEvents: 'none', userSelect: 'none' }}
+        />
+      </div>
     </div>
   );
 }
