@@ -90,6 +90,8 @@ const ICON_PATHS = {
   chart: '<path d="M4 20V4"/><path d="M4 20h16"/><rect x="7" y="12" width="3" height="5" rx="1"/><rect x="12" y="8" width="3" height="9" rx="1"/><rect x="17" y="5" width="3" height="12" rx="1"/>',
   lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
   unlock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.7-1.5"/>',
+  bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  send: '<path d="M20.5 3.5L10 14"/><path d="M20.5 3.5l-6.5 17-4-6.5-6.5-4z"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 function icon(name){
@@ -142,7 +144,7 @@ function avatar(p, big){
   return `<div class="${cls}">${esc(letter)}</div>`;
 }
 const EVENT_LABELS = { ad_impression:'Ads', premium_conversion:'Premium', store_purchase:'Store & coins', refund:'Refunds' };
-const KIND_LABELS = { app:'App access', user:'Account', community:'Community', room:'Study room', group_message:'Chat message', dm_message:'Direct message', announcement:'Announcement', material:'Material' };
+const KIND_LABELS = { app:'App access', user:'Account', community:'Community', room:'Study room', group_message:'Chat message', dm_message:'Direct message', announcement:'Announcement', material:'Material', broadcast:'Notification' };
 const REMOVABLE = new Set(['group_message','dm_message','announcement','material','community','room']);
 
 /* ── Data ──────────────────────────────────────────────── */
@@ -159,6 +161,7 @@ const state = {
   revWindow: '30d', revTable: false,
   payStatus: 'pending',
   bansAll: false,
+  notifyDraft: { title:'', body:'', link:'' },
   modQuery: '', modPeople: null, modContent: null, modError: null,
 };
 const cache = { people: new Map(), content: new Map(), communities: new Map(), payouts: new Map(), applicants: new Map() };
@@ -167,6 +170,7 @@ const cache = { people: new Map(), content: new Map(), communities: new Map(), p
 const VIEWS = [
   { id:'overview',    label:'Overview',         group:'CONTROL', icon:'grid',   render: renderOverview },
   { id:'access',      label:'App access',       group:'CONTROL', icon:'lock',   render: renderAccess },
+  { id:'notify',      label:'Send notification', group:'CONTROL', icon:'bell',  render: renderNotify },
   { id:'wynkoheads',  label:'WynkoHeads',       group:'PROGRAM', icon:'badge',  render: renderWynkoheads, badge:'wh' },
   { id:'communities', label:'Communities',      group:'PROGRAM', icon:'users',  render: renderCommunities },
   { id:'revenue',     label:'Revenue',          group:'MONEY',   icon:'rupee',  render: renderRevenue },
@@ -847,6 +851,148 @@ function openAccessChange(toClosed){
   }).catch(err => toast(err.message, 'bad'));
 }
 
+/* ── Send notification ─────────────────────────────────── */
+// Goes to every account's bell on the Home dashboard (public.notifications,
+// type 'announcement'); see supabase_migrations/0089.
+const NOTIFY_LINK_RE = /^(\/|https:\/\/)/;
+function notifyLinkProblem(link){
+  if(!link) return null;
+  if(link.length > 500) return 'Keep the link under 500 characters.';
+  if(!NOTIFY_LINK_RE.test(link)) return 'Links must start with / (a Wynko page, e.g. /store) or https://';
+  return null;
+}
+function notifyPreview(d){
+  return `
+    <div class="ow-np">
+      <div class="ow-np-head">Notifications <span>1 new</span></div>
+      <div class="ow-np-item">
+        <div class="ow-np-ico">📣</div>
+        <div style="min-width:0;flex:1;">
+          <div class="ow-np-title">${d.title ? esc(d.title) : '<span style="color:var(--ow-dim);font-weight:500;">Your title shows here</span>'}</div>
+          ${d.body ? `<div class="ow-np-body">${esc(d.body)}</div>` : ''}
+          <div class="ow-np-time">just now${d.link ? ' · Open →' : ''}</div>
+        </div>
+        <i class="ow-np-dot"></i>
+      </div>
+    </div>`;
+}
+async function renderNotify(el){
+  const rows = await rpc('owner_list_broadcasts');
+  if(current !== 'notify') return;
+  const d = state.notifyDraft;
+  el.innerHTML = `
+    <div class="ow-grid-2 ow-notify">
+      <div class="ow-card glow">
+        <div class="ow-card-head">
+          <div class="ow-card-icon violet">${icon('bell')}</div>
+          <div><div class="ow-card-title">New notification</div><div class="ow-card-sub">Lands in the bell of every Wynko account, instantly for anyone online</div></div>
+        </div>
+        <form id="notifyForm" autocomplete="off">
+          <label class="ow-field-label" for="nTitle">Title <span style="color:var(--ow-dim)">(required)</span><span class="ow-count" id="nTitleCount"></span></label>
+          <input class="ow-input" id="nTitle" maxlength="120" placeholder="e.g. New Study Rooms are live 🎉" value="${esc(d.title)}">
+          <label class="ow-field-label" for="nBody">Message <span style="color:var(--ow-dim)">(optional)</span><span class="ow-count" id="nBodyCount"></span></label>
+          <textarea class="ow-textarea" id="nBody" maxlength="1000" rows="4" placeholder="A line or two about what's new">${esc(d.body)}</textarea>
+          <label class="ow-field-label" for="nLink">Opens <span style="color:var(--ow-dim)">(optional · a Wynko page like /store, or an https:// link)</span></label>
+          <input class="ow-input" id="nLink" maxlength="500" placeholder="/home" value="${esc(d.link)}">
+          <div class="ow-modal-err" id="nErr"></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+            <button class="ow-btn primary" type="submit" id="nSend">${icon('send')}Send to everyone</button>
+            <span class="ow-note">You'll confirm before it goes out.</span>
+          </div>
+        </form>
+      </div>
+      <div class="ow-card">
+        <div class="ow-card-head">
+          <div class="ow-card-icon">${icon('grid')}</div>
+          <div><div class="ow-card-title">Preview</div><div class="ow-card-sub">How it looks in the bell</div></div>
+        </div>
+        <div id="nPreview">${notifyPreview(d)}</div>
+      </div>
+    </div>
+
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon">${icon('list')}</div>
+        <div><div class="ow-card-title">Sent</div><div class="ow-card-sub">Retracting removes it from every bell (the record stays here)</div></div>
+      </div>
+      <div class="ow-list">
+        ${rows.length ? rows.map(b => {
+          const pct = b.recipients ? Math.round(100 * b.read_count / b.recipients) : 0;
+          return `
+          <div class="ow-row">
+            <div class="ow-who" style="flex:3 1 320px;">
+              <div style="min-width:0;">
+                <div class="ow-who-name">${esc(b.title)} ${b.retracted_at ? '<span class="ow-tag amber">Retracted</span>' : ''}</div>
+                <div class="ow-who-sub">${dateTime(b.sent_at)} · by ${esc(b.sent_by_label || 'unknown')}${b.link ? ' · opens ' + esc(b.link) : ''}</div>
+              </div>
+            </div>
+            ${b.body ? `<div class="ow-excerpt">${esc(b.body)}</div>` : ''}
+            <div class="ow-facts">
+              <div class="ow-fact"><div class="ow-fact-k">Sent to</div><div class="ow-fact-v">${num(b.recipients)}</div></div>
+              <div class="ow-fact"><div class="ow-fact-k">Read</div><div class="ow-fact-v">${b.retracted_at ? '—' : num(b.read_count) + ' · ' + pct + '%'}</div></div>
+            </div>
+            <div class="ow-row-actions">
+              ${b.retracted_at ? '' : `<button class="ow-btn sm danger" type="button" data-act="notify-retract" data-id="${esc(b.id)}" data-label="${esc(b.title)}">${icon('trash')}Retract</button>`}
+            </div>
+          </div>`;
+        }).join('') : `<div class="ow-empty">Nothing sent yet.</div>`}
+      </div>
+    </div>`;
+
+  const f = el.querySelector('#notifyForm');
+  const fields = { title: f.querySelector('#nTitle'), body: f.querySelector('#nBody'), link: f.querySelector('#nLink') };
+  const sync = () => {
+    state.notifyDraft = { title: fields.title.value, body: fields.body.value, link: fields.link.value };
+    el.querySelector('#nTitleCount').textContent = `${fields.title.value.length}/120`;
+    el.querySelector('#nBodyCount').textContent = `${fields.body.value.length}/1000`;
+    el.querySelector('#nPreview').innerHTML = notifyPreview({ title: fields.title.value.trim(), body: fields.body.value.trim(), link: fields.link.value.trim() });
+  };
+  Object.values(fields).forEach(x => x.addEventListener('input', sync));
+  sync();
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const title = fields.title.value.trim(), body = fields.body.value.trim(), link = fields.link.value.trim();
+    const errBox = el.querySelector('#nErr');
+    const problem = !title ? 'Give the notification a title.' : notifyLinkProblem(link);
+    errBox.innerHTML = problem ? `<div class="ow-err">${esc(problem)}</div>` : '';
+    if(problem){ (title ? fields.link : fields.title).focus(); return; }
+    openSendNotification({ title, body, link });
+  });
+}
+
+function openSendNotification(d){
+  const recipients = overview ? overview.users.total : null;
+  openModal({
+    title: 'Send this to everyone?',
+    confirm: `${icon('send')}Send now`,
+    confirmClass: 'primary',
+    body: `
+      <p>It goes to ${recipients != null ? `all <b>${num(recipients)}</b> Wynko accounts` : 'every Wynko account'} right away.</p>
+      ${notifyPreview(d)}
+      <p class="ow-note" style="margin-top:12px;">You can retract it later, which removes it from every bell.</p>`,
+    onConfirm: async () => {
+      const res = await rpc('owner_send_notification', { p_title: d.title, p_body: d.body || null, p_link: d.link || null });
+      state.notifyDraft = { title:'', body:'', link:'' };
+      toast(`Sent to ${num(res.recipients)} account${res.recipients == 1 ? '' : 's'}.`, 'good');
+      show('notify');
+    },
+  });
+}
+
+function openRetractNotification(id, label){
+  openModal({
+    title: `Retract “${esc(label)}”?`,
+    confirm: `${icon('trash')}Retract`,
+    confirmClass: 'solid-danger',
+    body: `<p>It disappears from everyone's notifications, read or not. This can't be undone, but you can send it again.</p>`,
+    onConfirm: async () => {
+      const n = await rpc('owner_retract_broadcast', { p_id: id });
+      toast(`Retracted · removed from ${num(n)} bell${n == 1 ? '' : 's'}.`, 'good');
+      show('notify');
+    },
+  });
+}
+
 /* ── Banned accounts ───────────────────────────────────── */
 async function renderBans(el){
   const rows = await rpc('owner_list_bans');
@@ -895,12 +1041,13 @@ async function renderLog(el){
   const rows = await rpc('owner_recent_actions', { p_limit: 200 });
   if(current !== 'log') return;
   const tag = a => a === 'ban' ? '<span class="ow-tag red">Ban</span>' : a === 'unban' ? '<span class="ow-tag teal">Unban</span>'
-    : a === 'access' ? '<span class="ow-tag violet">Access</span>' : '<span class="ow-tag amber">Removed</span>';
+    : a === 'access' ? '<span class="ow-tag violet">Access</span>' : a === 'notify' ? '<span class="ow-tag cyan">Notified</span>'
+    : a === 'retract' ? '<span class="ow-tag amber">Retracted</span>' : '<span class="ow-tag amber">Removed</span>';
   el.innerHTML = `
     <div class="ow-card">
       <div class="ow-card-head">
         <div class="ow-card-icon">${icon('list')}</div>
-        <div><div class="ow-card-title">Activity log</div><div class="ow-card-sub">Every ban, unban and removal made from Owner Control, newest first</div></div>
+        <div><div class="ow-card-title">Activity log</div><div class="ow-card-sub">Every ban, unban, removal and notification sent from Owner Control, newest first</div></div>
       </div>
       <div class="ow-list">
         ${rows.length ? rows.map(a => {
@@ -911,7 +1058,7 @@ async function renderLog(el){
             <div class="ow-who" style="flex:3 1 320px;">
               <div style="min-width:0;">
                 <div class="ow-who-name">${tag(a.action)} ${esc(a.target_label || '—')} <span class="ow-tag">${esc(KIND_LABELS[a.target_kind] || a.target_kind)}</span></div>
-                <div class="ow-who-sub">by ${esc(a.actor_label || 'unknown')} · ${dateTime(a.created_at)}${a.action === 'ban' ? (d.expires_at ? ' · until ' + esc(date(d.expires_at)) : ' · permanent') : ''}${d.messages_removed ? ' · ' + num(d.messages_removed) + ' messages removed' : ''}${d.signed_out ? ' · ' + num(d.signed_out) + ' signed out' : ''}</div>
+                <div class="ow-who-sub">by ${esc(a.actor_label || 'unknown')} · ${dateTime(a.created_at)}${d.recipients != null ? ' · sent to ' + num(d.recipients) : ''}${d.removed != null ? ' · removed from ' + num(d.removed) + ' bells' : ''}${a.action === 'ban' ? (d.expires_at ? ' · until ' + esc(date(d.expires_at)) : ' · permanent') : ''}${d.messages_removed ? ' · ' + num(d.messages_removed) + ' messages removed' : ''}${d.signed_out ? ' · ' + num(d.signed_out) + ' signed out' : ''}</div>
               </div>
             </div>
             ${a.reason ? `<div class="ow-excerpt">${esc(a.reason)}</div>` : ''}
@@ -1152,6 +1299,7 @@ document.getElementById('owView').addEventListener('click', e => {
   else if(act === 'rev-table') { state.revTable = !state.revTable; show('revenue'); }
   else if(act === 'bans-filter') { state.bansAll = b.dataset.v === 'all'; show('bans'); }
   else if(act === 'access-set') openAccessChange(b.dataset.v === 'closed');
+  else if(act === 'notify-retract') openRetractNotification(id, label);
 });
 
 /* ── Boot ──────────────────────────────────────────────── */
@@ -1189,7 +1337,7 @@ async function init(){
   sb.auth.onAuthStateChange(ev => { if(ev === 'SIGNED_OUT') window.location.href = 'login.html'; });
 
   const start = location.hash.slice(1) || 'overview';
-  if(start !== 'overview') refreshBadges();
+  if(start !== 'overview') refreshBadges();  // also fills overview (recipient count for notifications)
   go(start);
 }
 init().catch(err => {

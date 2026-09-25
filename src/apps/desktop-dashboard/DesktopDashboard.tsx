@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
+import { createPortal } from 'react-dom'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import wynkoMascot from './imports/wynko-mascot.png'
 import trophyBronze from './imports/trophy-bronze.png'
@@ -43,6 +44,7 @@ import {
 } from './lib/studyPlanStore'
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
 import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
+import { useNotifications, notificationHref, notificationIcon, timeAgo, type AppNotification } from './lib/notifications'
 import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
   type RoomRow, type RoomMember,
@@ -419,7 +421,8 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
             <div className="text-sm text-slate-200 font-medium truncate">{name}</div>
             <div className="text-[10px] text-slate-500">{exam}</div>
           </div>
-          <button className="text-slate-600 hover:text-slate-300 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
+          <button type="button" onClick={() => setActive('settings')} aria-label="Settings" title="Settings"
+            className="p-1.5 -m-1.5 rounded-md text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
         </div>
       </div>
     </aside>
@@ -438,12 +441,106 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
         <div className="text-[10px] text-slate-600 mb-0.5">Home / Today</div>
         <div className="text-sm font-semibold text-slate-200">{todayLabel}</div>
       </div>
-      <button className="relative p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-200 transition-colors">
-        <Ico n="bell" cls="w-5 h-5" />
-        <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" style={{ boxShadow: '0 0 6px rgba(155,108,255,0.8)' }} />
-      </button>
+      <NotificationBell />
       <UserAvatar size={32} className="cursor-pointer" />
     </header>
+  )
+}
+
+// ─── Notification bell (every page header) ────────────────────────────────────
+// Real notifications from public.notifications (owner announcements, study
+// room invites, challenges), live over Realtime. `extraCount` adds a page's
+// own pending items to the badge (Battleground's incoming challenges).
+// The panel is portaled to <body> with fixed positioning: several headers
+// (backdrop-blur) form their own stacking context, which would otherwise
+// leave the panel underneath the page content.
+function NotificationBell({ extraCount = 0 }: { extraCount?: number }) {
+  const { items, unread, loading, error, markRead } = useNotifications()
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const badge = unread + extraCount
+
+  useEffect(() => {
+    if (!open) return
+    const place = () => {
+      const r = btnRef.current?.getBoundingClientRect()
+      if (r) setPos({ top: r.bottom + 8, right: Math.max(12, window.innerWidth - r.right) })
+    }
+    place()
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!panelRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', place)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', place)
+    }
+  }, [open])
+
+  const openItem = (n: AppNotification) => {
+    if (!n.read) void markRead([n.id])
+    const href = notificationHref(n)
+    if (href) window.location.href = href
+  }
+
+  return (
+    <div className="relative">
+      <button ref={btnRef} type="button" onClick={() => setOpen(o => !o)} aria-label={badge ? `Notifications, ${badge} unread` : 'Notifications'} aria-expanded={open}
+        className="relative p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-200 transition-colors">
+        <Ico n="bell" cls="w-5 h-5" />
+        {badge > 0 && (
+          <div className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]"
+            style={{ boxShadow: '0 0 8px rgba(155,108,255,0.8)' }}>{badge > 9 ? '9+' : badge}</div>
+        )}
+      </button>
+      {open && pos && createPortal(
+        <div ref={panelRef} role="dialog" aria-label="Notifications"
+          className="fixed z-[1000] w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
+          style={{ top: pos.top, right: pos.right, boxShadow: '0 18px 50px rgba(0,0,0,0.55), 0 0 40px rgba(124,77,255,0.12)' }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#1A2845]">
+            <div className="text-sm font-semibold text-slate-100">Notifications{unread > 0 && <span className="ml-2 text-[11px] font-medium text-[#C4AAFF]">{unread} new</span>}</div>
+            {unread > 0 && (
+              <button type="button" onClick={() => void markRead()} className="text-[11px] font-medium text-[#9B6CFF] hover:text-[#C4AAFF] transition-colors">Mark all read</button>
+            )}
+          </div>
+          <div className="max-h-[420px] overflow-y-auto">
+            {loading ? (
+              <div className="px-4 py-8 text-center text-xs text-slate-500">Loading…</div>
+            ) : error ? (
+              <div className="px-4 py-6 text-center text-xs text-[#F87171]">{error}</div>
+            ) : items.length === 0 ? (
+              <div className="px-4 py-10 text-center">
+                <div className="text-2xl mb-2">🔔</div>
+                <div className="text-sm text-slate-300 font-medium">You're all caught up</div>
+                <div className="text-xs text-slate-500 mt-1">New notifications will show up here.</div>
+              </div>
+            ) : items.map(n => (
+              <button key={n.id} type="button" onClick={() => openItem(n)}
+                className={`w-full text-left flex gap-3 px-4 py-3 border-b border-[rgba(26,40,69,0.55)] last:border-b-0 transition-colors hover:bg-white/[0.04] ${n.read ? '' : 'bg-[rgba(124,77,255,0.07)]'}`}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
+                  style={{ background: 'linear-gradient(135deg, rgba(124,77,255,0.22), rgba(41,98,255,0.14))', border: '1px solid rgba(124,77,255,0.3)' }}>
+                  {notificationIcon(n.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-[13px] leading-snug ${n.read ? 'text-slate-300' : 'text-white font-semibold'}`}>{n.title}</div>
+                  {n.body && <div className="text-[12px] text-slate-400 mt-0.5 leading-snug whitespace-pre-line" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>}
+                  <div className="text-[10px] text-slate-500 mt-1">{timeAgo(n.created_at)}{notificationHref(n) ? ' · Open →' : ''}</div>
+                </div>
+                {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-[#9B6CFF]" style={{ boxShadow: '0 0 6px rgba(155,108,255,0.8)' }} />}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
   )
 }
 
@@ -2986,7 +3083,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             <div className="text-[10px] text-slate-600 mb-0.5" >STUDY ROOMS</div>
             <div className="text-sm font-semibold text-slate-200">Find your people. Focus better.</div>
           </div>
-          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <NotificationBell />
           <UserAvatar size={32} />
         </header>
 
@@ -4226,7 +4323,7 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
             <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
             <div className="text-sm font-semibold text-slate-200">Student View</div>
           </div>
-          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <NotificationBell />
           <UserAvatar size={32} />
         </header>
 
@@ -4884,7 +4981,7 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
             <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
             <div className="text-sm font-semibold text-slate-200">Manage your community, guide your students, and track their progress.</div>
           </div>
-          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <NotificationBell />
           <UserAvatar size={32} />
         </header>
 
@@ -7529,7 +7626,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
             <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
           </div>
-          <div className="relative p-2 text-slate-400"><Ico n="bell" cls="w-5 h-5" /><div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-500 rounded-full" /></div>
+          <NotificationBell />
           <UserAvatar size={32} />
         </header>
 
@@ -8067,12 +8164,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             <div className="text-[10px] text-slate-600 mb-0.5">BATTLEGROUND</div>
             <div className="text-sm font-semibold text-slate-200">Challenge. Compete. Win.</div>
           </div>
-          <div className="relative p-2 text-slate-400">
-            <Ico n="bell" cls="w-5 h-5" />
-            {incoming.length > 0 && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]">{incoming.length}</div>
-            )}
-          </div>
+          <NotificationBell extraCount={incoming.length} />
           <UserAvatar size={32} />
         </header>
 
