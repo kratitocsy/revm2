@@ -3,13 +3,11 @@ import { checkUsername, finishOnboarding, submitStudyDna, suggestUsername, type 
 import type { QuizAnswers } from './quizEngine';
 
 const ANSWERS: QuizAnswers = {
-  exam: 'JEE',
-  student_type: '12th',
-  fixed_commitment_type: 'school_and_coaching',
-  focus_time: 'after_9pm',
-  daily_hours: '6-7',
-  distractions: ['instagram'],
-  study_mode: 'books',
+  day_type: 'school_coaching',
+  daily_hours: '4-6',
+  distractions: ['procrastination'],
+  study_style: ['books', 'practice'],
+  challenges: ['consistency'],
 };
 
 function client(rpc: QuizSupabaseClient['rpc']): QuizSupabaseClient {
@@ -19,12 +17,12 @@ function client(rpc: QuizSupabaseClient['rpc']): QuizSupabaseClient {
 describe('submitStudyDna', () => {
   it('sends the answers with the scored archetype and returns the server-side reward', async () => {
     const rpc = vi.fn().mockResolvedValue({
-      data: { archetype: 'Night Owl', answered: 7, coins_awarded: 100, is_first_time: true, balance: 100 },
+      data: { archetype: 'Focus Seeker', answered: 5, coins_awarded: 50, is_first_time: true, balance: 50 },
       error: null,
     });
     const r = await submitStudyDna(client(rpc), ANSWERS);
-    expect(rpc).toHaveBeenCalledWith('rpc_submit_study_dna', { p_quiz_answers: ANSWERS, p_archetype: 'Night Owl' });
-    expect(r).toEqual({ archetype: 'Night Owl', answered: 7, coinsAwarded: 100, isFirstTime: true, balance: 100 });
+    expect(rpc).toHaveBeenCalledWith('rpc_submit_study_dna', { p_quiz_answers: ANSWERS, p_archetype: 'Focus Seeker' });
+    expect(r).toEqual({ archetype: 'Focus Seeker', answered: 5, coinsAwarded: 50, isFirstTime: true, balance: 50 });
   });
 
   it('throws the server error message', async () => {
@@ -42,9 +40,9 @@ describe('checkUsername', () => {
   });
 
   it('asks the server whether a well-formed username is free', async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: { username: 'nightowl42', available: true, message: null }, error: null });
-    const r = await checkUsername(client(rpc), 'nightowl42');
-    expect(rpc).toHaveBeenCalledWith('rpc_check_username', { p_username: 'nightowl42' });
+    const rpc = vi.fn().mockResolvedValue({ data: { username: 'focusseeker42', available: true, message: null }, error: null });
+    const r = await checkUsername(client(rpc), 'focusseeker42');
+    expect(rpc).toHaveBeenCalledWith('rpc_check_username', { p_username: 'focusseeker42' });
     expect(r.available).toBe(true);
   });
 });
@@ -54,8 +52,8 @@ describe('suggestUsername', () => {
     const rpc = vi.fn(async (_fn: string, args: Record<string, unknown>) => ({
       data: { username: args.p_username, available: true, message: null }, error: null,
     }));
-    const u = await suggestUsername(client(rpc), { archetype: 'Night Owl', focusTime: 'after_9pm', name: 'Rohan' });
-    expect(u).toMatch(/^nightowl\d{2}$/);
+    const u = await suggestUsername(client(rpc), { archetype: 'Focus Seeker', name: 'Rohan' });
+    expect(u).toMatch(/^focusseeker\d{2}$/);
   });
 
   it('suggests a name-based username for people who skipped the quiz', async () => {

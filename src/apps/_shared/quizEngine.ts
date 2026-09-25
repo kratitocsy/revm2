@@ -1,44 +1,23 @@
 /* ============================================================
    quizEngine.ts
 
-   Wynky onboarding quiz (spec Section 2), archetype scoring +
-   result screen data (Section 3), and the Wynkoins reward calc.
-   Pure logic, no Supabase/network calls, no React — the calling
-   UI drives Wynky's animations/reactions and persists the result.
+   Wynky's Study DNA quiz: the 5 questions, Study DNA scoring and
+   the Wynkoins reward. Pure logic, no Supabase/network calls, no
+   React — the UI drives Wynky's animations/reactions and
+   quizPersistence.ts saves the result.
 
-   CUSTOM ANSWERS: every question (Q1-Q7 and the Q6b follow-up)
-   carries an extra 'custom' chip so a student who doesn't fit any
-   preset option can type their own, capped at
-   CUSTOM_ANSWER_MAX_LENGTH characters. Each field that supports
-   this has a matching `custom_<field>` text column on QuizAnswers
-   holding the actual typed string; the field itself just holds
-   the literal 'custom' as a marker. A question isn't considered
-   answered until its custom text (if any) passes
-   validateCustomAnswer() — see hasValidAnswer() below.
+   CUSTOM ANSWERS: every question ends with a "Something else" chip
+   (value 'custom') so a student who doesn't fit a preset option can
+   type their own, capped at CUSTOM_ANSWER_MAX_LENGTH characters. The
+   typed text lives in the question's `custom_<field>` property; a
+   question isn't answered until that text passes validateCustomAnswer().
 
-   Downstream logic (q2Options, scoreArchetype, blockLengthMinutesFor)
-   already falls back to a sane default whenever a value doesn't match
-   a known literal, so 'custom' safely degrades to those same
-   fallbacks without special-casing every call site.
+   SKIPPING: every question can be skipped; skipped question ids are
+   kept in `answers.skipped` and earn no Wynkoins.
 
-   Where the spec is genuinely ambiguous, the assumption is called
-   out in a comment rather than silently guessed at:
-
-   - Q1 (exam) and the subject pool already live on user_profiles
-     (exam, subjects columns) - not re-modeled here.
-   - Section 5's generator needs a per-session block length
-     (20-30/45-60/90/120+ min), but none of the 7 listed quiz
-     questions asks for it directly. ASSUMPTION: derive it from
-     the Q5 daily-hours bucket (more daily hours -> longer natural
-     session length). This is documented in BLOCK_LENGTH_BY_HOURS
-     below and should be revisited if a real duration question
-     gets added later.
-   - Archetype conditions in the Section 3 table overlap (e.g.
-     several archetypes could fit "problems + morning"). Scoring
-     below is an ordered rule list, first match wins, with
-     Balanced Planner as the catch-all - the table's plain-English
-     descriptions don't define strict priority, so this ordering
-     is a reasonable-effort interpretation, not a spec quote.
+   REWARD: +10 Wynkoins per answered question, nothing else - 50 max.
+   The server recomputes this itself (rpc_submit_study_dna, migration
+   0088) and only pays it on the account's first completion.
 */
 
 export const CUSTOM_VALUE = 'custom' as const;
@@ -53,48 +32,28 @@ export function validateCustomAnswer(text: string | undefined): { valid: boolean
   return { valid: true };
 }
 
-export type Exam = 'JEE' | 'NEET' | 'UPSC' | 'CAT' | 'Boards' | 'Something else' | typeof CUSTOM_VALUE;
-
-export type StudentType =
-  | '11th' | '12th' | 'dropper' | 'appeared' // JEE/NEET
-  | 'upsc_1st' | 'upsc_2nd' | 'upsc_3rd_plus' // UPSC
-  | 'cat_working' | 'cat_fulltime' // CAT
-  | typeof CUSTOM_VALUE;
-
-export type FixedCommitmentType =
-  | 'school_and_coaching' | 'school_self_study' | 'coaching_only' | 'full_self_study'
-  | typeof CUSTOM_VALUE;
-
-export type FocusTime = 'before_7am' | 'morning' | 'afternoon' | 'evening' | 'after_9pm' | typeof CUSTOM_VALUE;
-
-export type DailyHoursBucket = '2-3' | '4-5' | '6-7' | '8-9' | '10+' | typeof CUSTOM_VALUE;
-
-export type Distraction = 'instagram' | 'youtube' | 'whatsapp' | 'games' | 'ott' | 'nothing' | typeof CUSTOM_VALUE;
-
-export type StudyMode = 'youtube' | 'books' | 'problems' | 'mix' | typeof CUSTOM_VALUE;
+export type DayType = 'school_coaching' | 'school_college' | 'self_study' | 'working' | typeof CUSTOM_VALUE;
+export type DailyHours = '1-2' | '2-4' | '4-6' | '6-8' | typeof CUSTOM_VALUE;
+export type Distraction = 'instagram' | 'youtube' | 'whatsapp' | 'procrastination' | typeof CUSTOM_VALUE;
+export type StudyStyle = 'videos' | 'books' | 'practice' | 'friends' | typeof CUSTOM_VALUE;
+export type Challenge = 'timetable' | 'consistency' | 'revision' | 'syllabus' | typeof CUSTOM_VALUE;
 
 export interface QuizAnswers {
-  exam?: Exam;
-  custom_exam?: string;
-  student_type?: StudentType;
-  custom_student_type?: string;
-  fixed_commitment_type?: FixedCommitmentType;
-  custom_fixed_commitment_type?: string;
-  focus_time?: FocusTime;
-  custom_focus_time?: string;
-  daily_hours?: DailyHoursBucket;
+  day_type?: DayType;
+  custom_day_type?: string;
+  daily_hours?: DailyHours;
   custom_daily_hours?: string;
   distractions?: Distraction[];
-  custom_distraction?: string; // only used if distractions includes 'custom'
-  block_social_anyway?: boolean | typeof CUSTOM_VALUE; // only asked if distractions === ['nothing']
-  custom_block_social_anyway?: string;
-  study_mode?: StudyMode;
-  custom_study_mode?: string;
+  custom_distraction?: string;
+  study_style?: StudyStyle[];
+  custom_study_style?: string;
+  challenges?: Challenge[];
+  custom_challenge?: string;
   /** Questions the student skipped with the Skip button (stored with the answers). */
   skipped?: QuestionId[];
 }
 
-export type QuestionId = 'q1' | 'q2' | 'q3' | 'q4' | 'q5' | 'q6' | 'q6b' | 'q7';
+export type QuestionId = 'q1' | 'q2' | 'q3' | 'q4' | 'q5';
 
 export interface QuizOption {
   value: string;
@@ -106,169 +65,95 @@ export interface QuizQuestion {
   field: keyof QuizAnswers;
   customField: keyof QuizAnswers;
   multiSelect?: boolean;
+  /** Most options a multi-select question accepts (undefined = no limit). */
+  maxSelect?: number;
   options: QuizOption[];
 }
 
-const CUSTOM_OPTION: QuizOption = { value: CUSTOM_VALUE, label: 'Something else (type your own)' };
+export const QUESTIONS: QuizQuestion[] = [
+  {
+    id: 'q1', field: 'day_type', customField: 'custom_day_type',
+    options: [
+      { value: 'school_coaching', label: '🏫 School + Coaching' },
+      { value: 'school_college', label: '📚 School / College' },
+      { value: 'self_study', label: '🏠 Full-time Self-study' },
+      { value: 'working', label: '💼 Working + Studying' },
+      { value: CUSTOM_VALUE, label: '✨ Something else (Type your own)' },
+    ],
+  },
+  {
+    id: 'q2', field: 'daily_hours', customField: 'custom_daily_hours',
+    options: [
+      { value: '1-2', label: '🌱 1–2 hours' },
+      { value: '2-4', label: '📖 2–4 hours' },
+      { value: '4-6', label: '🔥 4–6 hours' },
+      { value: '6-8', label: '🚀 6–8 hours' },
+      { value: CUSTOM_VALUE, label: '✨ Something else (Enter your target)' },
+    ],
+  },
+  {
+    id: 'q3', field: 'distractions', customField: 'custom_distraction', multiSelect: true,
+    options: [
+      { value: 'instagram', label: '📸 Instagram / Reels' },
+      { value: 'youtube', label: '▶️ YouTube / Shorts' },
+      { value: 'whatsapp', label: '💬 WhatsApp / Social Media' },
+      { value: 'procrastination', label: '😴 Procrastination' },
+      { value: CUSTOM_VALUE, label: '✨ Something else (Type your own)' },
+    ],
+  },
+  {
+    id: 'q4', field: 'study_style', customField: 'custom_study_style', multiSelect: true, maxSelect: 2,
+    options: [
+      { value: 'videos', label: '🎥 Video Lectures' },
+      { value: 'books', label: '📚 Books & Notes' },
+      { value: 'practice', label: '✍️ Practice Questions' },
+      { value: 'friends', label: '👥 Studying with Friends' },
+      { value: CUSTOM_VALUE, label: '✨ Something else (Type your own)' },
+    ],
+  },
+  {
+    id: 'q5', field: 'challenges', customField: 'custom_challenge', multiSelect: true, maxSelect: 2,
+    options: [
+      { value: 'timetable', label: '📅 Following a Timetable' },
+      { value: 'consistency', label: '🔥 Staying Consistent' },
+      { value: 'revision', label: '🧠 Remembering & Revising' },
+      { value: 'syllabus', label: '📚 Completing My Syllabus' },
+      { value: CUSTOM_VALUE, label: '✨ Something else (Type your own)' },
+    ],
+  },
+];
 
-/** Appends the shared "type your own" chip to every question's option list. */
-function withCustom(options: QuizOption[]): QuizOption[] {
-  return [...options, CUSTOM_OPTION];
-}
+export const QUESTION_COUNT = QUESTIONS.length; // 5
+export const COINS_PER_ANSWER = 10;
+export const MAX_QUIZ_COINS = QUESTION_COUNT * COINS_PER_ANSWER; // 50
 
-// ── Q2/Q3 options branch by exam/student_type (spec Section 2) ──
-function q2Options(exam?: Exam): QuizOption[] {
-  if (exam === 'UPSC') {
-    return withCustom([
-      { value: 'upsc_1st', label: '1st attempt' },
-      { value: 'upsc_2nd', label: '2nd' },
-      { value: 'upsc_3rd_plus', label: "3rd or more — I don't give up" },
-    ]);
-  }
-  if (exam === 'CAT') {
-    return withCustom([
-      { value: 'cat_working', label: 'Working alongside prep' },
-      { value: 'cat_fulltime', label: 'Full-time prep' },
-    ]);
-  }
-  // JEE/NEET and the spec-unlisted Boards/Something else fall back to the
-  // JEE/NEET option set (not specified for Boards/Other in the PDF).
-  return withCustom([
-    { value: '11th', label: '11th — just getting started' },
-    { value: '12th', label: '12th — boards + entrance' },
-    { value: 'dropper', label: 'Dropper — all in this year' },
-    { value: 'appeared', label: 'Appeared, waiting' },
-  ]);
-}
-
-const Q1_OPTIONS: QuizOption[] = withCustom([
-  { value: 'JEE', label: 'JEE' },
-  { value: 'NEET', label: 'NEET' },
-  { value: 'UPSC', label: 'UPSC' },
-  { value: 'CAT', label: 'CAT' },
-  { value: 'Boards', label: 'Boards' },
-  { value: 'Something else', label: 'Something else' },
-]);
-
-const Q3_OPTIONS: QuizOption[] = withCustom([
-  { value: 'school_and_coaching', label: 'School + coaching both' },
-  { value: 'school_self_study', label: 'School, self study after' },
-  { value: 'coaching_only', label: 'Only coaching, no school' },
-  { value: 'full_self_study', label: 'Full self study, nothing fixed' },
-]);
-
-const Q4_OPTIONS: QuizOption[] = withCustom([
-  { value: 'before_7am', label: 'Before 7 AM' },
-  { value: 'morning', label: 'Morning 7–11 AM' },
-  { value: 'afternoon', label: 'Afternoon 12–4 PM' },
-  { value: 'evening', label: 'Evening 5–9 PM' },
-  { value: 'after_9pm', label: 'After 9 PM' },
-]);
-
-const Q5_OPTIONS: QuizOption[] = withCustom([
-  { value: '2-3', label: '2–3 h' },
-  { value: '4-5', label: '4–5 h' },
-  { value: '6-7', label: '6–7 h' },
-  { value: '8-9', label: '8–9 h' },
-  { value: '10+', label: "10+ h, I'm built different" },
-]);
-
-const Q6_OPTIONS: QuizOption[] = withCustom([
-  { value: 'instagram', label: 'Instagram/Reels' },
-  { value: 'youtube', label: 'Random YouTube' },
-  { value: 'whatsapp', label: 'WhatsApp/chats' },
-  { value: 'games', label: 'Games' },
-  { value: 'ott', label: 'Netflix/OTT' },
-  { value: 'nothing', label: 'Honestly nothing' },
-]);
-
-const Q6B_OPTIONS: QuizOption[] = withCustom([
-  { value: 'true', label: 'Fine, block it all' },
-  { value: 'false', label: 'No really' },
-]);
-
-const Q7_OPTIONS: QuizOption[] = withCustom([
-  { value: 'youtube', label: 'Watch YouTube lectures' },
-  { value: 'books', label: 'Read books and notes' },
-  { value: 'problems', label: 'Solve problems till it clicks' },
-  { value: 'mix', label: 'Mix of everything' },
-]);
-
-/** Auto-fill defaults for Q3 when it's skipped (spec: dropper -> coaching_only, appeared -> self_study). */
-export function q3AutoDefault(studentType?: StudentType): FixedCommitmentType | undefined {
-  if (studentType === 'dropper') return 'coaching_only';
-  if (studentType === 'appeared') return 'full_self_study';
-  return undefined;
+/** 1-5 */
+export function questionNumber(id: QuestionId): number {
+  return Number(id.slice(1));
 }
 
 /** True once a (value, customText) pair represents a real, valid answer. */
-function hasValidAnswer(value: unknown, customText: string | undefined): boolean {
-  if (value === undefined) return false;
-  if (value === CUSTOM_VALUE) return validateCustomAnswer(customText).valid;
+function hasValidAnswer(value: unknown, customText: string | undefined, maxSelect?: number): boolean {
+  if (value === undefined || value === null) return false;
   if (Array.isArray(value)) {
     if (value.length === 0) return false;
+    if (maxSelect !== undefined && value.length > maxSelect) return false;
     if (value.includes(CUSTOM_VALUE)) return validateCustomAnswer(customText).valid;
+    return true;
   }
+  if (value === CUSTOM_VALUE) return validateCustomAnswer(customText).valid;
   return true;
 }
 
-/**
- * Returns the next question to show, or null if the quiz is complete.
- * Encodes the spec's skip rules:
- * - Q3 is skipped for dropper/appeared (auto-defaulted via q3AutoDefault).
- * - Q6b ("Block social anyway?") only appears if Q6 = ['nothing'] exactly.
- * - Any question answered with the 'custom' chip isn't considered
- *   complete until its paired custom_* text passes validation.
- * - A question the student skipped (answers.skipped) counts as done.
- */
+function isAnswered(answers: QuizAnswers, q: QuizQuestion): boolean {
+  return hasValidAnswer(answers[q.field], answers[q.customField] as string | undefined, q.maxSelect);
+}
+
+/** The next question to show, or null when every question is answered or skipped. */
 export function getNextQuestion(answers: QuizAnswers): QuizQuestion | null {
-  const open = (id: QuestionId) => !answers.skipped?.includes(id);
-  if (open('q1') && !hasValidAnswer(answers.exam, answers.custom_exam)) {
-    return { id: 'q1', field: 'exam', customField: 'custom_exam', options: Q1_OPTIONS };
-  }
-  if (open('q2') && !hasValidAnswer(answers.student_type, answers.custom_student_type)) {
-    return { id: 'q2', field: 'student_type', customField: 'custom_student_type', options: q2Options(answers.exam) };
-  }
-  if (open('q3') && !hasValidAnswer(answers.fixed_commitment_type, answers.custom_fixed_commitment_type)) {
-    const auto = q3AutoDefault(answers.student_type);
-    if (auto !== undefined) {
-      // Caller should apply this default and not render a question.
-      return getNextQuestion({ ...answers, fixed_commitment_type: auto });
-    }
-    return {
-      id: 'q3',
-      field: 'fixed_commitment_type',
-      customField: 'custom_fixed_commitment_type',
-      options: Q3_OPTIONS,
-    };
-  }
-  if (open('q4') && !hasValidAnswer(answers.focus_time, answers.custom_focus_time)) {
-    return { id: 'q4', field: 'focus_time', customField: 'custom_focus_time', options: Q4_OPTIONS };
-  }
-  if (open('q5') && !hasValidAnswer(answers.daily_hours, answers.custom_daily_hours)) {
-    return { id: 'q5', field: 'daily_hours', customField: 'custom_daily_hours', options: Q5_OPTIONS };
-  }
-  if (open('q6') && !hasValidAnswer(answers.distractions, answers.custom_distraction)) {
-    return {
-      id: 'q6',
-      field: 'distractions',
-      customField: 'custom_distraction',
-      multiSelect: true,
-      options: Q6_OPTIONS,
-    };
-  }
-  const distractionsIsExactlyNothing =
-    answers.distractions?.length === 1 && answers.distractions[0] === 'nothing';
-  if (open('q6b') && distractionsIsExactlyNothing && !hasValidAnswer(answers.block_social_anyway, answers.custom_block_social_anyway)) {
-    return {
-      id: 'q6b',
-      field: 'block_social_anyway',
-      customField: 'custom_block_social_anyway',
-      options: Q6B_OPTIONS,
-    };
-  }
-  if (open('q7') && !hasValidAnswer(answers.study_mode, answers.custom_study_mode)) {
-    return { id: 'q7', field: 'study_mode', customField: 'custom_study_mode', options: Q7_OPTIONS };
+  for (const q of QUESTIONS) {
+    if (answers.skipped?.includes(q.id)) continue;
+    if (!isAnswered(answers, q)) return q;
   }
   return null;
 }
@@ -277,167 +162,82 @@ export function isQuizComplete(answers: QuizAnswers): boolean {
   return getNextQuestion(answers) === null;
 }
 
-// ── Study DNA questions + Wynkoins reward ────────────────────────────
-// The quiz is 7 questions (Q1-Q7). Q6b is a follow-up to Q6, not a
-// question of its own, and Q3's automatic answer for dropper/appeared
-// counts as answered. Reward (first completion only, recomputed by the
-// server in rpc_submit_study_dna - migration 0088): +10 per answered
-// question + 30 for finishing = 100 max. Skipped questions earn nothing.
-export const DNA_QUESTION_COUNT = 7;
-export const COINS_PER_ANSWER = 10;
-export const FINISH_BONUS = 30;
-export const MAX_QUIZ_COINS = DNA_QUESTION_COUNT * COINS_PER_ANSWER + FINISH_BONUS; // 100
-
-/** Which of the 7 questions (1-7) a question belongs to; Q6b is part of Q6. */
-export function questionNumber(id: QuestionId): number {
-  return id === 'q6b' ? 6 : Number(id.slice(1));
-}
-
-/** For each of the 7 questions (index 0 = Q1), whether it holds a real answer. */
+/** For each question (index 0 = Q1), whether it holds a real answer. */
 export function answeredQuestions(answers: QuizAnswers): boolean[] {
-  return [
-    hasValidAnswer(answers.exam, answers.custom_exam),
-    hasValidAnswer(answers.student_type, answers.custom_student_type),
-    hasValidAnswer(answers.fixed_commitment_type, answers.custom_fixed_commitment_type),
-    hasValidAnswer(answers.focus_time, answers.custom_focus_time),
-    hasValidAnswer(answers.daily_hours, answers.custom_daily_hours),
-    hasValidAnswer(answers.distractions, answers.custom_distraction),
-    hasValidAnswer(answers.study_mode, answers.custom_study_mode),
-  ];
+  return QUESTIONS.map((q) => isAnswered(answers, q));
 }
 
-/** How many of the 7 questions hold a real answer (Q6b excluded). */
 export function answeredQuestionCount(answers: QuizAnswers): number {
   return answeredQuestions(answers).filter(Boolean).length;
 }
 
-/** Coins for finishing the quiz: 0 unless it's the account's first completion. */
+/** Coins for finishing the quiz: +10 per answer, first completion only (50 max). */
 export function calculateQuizReward(answers: QuizAnswers, isFirstTimeCompletion: boolean): number {
   if (!isFirstTimeCompletion) return 0;
-  return answeredQuestionCount(answers) * COINS_PER_ANSWER + FINISH_BONUS;
+  return answeredQuestionCount(answers) * COINS_PER_ANSWER;
 }
 
-// ── Archetype scoring (Section 3) ────────────────────────────────
-export type Archetype =
-  | 'Dawn Warrior' | 'Night Owl' | 'Sprinter' | 'Marathoner'
-  | 'Visual Learner' | 'Social Battler' | 'Grind Machine' | 'Balanced Planner';
+// ── Study DNA (archetype) ────────────────────────────────────────
+// Ordered rules, first match wins, Balanced Planner as the catch-all.
+export const ARCHETYPES = [
+  'Social Battler', 'Grind Machine', 'Marathoner', 'Focus Seeker', 'Team Player',
+  'Visual Learner', 'Deep Reader', 'Sprinter', 'Balanced Planner',
+] as const;
+export type Archetype = (typeof ARCHETYPES)[number];
 
-const SOCIAL_DISTRACTIONS: Distraction[] = ['instagram', 'whatsapp'];
+const SOCIAL_APPS: Distraction[] = ['instagram', 'youtube', 'whatsapp'];
 
 export function scoreArchetype(answers: QuizAnswers): Archetype {
-  const heavySocial =
-    (answers.distractions?.filter((d) => SOCIAL_DISTRACTIONS.includes(d)).length ?? 0) >= 2 ||
-    (answers.distractions?.includes('instagram') && answers.distractions.length >= 3);
+  const distractions = answers.distractions ?? [];
+  const style = answers.study_style ?? [];
+  const challenges = answers.challenges ?? [];
+  const hours = answers.daily_hours;
 
-  if (heavySocial) return 'Social Battler';
-  if (answers.study_mode === 'youtube') return 'Visual Learner';
-  if (
-    answers.study_mode === 'problems' &&
-    answers.student_type === 'dropper' &&
-    (answers.focus_time === 'before_7am' || answers.focus_time === 'morning')
-  ) {
-    return 'Grind Machine';
-  }
-  if (answers.focus_time === 'before_7am') return 'Dawn Warrior';
-  if (answers.focus_time === 'after_9pm') return 'Night Owl';
-  if (answers.study_mode === 'problems' && (answers.daily_hours === '2-3' || answers.daily_hours === '4-5')) {
-    return 'Sprinter';
-  }
-  if (answers.focus_time === 'morning' && (answers.daily_hours === '8-9' || answers.daily_hours === '10+')) {
-    return 'Marathoner';
-  }
+  if (distractions.filter((d) => SOCIAL_APPS.includes(d)).length >= 2) return 'Social Battler';
+  if (hours === '6-8' && style.includes('practice')) return 'Grind Machine';
+  if (hours === '6-8') return 'Marathoner';
+  if (distractions.includes('procrastination') || challenges.includes('consistency')) return 'Focus Seeker';
+  if (style.includes('friends')) return 'Team Player';
+  if (style.includes('videos')) return 'Visual Learner';
+  if (style.includes('books')) return 'Deep Reader';
+  if (style.includes('practice') && (hours === '1-2' || hours === '2-4')) return 'Sprinter';
   return 'Balanced Planner';
 }
 
-// ── Block length for the generator (documented assumption, see header) ──
-const BLOCK_LENGTH_BY_HOURS: Partial<Record<DailyHoursBucket, number>> = {
-  '2-3': 25,
-  '4-5': 45,
-  '6-7': 60,
-  '8-9': 90,
-  '10+': 120,
-};
+// ── Username generation ("socialbattler42"-style, from the Study DNA) ──
+const USERNAME_MAX_LEN = 20; // matches the DB check
 
-export function blockLengthMinutesFor(answers: QuizAnswers): number {
-  const bucket = answers.daily_hours;
-  if (bucket && bucket in BLOCK_LENGTH_BY_HOURS) return BLOCK_LENGTH_BY_HOURS[bucket]!;
-  return 45; // default, also covers the 'custom' bucket (no known duration to map to)
-}
-
-// ── Username generation (Section 3: [FocusWord][ArchetypeWord] + 2 digits) ──
-// Only defined for the 5 preset focus-time buckets; a 'custom' Q4 answer
-// falls back to a neutral word (see resolveTimeWord) rather than crashing.
-const TIME_WORD: Record<Exclude<FocusTime, typeof CUSTOM_VALUE>, string> = {
-  before_7am: 'Dawn',
-  morning: 'Solar',
-  afternoon: 'Noon',
-  evening: 'Dusk',
-  after_9pm: 'Night',
-};
-
-function resolveTimeWord(focusTime: FocusTime): string {
-  return focusTime === CUSTOM_VALUE ? 'Study' : TIME_WORD[focusTime];
-}
-
-// Primary + fallback word per archetype, for the "swap word" step of the
-// spec's collision-resolution order (swap number -> swap word -> manual).
-const ARCHETYPE_WORDS: Record<Archetype, [string, string]> = {
-  'Dawn Warrior': ['Warrior', 'Guardian'],
-  'Night Owl': ['Owl', 'Watcher'],
-  Sprinter: ['Sprinter', 'Racer'],
-  Marathoner: ['Runner', 'Marathoner'],
-  'Visual Learner': ['Viewer', 'Watcher'],
-  'Social Battler': ['Battler', 'Fighter'],
-  'Grind Machine': ['Grinder', 'Machine'],
-  'Balanced Planner': ['Planner', 'Balancer'],
-};
-
-const USERNAME_MAX_LEN = 20; // matches the DB check: 1 + up to 18 + 1
-
-function randomTwoDigit(): string {
-  return String(10 + Math.floor(Math.random() * 90));
-}
-
-function buildCandidate(timeWord: string, archetypeWord: string, digits: string): string {
-  const base = `${timeWord}${archetypeWord}`.slice(0, USERNAME_MAX_LEN - digits.length);
-  return `${base}${digits}`;
+function randomDigits(n: 2 | 3): string {
+  return n === 2 ? String(10 + Math.floor(Math.random() * 90)) : String(100 + Math.floor(Math.random() * 900));
 }
 
 export interface UsernameGenOptions {
-  /** Async check against the DB / existing usernames. Returns true if taken. */
+  /** Async check against the server. Returns true if taken. */
   isTaken: (candidate: string) => Promise<boolean>;
-  /** Optional extra blocklist substrings (case-insensitive), on top of a screened word pool. */
+  /** Optional extra blocklist substrings (case-insensitive). */
   blocklist?: string[];
-  maxAttemptsPerWord?: number; // default 5, spec: "swap number" a few times before giving up on a word
+  maxAttempts?: number; // per digit length, default 5
 }
 
 /**
- * Returns a generated username, or null if both word/number swaps were
- * exhausted (per spec: "If taken: swap number → swap word → manual input" -
- * the caller should fall through to manual input in that case).
+ * A free username built from the Study DNA ("SocialBattler42"; the caller
+ * lowercases it), or null if every attempt was taken - the caller then
+ * falls back to a name-based one or manual input.
  */
-export async function generateUsername(
-  focusTime: FocusTime,
-  archetype: Archetype,
-  opts: UsernameGenOptions
-): Promise<string | null> {
-  const timeWord = resolveTimeWord(focusTime);
-  const [primaryWord, fallbackWord] = ARCHETYPE_WORDS[archetype];
-  const maxAttempts = opts.maxAttemptsPerWord ?? 5;
+export async function generateUsername(archetype: Archetype, opts: UsernameGenOptions): Promise<string | null> {
+  const word = archetype.replace(/\s+/g, '');
+  const maxAttempts = opts.maxAttempts ?? 5;
   const blocklist = (opts.blocklist ?? []).map((w) => w.toLowerCase());
-
-  const isBlocked = (candidate: string) => blocklist.some((w) => candidate.toLowerCase().includes(w));
-
-  for (const word of [primaryWord, fallbackWord]) {
+  for (const n of [2, 3] as const) {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const candidate = buildCandidate(timeWord, word, randomTwoDigit());
-      if (isBlocked(candidate)) continue;
+      const digits = randomDigits(n);
+      const candidate = `${word.slice(0, USERNAME_MAX_LEN - digits.length)}${digits}`;
+      if (blocklist.some((w) => candidate.toLowerCase().includes(w))) continue;
       // eslint-disable-next-line no-await-in-loop
-      const taken = await opts.isTaken(candidate);
-      if (!taken) return candidate;
+      if (!(await opts.isTaken(candidate))) return candidate;
     }
   }
-  return null; // caller falls through to manual input
+  return null;
 }
 
 // ── Username rules (match the database: rpc_check_username, migration 0088) ──
@@ -460,7 +260,7 @@ export function usernameProblem(u: string): string | null {
 
 /**
  * A starting username for someone who skipped the quiz: their first name
- * plus 2-3 digits ("rohan47"), or "wynko" + digits without a usable name.
+ * plus 3 digits ("rohan347"), or "wynko" + 4 digits without a usable name.
  * The caller checks availability and retries with a new call.
  */
 export function usernameFromName(name: string | null | undefined): string {

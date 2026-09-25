@@ -21,7 +21,6 @@
 
 import {
   type Archetype,
-  type FocusTime,
   type QuizAnswers,
   generateUsername,
   scoreArchetype,
@@ -90,16 +89,16 @@ async function isFree(supabase: QuizSupabaseClient, candidate: string): Promise<
 /**
  * A free username to pre-fill the profile step with (lowercase, the form the
  * database stores). Quiz finishers get one from their Study DNA
- * ("nightowl83"), skippers one from their name ("rohan347"). Returns the
+ * ("focusseeker42"), skippers one from their name ("rohan347"). Returns the
  * last candidate even if none was confirmed free - the student can edit it,
  * and the profile step checks it again anyway.
  */
 export async function suggestUsername(
   supabase: QuizSupabaseClient,
-  from: { archetype?: Archetype | null; focusTime?: FocusTime | null; name?: string | null }
+  from: { archetype?: Archetype | null; name?: string | null }
 ): Promise<string> {
   if (from.archetype) {
-    const generated = await generateUsername(from.focusTime ?? 'morning', from.archetype, {
+    const generated = await generateUsername(from.archetype, {
       isTaken: async (c) => !(await isFree(supabase, c.toLowerCase())),
     });
     if (generated) return generated.toLowerCase();

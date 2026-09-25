@@ -6,16 +6,16 @@
 --     saved. login.html and the quiz page send anyone with it set straight
 --     to Home, so neither the quiz nor the profile step is shown again.
 --     Accounts that already finished the old quiz count as onboarded.
+--   * The quiz is 5 questions: typical day, daily hours, distractions (any
+--     number), how they like to study (up to 2), biggest challenge (up to 2).
 --   * Study DNA reward (first completion only, computed here, never trusted
---     from the page): +10 Wynkoins per answered question (7 questions; the
---     Q6 follow-up isn't a separate question, and Q3's automatic answer for
---     droppers / "appeared" counts as answered) + 30 for finishing = 100 max.
---     Skipped questions earn nothing. Someone who chose "Skip for Now" can't
---     claim it afterwards.
+--     from the page): +10 Wynkoins per answered question, nothing else -
+--     50 max. Skipped questions earn nothing. Someone who chose "Skip for
+--     Now" can't claim it afterwards.
 --   * rpc_check_username / rpc_finish_onboarding - the profile step's
 --     username check and save. Usernames: 3-20 of a-z 0-9 _, starting and
 --     ending with a letter or number (the table's existing rules).
---   * rpc_complete_quiz (old quiz, 115 coins) is no longer callable.
+--   * rpc_complete_quiz (old 7-question quiz, 115 coins) is no longer callable.
 
 alter table public.user_profiles add column if not exists onboarding_completed_at timestamptz;
 
@@ -25,8 +25,8 @@ update public.user_profiles
 
 -- ── Answer / username checks ─────────────────────────────────────────────
 -- True when a quiz answer field holds a real answer (a 'custom' pick needs
--- its 1-60 character custom text).
-create or replace function public.study_dna_answer_ok(p jsonb, p_field text, p_custom_field text)
+-- its 1-60 character custom text; multi-selects are capped at p_max picks).
+create or replace function public.study_dna_answer_ok(p jsonb, p_field text, p_custom_field text, p_max int default 5)
 returns boolean
 language plpgsql
 immutable
@@ -38,7 +38,7 @@ declare
 begin
   if v is null or jsonb_typeof(v) = 'null' then return false; end if;
   if jsonb_typeof(v) = 'array' then
-    if jsonb_array_length(v) = 0 then return false; end if;
+    if jsonb_array_length(v) = 0 or jsonb_array_length(v) > p_max then return false; end if;
     if v ? 'custom' then return v_custom_len between 1 and 60; end if;
     return true;
   end if;
@@ -56,13 +56,11 @@ language sql
 immutable
 set search_path = public
 as $$
-  select (public.study_dna_answer_ok(p, 'exam', 'custom_exam'))::int
-       + (public.study_dna_answer_ok(p, 'student_type', 'custom_student_type'))::int
-       + (public.study_dna_answer_ok(p, 'fixed_commitment_type', 'custom_fixed_commitment_type'))::int
-       + (public.study_dna_answer_ok(p, 'focus_time', 'custom_focus_time'))::int
+  select (public.study_dna_answer_ok(p, 'day_type', 'custom_day_type'))::int
        + (public.study_dna_answer_ok(p, 'daily_hours', 'custom_daily_hours'))::int
        + (public.study_dna_answer_ok(p, 'distractions', 'custom_distraction'))::int
-       + (public.study_dna_answer_ok(p, 'study_mode', 'custom_study_mode'))::int
+       + (public.study_dna_answer_ok(p, 'study_style', 'custom_study_style', 2))::int
+       + (public.study_dna_answer_ok(p, 'challenges', 'custom_challenge', 2))::int
 $$;
 
 -- null when fine, otherwise what's wrong (shown to the student as-is).
@@ -81,7 +79,7 @@ as $$
   end
 $$;
 
-revoke execute on function public.study_dna_answer_ok(jsonb, text, text) from public, anon, authenticated;
+revoke execute on function public.study_dna_answer_ok(jsonb, text, text, int) from public, anon, authenticated;
 revoke execute on function public.study_dna_answered_count(jsonb) from public, anon, authenticated;
 revoke execute on function public.username_problem(text) from public, anon, authenticated;
 
@@ -124,8 +122,8 @@ declare
   v_subject text;
 begin
   if v_uid is null then raise exception 'Not signed in'; end if;
-  if p_archetype not in ('Dawn Warrior','Night Owl','Sprinter','Marathoner',
-                         'Visual Learner','Social Battler','Grind Machine','Balanced Planner') then
+  if p_archetype not in ('Social Battler','Grind Machine','Marathoner','Focus Seeker','Team Player',
+                         'Visual Learner','Deep Reader','Sprinter','Balanced Planner') then
     raise exception 'Unknown archetype: %', p_archetype;
   end if;
   if p_quiz_answers is null or jsonb_typeof(p_quiz_answers) <> 'object' or pg_column_size(p_quiz_answers) > 8192 then
@@ -157,7 +155,7 @@ begin
   end if;
 
   if v_first then
-    v_reward := v_answered * 10 + 30;
+    v_reward := v_answered * 10;
     perform public.increment_wallet(v_uid, v_reward, v_reward);
   end if;
 

@@ -4,23 +4,19 @@ import {
   CUSTOM_ANSWER_MAX_LENGTH,
   CUSTOM_VALUE,
   COINS_PER_ANSWER,
-  DNA_QUESTION_COUNT,
-  FINISH_BONUS,
   MAX_QUIZ_COINS,
+  QUESTION_COUNT,
   answeredQuestionCount,
   answeredQuestions,
   cleanUsernameInput,
   getNextQuestion,
-  q3AutoDefault,
   questionNumber,
   usernameProblem,
   validateCustomAnswer,
   type Archetype,
-  type FocusTime,
   type QuestionId,
   type QuizAnswers,
   type QuizQuestion,
-  type StudentType,
 } from '../_shared/quizEngine';
 import {
   checkUsername,
@@ -51,7 +47,7 @@ import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
     lang   "Select Your Language" (Hindi / English) -> Let's go
     intro  Meet Wynky: she says hello right away (the Let's go tap lets the
            browser play her voice) -> "Find Your Study DNA" | "Skip for Now"
-    q      7 questions, each skippable; +10 Wynkoins per answer
+    q      5 questions, each skippable; +10 Wynkoins per answer (50 max)
     saving -> profile (Study DNA + Wynkoins + name / exam / username) -> Home
   "Skip for Now" goes straight to the profile step (no Study DNA, no coins).
 */
@@ -63,45 +59,42 @@ const MUTED_KEY = 'wynko_quiz_muted_v1';
 const MONO = "'JetBrains Mono', monospace";
 const client = sb as unknown as QuizSupabaseClient;
 
-const EXAMS = ['JEE', 'NEET', 'UPSC', 'CAT', 'Boards', 'Other'] as const;
-type ExamChoice = (typeof EXAMS)[number];
-
 const TEXT = {
   en: {
     meetTitle: 'Meet', meetTitleEnd: ', your study buddy',
-    meetSub: 'A quick 7-question game to find your Study DNA. Sound on for the full experience.',
+    meetSub: 'A quick 5-question game to find your Study DNA. Sound on for the full experience.',
     findDna: 'Find Your Study DNA', skipForNow: 'Skip for Now', hearAgain: '↻ Hear it again',
-    question: (n: number) => `QUESTION ${n} OF ${DNA_QUESTION_COUNT}`,
-    followUp: ' · FOLLOW-UP', pickAll: ' · PICK ALL THAT APPLY',
+    question: (n: number) => `QUESTION ${n} OF ${QUESTION_COUNT}`,
+    pickAll: ' · PICK ALL THAT APPLY', pickUpTo: (n: number) => ` · PICK UP TO ${n}`,
     skip: 'Skip', next: 'Next →', typeAnswer: 'Type your answer…',
-    coinRule: `+${COINS_PER_ANSWER} per answer · +${FINISH_BONUS} for finishing`,
+    coinRule: `+${COINS_PER_ANSWER} Wynkoins for every answer`,
     working: 'Working out your Study DNA…',
     yourDna: 'YOUR STUDY DNA', earned: 'Wynkoins earned', balance: 'Your Wynkoins',
     alreadyClaimed: 'Already claimed before',
     setupEyebrow: 'SET UP YOUR PROFILE', setupTitle: 'Tell us a bit about you',
     formTitle: 'Almost there — tell us about you',
-    name: 'Your name', namePh: 'e.g. Aarav Sharma', exam: 'Your exam', examOtherPh: 'Which exam?',
+    name: 'Your name', namePh: 'e.g. Aarav Sharma', exam: 'Your exam', examPh: 'e.g. JEE Main 2027',
     username: 'Username', checking: 'Checking…', available: '✓ Available — it’s yours', taken: '✗ Already taken',
     letsGo: "Let's go →", saving: 'Saving…',
-    other: 'Other', tryAgain: 'Try again', logIn: 'Log in →', couldntSave: "COULDN'T SAVE",
+    tryAgain: 'Try again', logIn: 'Log in →', couldntSave: "COULDN'T SAVE",
   },
   hi: {
     meetTitle: 'Milo', meetTitleEnd: ' se, aapki study buddy',
-    meetSub: '7 sawaalon ka chhota sa game — aapka Study DNA pata karne ke liye. Sound on rakhna!',
+    meetSub: '5 sawaalon ka chhota sa game — aapka Study DNA pata karne ke liye. Sound on rakhna!',
     findDna: 'Find Your Study DNA', skipForNow: 'Skip for Now', hearAgain: '↻ Phir se suno',
-    question: (n: number) => `SAWAAL ${n} / ${DNA_QUESTION_COUNT}`,
-    followUp: ' · EK AUR', pickAll: ' · JITNE CHAHO CHUNO',
+    question: (n: number) => `SAWAAL ${n} / ${QUESTION_COUNT}`,
+    pickAll: ' · JITNE CHAHO CHUNO', pickUpTo: (n: number) => ` · ZYADA SE ZYADA ${n} CHUNO`,
     skip: 'Skip', next: 'Aage badho →', typeAnswer: 'Apna answer likho…',
-    coinRule: `Har jawaab pe +${COINS_PER_ANSWER} · khatam karne pe +${FINISH_BONUS}`,
+    coinRule: `Har jawaab pe +${COINS_PER_ANSWER} Wynkoins`,
     working: 'Aapka Study DNA ban raha hai…',
     yourDna: 'AAPKA STUDY DNA', earned: 'Wynkoins mile', balance: 'Aapke Wynkoins',
     alreadyClaimed: 'Pehle hi mil chuke hain',
     setupEyebrow: 'APNI PROFILE BANAO', setupTitle: 'Apne baare mein thoda batao',
     formTitle: 'Bas ek step aur — apne baare mein batao',
-    name: 'Aapka naam', namePh: 'jaise Aarav Sharma', exam: 'Aapka exam', examOtherPh: 'Kaunsa exam?',
+    name: 'Aapka naam', namePh: 'jaise Aarav Sharma', exam: 'Aapka exam', examPh: 'jaise JEE Main 2027',
     username: 'Username', checking: 'Check ho raha hai…', available: '✓ Available — ye aapka hai', taken: '✗ Ye pehle se liya hua hai',
     letsGo: "Let's go →", saving: 'Save ho raha hai…',
-    other: 'Other', tryAgain: 'Phir se try karo', logIn: 'Login karo →', couldntSave: 'SAVE NAHI HUA',
+    tryAgain: 'Phir se try karo', logIn: 'Login karo →', couldntSave: 'SAVE NAHI HUA',
   },
 } as const;
 
@@ -123,34 +116,15 @@ function writePref(key: string, value: string) {
 
 function applyAnswer(answers: QuizAnswers, q: QuizQuestion, pick: string[], customText: string): QuizAnswers {
   const next: Record<string, unknown> = { ...answers };
-  if (q.field === 'block_social_anyway') {
-    next.block_social_anyway = pick[0] === CUSTOM_VALUE ? CUSTOM_VALUE : pick[0] === 'true';
-  } else {
-    next[q.field] = q.multiSelect ? pick : pick[0];
-  }
+  next[q.field] = q.multiSelect ? pick : pick[0];
   if (pick.includes(CUSTOM_VALUE)) next[q.customField] = customText.trim();
   else delete next[q.customField];
-  if (q.field === 'student_type') {
-    // Q3 is never shown to droppers/appeared; store its default so the generator has it.
-    const auto = q3AutoDefault(pick[0] as StudentType);
-    if (auto) next.fixed_commitment_type = auto;
-  }
   return next as QuizAnswers;
 }
 
 function optionLabel(lang: Lang, q: QuizQuestion, value: string, fallback: string): string {
   if (lang !== 'hi') return fallback;
-  if (value === CUSTOM_VALUE) return OPTION_LABELS_HI.custom;
   return OPTION_LABELS_HI[`${q.id}:${value}`] ?? fallback;
-}
-
-/** The exam chip + "other" text to pre-fill from the Q1 answer (or a saved exam). */
-function examPrefill(exam: string | null | undefined, customExam?: string): { choice: ExamChoice | null; other: string } {
-  if (!exam) return { choice: null, other: '' };
-  if ((EXAMS as readonly string[]).includes(exam) && exam !== 'Other') return { choice: exam as ExamChoice, other: '' };
-  if (exam === CUSTOM_VALUE) return { choice: 'Other', other: customExam ?? '' };
-  if (exam === 'Something else') return { choice: 'Other', other: '' };
-  return { choice: 'Other', other: exam };
 }
 
 function MountainBackdrop() {
@@ -179,12 +153,13 @@ function CoinIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-function OptionChip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+function OptionChip({ label, on, onClick, dimmed }: { label: string; on: boolean; onClick: () => void; dimmed?: boolean }) {
   const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
       aria-pressed={on}
+      aria-disabled={dimmed || undefined}
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -195,6 +170,7 @@ function OptionChip({ label, on, onClick }: { label: string; on: boolean; onClic
         color: on ? '#fff' : '#CBD5E1',
         border: `1px solid ${on ? '#6B44EE' : hover ? 'rgba(56,132,255,0.35)' : 'rgba(26,40,69,0.6)'}`,
         boxShadow: on ? '0 0 22px rgba(124,77,255,0.35)' : 'none',
+        opacity: dimmed ? 0.45 : 1,
       }}
     >
       {label}
@@ -235,9 +211,9 @@ function PrimaryButton({ children, onClick, disabled, background, color = '#fff'
   );
 }
 
-/** Segmented coin bar: one +10 segment per question, then the +30 finish bonus. */
-function CoinBar({ answers, current, finished, label, coins }: {
-  answers: QuizAnswers; current: number | null; finished: boolean; label: string; coins: number;
+/** Segmented coin bar: one +10 segment per question. */
+function CoinBar({ answers, current, label, coins }: {
+  answers: QuizAnswers; current: number | null; label: string; coins: number;
 }) {
   const done = answeredQuestions(answers);
   const skipped = new Set(answers.skipped ?? []);
@@ -269,15 +245,6 @@ function CoinBar({ answers, current, finished, label, coins }: {
             </div>
           );
         })}
-        <div title={`+${FINISH_BONUS} for finishing`}
-          style={{
-            flex: 1.6, height: 22, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            fontFamily: MONO, fontSize: 10, fontWeight: 700, transition: 'all 300ms',
-            background: finished ? 'linear-gradient(135deg,#7C4DFF,#22D3EE)' : 'rgba(14,21,40,0.7)',
-            color: finished ? '#fff' : '#4E5E84', border: `1px solid ${finished ? '#22D3EE' : '#1A2845'}`,
-          }}>
-          🏁 +{FINISH_BONUS}
-        </div>
       </div>
     </div>
   );
@@ -311,8 +278,7 @@ export default function OnboardingQuiz() {
   // Profile step
   const [profileMode, setProfileMode] = useState<ProfileMode>('skipped');
   const [fullName, setFullName] = useState('');
-  const [examChoice, setExamChoice] = useState<ExamChoice | null>(null);
-  const [examOther, setExamOther] = useState('');
+  const [exam, setExam] = useState('');
   const [username, setUsername] = useState('');
   const [uname, setUname] = useState<UsernameState>({ state: 'idle', message: null });
   const [submitting, setSubmitting] = useState(false);
@@ -348,17 +314,13 @@ export default function OnboardingQuiz() {
   useEffect(() => () => speech.current?.cancel(), []);
 
   // Pre-fills the profile step and switches to it.
-  const openProfile = useCallback(async (mode: ProfileMode, from: {
-    name: string; exam?: string | null; customExam?: string; archetype?: Archetype | null; focusTime?: FocusTime | null;
-  }) => {
+  const openProfile = useCallback(async (mode: ProfileMode, from: { name: string; exam?: string | null; archetype?: Archetype | null }) => {
     setProfileMode(mode);
     setFullName((cur) => cur || from.name);
-    const pre = examPrefill(from.exam, from.customExam);
-    setExamChoice((cur) => cur ?? pre.choice);
-    setExamOther((cur) => cur || pre.other);
+    setExam((cur) => cur || (from.exam ?? ''));
     setPhase('profile');
     try {
-      const suggested = await suggestUsername(client, { archetype: from.archetype, focusTime: from.focusTime, name: from.name });
+      const suggested = await suggestUsername(client, { archetype: from.archetype, name: from.name });
       setUsername((cur) => cur || suggested);
     } catch {
       // Leave it empty; the student types one.
@@ -399,7 +361,7 @@ export default function OnboardingQuiz() {
         setDna({ archetype: prof.archetype as Archetype, answered: answeredQuestionCount(saved), coinsAwarded: 0, isFirstTime: false, balance: wallet?.coins ?? null });
         setExpr('happy');
         setBubble(resultLine(prof.archetype as Archetype));
-        void openProfile('dna', { name, exam: prof.exam ?? saved.exam, customExam: saved.custom_exam, archetype: prof.archetype as Archetype, focusTime: saved.focus_time });
+        void openProfile('dna', { name, exam: prof.exam, archetype: prof.archetype as Archetype });
         return;
       }
       setPhase('lang');
@@ -486,10 +448,7 @@ export default function OnboardingQuiz() {
     const ln = resultLine(r.archetype);
     setBubble(ln);
     say(ln, () => setExpr('happy'));
-    void openProfile('dna', {
-      name: defaults.current.name, exam: a.exam ?? defaults.current.exam, customExam: a.custom_exam,
-      archetype: r.archetype, focusTime: a.focus_time,
-    });
+    void openProfile('dna', { name: defaults.current.name, exam: defaults.current.exam, archetype: r.archetype });
   };
 
   const showQuestion = (a: QuizAnswers) => {
@@ -570,20 +529,20 @@ export default function OnboardingQuiz() {
     sfx('pop', mutedRef.current);
     const wasOn = pick.includes(v);
     if (!question.multiSelect) setPick([v]);
-    else if (v === 'nothing') setPick(wasOn ? [] : ['nothing']);
-    else setPick(wasOn ? pick.filter((x) => x !== v) : [...pick.filter((x) => x !== 'nothing'), v]);
+    else if (wasOn) setPick(pick.filter((x) => x !== v));
+    else if (question.maxSelect !== undefined && pick.length >= question.maxSelect) return; // at the limit
+    else setPick([...pick, v]);
     if (!speaking) setExpr(wasOn ? QUESTION_COPY[question.id].expr : 'wink');
   };
 
-  const examValue = examChoice === 'Other' ? examOther.trim() : examChoice ?? '';
-  const canFinish = !submitting && fullName.trim().length > 0 && examValue.length > 0 && uname.state === 'ok';
+  const canFinish = !submitting && fullName.trim().length > 0 && exam.trim().length > 0 && uname.state === 'ok';
 
   const letsGo = async () => {
     if (!canFinish) return;
     setSubmitting(true);
     setFormError(null);
     try {
-      await finishOnboarding(client, { fullName: fullName.trim(), exam: examValue, username });
+      await finishOnboarding(client, { fullName: fullName.trim(), exam: exam.trim(), username });
       sfx('tada', mutedRef.current);
       window.location.href = '/home.html';
     } catch (e) {
@@ -677,9 +636,8 @@ export default function OnboardingQuiz() {
             <CoinBar
               answers={answers}
               current={question ? questionNumber(question.id) : null}
-              finished={phase !== 'q'}
               label={t.coinRule}
-              coins={phase === 'q' ? coins : coins + FINISH_BONUS}
+              coins={coins}
             />
           </div>
         )}
@@ -756,7 +714,7 @@ export default function OnboardingQuiz() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <div style={eyebrow}>
                     {t.question(questionNumber(question.id))}
-                    {question.id === 'q6b' ? t.followUp : question.multiSelect ? t.pickAll : ''}
+                    {question.maxSelect ? t.pickUpTo(question.maxSelect) : question.multiSelect ? t.pickAll : ''}
                   </div>
                   <button
                     type="button"
@@ -775,7 +733,13 @@ export default function OnboardingQuiz() {
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>{QUESTION_COPY[question.id].ask[lang].text}</div>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: question.options.length > 4 ? '1fr 1fr' : '1fr', gap: 10 }}>
                   {question.options.map((o) => (
-                    <OptionChip key={o.value} label={optionLabel(lang, question, o.value, o.label)} on={pick.includes(o.value)} onClick={() => toggle(o.value)} />
+                    <OptionChip
+                      key={o.value}
+                      label={optionLabel(lang, question, o.value, o.label)}
+                      on={pick.includes(o.value)}
+                      dimmed={!pick.includes(o.value) && question.maxSelect !== undefined && pick.length >= question.maxSelect}
+                      onClick={() => toggle(o.value)}
+                    />
                   ))}
                 </div>
                 {customPicked && (
@@ -805,7 +769,7 @@ export default function OnboardingQuiz() {
                   style={{ marginTop: 6, height: 46, fontSize: 14 }}
                 >
                   {t.next}{' '}
-                  {question.id !== 'q6b' && <span style={{ opacity: 0.8, fontSize: 12 }}>+{COINS_PER_ANSWER} 🪙</span>}
+                  <span style={{ opacity: 0.8, fontSize: 12 }}>+{COINS_PER_ANSWER} 🪙</span>
                 </PrimaryButton>
               </div>
             )}
@@ -877,26 +841,8 @@ export default function OnboardingQuiz() {
                 <label style={fieldLabel} htmlFor="wq-name">{t.name}</label>
                 <input id="wq-name" value={fullName} maxLength={60} onChange={(e) => setFullName(e.target.value)} placeholder={t.namePh} style={inputStyle} autoComplete="name" />
 
-                <span style={fieldLabel}>{t.exam}</span>
-                <div role="group" aria-label={t.exam} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                  {EXAMS.map((ex) => {
-                    const on = examChoice === ex;
-                    return (
-                      <button key={ex} type="button" aria-pressed={on} onClick={() => setExamChoice(ex)}
-                        style={{
-                          height: 40, borderRadius: 12, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 600,
-                          background: on ? 'linear-gradient(135deg, rgba(124,77,255,0.32), rgba(41,98,255,0.18))' : 'rgba(14,21,40,0.55)',
-                          color: on ? '#fff' : '#CBD5E1', border: `1px solid ${on ? '#6B44EE' : 'rgba(26,40,69,0.8)'}`,
-                          boxShadow: on ? '0 0 16px rgba(124,77,255,0.3)' : 'none',
-                        }}>
-                        {ex === 'Other' ? t.other : ex}
-                      </button>
-                    );
-                  })}
-                </div>
-                {examChoice === 'Other' && (
-                  <input value={examOther} maxLength={40} onChange={(e) => setExamOther(e.target.value)} placeholder={t.examOtherPh} aria-label={t.examOtherPh} style={{ ...inputStyle, marginTop: 8 }} autoFocus />
-                )}
+                <label style={fieldLabel} htmlFor="wq-exam">{t.exam}</label>
+                <input id="wq-exam" value={exam} maxLength={40} onChange={(e) => setExam(e.target.value)} placeholder={t.examPh} style={inputStyle} />
 
                 <label style={fieldLabel} htmlFor="wq-username">{t.username}</label>
                 <div style={{ position: 'relative' }}>
