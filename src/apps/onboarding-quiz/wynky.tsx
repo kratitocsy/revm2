@@ -134,7 +134,8 @@ export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
  * `show` is visible. Both stay mounted so the right one is already loaded
  * when "Let's go" plays it (`preload` lets the unused one load lazily).
  * `still`, when given, replaces the circle with a free-standing image (the
- * language screen's waving "Hii!" Wynky, transparent background); the
+ * language screen's waving "Hii!" Wynky, transparent background, which
+ * pops in and hops a few times via .wq-hii-pop); the
  * clips stay mounted, hidden, so they keep loading underneath it.
  */
 export function WynkyHero({ clips, still }: {
@@ -180,6 +181,7 @@ export function WynkyHero({ clips, still }: {
           src={still}
           alt=""
           aria-hidden="true"
+          className="wq-hii-pop"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
         />
       )}
