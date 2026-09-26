@@ -29,7 +29,7 @@ import {
   fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, postAnnouncement, deleteAnnouncement,
   communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout, MIN_PAYOUT_INR, setMyDateOfBirth,
   fetchMonetizedCommunityIds, setCommunityMonetization, transferCommunityOwnership, fetchMyHomeCommunity,
-  fetchReferralSummary, referralLink, setMyUpiId, type ReferralSummary,
+  fetchReferralSummary, referralLink, type ReferralSummary,
   type MyCommunity, type DiscoverCommunity, type CommunityScheduleRow, type CommunityDetailData, type CommunityAnnouncementRow,
   type WynkoHeadStatus, type ScheduleChoice, type StudentAnalyticsRow, type JoinRequestRow,
 } from './lib/communities'
@@ -9413,106 +9413,6 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
 // ─── Earn with Wynko Page ──────────────────────────────────────────────────────
 
-// ── Refer & Earn (everyone) ─────────────────────────────────────────────
-function ReferAndEarnCard() {
-  const q = useLoader(fetchReferralSummary, null as ReferralSummary | null, [], 0)
-  const [copied, setCopied] = useState(false)
-  const [upi, setUpi] = useState('')
-  const [busy, setBusy] = useState<string | null>(null)
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
-  const d = q.data
-  const link = d?.referral_code ? referralLink(d.referral_code) : ''
-  const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-
-  async function copy() {
-    if (!link) return
-    try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* clipboard blocked */ }
-  }
-  async function saveUpi() {
-    const v = upi.trim()
-    if (!/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/.test(v)) { setMsg({ text: 'Enter a valid UPI ID, like name@okbank.', ok: false }); return }
-    setBusy('upi'); setMsg(null)
-    try { await setMyUpiId(v); setUpi(''); await q.refresh(); setMsg({ text: '✓ UPI ID saved', ok: true }) }
-    catch (e) { setMsg({ text: (e as Error).message, ok: false }) }
-    finally { setBusy(null) }
-  }
-  async function withdraw() {
-    setBusy('payout'); setMsg(null)
-    try { await requestPayout(); await q.refresh(); setMsg({ text: '✓ Payout requested — we’ll send it to your UPI after review.', ok: true }) }
-    catch (e) { setMsg({ text: (e as Error).message, ok: false }) }
-    finally { setBusy(null) }
-  }
-
-  return (
-    <div className="rounded-2xl border p-5" style={{ background: 'linear-gradient(135deg,#0B1530,#10123A)', borderColor: 'rgba(25,181,230,0.35)', boxShadow: '0 0 30px rgba(25,181,230,0.10)' }}>
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-        <div className="min-w-0">
-          <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-400 mb-1">REFER &amp; EARN</div>
-          <div className="text-white font-bold text-lg">Invite people who build communities</div>
-          <div className="text-slate-400 text-[13px] max-w-2xl mt-1">
-            When someone joins through your link and creates a community that gets monetised, you earn 10% of Wynko’s share of that community’s revenue for 6 months. On every ₹100 of net revenue (after GST and fees) it brings in: owner ₹50, you ₹5, Wynko ₹45.
-          </div>
-        </div>
-      </div>
-
-      {q.status === 'loading' && !d ? (
-        <div className="text-[12px] text-slate-500">Loading your referral link…</div>
-      ) : q.status === 'error' && !d ? (
-        <div className="text-[12px] text-amber-300">{q.error}</div>
-      ) : d && (
-        <>
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <input readOnly value={link} onFocus={e => e.currentTarget.select()}
-              className="flex-1 min-w-[240px] px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none border-[#1E3060]" />
-            <button onClick={() => void copy()} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white flex-shrink-0" style={{ background: '#0F99CC' }}>
-              {copied ? 'Copied ✓' : 'Copy link'}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            {[
-              { l: 'People joined', v: String(d.people_referred) },
-              { l: 'Communities they made', v: String(d.communities_created) },
-              { l: 'Earning for you now', v: String(d.communities_earning) },
-              { l: 'Referral earnings', v: inr(d.total_earned) },
-            ].map(x => (
-              <div key={x.l} className="rounded-xl border p-3 bg-[rgba(255,255,255,0.02)] border-[#1A2845]">
-                <div className="text-[11px] text-slate-500 mb-1">{x.l}</div>
-                <div className="text-lg font-bold text-white">{x.v}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border p-3 border-[#1A2845]">
-            <div className="text-[13px] text-slate-300">
-              Wallet balance: <b className="text-emerald-400">{inr(d.wallet_balance)}</b>
-              {d.upi_id && <span className="text-slate-500"> · pays to {d.upi_id}</span>}
-              {d.wallet_balance < MIN_PAYOUT_INR && <span className="text-slate-500"> · minimum payout {inr(MIN_PAYOUT_INR)}</span>}
-            </div>
-            {d.upi_id ? (
-              <button onClick={() => void withdraw()} disabled={d.wallet_balance < MIN_PAYOUT_INR || busy === 'payout'}
-                title={d.wallet_balance < MIN_PAYOUT_INR ? `Minimum payout is ${inr(MIN_PAYOUT_INR)}` : undefined}
-                className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: '#19B57D' }}>
-                {busy === 'payout' ? 'Requesting…' : 'Withdraw'}
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <input value={upi} onChange={e => setUpi(e.target.value)} placeholder="your@upi"
-                  className="w-44 px-3 py-2 rounded-xl border bg-transparent text-[13px] text-slate-200 outline-none border-[#1E3060]" />
-                <button onClick={() => void saveUpi()} disabled={!upi.trim() || busy === 'upi'}
-                  className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
-                  Save UPI
-                </button>
-              </div>
-            )}
-          </div>
-          {msg && <div className={`text-[12px] mt-2 ${msg.ok ? 'text-emerald-400' : 'text-amber-300'}`}>{msg.text}</div>}
-        </>
-      )}
-    </div>
-  )
-}
-
 function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCreateCommunity }: {
   onNavigate: (id: string) => void
   profile?: ProfileInfo
@@ -9857,8 +9757,6 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
               </div>
             </div>
           </div>
-
-          <div className="px-8 pt-6"><ReferAndEarnCard /></div>
 
           {/* Tab switcher */}
           <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(26,40,69,0.55)]" >
