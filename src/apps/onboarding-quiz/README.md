@@ -72,7 +72,11 @@ English is picked.
 - Mute/unmute mid-hello just toggles the clip's sound; "Hear Wynky again"
   replays it.
 
-**Every other line**: `speak()` in `wynky.tsx` tries a recorded voice-over
+**Every other line** (questions, reactions, results) is **not read aloud**:
+the quiz always calls `speak()` muted, so it only times the silent bubble
+reveal off text length. To bring the voice back, pass `mutedRef.current`
+instead of `true` in `say()` in `OnboardingQuiz.tsx`. When enabled,
+`speak()` in `wynky.tsx` tries a recorded voice-over
 file first — `/audio/wynky/{lang}/{lineId}.mp3` (line ids: `reaction_1..4`,
 each question id `q1..q5`, `saving`, `save_failed`,
 `result_{archetype-slug}`, e.g. `result_dawn-warrior`) — and falls back to
@@ -86,9 +90,9 @@ Muted skips both and just times the (silent) bubble reveal off text length.
 
 ## Status
 
-Wired into `onboarding.html`'s finish step. Only the hello has a real voice
-(each hello clip's soundtrack); everything else runs on the Web Speech
-fallback (see Voice above). The
+Wired into `onboarding.html`'s finish step. Only the hello has a voice
+(each hello clip's soundtrack); everything else is text only (see Voice
+above). The
 after-session channel-learning features from later build-plan steps are
 separate, unbuilt pieces of the wider quiz-bot spec
 (`Wynko_Quiz_Bot_Schedule_Plan.pdf`, steps 6–9).

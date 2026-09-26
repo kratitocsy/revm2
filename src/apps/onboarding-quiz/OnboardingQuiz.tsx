@@ -321,7 +321,10 @@ export default function OnboardingQuiz() {
       entry.setVoice = clip.setVoice;
       return;
     }
-    entry.cancel = speak(ln, l, mutedRef.current, onStart, onEnd);
+    // Every other line (questions, reactions) is shown in the bubble only,
+    // never read aloud: speak() is always called muted, so it just times the
+    // silent reveal off the text length.
+    entry.cancel = speak(ln, l, true, onStart, onEnd);
   }, []);
 
   const resay = useCallback(() => {
@@ -429,8 +432,7 @@ export default function OnboardingQuiz() {
     setMuted(m);
     mutedRef.current = m;
     writePref(MUTED_KEY, m ? '1' : '0');
-    if (speech.current?.setVoice) speech.current.setVoice(!m);
-    else if (m && speech.current && (speaking || speech.current.after)) resay();
+    speech.current?.setVoice?.(!m);
   };
 
   const fail = (message: string, signedOut: boolean) => {
