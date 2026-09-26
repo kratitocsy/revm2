@@ -133,9 +133,12 @@ export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
  * `clips` are stacked in one circle, one per language; only the one with
  * `show` is visible. Both stay mounted so the right one is already loaded
  * when "Let's go" plays it (`preload` lets the unused one load lazily).
+ * `still`, when given, is an image laid over the clips (the language
+ * screen's waving "Hii!" Wynky); the clips keep loading underneath it.
  */
-export function WynkyHero({ clips }: {
+export function WynkyHero({ clips, still }: {
   clips: { src: string; clip: HelloClip; videoRef: RefObject<HTMLVideoElement | null>; show: boolean; preload: 'auto' | 'metadata' }[];
+  still?: string;
 }) {
   return (
     <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
@@ -168,6 +171,14 @@ export function WynkyHero({ clips }: {
             }}
           />
         ))}
+        {still && (
+          <img
+            src={still}
+            alt=""
+            aria-hidden="true"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
+          />
+        )}
       </div>
     </div>
   );
