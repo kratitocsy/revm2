@@ -46,7 +46,7 @@ import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 /*
   First-run flow (shown once per account — see migration 0088):
-    lang   "Select Your Language" (Hindi / English) -> Let's go
+    lang   "Select Your Language" (Hinglish / English) -> Let's go
     intro  Meet Wynky: she says hello right away (the Let's go tap lets the
            browser play her voice) -> "Find Your Study DNA" | "Skip for Now"
     q      5 questions, each skippable; +10 Wynkoins per answer (50 max)
@@ -622,7 +622,7 @@ export default function OnboardingQuiz() {
           </div>
           {phase !== 'lang' && (
             <div role="group" aria-label="Language" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#0B1530', border: '1px solid #1A2845' }}>
-              {segBtn(hi, 'Hindi', () => changeLang('hi'))}
+              {segBtn(hi, 'Hinglish', () => changeLang('hi'))}
               {segBtn(!hi, 'English', () => changeLang('en'))}
             </div>
           )}
@@ -697,7 +697,7 @@ export default function OnboardingQuiz() {
                   Choose the language Wynky talks to you in.
                 </p>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
-                  <OptionChip label="हिंदी · Hindi" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
+                  <OptionChip label="Hinglish" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
                   <OptionChip label="English" on={langPick === 'en'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('en'); }} />
                 </div>
                 <PrimaryButton
