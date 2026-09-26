@@ -4,8 +4,9 @@ import { REVM2_CONFIG } from '../../../lib/supabase.js'
 import {
   loadKnownProfile, loadRemembered, defaultDailyMinutes, distractionSites, distractionApps,
   recommend, confirmPlan, confirmAiPlan, rememberAnswers, recordOutcome, ensurePresets,
-  STUDY_MODE_OPTIONS,
-  type WynkyKnownProfile, type WynkyRemembered, type AiSlot,
+  STUDY_MODE_OPTIONS, examFamilyKey, subjectKey, seedQueriesFor, resolveChannelSeed,
+  fetchPopularChannels, setChannelPick, channelPickId,
+  type WynkyKnownProfile, type WynkyRemembered, type AiSlot, type ChannelPick,
 } from './wynkyPlanner'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
@@ -25,7 +26,8 @@ const BLOCK_LENGTHS = [30, 45, 60, 90]
 
 type Step = 'loading' | 'setup' | 'preview' | 'custom_preview' | 'saved'
 
-interface SubjectForm { sites: string; apps: string }
+interface SubjectForm { sites: string; apps: string; channels: ChannelPick[] }
+interface ChannelSuggestion extends ChannelPick { pickCount: number }
 
 export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => void }) {
   const [step, setStep] = useState<Step>('loading')
@@ -43,6 +45,8 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
   const [subjectForms, setSubjectForms] = useState<Record<string, SubjectForm>>({})
   const [extraFreeSites, setExtraFreeSites] = useState('')
   const [editedSinceGenerate, setEditedSinceGenerate] = useState(false)
+  const [channelSuggestions, setChannelSuggestions] = useState<Record<string, ChannelSuggestion[]>>({})
+  const [loadingChannelsFor, setLoadingChannelsFor] = useState<Set<string>>(new Set())
 
   // Preview
   const [result, setResult] = useState<GeneratorResult | null>(null)
@@ -73,16 +77,62 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
         const forms: Record<string, SubjectForm> = {}
         for (const s of subjects) {
           const remembered_ = r.subjectAllowlists[s]
-          forms[s] = { sites: (remembered_?.sites || []).join(', '), apps: (remembered_?.apps || []).join(', ') }
+          forms[s] = { sites: (remembered_?.sites || []).join(', '), apps: (remembered_?.apps || []).join(', '), channels: remembered_?.channels || [] }
         }
         setSubjectForms(forms)
         setStep('setup')
+        void loadChannelSuggestions(k.exam, subjects)
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load your profile.')
       }
     })
     return () => { cancelled = true }
   }, [])
+
+  // "Top channels for your exam/subject": popularity-ranked picks from
+  // other students first (rpc_wynky_popular_channels), topped up with a
+  // few resolved from the curated search seeds — every one of them a real
+  // channel yt-resolve-channel actually found, never a guess.
+  async function loadChannelSuggestions(exam: string | null, subjects: string[]) {
+    const examKey = examFamilyKey(exam)
+    for (const subject of subjects) {
+      const subjKey = subjectKey(subject)
+      setLoadingChannelsFor(prev => new Set(prev).add(subject))
+      try {
+        const popular = await fetchPopularChannels(sb as any, examKey, subjKey, 10)
+        const byId = new Map<string, ChannelSuggestion>()
+        for (const p of popular) byId.set(p.channel_id, { id: p.channel_id, label: p.channel_label, pickCount: p.pick_count })
+        if (byId.size < 8) {
+          const seeds = seedQueriesFor(exam, subject).slice(0, 5)
+          const resolved = await Promise.all(seeds.map(q => resolveChannelSeed(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON, q).catch(() => null)))
+          for (const m of resolved) {
+            if (!m) continue
+            const id = channelPickId(m)
+            if (!byId.has(id)) byId.set(id, { id, label: m.title, pickCount: 0 })
+          }
+        }
+        setChannelSuggestions(prev => ({ ...prev, [subject]: [...byId.values()].sort((a, b) => b.pickCount - a.pickCount) }))
+      } catch {
+        // No suggestions is fine — the free-text box and quick-pick platforms still work.
+      } finally {
+        setLoadingChannelsFor(prev => { const next = new Set(prev); next.delete(subject); return next })
+      }
+    }
+  }
+
+  function toggleChannel(subject: string, ch: ChannelSuggestion) {
+    setSubjectForms(prev => {
+      const cur = prev[subject]?.channels || []
+      const has = cur.some(c => c.id === ch.id)
+      const next = has ? cur.filter(c => c.id !== ch.id) : [...cur, { id: ch.id, label: ch.label }]
+      void setChannelPick(sb as any, {
+        examKey: examFamilyKey(known?.exam ?? null), subjectKey: subjectKey(subject),
+        channelId: ch.id, channelLabel: ch.label, picked: !has,
+      }).catch(() => {})
+      return { ...prev, [subject]: { ...prev[subject], channels: next } }
+    })
+    setEditedSinceGenerate(true)
+  }
 
   const freeSitesFromQuiz = useMemo(() => known ? distractionSites(known.distractionTags) : [], [known])
   const freeAppsFromQuiz = useMemo(() => known ? distractionApps(known.distractionTags) : [], [known])
@@ -92,11 +142,12 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
   }, [freeSitesFromQuiz, extraFreeSites])
 
   const subjectAllowlists = useMemo(() => {
-    const out: Record<string, { sites: string[]; apps: string[] }> = {}
+    const out: Record<string, { sites: string[]; apps: string[]; channels: ChannelPick[] }> = {}
     for (const [name, form] of Object.entries(subjectForms)) {
       out[name] = {
         sites: form.sites.split(',').map(s => s.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')).filter(Boolean),
         apps: form.apps.split(',').map(s => s.trim()).filter(Boolean),
+        channels: form.channels,
       }
     }
     return out
@@ -108,7 +159,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
   }
 
   function generatePreview() {
-    const subjects = Object.keys(subjectAllowlists).filter(name => subjectAllowlists[name].sites.length || subjectAllowlists[name].apps.length)
+    const subjects = Object.keys(subjectAllowlists).filter(name => subjectAllowlists[name].sites.length || subjectAllowlists[name].apps.length || subjectAllowlists[name].channels.length)
     const r = recommend({ wakeTime, sleepTime, dailyMinutes, blockLengthMinutes: blockLength, subjects: subjects.length ? subjects : Object.keys(subjectAllowlists) })
     setResult(r)
     setStep('preview')
@@ -247,7 +298,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
 
           <div className="rounded-2xl border p-5 space-y-4" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
             <div className="text-sm font-semibold text-white">How do you study each subject?</div>
-            <div className="text-xs text-slate-500 -mt-2">Tap what you use, like picking from a support bot's quick replies — or type your own. Wynky never guesses a site you didn't pick or type. Add specific YouTube channels from the Focus Lock page's per-channel rules once this plan is live.</div>
+            <div className="text-xs text-slate-500 -mt-2">Tap what you use, like picking from a support bot's quick replies, or type your own. Pick YouTube too and Wynky will suggest real channels for your exam and subject — ranked by what other students in the same exam keep. Nothing is guessed; every suggestion is a real channel looked up on YouTube.</div>
             {Object.entries(subjectForms).map(([name, form]) => {
               const currentSites = form.sites.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
               return (
@@ -277,6 +328,28 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                   <input placeholder="or type your own sites, comma separated (e.g. khanacademy.org)" value={form.sites}
                     onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
                     className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+
+                  {currentSites.includes('youtube.com') && (
+                    <div className="mt-1">
+                      <div className="text-xs text-slate-500 mb-1">
+                        Suggested YouTube channels for {name}{loadingChannelsFor.has(name) ? ' — looking these up…' : ''}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(channelSuggestions[name] || []).map(ch => {
+                          const picked = form.channels.some(c => c.id === ch.id)
+                          return (
+                            <button key={ch.id} type="button" onClick={() => toggleChannel(name, ch)}
+                              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${picked ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-[#1A2845] text-slate-400 hover:text-slate-200'}`}>
+                              {ch.label}{ch.pickCount > 0 ? ` · ${ch.pickCount} students` : ''}{picked ? ' ✓' : ''}
+                            </button>
+                          )
+                        })}
+                        {!loadingChannelsFor.has(name) && !(channelSuggestions[name] || []).length && (
+                          <span className="text-xs text-slate-600">No suggestions found yet — search for a channel from the Focus Lock page's per-channel rules instead.</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}

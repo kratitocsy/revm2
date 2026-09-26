@@ -33,6 +33,9 @@ export interface SupaLike {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 }
 
+export interface ChannelPick { id: string; label: string }
+export interface SubjectAllowlist { sites: string[]; apps: string[]; channels?: ChannelPick[] }
+
 export type DailyHoursBucket = '1-2' | '2-4' | '4-6' | '6-8' | 'custom';
 
 export const DAILY_HOURS_MINUTES: Record<Exclude<DailyHoursBucket, 'custom'>, number> = {
@@ -88,7 +91,7 @@ export interface WynkyKnownProfile {
 export interface WynkyRemembered {
   wakeTime: string | null; // "HH:MM"
   sleepTime: string | null; // "HH:MM"
-  subjectAllowlists: Record<string, { sites: string[]; apps: string[] }>;
+  subjectAllowlists: Record<string, SubjectAllowlist>;
   lastDailyMinutes: number | null;
   acceptedCount: number;
   adjustedCount: number;
@@ -192,7 +195,7 @@ export interface EnsurePresetsResult {
  *  and the custom AI path so a plan built either way enforces the same
  *  way. Never invents a site/app that wasn't typed in by the student. */
 export async function ensurePresets(sb: SupaLike, userId: string, args: {
-  subjectAllowlists: Record<string, { sites: string[]; apps: string[] }>;
+  subjectAllowlists: Record<string, SubjectAllowlist>;
   freeTimeSites: string[];
   freeTimeApps: string[];
 }): Promise<EnsurePresetsResult> {
@@ -200,19 +203,25 @@ export async function ensurePresets(sb: SupaLike, userId: string, args: {
   const presetNames: string[] = [];
 
   for (const [name, allow] of Object.entries(args.subjectAllowlists)) {
-    if (!allow.sites.length && !allow.apps.length) continue; // nothing to enforce with — skip rather than write an empty block
+    const channels = allow.channels || [];
+    if (!allow.sites.length && !allow.apps.length && !channels.length) continue; // nothing to enforce with — skip rather than write an empty block
     const presetName = subjectPresetName(name);
+    // youtube_rules only makes sense once YouTube itself is in the allowed
+    // sites (same rule blocks.html's hasYoutubeSite()/ytPanel enforces) —
+    // otherwise a picked channel would silently do nothing.
+    const youtubeRules = (channels.length && allow.sites.some(s => s === 'youtube.com' || s.endsWith('.youtube.com')))
+      ? { mode: 'allow', channels } : null;
     const { data: existing } = await sb.from('focus_lock_presets')
       .select('id').eq('user_id', userId).eq('name', presetName).maybeSingle();
     if (existing?.id) {
       await sb.from('focus_lock_presets').update({
-        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist',
+        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist', youtube_rules: youtubeRules,
       }).eq('id', existing.id);
       presetIdBySubject[name] = existing.id;
     } else {
       const { data: created, error } = await sb.from('focus_lock_presets').insert({
         user_id: userId, name: presetName, mode: 'whitelist',
-        sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist',
+        sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist', youtube_rules: youtubeRules,
       }).select('id').single();
       if (error) throw new Error(error.message);
       presetIdBySubject[name] = created.id;
@@ -297,7 +306,7 @@ export interface ConfirmPlanArgs {
   userId: string;
   planName: string;
   result: GeneratorResult;
-  subjectAllowlists: Record<string, { sites: string[]; apps: string[] }>;
+  subjectAllowlists: Record<string, SubjectAllowlist>;
   freeTimeSites: string[];
   freeTimeApps: string[];
   daysOfWeek: number[];
@@ -345,7 +354,7 @@ export async function confirmAiPlan(sb: SupaLike, args: {
   planName: string;
   daysOfWeek: number[];
   aiSlots: AiSlot[];
-  subjectAllowlists: Record<string, { sites: string[]; apps: string[] }>;
+  subjectAllowlists: Record<string, SubjectAllowlist>;
   freeTimeSites: string[];
   freeTimeApps: string[];
 }): Promise<{ scheduleId: string }> {
@@ -371,7 +380,7 @@ export async function confirmAiPlan(sb: SupaLike, args: {
 export async function rememberAnswers(sb: SupaLike, userId: string, args: {
   wakeTime: string;
   sleepTime: string;
-  subjectAllowlists: Record<string, { sites: string[]; apps: string[] }>;
+  subjectAllowlists: Record<string, SubjectAllowlist>;
 }): Promise<void> {
   await sb.from('wynky_profiles').upsert({
     user_id: userId,
@@ -393,5 +402,120 @@ export async function recordOutcome(sb: SupaLike, args: {
     p_requested_minutes: args.requestedMinutes,
     p_confirmed_minutes: args.confirmedMinutes,
     p_outcome: args.outcome,
+  });
+}
+
+/* ── YouTube channel suggestions ──────────────────────────────────────
+   "Top channels for your exam/subject" — but never trusted from a
+   hardcoded list on its own. CHANNEL_SEEDS below are just search terms
+   (well-known institute/channel names) fed into the existing
+   yt-resolve-channel function, the same real YouTube-search lookup
+   blocks.html's manual picker already relies on — so the channel that
+   actually gets suggested is whatever YouTube's own search returns for
+   that name, with a real channelId/handle, never an invented one.
+
+   Personalization: rpc_wynky_popular_channels (migration 0096) re-ranks
+   these suggestions by how many students in the same exam currently have
+   that channel picked — a plain count across everyone's live picks, not
+   a trained model, so it's described that way rather than oversold. */
+
+function normalizeKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 40) || 'general';
+}
+
+const EXAM_FAMILY_PATTERNS: [RegExp, string][] = [
+  [/\bjee\b|\biit\b/i, 'jee'],
+  [/\bneet\b/i, 'neet'],
+  [/\bupsc\b|\bias\b/i, 'upsc'],
+  [/\bcat\b|\bmba\b/i, 'cat'],
+  [/\bgate\b/i, 'gate'],
+];
+
+export function examFamilyKey(exam: string | null): string {
+  if (exam) for (const [pattern, key] of EXAM_FAMILY_PATTERNS) if (pattern.test(exam)) return key;
+  return 'general';
+}
+
+const SUBJECT_KEY_PATTERNS: [RegExp, string][] = [
+  [/phys/i, 'physics'],
+  [/chem/i, 'chemistry'],
+  [/math/i, 'maths'],
+  [/bio|zoo|botan/i, 'biology'],
+  [/english/i, 'english'],
+  [/reason|aptitude|logical/i, 'reasoning'],
+  [/(general studies|\bgs\b|current affairs|polity|history|geography|economy)/i, 'gs'],
+];
+
+export function subjectKey(subject: string): string {
+  for (const [pattern, key] of SUBJECT_KEY_PATTERNS) if (pattern.test(subject)) return key;
+  return normalizeKey(subject);
+}
+
+// Real, well-known Indian exam-prep channels/institutes — used only as
+// search seeds (see the note above), so an entry that's slightly wrong or
+// no longer active just returns no/weak matches rather than reaching the
+// student as fact.
+const CHANNEL_SEEDS: Record<string, Record<string, string[]>> = {
+  jee: {
+    physics: ['Physics Wallah', 'Vedantu JEE', 'Unacademy JEE', 'Arvind Academy', 'Etoosindia'],
+    chemistry: ['Physics Wallah', 'Unacademy JEE', 'Vedantu JEE', 'Etoosindia'],
+    maths: ['Physics Wallah', 'Unacademy JEE', 'Vedantu JEE', 'Cheenta'],
+    _default: ['Physics Wallah', 'Unacademy JEE', 'Vedantu JEE'],
+  },
+  neet: {
+    biology: ['Physics Wallah NEET', 'Unacademy NEET', 'Vedantu NEET'],
+    physics: ['Physics Wallah NEET', 'Unacademy NEET'],
+    chemistry: ['Physics Wallah NEET', 'Unacademy NEET'],
+    _default: ['Physics Wallah NEET', 'Unacademy NEET', 'Vedantu NEET'],
+  },
+  upsc: {
+    gs: ['StudyIQ', 'Unacademy UPSC', 'Drishti IAS', 'Vision IAS'],
+    _default: ['StudyIQ', 'Unacademy UPSC', 'Drishti IAS'],
+  },
+  cat: {
+    _default: ['Unacademy CAT', '2IIM CAT Preparation', 'Career Launcher'],
+  },
+  gate: {
+    _default: ['Unacademy GATE', 'Gate Wallah', 'NPTEL'],
+  },
+  general: {
+    _default: ['Unacademy', 'Physics Wallah', 'Khan Academy'],
+  },
+};
+
+export function seedQueriesFor(exam: string | null, subject: string): string[] {
+  const family = CHANNEL_SEEDS[examFamilyKey(exam)] || CHANNEL_SEEDS.general;
+  return family[subjectKey(subject)] || family._default;
+}
+
+export interface ResolvedChannelMatch { channelId: string | null; handle: string | null; title: string }
+
+/** Calls the existing yt-resolve-channel function for one search term and
+ *  returns its top real match, or null if nothing came back. */
+export async function resolveChannelSeed(supabaseUrl: string, anonKey: string, query: string): Promise<ResolvedChannelMatch | null> {
+  const res = await fetch(`${supabaseUrl}/functions/v1/yt-resolve-channel?q=${encodeURIComponent(query)}`, {
+    headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const match = Array.isArray(data.matches) ? data.matches[0] : null;
+  return match || null;
+}
+
+export function channelPickId(m: ResolvedChannelMatch): string {
+  return (m.handle ? m.handle.toLowerCase() : m.channelId) || m.title;
+}
+
+export async function fetchPopularChannels(sb: SupaLike, examKey: string, subjKey: string, limit = 20): Promise<{ channel_id: string; channel_label: string; pick_count: number }[]> {
+  const { data } = await sb.rpc('rpc_wynky_popular_channels', { p_exam_key: examKey, p_subject_key: subjKey, p_limit: limit });
+  return Array.isArray(data) ? data as { channel_id: string; channel_label: string; pick_count: number }[] : [];
+}
+
+export async function setChannelPick(sb: SupaLike, args: {
+  examKey: string; subjectKey: string; channelId: string; channelLabel: string; picked: boolean;
+}): Promise<void> {
+  await sb.rpc('rpc_wynky_set_channel_pick', {
+    p_exam_key: args.examKey, p_subject_key: args.subjectKey,
+    p_channel_id: args.channelId, p_channel_label: args.channelLabel, p_picked: args.picked,
   });
 }
