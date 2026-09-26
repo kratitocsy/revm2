@@ -101,25 +101,42 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
 }
 
 /**
- * The big hero mascot for the language + "hello, wanna play?" screens,
- * playing wynky-hello.mp4. That clip is one continuous performance with
- * Wynky's Hindi hello baked into its own soundtrack, lip-synced (it is the
- * same recording as /audio/wynky/hi/intro.mp3, which starts 1.05s into the
- * clip). So it doesn't autoplay or loop on its own: it holds a still until
- * playHero() plays it, in step with her voice, and stops before the clip's
- * closing fade to black.
+ * The big hero mascot for the language + "hello, wanna play?" screens.
+ * Each hello clip is one continuous performance with Wynky's hello baked
+ * into its own soundtrack, lip-synced: wynky-hello.mp4 in Hindi (the same
+ * recording as /audio/wynky/hi/intro.mp3, which starts 1.05s into the
+ * clip), wynky-hello-en.mp4 in English. So a clip doesn't autoplay or loop
+ * on its own: it holds a still until playHero() plays it, and stops at its
+ * `end` (before the Hindi clip's closing fade to black).
  * Same circular framing/glow/crop transform as WynkyStage's large size, so
  * the two read as the same character. That crop also happens to push the
- * source clip's bottom-right generator watermark entirely outside the
+ * Hindi clip's bottom-right generator watermark entirely outside the
  * visible circle — checked frame-by-frame against the actual clip, not
  * assumed.
  */
-// Seconds into wynky-hello.mp4: `start` is already mid-wave (her voice
-// comes in ~0.35s later); by `end` she has finished talking and the clip
-// is about to fade to black (~9.55s), so it's held there.
-export const HELLO_CLIP = { start: 0.7, end: 9.5 };
+export interface HelloClip {
+  /** Seconds into the clip where playback starts (and the still is held). */
+  start: number;
+  /** Seconds into the clip where it's held once she's finished. */
+  end: number;
+}
 
-export function WynkyHero({ src, videoRef }: { src: string; videoRef: RefObject<HTMLVideoElement | null> }) {
+// wynky-hello.mp4 (Hindi): `start` is already mid-wave (her voice comes in
+// ~0.35s later); by `end` she has finished talking and the clip is about to
+// fade to black (~9.55s), so it's held there.
+export const HELLO_CLIP_HI: HelloClip = { start: 0.7, end: 9.5 };
+// wynky-hello-en.mp4 (English): no fade, and its music starts at 0s, so it
+// plays from the top and runs to just before its last frame (10.0s).
+export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
+
+/**
+ * `clips` are stacked in one circle, one per language; only the one with
+ * `show` is visible. Both stay mounted so the right one is already loaded
+ * when "Let's go" plays it (`preload` lets the unused one load lazily).
+ */
+export function WynkyHero({ clips }: {
+  clips: { src: string; clip: HelloClip; videoRef: RefObject<HTMLVideoElement | null>; show: boolean; preload: 'auto' | 'metadata' }[];
+}) {
   return (
     <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
       <div
@@ -135,26 +152,32 @@ export function WynkyHero({ src, videoRef }: { src: string; videoRef: RefObject<
           boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
         }}
       >
-        <video
-          ref={videoRef}
-          src={src}
-          muted
-          playsInline
-          preload="auto"
-          aria-hidden="true"
-          onLoadedMetadata={(e) => { if (e.currentTarget.paused) e.currentTarget.currentTime = HELLO_CLIP.start; }}
-          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
-        />
+        {clips.map(({ src, clip, videoRef, show, preload }) => (
+          <video
+            key={src}
+            ref={videoRef}
+            src={src}
+            muted
+            playsInline
+            preload={preload}
+            aria-hidden="true"
+            onLoadedMetadata={(e) => { if (e.currentTarget.paused) e.currentTarget.currentTime = clip.start; }}
+            style={{
+              position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)',
+              visibility: show ? 'visible' : 'hidden',
+            }}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
 /**
- * Plays the hello clip once from HELLO_CLIP.start and holds it at
- * HELLO_CLIP.end. With `voice` it plays with its own soundtrack (Wynky's
- * Hindi hello), so voice and lips come from one media element and can't
- * drift apart; otherwise it plays muted (English, or muted). Call it from
+ * Plays a hello clip once from clip.start and holds it at clip.end. With
+ * `voice` it plays with its own soundtrack (Wynky's hello), so voice and
+ * lips come from one media element and can't drift apart; otherwise it
+ * plays muted. Call it from
  * the tap that starts the hello — browsers only allow sound after a tap.
  *
  * onStart fires when frames (and sound) actually start, onEnd when the
@@ -163,6 +186,7 @@ export function WynkyHero({ src, videoRef }: { src: string; videoRef: RefObject<
  */
 export function playHero(
   video: HTMLVideoElement,
+  clip: HelloClip,
   voice: boolean,
   onStart: () => void,
   onEnd: () => void,
@@ -183,7 +207,7 @@ export function playHero(
     onEnd();
   };
   const tick = () => {
-    if (video.currentTime >= HELLO_CLIP.end) {
+    if (video.currentTime >= clip.end) {
       video.pause();
       finish();
       return;
@@ -201,7 +225,7 @@ export function playHero(
 
   video.pause();
   video.muted = !voice;
-  video.currentTime = HELLO_CLIP.start;
+  video.currentTime = clip.start;
   video.addEventListener('playing', start);
   video.addEventListener('ended', finish);
   raf = requestAnimationFrame(tick);
