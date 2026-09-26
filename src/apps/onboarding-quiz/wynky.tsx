@@ -133,9 +133,14 @@ export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
  * `clips` are stacked in one circle, one per language; only the one with
  * `show` is visible. Both stay mounted so the right one is already loaded
  * when "Let's go" plays it (`preload` lets the unused one load lazily).
+ * `still`, when given, replaces the circle with a free-standing image (the
+ * language screen's waving "Hii!" Wynky, transparent background, which
+ * pops in and hops a few times via .wq-hii-pop); the
+ * clips stay mounted, hidden, so they keep loading underneath it.
  */
-export function WynkyHero({ clips }: {
+export function WynkyHero({ clips, still }: {
   clips: { src: string; clip: HelloClip; videoRef: RefObject<HTMLVideoElement | null>; show: boolean; preload: 'auto' | 'metadata' }[];
+  still?: string;
 }) {
   return (
     <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
@@ -143,6 +148,7 @@ export function WynkyHero({ clips }: {
         style={{
           position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
           background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+          visibility: still ? 'hidden' : 'visible',
         }}
       />
       <div
@@ -150,6 +156,7 @@ export function WynkyHero({ clips }: {
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
           border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
           boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+          visibility: still ? 'hidden' : 'visible',
         }}
       >
         {clips.map(({ src, clip, videoRef, show, preload }) => (
@@ -169,6 +176,15 @@ export function WynkyHero({ clips }: {
           />
         ))}
       </div>
+      {still && (
+        <img
+          src={still}
+          alt=""
+          aria-hidden="true"
+          className="wq-hii-pop"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      )}
     </div>
   );
 }

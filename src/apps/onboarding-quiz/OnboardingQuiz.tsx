@@ -41,11 +41,12 @@ import {
 import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
 import wynkyHelloEnVideo from './imports/wynky-hello-en.mp4';
+import wynkyHiiImage from './imports/wynky-hii.webp';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 /*
   First-run flow (shown once per account — see migration 0088):
-    lang   "Select Your Language" (Hindi / English) -> Let's go
+    lang   "Select Your Language" (Hinglish / English) -> Let's go
     intro  Meet Wynky: she says hello right away (the Let's go tap lets the
            browser play her voice) -> "Find Your Study DNA" | "Skip for Now"
     q      5 questions, each skippable; +10 Wynkoins per answer (50 max)
@@ -621,7 +622,7 @@ export default function OnboardingQuiz() {
           </div>
           {phase !== 'lang' && (
             <div role="group" aria-label="Language" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#0B1530', border: '1px solid #1A2845' }}>
-              {segBtn(hi, 'Hindi', () => changeLang('hi'))}
+              {segBtn(hi, 'Hinglish', () => changeLang('hi'))}
               {segBtn(!hi, 'English', () => changeLang('en'))}
             </div>
           )}
@@ -667,9 +668,11 @@ export default function OnboardingQuiz() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
             {phase === 'lang' || phase === 'intro' ? (
-              // The language screen always shows the Hindi clip's still; the
-              // English clip takes over only for the English hello.
+              // The language screen shows the waving "Hii!" Wynky picture (no
+              // circle) with the Hindi clip loading hidden; the English clip
+              // takes over only for the English hello.
               <WynkyHero
+                still={phase === 'lang' ? wynkyHiiImage : undefined}
                 clips={[
                   { src: wynkyHelloVideo, clip: HELLO_CLIP_HI, videoRef: heroHiRef, show: phase === 'lang' || lang === 'hi', preload: 'auto' },
                   {
@@ -694,7 +697,7 @@ export default function OnboardingQuiz() {
                   Choose the language Wynky talks to you in.
                 </p>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
-                  <OptionChip label="हिंदी · Hindi" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
+                  <OptionChip label="Hinglish" on={langPick === 'hi'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('hi'); }} />
                   <OptionChip label="English" on={langPick === 'en'} onClick={() => { sfx('pop', mutedRef.current); setLangPick('en'); }} />
                 </div>
                 <PrimaryButton
