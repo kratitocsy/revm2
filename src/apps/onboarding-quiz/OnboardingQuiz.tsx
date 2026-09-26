@@ -26,7 +26,7 @@ import {
   type QuizSupabaseClient,
   type StudyDnaResult,
 } from '../_shared/quizPersistence';
-import { SpeechBubble, WynkyHero, WynkyStage, playHero, sfx, speak, type Expression, type Lang, type Line } from './wynky';
+import { HELLO_CLIP_EN, HELLO_CLIP_HI, SpeechBubble, WynkyHero, WynkyStage, playHero, sfx, speak, type Expression, type Lang, type Line } from './wynky';
 import {
   INTRO,
   OPTION_LABELS_HI,
@@ -40,6 +40,7 @@ import {
 } from './quizCopy';
 import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
+import wynkyHelloEnVideo from './imports/wynky-hello-en.mp4';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 /*
@@ -290,16 +291,17 @@ export default function OnboardingQuiz() {
   const langRef = useRef(lang);
   const mutedRef = useRef(muted);
   const speech = useRef<SpeechEntry | null>(null);
-  const heroRef = useRef<HTMLVideoElement>(null);
+  const heroHiRef = useRef<HTMLVideoElement>(null);
+  const heroEnRef = useRef<HTMLVideoElement>(null);
   const checkSeq = useRef(0);
   const t = TEXT[lang];
 
   // `after` runs once, when the line finishes. Re-speaking the same line
   // (language switch, mute) carries over an `after` that hasn't run yet.
   //
-  // The hello (INTRO) is tied to the hello clip on screen: in Hindi the
-  // clip's own soundtrack is her voice (lip-synced), so it plays with sound;
-  // in English the clip plays muted, starting the moment the voice does.
+  // The hello (INTRO) is tied to the hello clip on screen, one per language
+  // (Hindi: wynky-hello.mp4, English: wynky-hello-en.mp4). Each clip's own
+  // soundtrack is her voice (lip-synced), so it plays with sound.
   const say = useCallback((ln: Line, after?: () => void) => {
     speech.current?.cancel();
     const entry: SpeechEntry = { line: ln, after, cancel: () => {} };
@@ -312,20 +314,11 @@ export default function OnboardingQuiz() {
       entry.after = undefined;
       cb?.();
     };
-    const hero = ln === INTRO ? heroRef.current : null;
-    if (hero && l === 'hi') {
-      const clip = playHero(hero, !mutedRef.current, onStart, onEnd);
+    const hero = ln === INTRO ? (l === 'en' ? heroEnRef : heroHiRef).current : null;
+    if (hero) {
+      const clip = playHero(hero, l === 'en' ? HELLO_CLIP_EN : HELLO_CLIP_HI, !mutedRef.current, onStart, onEnd);
       entry.cancel = clip.stop;
       entry.setVoice = clip.setVoice;
-      return;
-    }
-    if (hero) {
-      let clip: ReturnType<typeof playHero> | null = null;
-      const cancelVoice = speak(ln, l, mutedRef.current, () => {
-        onStart();
-        clip = playHero(hero, false, () => {}, () => {});
-      }, onEnd);
-      entry.cancel = () => { cancelVoice(); clip?.stop(); };
       return;
     }
     entry.cancel = speak(ln, l, mutedRef.current, onStart, onEnd);
@@ -672,7 +665,17 @@ export default function OnboardingQuiz() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
             {phase === 'lang' || phase === 'intro' ? (
-              <WynkyHero src={wynkyHelloVideo} videoRef={heroRef} />
+              // The language screen always shows the Hindi clip's still; the
+              // English clip takes over only for the English hello.
+              <WynkyHero
+                clips={[
+                  { src: wynkyHelloVideo, clip: HELLO_CLIP_HI, videoRef: heroHiRef, show: phase === 'lang' || lang === 'hi', preload: 'auto' },
+                  {
+                    src: wynkyHelloEnVideo, clip: HELLO_CLIP_EN, videoRef: heroEnRef, show: phase === 'intro' && lang === 'en',
+                    preload: langPick === 'en' || lang === 'en' ? 'auto' : 'metadata',
+                  },
+                ]}
+              />
             ) : (
               <WynkyStage src={wynkyVideo} expression={expr} speaking={speaking} size={isQPhase || phase === 'profile' ? 'small' : 'large'} />
             )}

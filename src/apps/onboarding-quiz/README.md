@@ -23,6 +23,8 @@ Same build model as `src/apps/mobile-home` and `src/apps/desktop-dashboard`
   Wynky's Hindi line, verbatim) and Hindi labels for every option. The
   questions, options, scoring and Study DNA rules live in
   `../_shared/quizEngine.ts`.
+- `imports/wynky-hello.mp4` / `imports/wynky-hello-en.mp4` — the Hindi and
+  English hello clips (see Voice below).
 - `imports/wynky-dance.mp4` — the mascot clip, cut into expression segments
   by timestamp in `wynky.tsx` (`WYNKY_CLIPS`).
 - `main.tsx` / `onboarding-quiz.html` / `onboarding-quiz.css` — same shape
@@ -50,20 +52,23 @@ npm run build:onboarding-quiz   # builds Tailwind CSS, then the bundle —
 
 ## Voice
 
-**The hello (language → "Meet Wynky" screens)** is tied to
-`imports/wynky-hello.mp4`, which has Wynky's Hindi hello baked into its own
-soundtrack, lip-synced (`/audio/wynky/hi/intro.mp3` is that same recording,
-cut from 1.05s into the clip). The clip holds a still on the language
-screen; tapping "Let's go" plays it once (`playHero()` in `wynky.tsx`) from
-0.7s and holds it at 9.5s, just before its fade to black:
+**The hello (language → "Meet Wynky" screens)** is tied to a hello clip
+per language, each with Wynky's hello baked into its own soundtrack,
+lip-synced:
 
-- Hindi: the clip plays **with its own sound**, so voice and lips come
-  from one media element and can't drift apart (even if it's still
-  buffering, both wait together).
-- English: the clip plays muted, started the moment the English voice
-  starts (a recorded `/audio/wynky/en/intro.mp3` if one is added, else
-  browser TTS). Lips won't match English words — that needs an English
-  version of the clip.
+- Hindi: `imports/wynky-hello.mp4` (`/audio/wynky/hi/intro.mp3` is that
+  same recording, cut from 1.05s into the clip). Plays from 0.7s and holds
+  at 9.5s, just before its fade to black.
+- English: `imports/wynky-hello-en.mp4`. Plays from 0s (its music starts
+  there) and holds at 9.95s; it has no fade.
+
+The language screen always shows the Hindi clip's still. Tapping "Let's go"
+plays the chosen language's clip once (`playHero()` in `wynky.tsx`) **with
+its own sound**, so voice and lips come from one media element and can't
+drift apart (even if it's still buffering, both wait together). Both clips
+stay mounted on those two screens; the English one only preloads fully once
+English is picked.
+
 - Mute/unmute mid-hello just toggles the clip's sound; "Hear Wynky again"
   replays it.
 
@@ -81,8 +86,8 @@ Muted skips both and just times the (silent) bubble reveal off text length.
 
 ## Status
 
-Wired into `onboarding.html`'s finish step. Only the Hindi hello has a real
-voice (the hello clip's soundtrack); everything else runs on the Web Speech
+Wired into `onboarding.html`'s finish step. Only the hello has a real voice
+(each hello clip's soundtrack); everything else runs on the Web Speech
 fallback (see Voice above). The
 after-session channel-learning features from later build-plan steps are
 separate, unbuilt pieces of the wider quiz-bot spec
