@@ -329,7 +329,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                     onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
                     className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
 
-                  {currentSites.includes('youtube.com') && (
+                  {currentSites.some(s => s === 'youtube.com' || s.endsWith('.youtube.com')) && (
                     <div className="mt-1">
                       <div className="text-xs text-slate-500 mb-1">
                         Suggested YouTube channels for {name}{loadingChannelsFor.has(name) ? ' — looking these up…' : ''}
