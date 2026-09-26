@@ -668,9 +668,9 @@ export default function OnboardingQuiz() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
             {phase === 'lang' || phase === 'intro' ? (
-              // The language screen shows the waving "Hii!" Wynky picture over
-              // the Hindi clip; the English clip takes over only for the
-              // English hello.
+              // The language screen shows the waving "Hii!" Wynky picture (no
+              // circle) with the Hindi clip loading hidden; the English clip
+              // takes over only for the English hello.
               <WynkyHero
                 still={phase === 'lang' ? wynkyHiiImage : undefined}
                 clips={[

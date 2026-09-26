@@ -63,7 +63,8 @@ lip-synced:
   there) and holds at 9.95s; it has no fade.
 
 The language screen shows a picture of Wynky waving with a "Hii!" bubble
-(`imports/wynky-hii.webp`) over the Hindi clip's still. Tapping "Let's go"
+(`imports/wynky-hii.webp`, no circle frame) while the Hindi clip loads
+hidden behind it. Tapping "Let's go"
 plays the chosen language's clip once (`playHero()` in `wynky.tsx`) **with
 its own sound**, so voice and lips come from one media element and can't
 drift apart (even if it's still buffering, both wait together). Both clips
