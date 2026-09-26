@@ -14,6 +14,7 @@ import avatar10 from './imports/avatar-10.png'
 import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
+import WynkyPage from './wynky/WynkyPage'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
   usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
@@ -83,6 +84,7 @@ const IP: Record<string, string[]> = {
   home: ['M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25'],
   lock: ['M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z'],
   wave: ['M2 12L4.5 7L7 14.5L9.5 5.5L12 16L14.5 8.5L17 13.5L19 8L21.5 12'],
+  wynky: ['M8.25 10.5h.008v.008H8.25V10.5zm7.5 0h.008v.008h-.008V10.5zM4.5 12a7.5 7.5 0 1115 0 7.5 7.5 0 01-15 0zM8.25 15c.9 1 1.9 1.5 3.75 1.5s2.85-.5 3.75-1.5'],
   rooms: ['M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'],
   library: ['M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'],
   progress: ['M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'],
@@ -361,6 +363,7 @@ const NAV = [
   { id: 'home', label: 'Home', icon: 'home' as const, group: 'HOME' },
   { id: 'focus', label: 'Focus Lock', icon: 'lock' as const, group: 'STUDY' },
   { id: 'schedules', label: 'Schedules', icon: 'clock' as const, group: 'STUDY' },
+  { id: 'wynky', label: 'Wynky', icon: 'wynky' as const, group: 'STUDY' },
   { id: 'studyrooms', label: 'Community', icon: 'rooms' as const, group: 'STUDY' },
   { id: 'battleground', label: 'Battleground', icon: 'zap' as const, group: 'STUDY' },
   // 3D Library is hidden for now (page still exists at the '3dlibrary' id).
@@ -10749,6 +10752,9 @@ export default function DesktopDashboard() {
     }
     if (activeNav === 'schedules') {
       return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
+    }
+    if (activeNav === 'wynky') {
+      return <WynkyPage onNavigate={handleNav} />
     }
     if (activeNav === 'battleground') {
       return <BattlegroundPage onNavigate={handleNav} profile={profile} />
