@@ -4,6 +4,7 @@ import { REVM2_CONFIG } from '../../../lib/supabase.js'
 import {
   loadKnownProfile, loadRemembered, defaultDailyMinutes, distractionSites, distractionApps,
   recommend, confirmPlan, confirmAiPlan, rememberAnswers, recordOutcome, ensurePresets,
+  STUDY_MODE_OPTIONS,
   type WynkyKnownProfile, type WynkyRemembered, type AiSlot,
 } from './wynkyPlanner'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
@@ -245,16 +246,40 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
           </div>
 
           <div className="rounded-2xl border p-5 space-y-4" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
-            <div className="text-sm font-semibold text-white">What should stay open during each subject?</div>
-            <div className="text-xs text-slate-500 -mt-2">Wynky won't guess your study sites — type what you actually use. Add YouTube channels from the Focus Lock page's per-channel rules once this plan is live.</div>
-            {Object.entries(subjectForms).map(([name, form]) => (
-              <div key={name} className="space-y-1.5">
-                <div className="text-sm text-white font-medium">{name}</div>
-                <input placeholder="sites to allow, comma separated (e.g. khanacademy.org, youtube.com)" value={form.sites}
-                  onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
-                  className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
-              </div>
-            ))}
+            <div className="text-sm font-semibold text-white">How do you study each subject?</div>
+            <div className="text-xs text-slate-500 -mt-2">Tap what you use, like picking from a support bot's quick replies — or type your own. Wynky never guesses a site you didn't pick or type. Add specific YouTube channels from the Focus Lock page's per-channel rules once this plan is live.</div>
+            {Object.entries(subjectForms).map(([name, form]) => {
+              const currentSites = form.sites.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+              return (
+                <div key={name} className="space-y-1.5">
+                  <div className="text-sm text-white font-medium">{name}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {STUDY_MODE_OPTIONS.map(opt => {
+                      const picked = opt.site ? currentSites.includes(opt.site) : false
+                      return (
+                        <button key={opt.id} type="button"
+                          onClick={() => {
+                            if (!opt.site) return // "Offline coaching" is just informational — nothing to allow-list
+                            setSubjectForms(prev => {
+                              const sites = prev[name].sites.split(',').map(s => s.trim()).filter(Boolean)
+                              const has = sites.map(s => s.toLowerCase()).includes(opt.site!)
+                              const next = has ? sites.filter(s => s.toLowerCase() !== opt.site) : [...sites, opt.site!]
+                              return { ...prev, [name]: { ...prev[name], sites: next.join(', ') } }
+                            })
+                            setEditedSinceGenerate(true)
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${picked ? 'bg-violet-600 border-violet-500 text-white' : 'border-[#1A2845] text-slate-400 hover:text-slate-200'}`}>
+                          {opt.label}{picked ? ' ✓' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <input placeholder="or type your own sites, comma separated (e.g. khanacademy.org)" value={form.sites}
+                    onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
+                    className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+              )
+            })}
           </div>
 
           <div className="rounded-2xl border p-5 space-y-2" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
@@ -273,12 +298,13 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
               Show my recommended day
             </button>
             <button onClick={() => setShowCustom(s => !s)} className="text-sm text-violet-400 hover:text-violet-300">
-              Ask Wynky for something custom instead
+              None of this fits — ask Wynky directly
             </button>
           </div>
 
           {showCustom && (
             <div className="rounded-2xl border p-4 space-y-2" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+              <div className="text-xs text-slate-500">Wynky hands this straight to AI (Gemini Flash) instead of guessing.</div>
               <textarea value={customText} onChange={e => setCustomText(e.target.value)} rows={3}
                 placeholder="e.g. I have coaching 4-7pm on weekdays, keep mornings light, exam is in 3 months"
                 className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />

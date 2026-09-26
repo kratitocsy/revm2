@@ -57,6 +57,25 @@ export const DISTRACTION_APP_MAP: Record<string, string[]> = {
   whatsapp: ['WhatsApp'],
 };
 
+// Customer-care-bot style quick picks for "how do you study this subject":
+// well-known, real platforms only (their own root domain — never a guessed
+// channel or handle, which is exactly what yt-resolve-channel exists for
+// instead). Tapping one adds its domain to the subject's allow-list; typing
+// a custom answer always works too, same as a Flipkart-bot's "something
+// else" option.
+export interface StudyModeOption { id: string; label: string; site: string | null }
+export const STUDY_MODE_OPTIONS: StudyModeOption[] = [
+  { id: 'offline', label: '🏫 Offline coaching (no site needed)', site: null },
+  { id: 'pw', label: 'Physics Wallah', site: 'pw.live' },
+  { id: 'unacademy', label: 'Unacademy', site: 'unacademy.com' },
+  { id: 'vedantu', label: 'Vedantu', site: 'vedantu.com' },
+  { id: 'byjus', label: "BYJU'S", site: 'byjus.com' },
+  { id: 'khan', label: 'Khan Academy', site: 'khanacademy.org' },
+  { id: 'toppr', label: 'Toppr', site: 'toppr.com' },
+  { id: 'doubtnut', label: 'Doubtnut', site: 'doubtnut.com' },
+  { id: 'youtube', label: 'YouTube (pick channels after)', site: 'youtube.com' },
+];
+
 export interface WynkyKnownProfile {
   subjects: string[];
   exam: string | null;
