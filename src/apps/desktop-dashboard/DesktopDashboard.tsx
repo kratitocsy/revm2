@@ -9068,7 +9068,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   const PACK_STYLES = [
     { color: '#FF8A3D', glow: '#3A3A3A', grad: 'linear-gradient(135deg,#FF8A3D,#E9772E)' },
-    { color: '#CFC8BB', glow: 'rgba(207,200,187,0.40)', grad: 'linear-gradient(135deg,#9C968C,#9C968C)' },
+    // Was a flat tan-on-tan button (white text on #9C968C — barely readable). Swapped
+    // for a deep slate "steel" gradient with a light silver accent color, so it reads
+    // clearly against both the dark card and its own white button text.
+    { color: '#CBD5E1', glow: 'rgba(100,116,139,0.45)', grad: 'linear-gradient(135deg,#64748B,#334155)' },
     { color: '#F59E0B', glow: 'rgba(245,158,11,0.40)', grad: 'linear-gradient(135deg,#F59E0B,#D97706)' },
   ]
   const PACKS = packagesQ.data.map((p, i) => {
@@ -9184,11 +9187,14 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         <button
                           onClick={() => handleBuy(pack)}
                           disabled={!!buying}
-                          className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+                          className="w-full min-h-[52px] py-2.5 rounded-xl text-white font-bold text-sm text-center leading-snug transition-all hover:opacity-90 active:scale-[0.98] flex flex-col items-center justify-center gap-0.5"
                           style={{ background: pack.grad, boxShadow: `0 0 20px ${pack.glow}`, opacity: buying === pack.id ? 0.7 : 1 }}>
                           {buying === pack.id
-                            ? <><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> Processing...</>
-                            : <>Buy {pack.coins} WYNKOINS for {pack.price}</>}
+                            ? <span className="flex items-center gap-2"><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> Processing...</span>
+                            : <>
+                                <span>Buy {pack.coins} WYNKOINS</span>
+                                <span className="font-black">for {pack.price}</span>
+                              </>}
                         </button>
                       </div>
                     </div>
