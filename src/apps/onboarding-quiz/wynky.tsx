@@ -59,17 +59,17 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
       <div
         style={{
           position: 'absolute', inset: glowInset, borderRadius: 999, filter: 'blur(6px)',
-          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(255,138,61,0.35) 0%, rgba(255,176,87,0.12) 45%, transparent 70%)',
           animation: speaking ? 'wkGlow 1.2s ease-in-out infinite' : 'none',
         }}
       />
       <div
         style={{
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
-          border: `${small ? 1.5 : 2}px solid rgba(148,197,255,0.55)`, background: '#A9CCE8',
+          border: `${small ? 1.5 : 2}px solid rgba(255,176,87,0.55)`, background: '#E8C9A9',
           boxShadow: small
-            ? '0 0 18px rgba(124,77,255,0.45), 0 0 36px rgba(41,98,255,0.25), inset 0 0 18px rgba(124,77,255,0.15)'
-            : '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+            ? '0 0 18px rgba(255,138,61,0.45), 0 0 36px rgba(255,176,87,0.25), inset 0 0 18px rgba(255,138,61,0.15)'
+            : '0 0 40px rgba(255,138,61,0.45), 0 0 90px rgba(255,176,87,0.25), inset 0 0 40px rgba(255,138,61,0.15)',
         }}
       >
         <video
@@ -88,9 +88,9 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
         <div
           style={{
             position: 'absolute', left: '50%', bottom: -14, transform: 'translateX(-50%)', padding: '4px 12px',
-            borderRadius: 999, background: '#0B1530', border: '1px solid rgba(124,77,255,0.45)',
-            boxShadow: '0 0 14px rgba(124,77,255,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            letterSpacing: '0.2em', color: '#C4AAFF', whiteSpace: 'nowrap',
+            borderRadius: 999, background: '#161618', border: '1px solid rgba(255,138,61,0.45)',
+            boxShadow: '0 0 14px rgba(255,138,61,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            letterSpacing: '0.2em', color: '#FFCB94', whiteSpace: 'nowrap',
           }}
         >
           WYNKY · {label}
@@ -147,15 +147,15 @@ export function WynkyHero({ clips, still }: {
       <div
         style={{
           position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
-          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(255,138,61,0.35) 0%, rgba(255,176,87,0.12) 45%, transparent 70%)',
           visibility: still ? 'hidden' : 'visible',
         }}
       />
       <div
         style={{
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
-          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
-          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+          border: '2px solid rgba(255,176,87,0.55)', background: '#E8C9A9',
+          boxShadow: '0 0 40px rgba(255,138,61,0.45), 0 0 90px rgba(255,176,87,0.25), inset 0 0 40px rgba(255,138,61,0.15)',
           visibility: still ? 'hidden' : 'visible',
         }}
       >
@@ -285,27 +285,27 @@ export function SpeechBubble({ text, lang, compact = false }: { text: string; la
       style={{
         position: 'relative', maxWidth: compact ? 320 : 420, width: '100%', boxSizing: 'border-box',
         padding: compact ? '10px 14px' : '16px 20px', borderRadius: compact ? 16 : 20,
-        background: 'linear-gradient(160deg,#131A45 0%,#0B1530 100%)', border: '1px solid rgba(124,77,255,0.45)',
-        boxShadow: compact ? '0 0 16px rgba(124,77,255,0.2)' : '0 0 30px rgba(124,77,255,0.25)',
+        background: 'linear-gradient(160deg,#1C1C1F 0%,#161618 100%)', border: '1px solid rgba(255,138,61,0.45)',
+        boxShadow: compact ? '0 0 16px rgba(255,138,61,0.2)' : '0 0 30px rgba(255,138,61,0.25)',
         transition: 'max-width 220ms ease, padding 220ms ease',
       }}
     >
       {!compact && (
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#A78BFA', marginBottom: 6 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#FFA94D', marginBottom: 6 }}>
           WYNKY · {lang === 'hi' ? 'HINGLISH' : 'ENGLISH'}
         </div>
       )}
-      <div style={{ fontSize: compact ? 13 : 15, lineHeight: 1.5, color: '#EEF2FF', minHeight: compact ? 20 : 46 }}>
+      <div style={{ fontSize: compact ? 13 : 15, lineHeight: 1.5, color: '#FFF7E6', minHeight: compact ? 20 : 46 }}>
         <span className="sr-only">{text}</span>
         <span aria-hidden="true">
           {text.slice(0, n)}
-          <span style={{ opacity: n < text.length ? 1 : 0, color: '#A78BFA' }}>▍</span>
+          <span style={{ opacity: n < text.length ? 1 : 0, color: '#FFA94D' }}>▍</span>
         </span>
       </div>
       <div
         style={{
           position: 'absolute', left: '50%', bottom: -9, width: 16, height: 16, transform: 'translateX(-50%) rotate(45deg)',
-          background: '#0B1530', borderRight: '1px solid rgba(124,77,255,0.45)', borderBottom: '1px solid rgba(124,77,255,0.45)',
+          background: '#161618', borderRight: '1px solid rgba(255,138,61,0.45)', borderBottom: '1px solid rgba(255,138,61,0.45)',
         }}
       />
     </div>

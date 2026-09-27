@@ -3,14 +3,14 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  background: #020615;
+  background: #0B0B0D;
 }
 
 body {
   font-family: 'Poppins', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #F1F5F9;
+  color: #FFF7E6;
 }
 
 @keyframes wkCoin {
