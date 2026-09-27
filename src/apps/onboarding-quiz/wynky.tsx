@@ -131,16 +131,75 @@ export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
 
 /**
  * `clips` are stacked in one circle, one per language; only the one with
- * `show` is visible. Both stay mounted so the right one is already loaded
- * when "Let's go" plays it (`preload` lets the unused one load lazily).
- * `still`, when given, replaces the circle with a free-standing image (the
- * language screen's waving "Hii!" Wynky, transparent background, which
- * pops in and hops a few times via .wq-hii-pop); the
- * clips stay mounted, hidden, so they keep loading underneath it.
+ * `show` is visible (and only when `idle` isn't set - see below). Both stay
+ * mounted so the right one is already loaded when "Let's go" plays it
+ * (`preload` lets the unused one load lazily).
  */
-export function WynkyHero({ clips, still }: {
+
+/**
+ * The language screen's looping "hii, wave" clip - always mounted inside the
+ * same clipped circle as the hello clips (never a free-floating image), so
+ * it can never spill outside the round frame on desktop or mobile: the
+ * parent circle is `overflow: hidden`, and this video is centered and
+ * cropped to fill it exactly like every other clip here.
+ *
+ * Autoplaying WITH sound before any tap is blocked by every major browser's
+ * autoplay policy, so this starts muted (which autoplay always allows) and
+ * unmutes itself the instant the visitor's first interaction with the page
+ * happens - a click, tap or key press anywhere - rather than waiting for a
+ * specific button. `muted` (Wynky's own mute toggle) still wins even after
+ * that: toggling it mid-loop takes effect immediately.
+ */
+function IdleLoopVideo({ src, muted }: { src: string; muted: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const unlockedRef = useRef(false);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    unlockedRef.current = false;
+    v.muted = true;
+    v.currentTime = 0;
+    v.play().catch(() => {});
+
+    const unlock = () => {
+      if (unlockedRef.current) return;
+      unlockedRef.current = true;
+      if (ref.current) {
+        ref.current.muted = muted;
+        ref.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, [src]);
+
+  useEffect(() => {
+    if (unlockedRef.current && ref.current) ref.current.muted = muted;
+  }, [muted]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      loop
+      muted
+      playsInline
+      preload="auto"
+      aria-hidden="true"
+      style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
+    />
+  );
+}
+
+export function WynkyHero({ clips, idle }: {
   clips: { src: string; clip: HelloClip; videoRef: RefObject<HTMLVideoElement | null>; show: boolean; preload: 'auto' | 'metadata' }[];
-  still?: string;
+  /** The language screen's looping clip, shown (and sized/clipped) in place of the hello clips. */
+  idle?: { src: string; muted: boolean };
 }) {
   return (
     <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
@@ -148,7 +207,6 @@ export function WynkyHero({ clips, still }: {
         style={{
           position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
           background: 'radial-gradient(circle, rgba(255,138,61,0.35) 0%, rgba(255,176,87,0.12) 45%, transparent 70%)',
-          visibility: still ? 'hidden' : 'visible',
         }}
       />
       <div
@@ -156,7 +214,6 @@ export function WynkyHero({ clips, still }: {
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
           border: '2px solid rgba(255,176,87,0.55)', background: '#E8C9A9',
           boxShadow: '0 0 40px rgba(255,138,61,0.45), 0 0 90px rgba(255,176,87,0.25), inset 0 0 40px rgba(255,138,61,0.15)',
-          visibility: still ? 'hidden' : 'visible',
         }}
       >
         {clips.map(({ src, clip, videoRef, show, preload }) => (
@@ -171,20 +228,12 @@ export function WynkyHero({ clips, still }: {
             onLoadedMetadata={(e) => { if (e.currentTarget.paused) e.currentTarget.currentTime = clip.start; }}
             style={{
               position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)',
-              visibility: show ? 'visible' : 'hidden',
+              visibility: show && !idle ? 'visible' : 'hidden',
             }}
           />
         ))}
+        {idle && <IdleLoopVideo key={idle.src} src={idle.src} muted={idle.muted} />}
       </div>
-      {still && (
-        <img
-          src={still}
-          alt=""
-          aria-hidden="true"
-          className="wq-hii-pop"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
-        />
-      )}
     </div>
   );
 }

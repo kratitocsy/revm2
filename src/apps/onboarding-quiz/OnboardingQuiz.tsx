@@ -41,7 +41,7 @@ import {
 import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
 import wynkyHelloEnVideo from './imports/wynky-hello-en.mp4';
-import wynkyHiiImage from './imports/wynky-hii.webp';
+import wynkyHiiVideo from './imports/wynky-hii.mp4';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 /*
@@ -685,11 +685,12 @@ export default function OnboardingQuiz() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
             {phase === 'lang' || phase === 'intro' ? (
-              // The language screen shows the waving "Hii!" Wynky picture (no
-              // circle) with the Hindi clip loading hidden; the English clip
-              // takes over only for the English hello.
+              // The language screen shows the looping "Hii!" wave clip inside
+              // the same circular frame as the hello clips; the Hindi/English
+              // hello clips keep loading hidden underneath so they're ready
+              // the instant "Let's go" swaps the language screen for intro.
               <WynkyHero
-                still={phase === 'lang' ? wynkyHiiImage : undefined}
+                idle={phase === 'lang' ? { src: wynkyHiiVideo, muted } : undefined}
                 clips={[
                   { src: wynkyHelloVideo, clip: HELLO_CLIP_HI, videoRef: heroHiRef, show: phase === 'lang' || lang === 'hi', preload: 'auto' },
                   {
