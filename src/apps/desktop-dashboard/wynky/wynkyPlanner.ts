@@ -34,7 +34,10 @@ export interface SupaLike {
 }
 
 export interface ChannelPick { id: string; label: string }
-export interface SubjectAllowlist { sites: string[]; apps: string[]; channels?: ChannelPick[] }
+// appsMode mirrors blocks.html's "Block these apps" / "Allow only these
+// apps" choice. Missing means 'blacklist' (lists saved before the choice
+// existed were always enforced that way).
+export interface SubjectAllowlist { sites: string[]; apps: string[]; channels?: ChannelPick[]; appsMode?: 'blacklist' | 'whitelist' }
 
 export type DailyHoursBucket = '1-2' | '2-4' | '4-6' | '6-8' | 'custom';
 
@@ -213,15 +216,22 @@ export async function ensurePresets(sb: SupaLike, userId: string, args: {
       ? { mode: 'allow', channels } : null;
     const { data: existing } = await sb.from('focus_lock_presets')
       .select('id').eq('user_id', userId).eq('name', presetName).maybeSingle();
+    // The student picks, per subject, whether the apps are closed or are
+    // the only ones kept open (same choice blocks.html offers) — never
+    // implied, because one list is enforced on every device and an
+    // allow-only list of desktop apps would close everything on the phone.
+    // With no apps, 'whitelist' would close everything, so fall back to
+    // 'blacklist' (a no-op with an empty apps array).
+    const appsMode = allow.apps.length && allow.appsMode === 'whitelist' ? 'whitelist' : 'blacklist';
     if (existing?.id) {
       await sb.from('focus_lock_presets').update({
-        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist', youtube_rules: youtubeRules,
+        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
       }).eq('id', existing.id);
       presetIdBySubject[name] = existing.id;
     } else {
       const { data: created, error } = await sb.from('focus_lock_presets').insert({
         user_id: userId, name: presetName, mode: 'whitelist',
-        sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist', youtube_rules: youtubeRules,
+        sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
       }).select('id').single();
       if (error) throw new Error(error.message);
       presetIdBySubject[name] = created.id;
@@ -349,6 +359,16 @@ export interface AiSlot {
  *  AI only ever picks from preset names Wynky already created from the
  *  student's own typed allow-lists (ensurePresets), so it can't invent a
  *  block that blocks/allows something the student never specified. */
+/** Thrown instead of saving an AI plan whose study blocks all point at
+ *  presets that don't exist (no subject allow-lists set up yet): saving it
+ *  would leave only the sleep lock and no study block at all. */
+export class NoEnforceableBlocksError extends Error {
+  constructor() {
+    super("None of those study blocks match a subject you've set up, so there's nothing for Focus Lock to enforce yet. Pick the sites, apps or YouTube channels each subject needs first.");
+    this.name = 'NoEnforceableBlocksError';
+  }
+}
+
 export async function confirmAiPlan(sb: SupaLike, args: {
   userId: string;
   planName: string;
@@ -357,7 +377,7 @@ export async function confirmAiPlan(sb: SupaLike, args: {
   subjectAllowlists: Record<string, SubjectAllowlist>;
   freeTimeSites: string[];
   freeTimeApps: string[];
-}): Promise<{ scheduleId: string }> {
+}): Promise<{ scheduleId: string; writtenSlots: AiSlot[] }> {
   const { presetIdBySubject, freeTimePresetId } = await ensurePresets(sb, args.userId, {
     subjectAllowlists: args.subjectAllowlists,
     freeTimeSites: args.freeTimeSites,
@@ -366,15 +386,27 @@ export async function confirmAiPlan(sb: SupaLike, args: {
   const idByPresetName: Record<string, string | null> = { [FREE_TIME_PRESET_NAME]: freeTimePresetId };
   for (const [subject, id] of Object.entries(presetIdBySubject)) idByPresetName[subjectPresetName(subject)] = id;
 
-  const slots: PlanSlotInput[] = args.aiSlots.map(s => ({
-    presetId: s.is_sleep ? null : (idByPresetName[s.preset_name] ?? null),
-    subject: s.is_sleep ? null : (s.subject ?? null),
-    startTime: s.start_time,
-    endTime: s.end_time,
-    isSleep: !!s.is_sleep,
+  // The AI is only offered real preset names, but nothing server-side
+  // checks it used one, so fall back to the slot's own subject preset
+  // (same lookup confirmPlan does) before giving up on a block.
+  const resolved = args.aiSlots.map(s => ({
+    ai: s,
+    presetId: s.is_sleep ? null : (idByPresetName[s.preset_name] ?? (s.subject ? presetIdBySubject[s.subject] : undefined) ?? null),
+  }));
+  const studyCount = resolved.filter(r => !r.ai.is_sleep).length;
+  const writable = resolved.filter(r => r.ai.is_sleep || r.presetId);
+  if (studyCount > 0 && !writable.some(r => !r.ai.is_sleep)) throw new NoEnforceableBlocksError();
+
+  const slots: PlanSlotInput[] = writable.map(({ ai, presetId }) => ({
+    presetId,
+    subject: ai.is_sleep ? null : (ai.subject ?? null),
+    startTime: ai.start_time,
+    endTime: ai.end_time,
+    isSleep: !!ai.is_sleep,
   }));
 
-  return writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
+  const { scheduleId } = await writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
+  return { scheduleId, writtenSlots: writable.map(r => r.ai) };
 }
 
 export async function rememberAnswers(sb: SupaLike, userId: string, args: {
@@ -393,7 +425,7 @@ export async function rememberAnswers(sb: SupaLike, userId: string, args: {
 
 export async function recordOutcome(sb: SupaLike, args: {
   source: 'rule_based' | 'ai_custom';
-  requestedMinutes: number;
+  requestedMinutes: number | null;
   confirmedMinutes: number;
   outcome: 'accepted_as_is' | 'accepted_edited' | 'discarded';
 }): Promise<void> {
@@ -518,4 +550,48 @@ export async function setChannelPick(sb: SupaLike, args: {
     p_exam_key: args.examKey, p_subject_key: args.subjectKey,
     p_channel_id: args.channelId, p_channel_label: args.channelLabel, p_picked: args.picked,
   });
+}
+
+/* --- App picker: same native app enumeration blocks.html already uses ---
+   Wynky never invents an app name for its allow/block lists either — it
+   reuses the exact same real-app sources the existing Focus Lock preset
+   editor (blocks.html) reads from, so a picked app is guaranteed to
+   actually be running (desktop) or installed (mobile), never guessed:
+     - desktop (Tauri): window.__TAURI__.core.invoke('list_running_apps')
+       -> real process names, e.g. "steam.exe"
+     - mobile (Capacitor RevM2Locking plugin): listInstalledApps()
+       -> real Android package names read from PackageManager
+   A plain browser tab has neither bridge, so the picker is simply
+   unavailable there and the free-text input remains the only way in,
+   exactly like blocks.html's own fallback. */
+export function isDesktopApp(): boolean {
+  return typeof (window as any).__TAURI__ !== 'undefined' && !!(window as any).__TAURI__.core;
+}
+export function isMobileApp(): boolean {
+  const w = window as any;
+  return !!(w.RM2Native && w.RM2Native.isNative && w.RM2Native.isNative());
+}
+export function appPickerAvailable(): boolean {
+  return isDesktopApp() || isMobileApp();
+}
+
+export interface PickableApp { id: string; label: string }
+
+/** Lists real apps from whichever native bridge is present — running
+ *  processes on desktop, installed launcher apps on mobile — or an empty
+ *  list in a plain browser tab. Never returns a curated/guessed name. */
+export async function listPickableApps(): Promise<PickableApp[]> {
+  if (isMobileApp()) {
+    const plugin = (window as any).Capacitor?.Plugins?.RevM2Locking;
+    if (!plugin) return [];
+    const { apps } = await plugin.listInstalledApps();
+    return (apps || [])
+      .map((a: { packageName: string; label?: string }) => ({ id: a.packageName, label: a.label || a.packageName }))
+      .sort((a: PickableApp, b: PickableApp) => a.label.localeCompare(b.label));
+  }
+  if (isDesktopApp()) {
+    const apps = await (window as any).__TAURI__.core.invoke('list_running_apps');
+    return (apps || []).map((a: { name: string }) => ({ id: a.name, label: a.name }));
+  }
+  return [];
 }
