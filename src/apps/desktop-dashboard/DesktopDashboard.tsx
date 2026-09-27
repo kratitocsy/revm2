@@ -14,14 +14,8 @@ import avatar10 from './imports/avatar-10.png'
 import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
-import WynkyPage from './wynky/WynkyPage'
-import { sb } from '../_shared/supabaseClient'
-import { REVM2_CONFIG } from '../../lib/supabase.js'
-import {
-  loadKnownProfile, loadRemembered, distractionSites, distractionApps,
-  ensurePresets, confirmAiPlan, recordOutcome, NoEnforceableBlocksError,
-  type WynkyKnownProfile, type WynkyRemembered, type AiSlot,
-} from './wynky/wynkyPlanner'
+import WynkyChat from './wynky/WynkyChat'
+import type { AiSlot } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
   usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
@@ -6849,267 +6843,6 @@ const WEBSITE_SUGGESTIONS = [
 
 const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#CFC8BB', '#34D399', '#F59E0B', '#F87171', '#EC4899']
 
-// ─── Schedule AI chat ─────────────────────────────────────────────────────────
-// "Generate with AI" on the Schedules page opens this chat: Wynky, using the
-// same data layer as the Wynky setup page (wynky/wynkyPlanner.ts). A message
-// becomes a real preview from ai-generate-schedule; Confirm writes it as a
-// Focus Lock schedule via confirmAiPlan, same as the setup page's AI path.
-interface AIChatMsg { id: number; from: 'bot' | 'user'; text: string; confirmable?: boolean; setupLink?: boolean }
-
-const AI_CHAT_GREETING_GENERIC = 'Hi! I’m Wynky, your study assistant. Tell me your subjects, your target exam and how many hours you can study each day, and I’ll help you build your schedule.'
-
-// The Wynko mascot as a round avatar (header, every bot message, typing indicator).
-function MascotAvatar({ size }: { size: number }) {
-  return (
-    <div className="rounded-full flex items-center justify-center flex-shrink-0"
-      style={{ width: size, height: size, background: 'rgba(255,138,61,0.14)', border: '1px solid rgba(255,138,61,0.4)', boxShadow: 'none' }}>
-      <img src={wynkoMascot} alt="" className="w-auto object-contain" style={{ height: '78%' }} />
-    </div>
-  )
-}
-
-// fetch() rejects with a bare TypeError ("Failed to fetch") when offline.
-function chatErrorText(e: unknown, fallback: string): string {
-  if (e instanceof TypeError && /fetch|network/i.test(e.message)) return "I couldn't reach the server. Check your connection and try again."
-  return e instanceof Error ? e.message : fallback
-}
-
-function formatAiScheduleSummary(schedule: { name: string; slots: AiSlot[] }): string {
-  const lines = (schedule.slots || []).map(s =>
-    `${s.start_time}–${s.end_time}  ${s.is_sleep ? '😴 Sleep' : (s.subject || 'Study')}`)
-  return `Here's "${schedule.name}":\n\n${lines.join('\n')}\n\nLooks good? Tap Confirm below to make it live, or tell me what to change.`
-}
-
-function ScheduleAIChat({ onClose, onOpenSetup, onPlanConfirmed }: {
-  onClose: () => void
-  onOpenSetup: () => void
-  onPlanConfirmed: (plan: { days_of_week: number[]; slots: AiSlot[] }) => void
-}) {
-  const [messages, setMessages] = useState<AIChatMsg[]>([{ id: 1, from: 'bot', text: AI_CHAT_GREETING_GENERIC }])
-  const [input, setInput] = useState('')
-  const [typing, setTyping] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [known, setKnown] = useState<WynkyKnownProfile | null>(null)
-  const [remembered, setRemembered] = useState<WynkyRemembered | null>(null)
-  const [pendingSchedule, setPendingSchedule] = useState<{ name: string; days_of_week: number[]; slots: AiSlot[] } | null>(null)
-  // The preview message that carries the Confirm button. Kept by id, not
-  // "last message", so a failed save doesn't hide the only way to retry.
-  const [pendingMsgId, setPendingMsgId] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const nextId = useRef(2)
-
-  useEffect(() => { inputRef.current?.focus() }, [])
-  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }) }, [messages, typing])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  // Same "what Wynky already knows" load the dedicated Wynky page does, so
-  // this chat doesn't ask the student to repeat their subjects/exam/allow-
-  // lists from scratch if they've already set those up there.
-  // send() awaits this, so a message typed before the load finishes still
-  // gets the student's real profile instead of an empty one.
-  const profileLoad = useRef<Promise<{ uid: string | null; known: WynkyKnownProfile | null; remembered: WynkyRemembered | null }> | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    profileLoad.current = sb.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return { uid: null, known: null, remembered: null }
-      const uid = session.user.id
-      if (!cancelled) setUserId(uid)
-      try {
-        const [k, r] = await Promise.all([loadKnownProfile(sb as any, uid), loadRemembered(sb as any, uid)])
-        if (cancelled) return { uid, known: k, remembered: r }
-        setKnown(k); setRemembered(r)
-        const hasAllowlists = Object.keys(r.subjectAllowlists || {}).length > 0
-        if (k.subjects.length || k.exam) {
-          const greeting = `Hi, I'm Wynky! I already know ${k.exam ? `you're prepping for ${k.exam}` : "a bit about you"}${k.subjects.length ? ` in ${k.subjects.join(', ')}` : ''}. Tell me your goals for today (or just say "go") and I'll build a plan.`
-            + (hasAllowlists ? '' : "\n\nTip: pick which sites, apps and YouTube channels each subject needs first, and I'll lock everything else during those blocks.")
-          // Swap only the opening greeting: the student may already have sent something while this loaded.
-          setMessages(m => m.map(x => x.id === 1 ? { ...x, text: greeting, setupLink: !hasAllowlists } : x))
-        }
-        return { uid, known: k, remembered: r }
-      } catch {
-        // Known profile is a nice-to-have here — the generic greeting above still works fine without it.
-        return { uid, known: null, remembered: null }
-      }
-    }).catch(() => ({ uid: null, known: null, remembered: null }))
-    return () => { cancelled = true }
-  }, [])
-
-  async function send() {
-    const text = input.trim()
-    if (!text || typing || saving) return
-    setMessages(m => [...m, { id: nextId.current++, from: 'user', text }])
-    setInput('')
-    setTyping(true)
-    try {
-      const loaded = await (profileLoad.current ?? Promise.resolve({ uid: userId, known, remembered }))
-      const uid = loaded.uid
-      if (!uid) {
-        setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: 'Please sign in first — I need your profile to build a schedule.' }])
-        return
-      }
-      const freeSites = loaded.known ? distractionSites(loaded.known.distractionTags) : []
-      const freeApps = loaded.known ? distractionApps(loaded.known.distractionTags) : []
-      const subjectAllowlists = loaded.remembered?.subjectAllowlists || {}
-      const { presetNames } = await ensurePresets(sb as any, uid, {
-        subjectAllowlists, freeTimeSites: freeSites, freeTimeApps: freeApps,
-      })
-      // No preset means every study block the AI picks would be dropped on
-      // save, leaving only the sleep lock, so ask for the set-up first.
-      if (!presetNames.length) {
-        setMessages(m => [...m, {
-          id: nextId.current++, from: 'bot', setupLink: true,
-          text: "Before I build this, I need to know what each subject needs: which sites, apps or YouTube channels to keep open during its study blocks. Otherwise Focus Lock has nothing to enforce. Tap below to set that up, then come back and ask again.",
-        }])
-        return
-      }
-      const { data: { session } } = await sb.auth.getSession()
-      if (!session) throw new Error('Not signed in.')
-      const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ mode: 'text', goal_text: text, presets: presetNames.map(n => ({ name: n })), subjects: loaded.known?.subjects || [] }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || "Wynky couldn't build that.")
-      const msgId = nextId.current++
-      setPendingSchedule(data.schedule)
-      setPendingMsgId(msgId)
-      setMessages(m => [...m, { id: msgId, from: 'bot', text: formatAiScheduleSummary(data.schedule), confirmable: true }])
-    } catch (e) {
-      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: chatErrorText(e, 'Something went wrong building that schedule.') }])
-    } finally {
-      setTyping(false)
-    }
-  }
-
-  async function confirmPending() {
-    if (!userId || !pendingSchedule || saving) return
-    setSaving(true)
-    try {
-      const freeSites = known ? distractionSites(known.distractionTags) : []
-      const freeApps = known ? distractionApps(known.distractionTags) : []
-      const subjectAllowlists = remembered?.subjectAllowlists || {}
-      const daysOfWeek = pendingSchedule.days_of_week?.length ? pendingSchedule.days_of_week : [0, 1, 2, 3, 4, 5, 6]
-      const { writtenSlots } = await confirmAiPlan(sb as any, {
-        userId, planName: pendingSchedule.name || 'Wynky Plan', daysOfWeek,
-        aiSlots: pendingSchedule.slots, subjectAllowlists, freeTimeSites: freeSites, freeTimeApps: freeApps,
-      })
-      const writtenStudy = writtenSlots.filter(s => !s.is_sleep)
-      const skipped = (pendingSchedule.slots || []).filter(s => !s.is_sleep).length - writtenStudy.length
-      const totalMin = writtenStudy.reduce((sum, s) => {
-        const [sh, sm] = s.start_time.split(':').map(Number); const [eh, em] = s.end_time.split(':').map(Number)
-        return sum + ((eh * 60 + em) - (sh * 60 + sm))
-      }, 0)
-      await recordOutcome(sb as any, { source: 'ai_custom', requestedMinutes: null, confirmedMinutes: totalMin, outcome: 'accepted_as_is' })
-      // Mirror only what was actually saved, so the grid never shows a block Focus Lock won't enforce.
-      onPlanConfirmed({ days_of_week: daysOfWeek, slots: writtenSlots })
-      setPendingSchedule(null)
-      setPendingMsgId(null)
-      const skippedNote = skipped > 0
-        ? ` I left out ${skipped} block${skipped === 1 ? '' : 's'} that didn't match a subject you've set up.`
-        : ''
-      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: `Done, it's live. Focus Lock will follow it from the next scheduled block.${skippedNote} Want to change which sites, apps or YouTube channels each subject allows?`, setupLink: true }])
-    } catch (e) {
-      if (e instanceof NoEnforceableBlocksError) {
-        setPendingSchedule(null)
-        setPendingMsgId(null)
-        setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: e.message, setupLink: true }])
-      } else {
-        setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: chatErrorText(e, 'Could not save that plan.') }])
-      }
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div role="dialog" aria-modal="true" aria-label="Wynko AI assistant"
-        className="rounded-2xl border w-[520px] max-w-full h-[620px] max-h-[90vh] flex flex-col overflow-hidden"
-        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
-
-        {/* Header */}
-        <div className="flex items-center gap-3.5 px-5 py-4 border-b flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg,#1C1C1F,#1C1C1F)', borderColor: '#26262A' }}>
-          <MascotAvatar size={52} />
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
-            <div className="text-base font-bold text-white leading-tight">Create Your Study Schedule</div>
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: 'none' }} /> Online
-            </div>
-          </div>
-          <button onClick={onClose} aria-label="Close chat"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-wk-ink-400 hover:text-wk-ink-100 hover:bg-white/5 transition-colors flex-shrink-0">
-            <Ico n="close" cls="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Messages */}
-        <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-          {messages.map(m => m.from === 'bot' ? (
-            <div key={m.id} className="flex items-end gap-2.5">
-              <MascotAvatar size={34} />
-              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
-                style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
-                {m.text}
-                {m.confirmable && pendingSchedule && m.id === pendingMsgId && (
-                  <button onClick={confirmPending} disabled={saving || typing}
-                    className="mt-3 block px-4 py-2 rounded-full text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50">
-                    {saving ? 'Saving…' : 'Confirm this plan'}
-                  </button>
-                )}
-                {m.setupLink && (
-                  <button onClick={onOpenSetup}
-                    className="mt-3 block px-4 py-2 rounded-full text-xs font-semibold text-wk-orange-300 border border-wk-orange-500/40 hover:bg-wk-orange-500/10">
-                    Set up sites, apps & channels
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div key={m.id} className="flex justify-end">
-              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md text-[13px] text-wk-black-950 leading-relaxed whitespace-pre-wrap break-words"
-                style={{ background: 'linear-gradient(135deg,#FF8A3D,#E9772E)', boxShadow: 'none' }}>{m.text}</div>
-            </div>
-          ))}
-          {typing && (
-            <div className="flex items-end gap-2.5">
-              <MascotAvatar size={34} />
-              <div className="px-4 py-3.5 rounded-2xl rounded-bl-md border flex items-center gap-1.5" aria-label="Assistant is typing"
-                style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
-                {[0, 1, 2].map(i => (
-                  <span key={i} className="w-1.5 h-1.5 rounded-full bg-wk-orange-300 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Input */}
-        <div className="flex items-center gap-2.5 px-4 py-3.5 border-t flex-shrink-0" style={{ borderColor: '#26262A' }}>
-          <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            placeholder="Type your subjects, exam and study hours…"
-            className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]" />
-          <button onClick={send} disabled={!input.trim() || typing} aria-label="Send message"
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-wk-black-950 flex-shrink-0 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
-            <Ico n="arrow" cls="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile, embedded = false, title: scheduleTitle = 'Your Schedule', subtitle: scheduleSubtitle = 'Stay consistent. Track your progress.' }: {
   onNavigate: (id: string) => void
   schedule: ScheduleItem[][]
@@ -7570,7 +7303,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   const modals = (
     <>
       {/* ── AI assistant chat ── */}
-      {showAI && <ScheduleAIChat onClose={() => setShowAI(false)} onOpenSetup={() => { setShowAI(false); onNavigate('wynky') }} onPlanConfirmed={applyWynkyPlan} />}
+      {showAI && <WynkyChat onClose={() => setShowAI(false)} onPlanConfirmed={applyWynkyPlan} />}
 
       {/* ── Add Session Modal ── */}
       {showAddSession && (
@@ -10936,9 +10669,6 @@ export default function DesktopDashboard() {
     }
     if (activeNav === 'schedules') {
       return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
-    }
-    if (activeNav === 'wynky') {
-      return <WynkyPage onNavigate={handleNav} />
     }
     if (activeNav === 'battleground') {
       return <BattlegroundPage onNavigate={handleNav} profile={profile} />

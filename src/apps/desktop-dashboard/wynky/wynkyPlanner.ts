@@ -223,14 +223,17 @@ export async function ensurePresets(sb: SupaLike, userId: string, args: {
     // With no apps, 'whitelist' would close everything, so fall back to
     // 'blacklist' (a no-op with an empty apps array).
     const appsMode = allow.apps.length && allow.appsMode === 'whitelist' ? 'whitelist' : 'blacklist';
+    // Same for sites: an allow-list with no sites would block the whole web,
+    // which a subject set up with only apps never asked for.
+    const siteMode = allow.sites.length ? 'whitelist' : 'blacklist';
     if (existing?.id) {
       await sb.from('focus_lock_presets').update({
-        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
+        mode: siteMode, sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
       }).eq('id', existing.id);
       presetIdBySubject[name] = existing.id;
     } else {
       const { data: created, error } = await sb.from('focus_lock_presets').insert({
-        user_id: userId, name: presetName, mode: 'whitelist',
+        user_id: userId, name: presetName, mode: siteMode,
         sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
       }).select('id').single();
       if (error) throw new Error(error.message);
@@ -326,7 +329,7 @@ export interface ConfirmPlanArgs {
  *  real focus_lock_schedule/slots — the same tables the (existing,
  *  server-enforced) Focus Lock schedule engine already reads every
  *  minute, so enforcement starts without touching blocks.html at all. */
-export async function confirmPlan(sb: SupaLike, args: ConfirmPlanArgs): Promise<{ scheduleId: string }> {
+export async function confirmPlan(sb: SupaLike, args: ConfirmPlanArgs): Promise<{ scheduleId: string; writtenSlots: PlanSlotInput[] }> {
   const { presetIdBySubject, freeTimePresetId } = await ensurePresets(sb, args.userId, {
     subjectAllowlists: args.subjectAllowlists,
     freeTimeSites: args.freeTimeSites,
@@ -342,8 +345,13 @@ export async function confirmPlan(sb: SupaLike, args: ConfirmPlanArgs): Promise<
       endTime: block.endTime,
       isSleep: block.kind === 'sleep',
     }));
+  // Same rule as confirmAiPlan: never save a plan whose study blocks all
+  // have nothing to enforce, which would leave only the sleep lock.
+  const writtenSlots = slots.filter(s => s.isSleep || s.presetId);
+  if (slots.some(s => !s.isSleep) && !writtenSlots.some(s => !s.isSleep)) throw new NoEnforceableBlocksError();
 
-  return writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
+  const { scheduleId } = await writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
+  return { scheduleId, writtenSlots };
 }
 
 export interface AiSlot {
@@ -421,6 +429,18 @@ export async function rememberAnswers(sb: SupaLike, userId: string, args: {
     subject_allowlists: args.subjectAllowlists,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
+}
+
+/** Saves just the per-subject set-up, so what the student answered in the
+ *  chat is remembered even if they close it before confirming a plan.
+ *  The upsert only sends this column, so saved wake/sleep times stay. */
+export async function rememberAllowlists(sb: SupaLike, userId: string, subjectAllowlists: Record<string, SubjectAllowlist>): Promise<void> {
+  const { error } = await sb.from('wynky_profiles').upsert({
+    user_id: userId,
+    subject_allowlists: subjectAllowlists,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+  if (error) throw new Error(error.message);
 }
 
 export async function recordOutcome(sb: SupaLike, args: {
