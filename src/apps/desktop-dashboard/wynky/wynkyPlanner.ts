@@ -401,7 +401,7 @@ export async function rememberAnswers(sb: SupaLike, userId: string, args: {
 
 export async function recordOutcome(sb: SupaLike, args: {
   source: 'rule_based' | 'ai_custom';
-  requestedMinutes: number;
+  requestedMinutes: number | null;
   confirmedMinutes: number;
   outcome: 'accepted_as_is' | 'accepted_edited' | 'discarded';
 }): Promise<void> {
