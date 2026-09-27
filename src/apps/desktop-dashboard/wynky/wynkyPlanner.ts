@@ -34,7 +34,10 @@ export interface SupaLike {
 }
 
 export interface ChannelPick { id: string; label: string }
-export interface SubjectAllowlist { sites: string[]; apps: string[]; channels?: ChannelPick[] }
+// appsMode mirrors blocks.html's "Block these apps" / "Allow only these
+// apps" choice. Missing means 'blacklist' (lists saved before the choice
+// existed were always enforced that way).
+export interface SubjectAllowlist { sites: string[]; apps: string[]; channels?: ChannelPick[]; appsMode?: 'blacklist' | 'whitelist' }
 
 export type DailyHoursBucket = '1-2' | '2-4' | '4-6' | '6-8' | 'custom';
 
@@ -213,14 +216,13 @@ export async function ensurePresets(sb: SupaLike, userId: string, args: {
       ? { mode: 'allow', channels } : null;
     const { data: existing } = await sb.from('focus_lock_presets')
       .select('id').eq('user_id', userId).eq('name', presetName).maybeSingle();
-    // Apps picked here are what the student uses to study this subject
-    // (a PDF reader, the coaching app, etc.), same as the sites above —
-    // so, like sites, they're a whitelist: only these apps (plus the
-    // system/browser exceptions Focus Lock always allows) stay open.
-    // apps_mode is only meaningful when apps were actually picked; with
-    // none, 'whitelist' with an empty list would close everything, so
-    // fall back to 'blacklist' (a no-op with an empty apps array).
-    const appsMode = allow.apps.length ? 'whitelist' : 'blacklist';
+    // The student picks, per subject, whether the apps are closed or are
+    // the only ones kept open (same choice blocks.html offers) — never
+    // implied, because one list is enforced on every device and an
+    // allow-only list of desktop apps would close everything on the phone.
+    // With no apps, 'whitelist' would close everything, so fall back to
+    // 'blacklist' (a no-op with an empty apps array).
+    const appsMode = allow.apps.length && allow.appsMode === 'whitelist' ? 'whitelist' : 'blacklist';
     if (existing?.id) {
       await sb.from('focus_lock_presets').update({
         mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
@@ -357,6 +359,16 @@ export interface AiSlot {
  *  AI only ever picks from preset names Wynky already created from the
  *  student's own typed allow-lists (ensurePresets), so it can't invent a
  *  block that blocks/allows something the student never specified. */
+/** Thrown instead of saving an AI plan whose study blocks all point at
+ *  presets that don't exist (no subject allow-lists set up yet): saving it
+ *  would leave only the sleep lock and no study block at all. */
+export class NoEnforceableBlocksError extends Error {
+  constructor() {
+    super("None of those study blocks match a subject you've set up, so there's nothing for Focus Lock to enforce yet. Pick the sites, apps or YouTube channels each subject needs first.");
+    this.name = 'NoEnforceableBlocksError';
+  }
+}
+
 export async function confirmAiPlan(sb: SupaLike, args: {
   userId: string;
   planName: string;
@@ -365,7 +377,7 @@ export async function confirmAiPlan(sb: SupaLike, args: {
   subjectAllowlists: Record<string, SubjectAllowlist>;
   freeTimeSites: string[];
   freeTimeApps: string[];
-}): Promise<{ scheduleId: string }> {
+}): Promise<{ scheduleId: string; writtenSlots: AiSlot[] }> {
   const { presetIdBySubject, freeTimePresetId } = await ensurePresets(sb, args.userId, {
     subjectAllowlists: args.subjectAllowlists,
     freeTimeSites: args.freeTimeSites,
@@ -374,15 +386,27 @@ export async function confirmAiPlan(sb: SupaLike, args: {
   const idByPresetName: Record<string, string | null> = { [FREE_TIME_PRESET_NAME]: freeTimePresetId };
   for (const [subject, id] of Object.entries(presetIdBySubject)) idByPresetName[subjectPresetName(subject)] = id;
 
-  const slots: PlanSlotInput[] = args.aiSlots.map(s => ({
-    presetId: s.is_sleep ? null : (idByPresetName[s.preset_name] ?? null),
-    subject: s.is_sleep ? null : (s.subject ?? null),
-    startTime: s.start_time,
-    endTime: s.end_time,
-    isSleep: !!s.is_sleep,
+  // The AI is only offered real preset names, but nothing server-side
+  // checks it used one, so fall back to the slot's own subject preset
+  // (same lookup confirmPlan does) before giving up on a block.
+  const resolved = args.aiSlots.map(s => ({
+    ai: s,
+    presetId: s.is_sleep ? null : (idByPresetName[s.preset_name] ?? (s.subject ? presetIdBySubject[s.subject] : undefined) ?? null),
+  }));
+  const studyCount = resolved.filter(r => !r.ai.is_sleep).length;
+  const writable = resolved.filter(r => r.ai.is_sleep || r.presetId);
+  if (studyCount > 0 && !writable.some(r => !r.ai.is_sleep)) throw new NoEnforceableBlocksError();
+
+  const slots: PlanSlotInput[] = writable.map(({ ai, presetId }) => ({
+    presetId,
+    subject: ai.is_sleep ? null : (ai.subject ?? null),
+    startTime: ai.start_time,
+    endTime: ai.end_time,
+    isSleep: !!ai.is_sleep,
   }));
 
-  return writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
+  const { scheduleId } = await writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
+  return { scheduleId, writtenSlots: writable.map(r => r.ai) };
 }
 
 export async function rememberAnswers(sb: SupaLike, userId: string, args: {

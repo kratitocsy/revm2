@@ -19,7 +19,7 @@ import { sb } from '../_shared/supabaseClient'
 import { REVM2_CONFIG } from '../../lib/supabase.js'
 import {
   loadKnownProfile, loadRemembered, distractionSites, distractionApps,
-  ensurePresets, confirmAiPlan, recordOutcome,
+  ensurePresets, confirmAiPlan, recordOutcome, NoEnforceableBlocksError,
   type WynkyKnownProfile, type WynkyRemembered, type AiSlot,
 } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
@@ -6892,6 +6892,9 @@ function ScheduleAIChat({ onClose, onOpenSetup, onPlanConfirmed }: {
   const [known, setKnown] = useState<WynkyKnownProfile | null>(null)
   const [remembered, setRemembered] = useState<WynkyRemembered | null>(null)
   const [pendingSchedule, setPendingSchedule] = useState<{ name: string; days_of_week: number[]; slots: AiSlot[] } | null>(null)
+  // The preview message that carries the Confirm button. Kept by id, not
+  // "last message", so a failed save doesn't hide the only way to retry.
+  const [pendingMsgId, setPendingMsgId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -6908,26 +6911,32 @@ function ScheduleAIChat({ onClose, onOpenSetup, onPlanConfirmed }: {
   // Same "what Wynky already knows" load the dedicated Wynky page does, so
   // this chat doesn't ask the student to repeat their subjects/exam/allow-
   // lists from scratch if they've already set those up there.
+  // send() awaits this, so a message typed before the load finishes still
+  // gets the student's real profile instead of an empty one.
+  const profileLoad = useRef<Promise<{ uid: string | null; known: WynkyKnownProfile | null; remembered: WynkyRemembered | null }> | null>(null)
   useEffect(() => {
     let cancelled = false
-    sb.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session || cancelled) return
+    profileLoad.current = sb.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return { uid: null, known: null, remembered: null }
       const uid = session.user.id
-      setUserId(uid)
+      if (!cancelled) setUserId(uid)
       try {
         const [k, r] = await Promise.all([loadKnownProfile(sb as any, uid), loadRemembered(sb as any, uid)])
-        if (cancelled) return
+        if (cancelled) return { uid, known: k, remembered: r }
         setKnown(k); setRemembered(r)
         const hasAllowlists = Object.keys(r.subjectAllowlists || {}).length > 0
         if (k.subjects.length || k.exam) {
           const greeting = `Hi, I'm Wynky! I already know ${k.exam ? `you're prepping for ${k.exam}` : "a bit about you"}${k.subjects.length ? ` in ${k.subjects.join(', ')}` : ''}. Tell me your goals for today (or just say "go") and I'll build a plan.`
             + (hasAllowlists ? '' : "\n\nTip: pick which sites, apps and YouTube channels each subject needs first, and I'll lock everything else during those blocks.")
-          setMessages([{ id: 1, from: 'bot', text: greeting, setupLink: !hasAllowlists }])
+          // Swap only the opening greeting: the student may already have sent something while this loaded.
+          setMessages(m => m.map(x => x.id === 1 ? { ...x, text: greeting, setupLink: !hasAllowlists } : x))
         }
+        return { uid, known: k, remembered: r }
       } catch {
         // Known profile is a nice-to-have here — the generic greeting above still works fine without it.
+        return { uid, known: null, remembered: null }
       }
-    })
+    }).catch(() => ({ uid: null, known: null, remembered: null }))
     return () => { cancelled = true }
   }, [])
 
@@ -6936,31 +6945,42 @@ function ScheduleAIChat({ onClose, onOpenSetup, onPlanConfirmed }: {
     if (!text || typing || saving) return
     setMessages(m => [...m, { id: nextId.current++, from: 'user', text }])
     setInput('')
-
-    if (!userId) {
-      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: 'Please sign in first — I need your profile to build a schedule.' }])
-      return
-    }
-
     setTyping(true)
     try {
-      const freeSites = known ? distractionSites(known.distractionTags) : []
-      const freeApps = known ? distractionApps(known.distractionTags) : []
-      const subjectAllowlists = remembered?.subjectAllowlists || {}
-      const { presetNames } = await ensurePresets(sb as any, userId, {
+      const loaded = await (profileLoad.current ?? Promise.resolve({ uid: userId, known, remembered }))
+      const uid = loaded.uid
+      if (!uid) {
+        setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: 'Please sign in first — I need your profile to build a schedule.' }])
+        return
+      }
+      const freeSites = loaded.known ? distractionSites(loaded.known.distractionTags) : []
+      const freeApps = loaded.known ? distractionApps(loaded.known.distractionTags) : []
+      const subjectAllowlists = loaded.remembered?.subjectAllowlists || {}
+      const { presetNames } = await ensurePresets(sb as any, uid, {
         subjectAllowlists, freeTimeSites: freeSites, freeTimeApps: freeApps,
       })
+      // No preset means every study block the AI picks would be dropped on
+      // save, leaving only the sleep lock, so ask for the set-up first.
+      if (!presetNames.length) {
+        setMessages(m => [...m, {
+          id: nextId.current++, from: 'bot', setupLink: true,
+          text: "Before I build this, I need to know what each subject needs: which sites, apps or YouTube channels to keep open during its study blocks. Otherwise Focus Lock has nothing to enforce. Tap below to set that up, then come back and ask again.",
+        }])
+        return
+      }
       const { data: { session } } = await sb.auth.getSession()
       if (!session) throw new Error('Not signed in.')
       const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ mode: 'text', goal_text: text, presets: presetNames.map(n => ({ name: n })), subjects: known?.subjects || [] }),
+        body: JSON.stringify({ mode: 'text', goal_text: text, presets: presetNames.map(n => ({ name: n })), subjects: loaded.known?.subjects || [] }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || "Wynky couldn't build that.")
+      const msgId = nextId.current++
       setPendingSchedule(data.schedule)
-      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: formatAiScheduleSummary(data.schedule), confirmable: true }])
+      setPendingMsgId(msgId)
+      setMessages(m => [...m, { id: msgId, from: 'bot', text: formatAiScheduleSummary(data.schedule), confirmable: true }])
     } catch (e) {
       setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: chatErrorText(e, 'Something went wrong building that schedule.') }])
     } finally {
@@ -6975,21 +6995,34 @@ function ScheduleAIChat({ onClose, onOpenSetup, onPlanConfirmed }: {
       const freeSites = known ? distractionSites(known.distractionTags) : []
       const freeApps = known ? distractionApps(known.distractionTags) : []
       const subjectAllowlists = remembered?.subjectAllowlists || {}
-      await confirmAiPlan(sb as any, {
-        userId, planName: pendingSchedule.name || 'Wynky Plan',
-        daysOfWeek: pendingSchedule.days_of_week?.length ? pendingSchedule.days_of_week : [0, 1, 2, 3, 4, 5, 6],
+      const daysOfWeek = pendingSchedule.days_of_week?.length ? pendingSchedule.days_of_week : [0, 1, 2, 3, 4, 5, 6]
+      const { writtenSlots } = await confirmAiPlan(sb as any, {
+        userId, planName: pendingSchedule.name || 'Wynky Plan', daysOfWeek,
         aiSlots: pendingSchedule.slots, subjectAllowlists, freeTimeSites: freeSites, freeTimeApps: freeApps,
       })
-      const totalMin = (pendingSchedule.slots || []).filter(s => !s.is_sleep).reduce((sum, s) => {
+      const writtenStudy = writtenSlots.filter(s => !s.is_sleep)
+      const skipped = (pendingSchedule.slots || []).filter(s => !s.is_sleep).length - writtenStudy.length
+      const totalMin = writtenStudy.reduce((sum, s) => {
         const [sh, sm] = s.start_time.split(':').map(Number); const [eh, em] = s.end_time.split(':').map(Number)
         return sum + ((eh * 60 + em) - (sh * 60 + sm))
       }, 0)
       await recordOutcome(sb as any, { source: 'ai_custom', requestedMinutes: null, confirmedMinutes: totalMin, outcome: 'accepted_as_is' })
-      onPlanConfirmed(pendingSchedule)
+      // Mirror only what was actually saved, so the grid never shows a block Focus Lock won't enforce.
+      onPlanConfirmed({ days_of_week: daysOfWeek, slots: writtenSlots })
       setPendingSchedule(null)
-      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: "Done, it's live. Focus Lock will follow it from the next scheduled block. Want to change which sites, apps or YouTube channels each subject allows?", setupLink: true }])
+      setPendingMsgId(null)
+      const skippedNote = skipped > 0
+        ? ` I left out ${skipped} block${skipped === 1 ? '' : 's'} that didn't match a subject you've set up.`
+        : ''
+      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: `Done, it's live. Focus Lock will follow it from the next scheduled block.${skippedNote} Want to change which sites, apps or YouTube channels each subject allows?`, setupLink: true }])
     } catch (e) {
-      setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: chatErrorText(e, 'Could not save that plan.') }])
+      if (e instanceof NoEnforceableBlocksError) {
+        setPendingSchedule(null)
+        setPendingMsgId(null)
+        setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: e.message, setupLink: true }])
+      } else {
+        setMessages(m => [...m, { id: nextId.current++, from: 'bot', text: chatErrorText(e, 'Could not save that plan.') }])
+      }
     } finally {
       setSaving(false)
     }
@@ -7021,14 +7054,14 @@ function ScheduleAIChat({ onClose, onOpenSetup, onPlanConfirmed }: {
 
         {/* Messages */}
         <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-          {messages.map((m, idx) => m.from === 'bot' ? (
+          {messages.map(m => m.from === 'bot' ? (
             <div key={m.id} className="flex items-end gap-2.5">
               <MascotAvatar size={34} />
               <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
                 style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
                 {m.text}
-                {m.confirmable && pendingSchedule && idx === messages.length - 1 && (
-                  <button onClick={confirmPending} disabled={saving}
+                {m.confirmable && pendingSchedule && m.id === pendingMsgId && (
+                  <button onClick={confirmPending} disabled={saving || typing}
                     className="mt-3 block px-4 py-2 rounded-full text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50">
                     {saving ? 'Saving…' : 'Confirm this plan'}
                   </button>

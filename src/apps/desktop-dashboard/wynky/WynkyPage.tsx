@@ -27,7 +27,7 @@ const BLOCK_LENGTHS = [30, 45, 60, 90]
 
 type Step = 'loading' | 'setup' | 'preview' | 'custom_preview' | 'saved'
 
-interface SubjectForm { sites: string; apps: string; channels: ChannelPick[] }
+interface SubjectForm { sites: string; apps: string; appsMode: 'blacklist' | 'whitelist'; channels: ChannelPick[] }
 interface ChannelSuggestion extends ChannelPick { pickCount: number }
 
 export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => void }) {
@@ -82,7 +82,10 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
         const forms: Record<string, SubjectForm> = {}
         for (const s of subjects) {
           const remembered_ = r.subjectAllowlists[s]
-          forms[s] = { sites: (remembered_?.sites || []).join(', '), apps: (remembered_?.apps || []).join(', '), channels: remembered_?.channels || [] }
+          forms[s] = {
+            sites: (remembered_?.sites || []).join(', '), apps: (remembered_?.apps || []).join(', '),
+            appsMode: remembered_?.appsMode === 'whitelist' ? 'whitelist' : 'blacklist', channels: remembered_?.channels || [],
+          }
         }
         setSubjectForms(forms)
         setStep('setup')
@@ -173,11 +176,12 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
   }, [freeSitesFromQuiz, extraFreeSites])
 
   const subjectAllowlists = useMemo(() => {
-    const out: Record<string, { sites: string[]; apps: string[]; channels: ChannelPick[] }> = {}
+    const out: Record<string, { sites: string[]; apps: string[]; appsMode: 'blacklist' | 'whitelist'; channels: ChannelPick[] }> = {}
     for (const [name, form] of Object.entries(subjectForms)) {
       out[name] = {
         sites: form.sites.split(',').map(s => s.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')).filter(Boolean),
         apps: form.apps.split(',').map(s => s.trim()).filter(Boolean),
+        appsMode: form.appsMode,
         channels: form.channels,
       }
     }
@@ -226,6 +230,10 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
       const { presetNames } = await ensurePresets(sb as any, userId, {
         subjectAllowlists, freeTimeSites: freeSites, freeTimeApps: freeAppsFromQuiz,
       })
+      // Same guard as the Schedules chat: with no preset, every study block would be dropped on save.
+      if (!presetNames.length) {
+        throw new Error('Add at least one site, app or YouTube channel for a subject above first, so Wynky has something to lock during study blocks.')
+      }
       const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -246,12 +254,12 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
     if (!userId || !aiSchedule) return
     setSaving(true); setError(null)
     try {
-      await confirmAiPlan(sb as any, {
+      const { writtenSlots } = await confirmAiPlan(sb as any, {
         userId, planName: aiSchedule.name || 'Wynky Plan', daysOfWeek: aiSchedule.days_of_week?.length ? aiSchedule.days_of_week : days,
         aiSlots: aiSchedule.slots, subjectAllowlists, freeTimeSites: freeSites, freeTimeApps: freeAppsFromQuiz,
       })
       await rememberAnswers(sb as any, userId, { wakeTime, sleepTime, subjectAllowlists })
-      const totalMin = (aiSchedule.slots || []).filter(s => !s.is_sleep).reduce((sum, s) => {
+      const totalMin = writtenSlots.filter(s => !s.is_sleep).reduce((sum, s) => {
         const [sh, sm] = s.start_time.split(':').map(Number); const [eh, em] = s.end_time.split(':').map(Number)
         return sum + ((eh * 60 + em) - (sh * 60 + sm))
       }, 0)
@@ -361,8 +369,25 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                     onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
                     className="w-full bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
 
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-wk-ink-500 mr-1">Apps</span>
+                    {([['blacklist', 'Block these apps'], ['whitelist', 'Allow only these apps']] as const).map(([mode, label]) => (
+                      <button key={mode} type="button"
+                        onClick={() => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], appsMode: mode } })); setEditedSinceGenerate(true) }}
+                        className={`px-3 py-1 rounded-full text-xs border transition-colors ${form.appsMode === mode ? 'bg-wk-orange-600 border-wk-orange-500 text-wk-black-950' : 'border-[#26262A] text-wk-ink-400 hover:text-wk-ink-200'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {form.appsMode === 'whitelist' && (
+                    <div className="text-xs text-wk-ink-500">During {name} blocks every other app closes on your phone and your computer, so list the apps you need on each.</div>
+                  )}
                   <div className="flex items-center gap-2 flex-wrap">
-                    <input placeholder={isMobileApp() ? 'apps to allow/block, e.g. com.instagram.android' : 'apps to allow/block, e.g. steam.exe'} value={form.apps}
+                    <input
+                      placeholder={form.appsMode === 'whitelist'
+                        ? (isMobileApp() ? 'apps to keep open, e.g. com.adobe.reader' : 'apps to keep open, e.g. AcroRd32.exe')
+                        : (isMobileApp() ? 'apps to close, e.g. com.instagram.android' : 'apps to close, e.g. steam.exe')}
+                      value={form.apps}
                       onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], apps: e.target.value } })); setEditedSinceGenerate(true) }}
                       className="flex-1 min-w-[12rem] bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
                     {appPickerAvailable() && (
