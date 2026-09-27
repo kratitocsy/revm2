@@ -3,14 +3,112 @@
   "buildCommand": "npm run build:css && npm run build:shared && npm run build:sidebars && npm run build:mobile-home && npm run build:desktop-dashboard && npm run build:onboarding-quiz",
   "outputDirectory": ".",
   "redirects": [
-    { "source": "/index.html", "destination": "/", "permanent": true },
-    { "source": "/battle", "destination": "/home?page=battleground", "permanent": false },
-    { "source": "/battle.html", "destination": "/home?page=battleground", "permanent": false }
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/tracker",
+      "destination": "/home",
+      "permanent": false
+    },
+    {
+      "source": "/tracker.html",
+      "destination": "/home",
+      "permanent": false
+    },
+    {
+      "source": "/timer",
+      "destination": "/home?page=focus",
+      "permanent": false
+    },
+    {
+      "source": "/timer.html",
+      "destination": "/home?page=focus",
+      "permanent": false
+    },
+    {
+      "source": "/groups",
+      "destination": "/home?page=studyrooms",
+      "permanent": false
+    },
+    {
+      "source": "/groups.html",
+      "destination": "/home?page=studyrooms",
+      "permanent": false
+    },
+    {
+      "source": "/chat",
+      "destination": "/home?page=studyrooms",
+      "permanent": false
+    },
+    {
+      "source": "/chat.html",
+      "destination": "/home?page=studyrooms",
+      "permanent": false
+    },
+    {
+      "source": "/partners",
+      "destination": "/home?page=studyrooms",
+      "permanent": false
+    },
+    {
+      "source": "/partners.html",
+      "destination": "/home?page=studyrooms",
+      "permanent": false
+    },
+    {
+      "source": "/store",
+      "destination": "/home?page=wynkoins",
+      "permanent": false
+    },
+    {
+      "source": "/store.html",
+      "destination": "/home?page=wynkoins",
+      "permanent": false
+    },
+    {
+      "source": "/battle",
+      "destination": "/home?page=battleground",
+      "permanent": false
+    },
+    {
+      "source": "/battle.html",
+      "destination": "/home?page=battleground",
+      "permanent": false
+    },
+    {
+      "source": "/pledge",
+      "destination": "/home",
+      "permanent": false
+    },
+    {
+      "source": "/pledge.html",
+      "destination": "/home",
+      "permanent": false
+    },
+    {
+      "source": "/onboarding",
+      "destination": "/onboarding-quiz",
+      "permanent": false
+    },
+    {
+      "source": "/onboarding.html",
+      "destination": "/onboarding-quiz",
+      "permanent": false
+    }
   ],
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/product" },
-    { "source": "/about", "destination": "/marketing" }
+    {
+      "source": "/",
+      "destination": "/product"
+    },
+    {
+      "source": "/about",
+      "destination": "/marketing"
+    }
   ],
   "headers": [
     {
@@ -20,9 +118,18 @@
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://pagead2.googlesyndication.com https://telegram.org https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://dhzjtjekbvxxsauzhadl.supabase.co wss://dhzjtjekbvxxsauzhadl.supabase.co https://realtime.supabase.com https://revm2-materials-proxy.kiaro2244.workers.dev https://pagead2.googlesyndication.com https://api.razorpay.com https://lumberjack.razorpay.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://telegram.org https://api.razorpay.com https://checkout.razorpay.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        }
       ]
     }
   ]
