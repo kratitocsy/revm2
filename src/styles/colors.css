@@ -1,0 +1,155 @@
+/* Wynko colour tokens — Sep 2026 brand (ribbon-W logo, brand board).
+   Mostly warm black and cream. Orange is only for special keys: the one primary action on a screen,
+   the active-nav marker, the running timer arc, "today" highlights and notification dots. */
+:root{
+  /* ── Brand palette (brand board) ── */
+  --wk-brand-black:#0B0B0D;
+  --wk-brand-orange:#FF8A3D;
+  --wk-brand-amber:#FFA94D;
+  --wk-brand-butter:#FFE59A;
+  --wk-brand-cream:#FFF7E6;
+  --wk-brand-graphite:#3A3A3A;
+
+  /* ── Black ramp (surfaces, darkest → lightest) ── */
+  --wk-black-950:#0B0B0D;   /* app canvas */
+  --wk-black-900:#0F0F11;   /* sidebar */
+  --wk-black-850:#111113;   /* inner fills */
+  --wk-black-800:#161618;   /* cards, inputs */
+  --wk-black-700:#1C1C1F;   /* raised / active nav */
+  --wk-black-600:#26262A;   /* borders, tracks, secondary buttons */
+  --wk-black-500:#3A3A3A;   /* strong borders */
+  --wk-black-400:#55524D;
+
+  /* ── Orange (accent — use sparingly) ── */
+  --wk-orange-300:#FFA94D;
+  --wk-orange-500:#FF8A3D;
+  --wk-orange-600:#E9772E;
+  --wk-orange-800:#B43E16;
+  --wk-butter-300:#FFE59A;
+  --wk-cream-50:#FFF7E6;
+
+  /* ── Ink (warm text on black) ── */
+  --wk-ink-50:#FFF7E6;
+  --wk-ink-100:#F5EFE3;
+  --wk-ink-150:#F5EFE3;
+  --wk-ink-200:#E8E2D6;
+  --wk-ink-250:#D6D0C4;
+  --wk-ink-300:#CFC8BB;
+  --wk-ink-400:#9C968C;
+  --wk-ink-450:#8F8A82;     /* idle nav */
+  --wk-ink-500:#7A756D;
+  --wk-ink-600:#5A5650;     /* group labels */
+  --wk-ink-700:#4A4742;
+
+  /* ── Signal (muted, never neon) ── */
+  --wk-green-400:#7FBF8E;
+  --wk-amber-400:#E6C06A;
+  --wk-amber-500:#E6B455;
+  --wk-red-400:#E07A6B;
+  --wk-red-500:#D0604F;
+
+  /* ── Logo art (for recreating the mark's shading only) ── */
+  --wk-brand-orange-deep:#B43E16;
+  --wk-brand-cream-shade:#DAC0A5;
+  --grad-brand-orange:linear-gradient(160deg,#FFA94D 0%,#FF8A3D 50%,#B43E16 100%); /* @kind color */
+  --grad-brand-cream:linear-gradient(160deg,#FFE59A 0%,#FFF7E6 60%,#DAC0A5 100%); /* @kind color */
+
+  /* ── Brand gradient palette ("Feeding Info" sheet, Sep 2026) — exact stops ── */
+  --wk-g-brand-start:#FF8A3D;     --wk-g-brand-end:#FFF7E6;
+  --wk-g-secondary-start:#A855F7; --wk-g-secondary-end:#06B6D4;
+  --wk-g-accent-start:#FF7A3D;    --wk-g-accent-end:#FFD56B;
+  --wk-g-surface-start:#0B0D0F;   --wk-g-surface-end:#1A1F26;
+  --wk-g-text-start:#A855F7;      --wk-g-text-end:#06B6D4;
+  --wk-g-success-start:#10B981;   --wk-g-success-end:#34D399;
+  --wk-g-warning-start:#F97316;   --wk-g-warning-end:#FBBF24;
+  --wk-g-info-start:#3B82F6;      --wk-g-info-end:#06B6D4;
+  --wk-g-purple-start:#8B5CF6;    --wk-g-purple-end:#EC4899;
+
+  --grad-brand-primary:linear-gradient(90deg,#FF8A3D 0%,#FFF7E6 100%); /* @kind color */ /* logo, key visuals, primary accents */
+  --grad-secondary:linear-gradient(90deg,#A855F7 0%,#06B6D4 100%); /* @kind color */ /* highlights, hover states */
+  --grad-accent:linear-gradient(90deg,#FF7A3D 0%,#FFD56B 100%); /* @kind color */ /* buttons, CTAs, special elements */
+  --grad-surface:linear-gradient(135deg,#0B0D0F 0%,#1A1F26 100%); /* @kind color */ /* cards, containers, backgrounds */
+  --grad-text:linear-gradient(90deg,#A855F7 0%,#06B6D4 100%); /* @kind color */ /* highlighted text, key headings */
+  --grad-success:linear-gradient(90deg,#10B981 0%,#34D399 100%); /* @kind color */ /* positive states, progress, completion */
+  --grad-warning:linear-gradient(90deg,#F97316 0%,#FBBF24 100%); /* @kind color */ /* alerts, attention */
+  --grad-info:linear-gradient(90deg,#3B82F6 0%,#06B6D4 100%); /* @kind color */ /* information, neutral/secondary elements */
+  --grad-purple:linear-gradient(90deg,#8B5CF6 0%,#EC4899 100%); /* @kind color */ /* premium, focus, special features */
+
+  /* ── Semantic aliases ── */
+  --bg-app:var(--wk-black-950);
+  --bg-sidebar:#0D0D0F;
+  --bg-header:rgba(11,11,13,0.97);
+  --surface-card:var(--wk-black-800);
+  --surface-panel:var(--wk-black-800);
+  --surface-raised:rgba(58,58,58,0.35);
+  --surface-subtle:rgba(58,58,58,0.2);
+  --surface-active:var(--wk-black-600);
+  --surface-nav-active:linear-gradient(90deg,rgba(255,138,61,0.26) 0%,rgba(255,138,61,0.06) 100%); /* @kind color */
+  --border-nav-active:rgba(255,138,61,0.30);
+  --text-nav-active:#FFA94D;
+  --grad-cta:linear-gradient(90deg,#FF8A3D 0%,#FFB057 100%); /* @kind color */ /* pill CTAs, active tabs, chart line */
+  --tint-orange:rgba(255,138,61,0.12); --tint-orange-border:rgba(255,138,61,0.22);
+  --surface-panel-dash:linear-gradient(160deg,#131315 0%,#0D0D0F 100%); /* @kind color */
+  --surface-row:rgba(24,24,26,0.6);
+  --surface-overlay:rgba(0,0,0,0.75);
+  --surface-kbd:rgba(255,255,255,0.05);
+
+  --border-soft:rgba(58,58,58,0.45);
+  --border-default:var(--wk-black-600);
+  --border-strong:var(--wk-black-500);
+  --border-focus:var(--wk-black-400);
+  --border-active:var(--wk-black-500);
+  --border-modal:var(--wk-black-500);
+  --border-panel:rgba(255,247,230,0.07);
+  --border-row:rgba(58,58,58,0.5);
+  --border-hairline:rgba(255,255,255,0.08);
+  --border-accent:rgba(255,138,61,0.45);
+
+  --text-strong:var(--wk-ink-50);
+  --text-heading:var(--wk-ink-100);
+  --text-body:var(--wk-ink-300);
+  --text-secondary:var(--wk-ink-400);
+  --text-muted:var(--wk-ink-500);
+  --text-faint:var(--wk-ink-700);
+  --text-label:var(--wk-ink-600);
+  --text-nav:var(--wk-ink-450);
+  --text-accent:var(--wk-orange-300);
+  --text-accent-soft:var(--wk-ink-200);
+  --text-on-accent:var(--wk-black-950);
+
+  --accent:var(--wk-orange-500);
+  --accent-hover:var(--wk-orange-300);
+  --accent-press:var(--wk-orange-600);
+  --accent-2:var(--wk-cream-50);
+  --success:#34D399;
+  --warning:#FBBF24;
+  --danger:#F97316;
+  --info:#06B6D4;
+  --premium:#8B5CF6;
+
+  --success-bg:rgba(16,185,129,0.10); --success-border:rgba(52,211,153,0.30);
+  --warning-bg:rgba(251,191,36,0.10);  --warning-border:rgba(251,191,36,0.30);
+  --danger-bg:rgba(249,115,22,0.10);  --danger-border:rgba(249,115,22,0.30);
+  --accent-bg:rgba(255,138,61,0.08);   --accent-border:rgba(255,138,61,0.30);
+  --info-bg:rgba(6,182,212,0.10);    --info-border:rgba(6,182,212,0.30);
+
+  /* ── Gradients (rare; flat fills are the default) ── */
+  --grad-primary:var(--grad-accent); /* @kind color */
+  --grad-primary-flat:var(--wk-black-600); /* @kind color */
+  --grad-brand:var(--grad-brand-primary); /* @kind color */
+  --grad-brand-line:var(--grad-success); /* @kind color */
+  --grad-title:var(--grad-text); /* @kind color */
+  --grad-timer:linear-gradient(45deg,#FF8A3D 0%,#FFA94D 55%,#FFE59A 100%); /* @kind color */
+  --grad-warm-glow:radial-gradient(ellipse at 80% 0%,rgba(255,138,61,0.14) 0%,transparent 60%); /* @kind color */
+
+  /* ── Tile fills (neutral; formerly coloured gradients) ── */
+  --grad-tile-cyan:#1C1C1F; /* @kind color */ --grad-tile-mint:#1C1C1F; /* @kind color */ --grad-tile-indigo:#1C1C1F; /* @kind color */
+  --grad-create:linear-gradient(135deg,#1C1C1F,#161618); /* @kind color */
+
+  /* ── Subject palette (muted) ── */
+  --subject-1:#8FA3B8; --subject-2:#B59BC4; --subject-3:#8FB3A8; --subject-4:#7FBF8E;
+  --subject-5:#E6B455; --subject-6:#E07A6B; --subject-7:#C98A9A;
+
+  /* ── Trophy tiers ── */
+  --tier-bronze:#CD7F32; --tier-silver:#C0C0C0; --tier-gold:#FFD700; --tier-diamond:#B57BEE;
+}

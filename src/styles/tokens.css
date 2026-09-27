@@ -11,6 +11,9 @@
    style.css into globals.css + tokens.css + src/styles/pages/*.css
    is a real follow-up (would mean changing every page's <head>),
    not done in this structural-reorg pass.
+   Sep 2026 Wynko rebrand: the brand palette, gradients, elevation and
+   type tokens now live in src/styles/colors.css, effects.css and
+   typography.css (they win over the older values below).
    ============================================================ */
 
 :root{
@@ -62,8 +65,8 @@
   --low:#4ade80;
 
   /* ── TYPOGRAPHY ── */
-  --font:'Poppins',system-ui,sans-serif;
-  --mono:'DejaVu Sans Mono','Fira Code',monospace;
+  --font:'Sora',system-ui,sans-serif;
+  --mono:'Sora',system-ui,sans-serif; /* use with font-variant-numeric: tabular-nums */
 
   /* ── 8pt SPACING GRID ── */
   --sp-1:4px;   /* 0.5u */
