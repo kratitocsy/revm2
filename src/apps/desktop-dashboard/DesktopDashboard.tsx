@@ -1286,7 +1286,7 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
 
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <div className="text-[30px] font-bold text-white tabular-nums" style={{ fontFamily: 'Sora, sans-serif' }}>
-          {formatClock(elapsed, true)}
+          {formatClock(elapsed)}
         </div>
         <button onClick={() => setRunning(r => !r)}
           className="flex items-center justify-center gap-2 px-6 h-10 rounded-2xl text-wk-black-950 font-semibold text-[13px] transition-all hover:opacity-90 active:scale-[0.98]"
@@ -2357,7 +2357,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       const withinHour = activeTask.regularElapsed % 3600
       circleTotal = 3600
       circleRemaining = 3600 - withinHour
-      circleTimeStr = formatClock(activeTask.regularElapsed, true)
+      circleTimeStr = formatClock(activeTask.regularElapsed)
     }
   } else if (selectedMode === 'pomodoro') {
     circleRemaining = focusSecsOf(pomo)
@@ -6031,7 +6031,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
   const elapsed = selectedTask ? selectedTask.regularElapsed : 0
   const finished = !!selectedTask && isPomo && remaining <= 0
   const hasProgress = isPomo ? remaining < total : elapsed > 0
-  const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
+  const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed)
 
   const statusLabel = finished ? 'Completed' : running ? (onBreak ? 'Break' : isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (onBreak ? 'Break' : isPomo ? 'Focus' : 'Count up')
   const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#CFC8BB') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#CFC8BB')
@@ -6130,7 +6130,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                   const tBreak = t.mode === 'pomodoro' && pomoPhase(t) === 'break'
                   const tTime = t.mode === 'pomodoro'
                     ? (tDone ? 'Completed' : tBreak ? `Break ${formatClock(t.pomodoroRemaining)}` : `${formatClock(t.pomodoroRemaining)} left`)
-                    : formatClock(t.regularElapsed, true)
+                    : formatClock(t.regularElapsed)
                   return (
                     <button key={t.id} role="option" aria-selected={isSel}
                       onClick={() => { setPickerOpen(false); onSelectTask(t.id) }}
