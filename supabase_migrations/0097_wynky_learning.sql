@@ -136,7 +136,8 @@ as $$
       min(sp.channel_label) as channel_label,
       count(distinct sp.user_id) filter (where sp.exam_key = p_exam_key) as same_exam_users,
       count(distinct sp.user_id) filter (where sp.exam_key <> p_exam_key) as other_exam_users,
-      count(distinct sp.user_id) filter (where sp.exam_key = p_exam_key and sp.user_id in (select user_id from co_users)) as also_picked_users
+      count(distinct sp.user_id) filter (where sp.exam_key = p_exam_key and sp.user_id in (select user_id from co_users)
+        and not (sp.channel_id = any(coalesce(p_picked, '{}')))) as also_picked_users
     from subject_picks sp
     group by sp.channel_id
   )
