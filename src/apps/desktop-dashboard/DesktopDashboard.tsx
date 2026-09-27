@@ -232,10 +232,11 @@ function RetentionRing({ pct, size = 38 }: { pct: number; size?: number }) {
 
 // ─── Timer Circle SVG ─────────────────────────────────────────────────────────
 // Single shared design used by both the normal Focus Lock layout and the
-// fullscreen overlay. Deliberately minimal: a track, a glowing blue→cyan
-// progress arc with a small tip dot, and the countdown itself. Nothing
-// else lives inside the ring — no logo, no label, no subject name — so the
-// time reads clearly at a glance in either mode.
+// fullscreen overlay. Deliberately minimal: no passive outer ring/track -
+// just the filled circle, the glowing progress ribbon that grows as the
+// timer runs, and the countdown itself. Nothing else lives inside the
+// circle — no logo, no label, no subject name — so the time reads clearly
+// at a glance in either mode.
 function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
   remaining: number; total: number; timeStr: string; running: boolean; size?: number
 }) {
@@ -271,10 +272,6 @@ function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      {/* Outer ambient halo — restrained, not neon */}
-      <circle cx={CX} cy={CY} r={R + sw + 5} fill="none" stroke="rgba(207,200,187,0.06)" strokeWidth={sw * 1.6} />
-      {/* Track */}
-      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
       {/* Inner dark fill */}
       <circle cx={CX} cy={CY} r={R - sw / 2 - 1} fill={`url(#ig${gid})`} />
       {/* Progress arc */}
@@ -409,11 +406,11 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
               const isActive = active === item.id
               return (
                 <button key={item.id} onClick={() => setActive(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative`}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative border`}
                   style={{
-                    background: isActive ? 'rgba(28,28,31,0.85)' : 'transparent',
+                    background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'transparent',
+                    borderColor: isActive ? '#E9772E' : 'transparent',
                     color: isActive ? '#FFF7E6' : '#9C968C',
-                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(255,138,61,0.3)' : 'none',
                   }}
                   onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#F5EFE3' }}
                   onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9C968C' }}>
@@ -2289,6 +2286,19 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t))
   }
 
+  // Tapping a mode block picks the default for the *next* task added/started
+  // (setTimerMode), and - so the click always has a visible effect on the ring
+  // in front of the user, not just on some future task - also switches
+  // whatever task is currently shown in the ring to that mode right away.
+  function handleSelectMode(mode: TimerMode) {
+    setTimerMode(mode)
+    if (activeTask && activeTask.mode !== mode) {
+      setTasks(prev => prev.map(t => t.id !== activeTask.id ? t : (
+        mode === 'pomodoro' ? { ...t, mode, ...pomodoroFields(pomo) } : { ...t, mode, regularElapsed: 0 }
+      )))
+    }
+  }
+
   // The main Start button under the ring: no task selected yet -> resume/
   // start whatever's already active; nothing active but tasks exist ->
   // default to the first one in the list; no tasks at all -> there's
@@ -2456,10 +2466,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                       style={{ background: '#161618', borderColor: '#26262A', color: '#9C968C' }}>
                       <Ico n="cog" cls="w-4 h-4" />
                     </button>
-                    <ModeTab active={selectedMode === 'pomodoro'} onClick={() => setTimerMode('pomodoro')}
+                    <ModeTab active={selectedMode === 'pomodoro'} onClick={() => handleSelectMode('pomodoro')}
                       icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub={pomodoroSummaryLabel(pomo)} />
                   </div>
-                  <ModeTab active={selectedMode === 'regular'} onClick={() => setTimerMode('regular')}
+                  <ModeTab active={selectedMode === 'regular'} onClick={() => handleSelectMode('regular')}
                     icon={<TimerModeIcon mode="regular" />} title="Regular Timer" sub="Count Up • No Limit" />
                 </div>
 
