@@ -213,15 +213,23 @@ export async function ensurePresets(sb: SupaLike, userId: string, args: {
       ? { mode: 'allow', channels } : null;
     const { data: existing } = await sb.from('focus_lock_presets')
       .select('id').eq('user_id', userId).eq('name', presetName).maybeSingle();
+    // Apps picked here are what the student uses to study this subject
+    // (a PDF reader, the coaching app, etc.), same as the sites above —
+    // so, like sites, they're a whitelist: only these apps (plus the
+    // system/browser exceptions Focus Lock always allows) stay open.
+    // apps_mode is only meaningful when apps were actually picked; with
+    // none, 'whitelist' with an empty list would close everything, so
+    // fall back to 'blacklist' (a no-op with an empty apps array).
+    const appsMode = allow.apps.length ? 'whitelist' : 'blacklist';
     if (existing?.id) {
       await sb.from('focus_lock_presets').update({
-        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist', youtube_rules: youtubeRules,
+        mode: 'whitelist', sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
       }).eq('id', existing.id);
       presetIdBySubject[name] = existing.id;
     } else {
       const { data: created, error } = await sb.from('focus_lock_presets').insert({
         user_id: userId, name: presetName, mode: 'whitelist',
-        sites: allow.sites, apps: allow.apps, apps_mode: 'blacklist', youtube_rules: youtubeRules,
+        sites: allow.sites, apps: allow.apps, apps_mode: appsMode, youtube_rules: youtubeRules,
       }).select('id').single();
       if (error) throw new Error(error.message);
       presetIdBySubject[name] = created.id;
