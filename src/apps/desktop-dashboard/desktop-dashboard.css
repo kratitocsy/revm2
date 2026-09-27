@@ -5,11 +5,18 @@
    src/styles/tailwind.build.css, which main.tsx imports directly —
    same pattern as src/apps/mobile-home. */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
+@import '../../styles/colors.css';
+@import '../../styles/effects.css';
+@import '../../styles/typography.css';
 
 html, body, #root {
   height: 100%;
+}
+
+/* Timers and stats keep fixed-width digits now that Sora replaces the mono face. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 * {

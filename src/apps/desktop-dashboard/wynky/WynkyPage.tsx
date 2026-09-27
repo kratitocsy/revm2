@@ -265,23 +265,23 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
   }
 
   if (step === 'loading') {
-    return <div className="p-8 text-slate-400 text-sm">Wynky is looking at what it already knows about you…</div>
+    return <div className="p-8 text-wk-ink-400 text-sm">Wynky is looking at what it already knows about you…</div>
   }
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
       <div>
-        <button onClick={() => onNavigate('schedules')} className="text-xs text-slate-400 hover:text-slate-200 mb-2">← Back to Schedules</button>
+        <button onClick={() => onNavigate('schedules')} className="text-xs text-wk-ink-400 hover:text-wk-ink-200 mb-2">← Back to Schedules</button>
         <h1 className="text-2xl font-bold text-white">Wynky</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Tell Wynky your day once — it'll recommend a routine, and lock in the sites, apps and YouTube channels for each part of it.</p>
+        <p className="text-wk-ink-400 text-sm mt-0.5">Tell Wynky your day once — it'll recommend a routine, and lock in the sites, apps and YouTube channels for each part of it.</p>
       </div>
 
       {error && <div className="rounded-xl border border-red-500/40 bg-red-500/10 text-red-300 text-sm p-3">{error}</div>}
 
       {step === 'setup' && known && (
         <div className="space-y-5">
-          <div className="rounded-2xl border p-5" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
-            <div className="text-sm text-slate-400 mb-3">
+          <div className="rounded-2xl border p-5" style={{ background: '#161618', borderColor: '#26262A' }}>
+            <div className="text-sm text-wk-ink-400 mb-3">
               Wynky already knows {known.exam ? <>you're prepping for <b className="text-white">{known.exam}</b></> : 'a bit about you'}
               {known.subjects.length ? <> in <b className="text-white">{known.subjects.join(', ')}</b></> : null}
               {known.distractionTags.length ? <> — and that {known.distractionTags.join(', ')} eats into your day.</> : '.'}
@@ -291,46 +291,46 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <label className="text-xs text-slate-400">Wake time
+              <label className="text-xs text-wk-ink-400">Wake time
                 <input type="time" value={wakeTime} onChange={e => { setWakeTime(e.target.value); setEditedSinceGenerate(true) }}
-                  className="mt-1 w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                  className="mt-1 w-full bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
               </label>
-              <label className="text-xs text-slate-400">Sleep time
+              <label className="text-xs text-wk-ink-400">Sleep time
                 <input type="time" value={sleepTime} onChange={e => { setSleepTime(e.target.value); setEditedSinceGenerate(true) }}
-                  className="mt-1 w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                  className="mt-1 w-full bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
               </label>
             </div>
 
             <div className="mt-4">
-              <div className="text-xs text-slate-400 mb-1">Study time today: <b className="text-white">{(dailyMinutes / 60).toFixed(1)}h</b></div>
+              <div className="text-xs text-wk-ink-400 mb-1">Study time today: <b className="text-white">{(dailyMinutes / 60).toFixed(1)}h</b></div>
               <input type="range" min={30} max={600} step={15} value={dailyMinutes}
                 onChange={e => { setDailyMinutes(parseInt(e.target.value, 10)); setEditedSinceGenerate(true) }} className="w-full" />
             </div>
 
             <div className="mt-4 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-slate-400">Block length</span>
+              <span className="text-xs text-wk-ink-400">Block length</span>
               {BLOCK_LENGTHS.map(len => (
                 <button key={len} onClick={() => { setBlockLength(len); setEditedSinceGenerate(true) }}
-                  className={`px-3 py-1 rounded-full text-xs border ${blockLength === len ? 'bg-violet-600 border-violet-500 text-white' : 'border-[#1A2845] text-slate-400'}`}>
+                  className={`px-3 py-1 rounded-full text-xs border ${blockLength === len ? 'bg-wk-orange-600 border-wk-orange-500 text-wk-black-950' : 'border-[#26262A] text-wk-ink-400'}`}>
                   {len}m
                 </button>
               ))}
             </div>
 
             <div className="mt-4 flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-slate-400 mr-1">Repeats on</span>
+              <span className="text-xs text-wk-ink-400 mr-1">Repeats on</span>
               {DAY_LABELS.map((d, i) => (
                 <button key={i} onClick={() => toggleDay(i)}
-                  className={`w-9 h-9 rounded-lg text-xs border ${days.includes(i) ? 'bg-violet-600 border-violet-500 text-white' : 'border-[#1A2845] text-slate-400'}`}>
+                  className={`w-9 h-9 rounded-lg text-xs border ${days.includes(i) ? 'bg-wk-orange-600 border-wk-orange-500 text-wk-black-950' : 'border-[#26262A] text-wk-ink-400'}`}>
                   {d}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="rounded-2xl border p-5 space-y-4" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+          <div className="rounded-2xl border p-5 space-y-4" style={{ background: '#161618', borderColor: '#26262A' }}>
             <div className="text-sm font-semibold text-white">How do you study each subject?</div>
-            <div className="text-xs text-slate-500 -mt-2">Tap what you use, like picking from a support bot's quick replies, or type your own. Pick YouTube too and Wynky will suggest real channels for your exam and subject — ranked by what other students in the same exam keep. Nothing is guessed; every suggestion is a real channel looked up on YouTube.</div>
+            <div className="text-xs text-wk-ink-500 -mt-2">Tap what you use, like picking from a support bot's quick replies, or type your own. Pick YouTube too and Wynky will suggest real channels for your exam and subject — ranked by what other students in the same exam keep. Nothing is guessed; every suggestion is a real channel looked up on YouTube.</div>
             {Object.entries(subjectForms).map(([name, form]) => {
               const currentSites = form.sites.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
               return (
@@ -351,7 +351,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                             })
                             setEditedSinceGenerate(true)
                           }}
-                          className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${picked ? 'bg-violet-600 border-violet-500 text-white' : 'border-[#1A2845] text-slate-400 hover:text-slate-200'}`}>
+                          className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${picked ? 'bg-wk-orange-600 border-wk-orange-500 text-wk-black-950' : 'border-[#26262A] text-wk-ink-400 hover:text-wk-ink-200'}`}>
                           {opt.label}{picked ? ' ✓' : ''}
                         </button>
                       )
@@ -359,30 +359,30 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                   </div>
                   <input placeholder="or type your own sites, comma separated (e.g. khanacademy.org)" value={form.sites}
                     onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
-                    className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                    className="w-full bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
 
                   <div className="flex items-center gap-2 flex-wrap">
                     <input placeholder={isMobileApp() ? 'apps to allow/block, e.g. com.instagram.android' : 'apps to allow/block, e.g. steam.exe'} value={form.apps}
                       onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], apps: e.target.value } })); setEditedSinceGenerate(true) }}
-                      className="flex-1 min-w-[12rem] bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                      className="flex-1 min-w-[12rem] bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
                     {appPickerAvailable() && (
                       <button type="button" onClick={() => openAppsPicker(name)}
-                        className="px-3 py-2 rounded-lg text-xs border border-[#1A2845] text-slate-400 hover:text-slate-200">
+                        className="px-3 py-2 rounded-lg text-xs border border-[#26262A] text-wk-ink-400 hover:text-wk-ink-200">
                         {isMobileApp() ? 'Pick installed apps' : 'Pick from running apps'}
                       </button>
                     )}
                   </div>
                   {appsPickerOpenFor === name && (
-                    <div className="rounded-lg border p-2 max-h-48 overflow-y-auto" style={{ borderColor: '#1A2845' }}>
-                      {appsPickerBusy && <div className="text-xs text-slate-500">Loading…</div>}
+                    <div className="rounded-lg border p-2 max-h-48 overflow-y-auto" style={{ borderColor: '#26262A' }}>
+                      {appsPickerBusy && <div className="text-xs text-wk-ink-500">Loading…</div>}
                       {appsPickerError && <div className="text-xs text-red-400">{appsPickerError}</div>}
                       {!appsPickerBusy && !appsPickerError && (deviceApps || []).length === 0 && (
-                        <div className="text-xs text-slate-500">No apps found.</div>
+                        <div className="text-xs text-wk-ink-500">No apps found.</div>
                       )}
                       {!appsPickerBusy && (deviceApps || []).map(app => {
                         const picked = form.apps.split(',').map(s => s.trim()).includes(app.id)
                         return (
-                          <label key={app.id} className="flex items-center gap-2 text-xs text-slate-300 py-1 cursor-pointer">
+                          <label key={app.id} className="flex items-center gap-2 text-xs text-wk-ink-300 py-1 cursor-pointer">
                             <input type="checkbox" checked={picked} onChange={() => toggleAppForSubject(name, app)} />
                             {app.label}
                           </label>
@@ -393,7 +393,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
 
                   {currentSites.some(s => s === 'youtube.com' || s.endsWith('.youtube.com')) && (
                     <div className="mt-1">
-                      <div className="text-xs text-slate-500 mb-1">
+                      <div className="text-xs text-wk-ink-500 mb-1">
                         Suggested YouTube channels for {name}{loadingChannelsFor.has(name) ? ' — looking these up…' : ''}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -401,13 +401,13 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                           const picked = form.channels.some(c => c.id === ch.id)
                           return (
                             <button key={ch.id} type="button" onClick={() => toggleChannel(name, ch)}
-                              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${picked ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-[#1A2845] text-slate-400 hover:text-slate-200'}`}>
+                              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${picked ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-[#26262A] text-wk-ink-400 hover:text-wk-ink-200'}`}>
                               {ch.label}{ch.pickCount > 0 ? ` · ${ch.pickCount} students` : ''}{picked ? ' ✓' : ''}
                             </button>
                           )
                         })}
                         {!loadingChannelsFor.has(name) && !(channelSuggestions[name] || []).length && (
-                          <span className="text-xs text-slate-600">No suggestions found yet — search for a channel from the Focus Lock page's per-channel rules instead.</span>
+                          <span className="text-xs text-wk-ink-600">No suggestions found yet — search for a channel from the Focus Lock page's per-channel rules instead.</span>
                         )}
                       </div>
                     </div>
@@ -417,35 +417,35 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
             })}
           </div>
 
-          <div className="rounded-2xl border p-5 space-y-2" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+          <div className="rounded-2xl border p-5 space-y-2" style={{ background: '#161618', borderColor: '#26262A' }}>
             <div className="text-sm font-semibold text-white">Outside study blocks, Wynky will block</div>
             <div className="flex flex-wrap gap-1.5">
-              {freeSites.map(s => <span key={s} className="px-2 py-1 rounded-full text-xs bg-[#1A2845] text-slate-300">{s}</span>)}
-              {!freeSites.length && <span className="text-xs text-slate-500">Nothing from your quiz yet — add some below.</span>}
+              {freeSites.map(s => <span key={s} className="px-2 py-1 rounded-full text-xs bg-[#26262A] text-wk-ink-300">{s}</span>)}
+              {!freeSites.length && <span className="text-xs text-wk-ink-500">Nothing from your quiz yet — add some below.</span>}
             </div>
             <input placeholder="add more sites to keep off during free time, comma separated" value={extraFreeSites}
               onChange={e => setExtraFreeSites(e.target.value)}
-              className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm mt-2" />
+              className="w-full bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm mt-2" />
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={generatePreview} className="px-5 py-2.5 rounded-full font-semibold text-white text-sm bg-violet-600 hover:bg-violet-500">
+            <button onClick={generatePreview} className="px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm bg-wk-orange-600 hover:bg-wk-orange-500">
               Show my recommended day
             </button>
-            <button onClick={() => setShowCustom(s => !s)} className="text-sm text-violet-400 hover:text-violet-300">
+            <button onClick={() => setShowCustom(s => !s)} className="text-sm text-wk-orange-300 hover:text-wk-orange-300">
               None of this fits — ask Wynky directly
             </button>
           </div>
 
           {showCustom && (
-            <div className="rounded-2xl border p-4 space-y-2" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
-              <div className="text-xs text-slate-500">Wynky hands this straight to AI (Gemini Flash) instead of guessing.</div>
+            <div className="rounded-2xl border p-4 space-y-2" style={{ background: '#161618', borderColor: '#26262A' }}>
+              <div className="text-xs text-wk-ink-500">Wynky hands this straight to AI (Gemini Flash) instead of guessing.</div>
               <textarea value={customText} onChange={e => setCustomText(e.target.value)} rows={3}
                 placeholder="e.g. I have coaching 4-7pm on weekdays, keep mornings light, exam is in 3 months"
-                className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                className="w-full bg-[#161618] border border-[#26262A] rounded-lg px-3 py-2 text-white text-sm" />
               {customError && <div className="text-xs text-red-400">{customError}</div>}
               <button onClick={handleCustomAsk} disabled={customBusy || !customText.trim()}
-                className="px-4 py-2 rounded-full text-sm font-semibold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50">
+                className="px-4 py-2 rounded-full text-sm font-semibold text-wk-black-950 bg-wk-orange-600 hover:bg-wk-orange-500 disabled:opacity-50">
                 {customBusy ? 'Asking Wynky…' : 'Generate with AI'}
               </button>
             </div>
@@ -455,15 +455,15 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
 
       {step === 'preview' && result && (
         <div className="space-y-4">
-          <div className="rounded-2xl border p-5" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+          <div className="rounded-2xl border p-5" style={{ background: '#161618', borderColor: '#26262A' }}>
             <div className="text-sm font-semibold text-white mb-1">Here's your day — confirm to make it live</div>
-            <div className="text-xs text-slate-500 mb-3">
+            <div className="text-xs text-wk-ink-500 mb-3">
               {(result.scheduledStudyMinutes / 60).toFixed(1)}h of study across {result.blocks.filter(b => b.kind === 'study').length} blocks
               {result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : ''}.
             </div>
             <div className="space-y-1.5">
               {result.blocks.map((b, i) => (
-                <div key={i} className={`flex items-center justify-between text-sm px-3 py-2 rounded-lg ${b.kind === 'sleep' ? 'bg-[#141B40] text-slate-500' : b.kind === 'break' ? 'bg-transparent text-slate-600 text-xs' : 'bg-[#141B40] text-white'}`}>
+                <div key={i} className={`flex items-center justify-between text-sm px-3 py-2 rounded-lg ${b.kind === 'sleep' ? 'bg-[#1C1C1F] text-wk-ink-500' : b.kind === 'break' ? 'bg-transparent text-wk-ink-600 text-xs' : 'bg-[#1C1C1F] text-white'}`}>
                   <span>{b.kind === 'sleep' ? '😴 Sleep' : b.kind === 'break' ? '· break ·' : b.subjectName}</span>
                   <span className="font-mono text-xs">{b.startTime}–{b.endTime}</span>
                 </div>
@@ -474,7 +474,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
             <button onClick={handleConfirm} disabled={saving} className="px-5 py-2.5 rounded-full font-semibold text-white text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50">
               {saving ? 'Saving…' : 'Confirm this plan'}
             </button>
-            <button onClick={() => setStep('setup')} className="px-5 py-2.5 rounded-full text-sm text-slate-400 border border-[#1A2845]">
+            <button onClick={() => setStep('setup')} className="px-5 py-2.5 rounded-full text-sm text-wk-ink-400 border border-[#26262A]">
               Adjust
             </button>
           </div>
@@ -483,11 +483,11 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
 
       {step === 'custom_preview' && aiSchedule && (
         <div className="space-y-4">
-          <div className="rounded-2xl border p-5" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+          <div className="rounded-2xl border p-5" style={{ background: '#161618', borderColor: '#26262A' }}>
             <div className="text-sm font-semibold text-white mb-1">{aiSchedule.name || 'Custom plan'} — confirm to make it live</div>
             <div className="space-y-1.5 mt-3">
               {(aiSchedule.slots || []).map((s, i) => (
-                <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-[#141B40] text-white">
+                <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-[#1C1C1F] text-white">
                   <span>{s.is_sleep ? '😴 Sleep' : (s.subject || s.preset_name)}</span>
                   <span className="font-mono text-xs">{s.start_time}–{s.end_time}</span>
                 </div>
@@ -498,7 +498,7 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
             <button onClick={handleConfirmCustom} disabled={saving} className="px-5 py-2.5 rounded-full font-semibold text-white text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50">
               {saving ? 'Saving…' : 'Confirm this plan'}
             </button>
-            <button onClick={() => setStep('setup')} className="px-5 py-2.5 rounded-full text-sm text-slate-400 border border-[#1A2845]">
+            <button onClick={() => setStep('setup')} className="px-5 py-2.5 rounded-full text-sm text-wk-ink-400 border border-[#26262A]">
               Back
             </button>
           </div>
@@ -506,10 +506,10 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
       )}
 
       {step === 'saved' && (
-        <div className="rounded-2xl border p-6 text-center space-y-3" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+        <div className="rounded-2xl border p-6 text-center space-y-3" style={{ background: '#161618', borderColor: '#26262A' }}>
           <div className="text-lg font-semibold text-white">Your plan is live</div>
-          <div className="text-sm text-slate-400">Focus Lock will follow it automatically from your next scheduled block. Ask Wynky again anytime — it'll remember your answers and need less setup.</div>
-          <button onClick={() => onNavigate('focus')} className="px-5 py-2.5 rounded-full font-semibold text-white text-sm bg-violet-600 hover:bg-violet-500">
+          <div className="text-sm text-wk-ink-400">Focus Lock will follow it automatically from your next scheduled block. Ask Wynky again anytime — it'll remember your answers and need less setup.</div>
+          <button onClick={() => onNavigate('focus')} className="px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm bg-wk-orange-600 hover:bg-wk-orange-500">
             Go to Focus Lock
           </button>
         </div>
