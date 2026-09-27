@@ -16,36 +16,21 @@ export const line = (id: string, en: string, hi: string, hiSay?: string): Line =
   hi: { text: hi, say: hiSay ?? hi },
 });
 
-// [start, end] seconds into wynky-dance.mp4 for each looping expression.
-const WYNKY_CLIPS: Record<Expression, [number, number]> = {
-  idle: [1.5, 3.0],
-  wink: [0.2, 1.3],
-  talk: [3.0, 4.6],
-  curious: [6.2, 7.4],
-  happy: [8.1, 8.9],
-  wave: [8.9, 10.0],
-};
-
 export type StageSize = 'large' | 'small';
 
+// wynky-dance.mp4 is now one continuous idle/talk loop (not six separate
+// expression clips cut into one file, like the old video was) - so there's
+// nothing left to seek between. `expression`/`speaking` still pick the
+// label under the circle (large size only); the video itself just runs.
 export function WynkyStage({ src, expression, speaking, size = 'large' }: { src: string; expression: Expression; speaking: boolean; size?: StageSize }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
-  const [start, end] = WYNKY_CLIPS[speaking ? 'talk' : expression];
 
   useEffect(() => {
     const v = ref.current;
     if (!v || !ready) return;
-    v.currentTime = start;
     v.play().catch(() => {});
-    let raf = 0;
-    const loop = () => {
-      if (v.currentTime >= end - 0.05 || v.currentTime < start - 0.3) v.currentTime = start;
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [start, end, ready]);
+  }, [ready]);
 
   const label = speaking ? 'TALKING' : expression.toUpperCase();
   const small = size === 'small';
@@ -76,12 +61,13 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
           ref={ref}
           src={src}
           muted
+          loop
           playsInline
           autoPlay
           preload="auto"
           aria-hidden="true"
           onLoadedMetadata={() => setReady(true)}
-          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', height: '100%', maxWidth: 'none', transform: 'translate(-50%,-50%)' }}
         />
       </div>
       {!small && (
@@ -107,12 +93,10 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
  * recording as /audio/wynky/hi/intro.mp3, which starts 1.05s into the
  * clip), wynky-hello-en.mp4 in English. So a clip doesn't autoplay or loop
  * on its own: it holds a still until playHero() plays it, and stops at its
- * `end` (before the Hindi clip's closing fade to black).
+ * `end` (see HELLO_CLIP_HI/EN above for where each one actually finishes
+ * talking).
  * Same circular framing/glow/crop transform as WynkyStage's large size, so
- * the two read as the same character. That crop also happens to push the
- * Hindi clip's bottom-right generator watermark entirely outside the
- * visible circle — checked frame-by-frame against the actual clip, not
- * assumed.
+ * the two read as the same character.
  */
 export interface HelloClip {
   /** Seconds into the clip where playback starts (and the still is held). */
@@ -121,13 +105,15 @@ export interface HelloClip {
   end: number;
 }
 
-// wynky-hello.mp4 (Hindi): `start` is already mid-wave (her voice comes in
-// ~0.35s later); by `end` she has finished talking and the clip is about to
-// fade to black (~9.55s), so it's held there.
-export const HELLO_CLIP_HI: HelloClip = { start: 0.7, end: 9.5 };
-// wynky-hello-en.mp4 (English): no fade, and its music starts at 0s, so it
-// plays from the top and runs to just before its last frame (10.0s).
-export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
+// wynky-hello.mp4 (Hindi, black background): she's already waving from the
+// first frame and her voice starts almost immediately (~0.3s in, measured
+// via silencedetect), so `start` is 0; she finishes talking at ~9.55s
+// (a wink, no fade this time), so it's held there.
+export const HELLO_CLIP_HI: HelloClip = { start: 0, end: 9.55 };
+// wynky-hello-en.mp4 (English, white background): talks continuously from
+// 0s and finishes at ~9.8s on a closed-eyes smile/wave (measured the same
+// way), so it's held there instead of running into the trailing silence.
+export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.8 };
 
 /**
  * `clips` are stacked in one circle, one per language; only the one with
@@ -191,7 +177,7 @@ function IdleLoopVideo({ src, muted }: { src: string; muted: boolean }) {
       playsInline
       preload="auto"
       aria-hidden="true"
-      style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
+      style={{ position: 'absolute', left: '50%', top: '50%', height: '100%', maxWidth: 'none', transform: 'translate(-50%,-50%)' }}
     />
   );
 }
@@ -227,7 +213,7 @@ export function WynkyHero({ clips, idle }: {
             aria-hidden="true"
             onLoadedMetadata={(e) => { if (e.currentTarget.paused) e.currentTarget.currentTime = clip.start; }}
             style={{
-              position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)',
+              position: 'absolute', left: '50%', top: '50%', height: '100%', maxWidth: 'none', transform: 'translate(-50%,-50%)',
               visibility: show && !idle ? 'visible' : 'hidden',
             }}
           />
