@@ -634,10 +634,12 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   const viewW = W + padLeft
   const hourTicks = buildHourTicks(maxMinutes, padTop, H - padTop - padBottom)
 
-  const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
-    { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied' },
-    { icon: 'progress', value: formatStudyDuration(avgMinutes), label: 'Daily Average' },
-    { icon: 'fire', value: `${streakDays} day${streakDays === 1 ? '' : 's'}`, label: 'Current Streak' },
+  // Each stat gets its own accent instead of the old flat gray-on-gray badge,
+  // so the three read as distinct at a glance instead of blending together.
+  const stats: { icon: keyof typeof IP; value: string; label: string; color: string }[] = [
+    { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied', color: '#38BDF8' },
+    { icon: 'progress', value: formatStudyDuration(avgMinutes), label: 'Daily Average', color: '#A78BFA' },
+    { icon: 'fire', value: `${streakDays} day${streakDays === 1 ? '' : 's'}`, label: 'Current Streak', color: '#FB923C' },
   ]
 
   return (
@@ -653,8 +655,8 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
       <div className="relative flex items-start justify-between mb-5 flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(207,200,187,0.20))', border: '1px solid rgba(156,150,140,0.45)', boxShadow: 'none' }}>
-            <Ico n="progress" cls="w-4 h-4 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.28), rgba(139,92,246,0.16))', border: '1px solid rgba(167,139,250,0.5)', boxShadow: '0 0 16px rgba(167,139,250,0.25)' }}>
+            <Ico n="progress" cls="w-4 h-4 text-[#C4B5FD]" />
           </div>
           <div>
             <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Your Study Progress</div>
@@ -666,8 +668,8 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
           {stats.map(s => (
             <div key={s.label} className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(156,150,140,0.14)', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
-                <Ico n={s.icon} cls="w-3.5 h-3.5 text-wk-ink-200" />
+                style={{ background: `linear-gradient(135deg, ${s.color}38, ${s.color}18)`, border: `1px solid ${s.color}70`, boxShadow: `0 0 14px ${s.color}30` }}>
+                <Ico n={s.icon} cls="w-3.5 h-3.5" style={{ color: s.color }} />
               </div>
               <div>
                 <div className="text-sm font-bold text-wk-ink-100 leading-tight">{s.value}</div>
@@ -1006,8 +1008,8 @@ function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
-            <Ico n="clock" cls="w-4 h-4 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.35), rgba(255,176,87,0.18))', border: '1px solid rgba(255,138,61,0.55)', boxShadow: '0 0 16px rgba(255,138,61,0.28)' }}>
+            <Ico n="clock" cls="w-4 h-4 text-[#FFB057]" />
           </div>
           <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Today's Study Plan</div>
         </div>
@@ -1276,8 +1278,8 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
         className="flex items-center justify-between mb-4 w-full text-left group">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(156,150,140,0.18)', border: '1px solid rgba(156,150,140,0.35)' }}>
-            <Ico n="clock" cls="w-3.5 h-3.5 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(45,212,191,0.30), rgba(20,184,166,0.16))', border: '1px solid rgba(45,212,191,0.5)', boxShadow: '0 0 14px rgba(45,212,191,0.25)' }}>
+            <Ico n="clock" cls="w-3.5 h-3.5 text-[#2DD4BF]" />
           </div>
           <div className="text-sm font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Quick Timer</div>
         </div>
@@ -1327,8 +1329,8 @@ function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
-            <Ico n="rooms" cls="w-4 h-4 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(52,211,153,0.30), rgba(16,185,129,0.16))', border: '1px solid rgba(52,211,153,0.5)', boxShadow: '0 0 16px rgba(52,211,153,0.28)' }}>
+            <Ico n="rooms" cls="w-4 h-4 text-[#34D399]" />
           </div>
           <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Live Study Rooms</div>
         </div>
