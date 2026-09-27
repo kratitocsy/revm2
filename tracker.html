@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#8b5cf6">
+<meta name="theme-color" content="#0B0B0D">
 <link rel="stylesheet" href="src/styles/pages/tracker.css">
 </head>
 <body>
@@ -304,7 +304,7 @@
         .et-curve-chart {
           position: relative;
           min-height: 180px;
-          background: rgba(139, 92, 246, 0.03);
+          background: rgba(255,138,61, 0.03);
           border-radius: 8px;
           border: 1px dashed var(--border2);
           display: flex;
@@ -516,9 +516,9 @@
             <span style="font-size:0.62rem;color:var(--muted)">Less</span>
             <div style="display:flex;gap:3px;">
               <div style="width:13px;height:13px;background:var(--s2);border-radius:2px;"></div>
-              <div style="width:13px;height:13px;background:rgba(139,92,246,0.25);border-radius:2px;"></div>
-              <div style="width:13px;height:13px;background:rgba(139,92,246,0.5);border-radius:2px;"></div>
-              <div style="width:13px;height:13px;background:rgba(139,92,246,0.75);border-radius:2px;"></div>
+              <div style="width:13px;height:13px;background:rgba(255,138,61,0.25);border-radius:2px;"></div>
+              <div style="width:13px;height:13px;background:rgba(255,138,61,0.5);border-radius:2px;"></div>
+              <div style="width:13px;height:13px;background:rgba(255,138,61,0.75);border-radius:2px;"></div>
               <div style="width:13px;height:13px;background:var(--gold);border-radius:2px;"></div>
             </div>
             <span style="font-size:0.62rem;color:var(--muted)">More</span>
@@ -1792,7 +1792,7 @@ function chartBaseOptions(yLabel,opts={}){
     responsive:true, maintainAspectRatio:false,
     plugins:{
       legend:{display:!!opts.showLegend, position:'bottom', labels:{color:'#999', font:{size:10}, boxWidth:10}},
-      tooltip:{backgroundColor:'#111920', borderColor:'rgba(139,92,246,0.3)', borderWidth:1, titleColor:'#fff', bodyColor:'#d4d4d4', padding:8}
+      tooltip:{backgroundColor:'#111113', borderColor:'rgba(255,138,61,0.3)', borderWidth:1, titleColor:'#fff', bodyColor:'#d4d4d4', padding:8}
     },
     scales:{
       x:{ticks:{color:'#666', font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}},
@@ -1800,7 +1800,7 @@ function chartBaseOptions(yLabel,opts={}){
     }
   };
 }
-const CHART_PALETTE=['#c8a96e','#38bdf8','#4ade80','#f87171','#fbbf24','#a78bfa','#f472b6','#34d399'];
+const CHART_PALETTE=['#c8a96e','#CFC8BB','#4ade80','#f87171','#fbbf24','#FFA94D','#f472b6','#34d399'];
 
 function renderHoursChart(){
   const {startDate,endDate,bucketType}=getRangeConfig(analyticsRange);
@@ -1817,7 +1817,7 @@ function renderHoursChart(){
   if(chartInstances.hours) chartInstances.hours.destroy();
   chartInstances.hours=new Chart(document.getElementById('hoursChart'),{
     type:'line',
-    data:{labels, datasets:[{label:'Minutes studied', data, borderColor:'#c8a96e', backgroundColor:'rgba(139,92,246,0.15)', fill:true, tension:0.3, pointRadius:2, pointBackgroundColor:'#c8a96e'}]},
+    data:{labels, datasets:[{label:'Minutes studied', data, borderColor:'#c8a96e', backgroundColor:'rgba(255,138,61,0.15)', fill:true, tension:0.3, pointRadius:2, pointBackgroundColor:'#c8a96e'}]},
     options:chartBaseOptions('Minutes')
   });
 }
@@ -1837,7 +1837,7 @@ function renderSubjectDoughnut(){
   const data=entries.map(e=>+(e[1]/60).toFixed(1));
   chartInstances.subjectDoughnut=new Chart(document.getElementById('subjectDoughnut'),{
     type:'doughnut',
-    data:{labels, datasets:[{data, backgroundColor:labels.map((_,i)=>CHART_PALETTE[i%CHART_PALETTE.length]), borderColor:'#0d1117', borderWidth:2}]},
+    data:{labels, datasets:[{data, backgroundColor:labels.map((_,i)=>CHART_PALETTE[i%CHART_PALETTE.length]), borderColor:'#0F0F11', borderWidth:2}]},
     options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#999', font:{size:10}, boxWidth:10}}, tooltip:chartBaseOptions().plugins.tooltip}}
   });
 }
@@ -1903,7 +1903,7 @@ async function renderBlocksOverTimeChart(sessions){
   if(chartInstances.blocksOverTime) chartInstances.blocksOverTime.destroy();
   chartInstances.blocksOverTime=new Chart(document.getElementById('blocksOverTimeChart'),{
     type:'bar',
-    data:{labels, datasets:[{label:'Blocks started', data, backgroundColor:'rgba(139,92,246,0.65)'}]},
+    data:{labels, datasets:[{label:'Blocks started', data, backgroundColor:'rgba(255,138,61,0.65)'}]},
     options:chartBaseOptions('Sessions')
   });
 }
@@ -1927,7 +1927,7 @@ function renderBlockNameChart(sessions){
   const data=entries.map(e=>+(e[1]/60).toFixed(1));
   chartInstances.blockName=new Chart(document.getElementById('blockNameChart'),{
     type:'bar',
-    data:{labels, datasets:[{label:'Minutes', data, backgroundColor:'rgba(56,189,248,0.65)'}]},
+    data:{labels, datasets:[{label:'Minutes', data, backgroundColor:'rgba(207,200,187,0.65)'}]},
     options:{...chartBaseOptions('Minutes'), indexAxis:'y'}
   });
 }
@@ -1947,13 +1947,13 @@ function renderSessionOutcomeChart(sessions){
     else if(s.verified) completed++;
     else other++;
   });
-  const all=[['Completed',completed,'#4ade80'],['Code unlock',codeUnlock,'#fbbf24'],['Emergency unlock',emergencyUnlock,'#f87171'],['Still active',stillActive,'#38bdf8'],['Other',other,'#666']];
+  const all=[['Completed',completed,'#4ade80'],['Code unlock',codeUnlock,'#fbbf24'],['Emergency unlock',emergencyUnlock,'#f87171'],['Still active',stillActive,'#CFC8BB'],['Other',other,'#666']];
   const filtered=all.filter(x=>x[1]>0);
   if(chartInstances.outcome) chartInstances.outcome.destroy();
   if(!filtered.length) return;
   chartInstances.outcome=new Chart(document.getElementById('sessionOutcomeChart'),{
     type:'doughnut',
-    data:{labels:filtered.map(x=>x[0]), datasets:[{data:filtered.map(x=>x[1]), backgroundColor:filtered.map(x=>x[2]), borderColor:'#0d1117', borderWidth:2}]},
+    data:{labels:filtered.map(x=>x[0]), datasets:[{data:filtered.map(x=>x[1]), backgroundColor:filtered.map(x=>x[2]), borderColor:'#0F0F11', borderWidth:2}]},
     options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#999', font:{size:10}, boxWidth:10}}}}
   });
 }

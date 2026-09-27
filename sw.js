@@ -1,6 +1,8 @@
 /* RevM² Service Worker — Offline Support */
-const CACHE = 'revm2-v10'; // bumped: was v9 - responsive fixes in style.css
-// and page CSS should reach returning users on their first load.
+const CACHE = 'revm2-v11'; // bumped: was v10 - Wynko rebrand. Clears the old
+// purple style.css/shared.js that returning users kept seeing on first open.
+// v10 note: responsive fixes in style.css and page CSS should reach
+// returning users on their first load.
 // v9 note: was v8. Pages are now served at clean
 // URLs (vercel.json cleanUrls: /tracker, not /tracker.html - the .html
 // forms redirect), so SHELL caches the clean URLs; caching the .html forms
@@ -8,6 +10,7 @@ const CACHE = 'revm2-v10'; // bumped: was v9 - responsive fixes in style.css
 // Also drops '/index.html', which doesn't exist and made addAll() fail.
 const SHELL = [
   '/',
+  '/home',
   '/login',
   '/tracker',
   '/groups',
@@ -46,9 +49,6 @@ self.addEventListener('fetch', e => {
   // until someone thought to manually bump CACHE above. Network-first
   // fixes that permanently: you always get the live page when online, and
   // only fall back to whatever's cached if you're genuinely offline.
-  // Static assets (css/js/fonts/manifest) below keep cache-first, since
-  // those change far less often and benefit from the speed without this
-  // staleness risk.
   const isNavigation = e.request.mode === 'navigate' ||
     (e.request.headers.get('accept') || '').includes('text/html');
 
@@ -70,19 +70,22 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // Static assets (css/js/images) are network-first too, falling back to the
+  // cache only when offline. They used to be cache-first, which meant every
+  // restyle (e.g. the Wynko rebrand) showed the old look on first open and
+  // only appeared after a hard refresh.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetch(e.request).then(res => {
-        if (res && res.status === 200 && res.type === 'basic') {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => cached || new Response(
+    fetch(e.request).then(res => {
+      if (res && res.status === 200 && res.type === 'basic') {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return res;
+    }).catch(() =>
+      caches.match(e.request).then(cached => cached || new Response(
         '<h1>Offline</h1><p>This page isn\'t cached yet — reconnect and try again.</p>',
         { status: 503, headers: { 'Content-Type': 'text/html' } }
-      ));
-      return cached || network;
-    })
+      ))
+    )
   );
 });
