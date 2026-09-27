@@ -13,7 +13,7 @@ const extensions = ['.html', '.js', '.css', '.json', '.jpg', '.png'];
 // Directories (relative to rootDir) that should never be walked into —
 // build output, other platform wrappers, and non-web-app folders.
 const skipDirs = new Set([
-  'mobile', 'desktop', 'node_modules', '.git',
+  'mobile', 'native-app', 'desktop', 'node_modules', '.git',
   'supabase', 'supabase_migrations', 'docs',
 ]);
 
