@@ -58,7 +58,7 @@
     // equals the slash-free id blocks.html stores for the allow/block list -
     // the metadata is right there, it just never matches on comparison.
     v = v.replace(/^\//, "");
-    v = v.replace(/^@/, "@"); // keep the @ for handles, just normalize case above
+    // Handles keep their leading "@" - only the case was normalized above.
     v = v.replace(/\/$/, "");
     v = v.split(/[?#]/)[0];
     // Collapse known path prefixes down to the bare identifier.
