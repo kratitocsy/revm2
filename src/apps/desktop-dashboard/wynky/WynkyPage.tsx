@@ -6,7 +6,8 @@ import {
   recommend, confirmPlan, confirmAiPlan, rememberAnswers, recordOutcome, ensurePresets,
   STUDY_MODE_OPTIONS, examFamilyKey, subjectKey, seedQueriesFor, resolveChannelSeed,
   fetchPopularChannels, setChannelPick, channelPickId,
-  type WynkyKnownProfile, type WynkyRemembered, type AiSlot, type ChannelPick,
+  appPickerAvailable, isMobileApp, listPickableApps,
+  type WynkyKnownProfile, type WynkyRemembered, type AiSlot, type ChannelPick, type PickableApp,
 } from './wynkyPlanner'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
@@ -47,6 +48,10 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
   const [editedSinceGenerate, setEditedSinceGenerate] = useState(false)
   const [channelSuggestions, setChannelSuggestions] = useState<Record<string, ChannelSuggestion[]>>({})
   const [loadingChannelsFor, setLoadingChannelsFor] = useState<Set<string>>(new Set())
+  const [deviceApps, setDeviceApps] = useState<PickableApp[] | null>(null)
+  const [appsPickerOpenFor, setAppsPickerOpenFor] = useState<string | null>(null)
+  const [appsPickerBusy, setAppsPickerBusy] = useState(false)
+  const [appsPickerError, setAppsPickerError] = useState<string | null>(null)
 
   // Preview
   const [result, setResult] = useState<GeneratorResult | null>(null)
@@ -130,6 +135,32 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
         channelId: ch.id, channelLabel: ch.label, picked: !has,
       }).catch(() => {})
       return { ...prev, [subject]: { ...prev[subject], channels: next } }
+    })
+    setEditedSinceGenerate(true)
+  }
+
+  // Same real running-apps/installed-apps picker blocks.html's preset
+  // editor uses, loaded once and reused across every subject's panel —
+  // never a curated/guessed app name, only what's actually on the device.
+  async function openAppsPicker(subject: string) {
+    setAppsPickerOpenFor(prev => prev === subject ? null : subject)
+    if (deviceApps || appsPickerBusy) return
+    setAppsPickerBusy(true); setAppsPickerError(null)
+    try {
+      setDeviceApps(await listPickableApps())
+    } catch {
+      setAppsPickerError(isMobileApp() ? 'Could not list installed apps.' : 'Could not list running apps.')
+    } finally {
+      setAppsPickerBusy(false)
+    }
+  }
+
+  function toggleAppForSubject(subject: string, app: PickableApp) {
+    setSubjectForms(prev => {
+      const cur = prev[subject].apps.split(',').map(s => s.trim()).filter(Boolean)
+      const has = cur.includes(app.id)
+      const next = has ? cur.filter(a => a !== app.id) : [...cur, app.id]
+      return { ...prev, [subject]: { ...prev[subject], apps: next.join(', ') } }
     })
     setEditedSinceGenerate(true)
   }
@@ -328,6 +359,36 @@ export default function WynkyPage({ onNavigate }: { onNavigate: (id: string) => 
                   <input placeholder="or type your own sites, comma separated (e.g. khanacademy.org)" value={form.sites}
                     onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], sites: e.target.value } })); setEditedSinceGenerate(true) }}
                     className="w-full bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input placeholder={isMobileApp() ? 'apps to allow/block, e.g. com.instagram.android' : 'apps to allow/block, e.g. steam.exe'} value={form.apps}
+                      onChange={e => { setSubjectForms(prev => ({ ...prev, [name]: { ...prev[name], apps: e.target.value } })); setEditedSinceGenerate(true) }}
+                      className="flex-1 min-w-[12rem] bg-[#0B1530] border border-[#1A2845] rounded-lg px-3 py-2 text-white text-sm" />
+                    {appPickerAvailable() && (
+                      <button type="button" onClick={() => openAppsPicker(name)}
+                        className="px-3 py-2 rounded-lg text-xs border border-[#1A2845] text-slate-400 hover:text-slate-200">
+                        {isMobileApp() ? 'Pick installed apps' : 'Pick from running apps'}
+                      </button>
+                    )}
+                  </div>
+                  {appsPickerOpenFor === name && (
+                    <div className="rounded-lg border p-2 max-h-48 overflow-y-auto" style={{ borderColor: '#1A2845' }}>
+                      {appsPickerBusy && <div className="text-xs text-slate-500">Loading…</div>}
+                      {appsPickerError && <div className="text-xs text-red-400">{appsPickerError}</div>}
+                      {!appsPickerBusy && !appsPickerError && (deviceApps || []).length === 0 && (
+                        <div className="text-xs text-slate-500">No apps found.</div>
+                      )}
+                      {!appsPickerBusy && (deviceApps || []).map(app => {
+                        const picked = form.apps.split(',').map(s => s.trim()).includes(app.id)
+                        return (
+                          <label key={app.id} className="flex items-center gap-2 text-xs text-slate-300 py-1 cursor-pointer">
+                            <input type="checkbox" checked={picked} onChange={() => toggleAppForSubject(name, app)} />
+                            {app.label}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
 
                   {currentSites.some(s => s === 'youtube.com' || s.endsWith('.youtube.com')) && (
                     <div className="mt-1">

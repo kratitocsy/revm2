@@ -519,3 +519,47 @@ export async function setChannelPick(sb: SupaLike, args: {
     p_channel_id: args.channelId, p_channel_label: args.channelLabel, p_picked: args.picked,
   });
 }
+
+/* --- App picker: same native app enumeration blocks.html already uses ---
+   Wynky never invents an app name for its allow/block lists either — it
+   reuses the exact same real-app sources the existing Focus Lock preset
+   editor (blocks.html) reads from, so a picked app is guaranteed to
+   actually be running (desktop) or installed (mobile), never guessed:
+     - desktop (Tauri): window.__TAURI__.core.invoke('list_running_apps')
+       -> real process names, e.g. "steam.exe"
+     - mobile (Capacitor RevM2Locking plugin): listInstalledApps()
+       -> real Android package names read from PackageManager
+   A plain browser tab has neither bridge, so the picker is simply
+   unavailable there and the free-text input remains the only way in,
+   exactly like blocks.html's own fallback. */
+export function isDesktopApp(): boolean {
+  return typeof (window as any).__TAURI__ !== 'undefined' && !!(window as any).__TAURI__.core;
+}
+export function isMobileApp(): boolean {
+  const w = window as any;
+  return !!(w.RM2Native && w.RM2Native.isNative && w.RM2Native.isNative());
+}
+export function appPickerAvailable(): boolean {
+  return isDesktopApp() || isMobileApp();
+}
+
+export interface PickableApp { id: string; label: string }
+
+/** Lists real apps from whichever native bridge is present — running
+ *  processes on desktop, installed launcher apps on mobile — or an empty
+ *  list in a plain browser tab. Never returns a curated/guessed name. */
+export async function listPickableApps(): Promise<PickableApp[]> {
+  if (isMobileApp()) {
+    const plugin = (window as any).Capacitor?.Plugins?.RevM2Locking;
+    if (!plugin) return [];
+    const { apps } = await plugin.listInstalledApps();
+    return (apps || [])
+      .map((a: { packageName: string; label?: string }) => ({ id: a.packageName, label: a.label || a.packageName }))
+      .sort((a: PickableApp, b: PickableApp) => a.label.localeCompare(b.label));
+  }
+  if (isDesktopApp()) {
+    const apps = await (window as any).__TAURI__.core.invoke('list_running_apps');
+    return (apps || []).map((a: { name: string }) => ({ id: a.name, label: a.name }));
+  }
+  return [];
+}
