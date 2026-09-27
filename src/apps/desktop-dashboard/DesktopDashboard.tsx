@@ -115,6 +115,11 @@ const IP: Record<string, string[]> = {
   send: ['M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5'],
   copy: ['M8 7h8a2 2 0 012 2v10a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2z', 'M16 7V5a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2h2'],
   trash: ['M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0l-.8 12a2 2 0 01-2 2H9.8a2 2 0 01-2-2L7 7M10 11v6M14 11v6'],
+  user: ['M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'],
+  shield: ['M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.75h-.152c-3.196 0-6.1-1.248-8.25-3.286z'],
+  info: ['M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z'],
+  logout: ['M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75'],
+  doc: ['M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z'],
 }
 
 function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; style?: React.CSSProperties }) {
@@ -8632,13 +8637,17 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     if (blocked) { notify(blocked, false); setBusy(null) }
   }
 
-  const TABS: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'account', label: 'Account', icon: '🔐' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'privacy', label: 'Privacy', icon: '🛡️' },
-    { id: 'study', label: 'Study Prefs', icon: '📚' },
-    { id: 'about', label: 'About', icon: 'ℹ️' },
+  // Was a plain emoji glyph per row (👤🔐🔔🛡️📚ℹ️) sitting flat against the
+  // list - no badge, no color, all identical weight. Each tab now gets the
+  // app's own vector icon in a small colored glass badge instead, so the
+  // nav reads as a designed system rather than default OS emoji.
+  const TABS: { id: SettingsTab; label: string; icon: keyof typeof IP; color: string }[] = [
+    { id: 'profile', label: 'Profile', icon: 'user', color: '#38BDF8' },
+    { id: 'account', label: 'Account', icon: 'lock', color: '#FBBF24' },
+    { id: 'notifications', label: 'Notifications', icon: 'bell', color: '#FB7185' },
+    { id: 'privacy', label: 'Privacy', icon: 'shield', color: '#34D399' },
+    { id: 'study', label: 'Study Prefs', icon: 'library', color: '#A78BFA' },
+    { id: 'about', label: 'About', icon: 'info', color: '#94A3B8' },
   ]
 
   const selectedPreset = prefs.avatar_preset ?? 0
@@ -8915,13 +8924,16 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         </div>
         <StSection title="LEGAL & INFO">
           {[
-            { label: 'Terms of Service', icon: '📄', href: '/terms' },
-            { label: 'Privacy Policy', icon: '🔒', href: '/privacy' },
+            { label: 'Terms of Service', icon: 'doc' as const, color: '#38BDF8', href: '/terms' },
+            { label: 'Privacy Policy', icon: 'shield' as const, color: '#34D399', href: '/privacy' },
           ].map(item => (
             <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer"
               className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(38,38,42,0.55)]">
               <div className="flex items-center gap-3">
-                <span className="text-base">{item.icon}</span>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${item.color}30, ${item.color}14)`, border: `1px solid ${item.color}55` }}>
+                  <Ico n={item.icon} cls="w-4 h-4" style={{ color: item.color }} />
+                </span>
                 <span className="text-sm font-medium text-wk-ink-200 group-hover:text-white transition-colors">{item.label}</span>
               </div>
               <Ico n="chevR" cls="w-4 h-4 text-wk-ink-600" />
@@ -8957,22 +8969,36 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
         <div className="flex flex-1 overflow-hidden">
           <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(38,38,42,0.55)] bg-[rgba(11,11,13,0.5)]">
-            {TABS.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
-                style={{
-                  background: activeTab === tab.id ? 'rgba(38,38,42,0.55)' : 'transparent',
-                  color: activeTab === tab.id ? '#FFA94D' : '#7A756D',
-                  border: `1px solid ${activeTab === tab.id ? '#3A3A3A' : 'transparent'}`,
-                }}>
-                <span className="text-base">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
+            {TABS.map(tab => {
+              const active = activeTab === tab.id
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left"
+                  style={{
+                    background: active ? 'rgba(38,38,42,0.55)' : 'transparent',
+                    color: active ? '#FFF7E6' : '#9C968C',
+                    border: `1px solid ${active ? '#3A3A3A' : 'transparent'}`,
+                  }}>
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
+                    style={{
+                      background: `linear-gradient(135deg, ${tab.color}${active ? '40' : '22'}, ${tab.color}${active ? '22' : '10'})`,
+                      border: `1px solid ${tab.color}${active ? '80' : '3A'}`,
+                      boxShadow: active ? `0 0 12px ${tab.color}40` : 'none',
+                    }}>
+                    <Ico n={tab.icon} cls="w-3.5 h-3.5" style={{ color: tab.color }} />
+                  </span>
+                  {tab.label}
+                </button>
+              )
+            })}
             <div className="pt-4 mt-4 border-t px-1 border-[rgba(38,38,42,0.55)]">
               <button onClick={() => void handleLogout()} disabled={busy === 'logout'}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
-                <span className="text-base">🚪</span> {busy === 'logout' ? 'Signing out…' : 'Log Out'}
+                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, rgba(248,113,113,0.28), rgba(220,38,38,0.14))', border: '1px solid rgba(248,113,113,0.5)' }}>
+                  <Ico n="logout" cls="w-3.5 h-3.5 text-red-400" />
+                </span>
+                {busy === 'logout' ? 'Signing out…' : 'Log Out'}
               </button>
             </div>
           </div>
