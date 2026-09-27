@@ -73,7 +73,7 @@ function UserAvatar({ size = 32, className = '' }: { size?: number; className?: 
   const { avatar } = useContext(UserAvatarCtx)
   return (
     <div className={`rounded-full overflow-hidden flex-shrink-0 ${className}`}
-      style={{ width: size, height: size, border: '1.5px solid rgba(124,77,255,0.45)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
+      style={{ width: size, height: size, border: '1.5px solid rgba(255,138,61,0.45)', boxShadow: 'none' }}>
       <img src={avatar} alt="You" className="w-full h-full object-cover" />
     </div>
   )
@@ -134,7 +134,7 @@ function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; 
 // relative to today" axis) instead of a single hardcoded path. The
 // most-at-risk topic keeps the original purple→cyan glow treatment;
 // other topics get their own color and a name+% label at today's dot.
-const SERIES_COLORS = ['#F472B6', '#FBBF24', '#34D399', '#818CF8', '#FB923C']
+const SERIES_COLORS = ['#F472B6', '#FBBF24', '#34D399', '#CFC8BB', '#FB923C']
 
 function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
   const W = 760, H = 180
@@ -142,7 +142,7 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
   if (!data || data.series.length === 0) {
     return (
       <svg viewBox="0 0 760 200" className="w-full h-full">
-        <text x="380" y="100" textAnchor="middle" fontSize="10" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">
+        <text x="380" y="100" textAnchor="middle" fontSize="10" fill="rgba(156,150,140,0.4)" fontFamily="Sora, sans-serif">
           No review history yet — add a topic to see its recall curve
         </text>
       </svg>
@@ -168,13 +168,13 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
   return (
     <svg viewBox="0 0 760 200" className="w-full h-full" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="rcLine" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#7C4DFF" /><stop offset="100%" stopColor="#19B5E6" /></linearGradient>
-        <linearGradient id="rcArea" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#7C4DFF" stopOpacity="0.22" /><stop offset="100%" stopColor="#7C4DFF" stopOpacity="0" /></linearGradient>
+        <linearGradient id="rcLine" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#FF8A3D" /><stop offset="100%" stopColor="#CFC8BB" /></linearGradient>
+        <linearGradient id="rcArea" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#FF8A3D" stopOpacity="0.22" /><stop offset="100%" stopColor="#FF8A3D" stopOpacity="0" /></linearGradient>
         <filter id="rcGlow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         <filter id="dotGlow" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>
-      {[0, 25, 50, 75, 100].map(pct => { const gy = y(pct); return (<g key={pct}><line x1="0" y1={gy} x2={W} y2={gy} stroke="rgba(124,77,255,0.07)" strokeWidth="1" /><text x="6" y={gy - 3} fontSize="8" fill="rgba(148,163,184,0.4)" fontFamily="JetBrains Mono, monospace">{pct}%</text></g>) })}
-      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(124,77,255,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(148,163,184,0.35)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{day === 0 ? 'd0' : day > 0 ? `+${day}d` : `${day}d`}</text></g>) })}
+      {[0, 25, 50, 75, 100].map(pct => { const gy = y(pct); return (<g key={pct}><line x1="0" y1={gy} x2={W} y2={gy} stroke="rgba(255,138,61,0.07)" strokeWidth="1" /><text x="6" y={gy - 3} fontSize="8" fill="rgba(156,150,140,0.4)" fontFamily="Sora, sans-serif">{pct}%</text></g>) })}
+      {dayTicks.map(day => { const gx = x(day); return (<g key={day}><line x1={gx} y1="0" x2={gx} y2={H + 2} stroke="rgba(255,138,61,0.06)" strokeWidth="1" /><text x={gx} y="196" fontSize="8" fill="rgba(156,150,140,0.35)" fontFamily="Sora, sans-serif" textAnchor="middle">{day === 0 ? 'd0' : day > 0 ? `+${day}d` : `${day}d`}</text></g>) })}
 
       {/* Primary (most-at-risk) line: original glow treatment + area fill + R1/R2/R3 labels */}
       <path d={primaryArea} fill="url(#rcArea)" />
@@ -182,8 +182,8 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
       <path d={primaryProjected} fill="none" stroke="#F59E0B" strokeWidth="1.75" strokeDasharray="5,4" opacity="0.7" />
       {primary.reviewMarkers.map(({ day, retention, label }) => (
         <g key={label}>
-          <circle cx={x(day)} cy={y(retention)} r="4" fill="#19B5E6" opacity="0.85" filter="url(#dotGlow)" />
-          <text x={x(day)} y={y(retention) - 9} fontSize="7.5" fill="rgba(25,181,230,0.65)" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{label}</text>
+          <circle cx={x(day)} cy={y(retention)} r="4" fill="#CFC8BB" opacity="0.85" filter="url(#dotGlow)" />
+          <text x={x(day)} y={y(retention) - 9} fontSize="7.5" fill="rgba(207,200,187,0.65)" fontFamily="Sora, sans-serif" textAnchor="middle">{label}</text>
         </g>
       ))}
 
@@ -196,18 +196,18 @@ function RecallCurve({ data }: { data: MultiRecallCurveData | null }) {
             <path d={toPath(s.projected)} fill="none" stroke={color} strokeWidth="1.25" strokeDasharray="4,4" opacity="0.4" />
             {s.reviewMarkers.map((m) => (<circle key={m.day} cx={x(m.day)} cy={y(m.retention)} r="2.5" fill={color} opacity="0.7" />))}
             <circle cx={x(0)} cy={y(s.todayRetention)} r="3" fill={color} />
-            <text x={x(0) + 6} y={y(s.todayRetention) + 3} fontSize="7.5" fill={color} fillOpacity="0.9" fontFamily="JetBrains Mono, monospace">{s.topic} {Math.round(s.todayRetention)}%</text>
+            <text x={x(0) + 6} y={y(s.todayRetention) + 3} fontSize="7.5" fill={color} fillOpacity="0.9" fontFamily="Sora, sans-serif">{s.topic} {Math.round(s.todayRetention)}%</text>
           </g>
         )
       })}
 
-      <line x1={x(0)} y1="0" x2={x(0)} y2={H + 2} stroke="rgba(25,181,230,0.18)" strokeWidth="1" strokeDasharray="3,3" />
-      <text x={x(0) + 6} y="11" fontSize="8" fill="rgba(25,181,230,0.70)" fontFamily="JetBrains Mono, monospace">TODAY</text>
-      <circle cx={x(0)} cy={y(primary.todayRetention)} r="8" fill="#19B5E6" opacity="0.12" filter="url(#dotGlow)" />
-      <circle cx={x(0)} cy={y(primary.todayRetention)} r="4.5" fill="#19B5E6" filter="url(#dotGlow)" />
+      <line x1={x(0)} y1="0" x2={x(0)} y2={H + 2} stroke="rgba(207,200,187,0.18)" strokeWidth="1" strokeDasharray="3,3" />
+      <text x={x(0) + 6} y="11" fontSize="8" fill="rgba(207,200,187,0.70)" fontFamily="Sora, sans-serif">TODAY</text>
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="8" fill="#CFC8BB" opacity="0.12" filter="url(#dotGlow)" />
+      <circle cx={x(0)} cy={y(primary.todayRetention)} r="4.5" fill="#CFC8BB" filter="url(#dotGlow)" />
       <circle cx={x(0)} cy={y(primary.todayRetention)} r="2" fill="white" />
-      <text x={x(0) - 7} y={y(primary.todayRetention) - 8} fontSize="9" fill="rgba(25,181,230,0.90)" fontFamily="JetBrains Mono, monospace" textAnchor="end" fontWeight="500">{primary.topic} {Math.round(primary.todayRetention)}%</text>
-      <text x={x(maxDay * 0.6)} y={y(primary.projected[Math.floor(primary.projected.length * 0.6)]?.retention ?? 0) + 15} fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="JetBrains Mono, monospace">projected decay</text>
+      <text x={x(0) - 7} y={y(primary.todayRetention) - 8} fontSize="9" fill="rgba(207,200,187,0.90)" fontFamily="Sora, sans-serif" textAnchor="end" fontWeight="500">{primary.topic} {Math.round(primary.todayRetention)}%</text>
+      <text x={x(maxDay * 0.6)} y={y(primary.projected[Math.floor(primary.projected.length * 0.6)]?.retention ?? 0) + 15} fontSize="8" fill="rgba(245,158,11,0.65)" fontFamily="Sora, sans-serif">projected decay</text>
     </svg>
   )
 }
@@ -225,7 +225,7 @@ function RetentionRing({ pct, size = 38 }: { pct: number; size?: number }) {
         strokeDasharray={`${circ} ${circ}`} strokeDashoffset={offset}
         strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       <text x={size / 2} y={size / 2 + 3} textAnchor="middle" fontSize="8" fill={color}
-        fontFamily="JetBrains Mono, monospace" fontWeight="500">{pct}%</text>
+        fontFamily="Sora, sans-serif" fontWeight="500">{pct}%</text>
     </svg>
   )
 }
@@ -254,13 +254,13 @@ function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
     <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full" style={{ display: 'block' }}>
       <defs>
         <radialGradient id={`ig${gid}`} cx="50%" cy="46%">
-          <stop offset="0%" stopColor="#0C1730" />
-          <stop offset="100%" stopColor="#05080F" />
+          <stop offset="0%" stopColor="#161618" />
+          <stop offset="100%" stopColor="#0B0B0D" />
         </radialGradient>
         <linearGradient id={`rg${gid}`} x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#2563EB" />
-          <stop offset="55%" stopColor="#38BDF8" />
-          <stop offset="100%" stopColor="#22D3EE" />
+          <stop offset="0%" stopColor="#8F8A82" />
+          <stop offset="55%" stopColor="#CFC8BB" />
+          <stop offset="100%" stopColor="#FFF7E6" />
         </linearGradient>
         <filter id={`rf${gid}`} x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur in="SourceGraphic" stdDeviation={size * 0.01} result="blur" />
@@ -272,7 +272,7 @@ function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
         </filter>
       </defs>
       {/* Outer ambient halo — restrained, not neon */}
-      <circle cx={CX} cy={CY} r={R + sw + 5} fill="none" stroke="rgba(56,189,248,0.06)" strokeWidth={sw * 1.6} />
+      <circle cx={CX} cy={CY} r={R + sw + 5} fill="none" stroke="rgba(207,200,187,0.06)" strokeWidth={sw * 1.6} />
       {/* Track */}
       <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
       {/* Inner dark fill */}
@@ -290,13 +290,13 @@ function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
       {/* Small glowing dot at the progress tip */}
       {progress > 0.01 && (
         <>
-          <circle cx={tipX} cy={tipY} r={sw * 0.95} fill="#38BDF8" opacity="0.25" filter={`url(#df${gid})`} />
-          <circle cx={tipX} cy={tipY} r={sw * 0.48} fill="#BAE6FD" />
+          <circle cx={tipX} cy={tipY} r={sw * 0.95} fill="#CFC8BB" opacity="0.25" filter={`url(#df${gid})`} />
+          <circle cx={tipX} cy={tipY} r={sw * 0.48} fill="#E8E2D6" />
         </>
       )}
       {/* Countdown — the only content inside the ring */}
       <text x={CX} y={CY} textAnchor="middle" dominantBaseline="central"
-        fontSize={fontSize} fill="#F1F5F9" fontFamily="JetBrains Mono, monospace" fontWeight="600"
+        fontSize={fontSize} fill="#FFF7E6" fontFamily="Sora, sans-serif" fontWeight="600"
         style={{ letterSpacing: -fontSize * 0.02 }}>
         {timeStr}
       </text>
@@ -305,24 +305,34 @@ function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
 }
 
 // ─── Mountain Backdrop ────────────────────────────────────────────────────────
-// Quiet, layered late-night mountain silhouette used behind the Focus Lock
-// timer (both normal and fullscreen). Pure decoration — sits behind
-// everything (pointer-events disabled) in dark navy monochrome so it never
-// competes with the ring or the controls above it.
+// Flowing ribbon waves (from the ribbon-W logo) used behind the Focus Lock
+// timer (both normal and fullscreen). Warm orange → amber → cream, kept very
+// low-contrast. Pure decoration — sits behind everything (pointer-events
+// disabled) so it never competes with the ring or the controls above it.
+const WAVE_LINES: [string, number, number][] = [
+  ['M-40,360 C180,300 360,420 600,350 C840,280 1000,380 1240,320', 0.16, 1.4],
+  ['M-40,392 C200,330 380,450 620,382 C860,314 1020,410 1240,356', 0.12, 1.2],
+  ['M-40,424 C220,362 400,478 640,414 C880,350 1040,440 1240,392', 0.09, 1],
+  ['M-40,300 C220,250 420,350 660,300 C900,250 1040,320 1240,280', 0.07, 1],
+  ['M-40,456 C240,396 420,500 660,446 C900,392 1060,468 1240,428', 0.06, 1],
+]
 function MountainBackdrop() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden="true">
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 65% 45% at 50% 28%, rgba(56,189,248,0.05), rgba(56,189,248,0) 70%)' }} />
-      <svg viewBox="0 0 1200 520" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" style={{ height: '58%' }}>
-        {/* Farthest layer — subtle */}
-        <polygon opacity="0.55" fill="#0E1B36"
-          points="0,330 90,260 190,300 300,225 400,280 500,205 600,270 700,215 800,275 900,220 1000,285 1100,235 1200,290 1200,520 0,520" />
-        {/* Mid layer */}
-        <polygon opacity="0.78" fill="#0A1428"
-          points="0,390 110,320 230,365 340,290 460,350 580,275 700,345 820,290 940,355 1060,300 1200,350 1200,520 0,520" />
-        {/* Nearest layer — darkest, most defined */}
-        <polygon opacity="0.96" fill="#050C1A"
-          points="0,450 140,385 270,425 410,355 540,420 660,360 800,425 930,365 1060,420 1200,395 1200,520 0,520" />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 40% at 50% 100%, rgba(255,138,61,0.05), rgba(255,138,61,0) 70%)' }} />
+      <svg viewBox="0 0 1200 520" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" style={{ height: '62%' }}>
+        <defs>
+          <linearGradient id="wkWaveStroke" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#FF8A3D" /><stop offset="55%" stopColor="#FFA94D" /><stop offset="100%" stopColor="#FFF7E6" /></linearGradient>
+          <linearGradient id="wkWaveFill" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#FF8A3D" stopOpacity="0.06" /><stop offset="100%" stopColor="#FF8A3D" stopOpacity="0" /></linearGradient>
+          <linearGradient id="wkWaveFade" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#fff" stopOpacity="0" /><stop offset="15%" stopColor="#fff" stopOpacity="1" /><stop offset="85%" stopColor="#fff" stopOpacity="1" /><stop offset="100%" stopColor="#fff" stopOpacity="0" /></linearGradient>
+          <mask id="wkWaveMask"><rect x="0" y="0" width="1200" height="520" fill="url(#wkWaveFade)" /></mask>
+          <filter id="wkWaveBlur" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="2.5" /></filter>
+        </defs>
+        <g mask="url(#wkWaveMask)">
+          <path d="M-40,372 C190,312 370,432 610,364 C850,296 1010,394 1240,336 L1240,520 L-40,520 Z" fill="url(#wkWaveFill)" />
+          <path d={WAVE_LINES[0][0]} fill="none" stroke="url(#wkWaveStroke)" strokeOpacity="0.10" strokeWidth="10" filter="url(#wkWaveBlur)" />
+          {WAVE_LINES.map(([d, o, w], i) => <path key={i} d={d} fill="none" stroke="url(#wkWaveStroke)" strokeOpacity={o} strokeWidth={w} strokeLinecap="round" />)}
+        </g>
       </svg>
     </div>
   )
@@ -337,21 +347,21 @@ function TimeSpinner({ label, value, onChange, max }: {
   const dec = () => onChange(value <= 0 ? max : value - 1)
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <button onClick={inc} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-violet-300 hover:bg-violet-500/10 transition-all">
+      <button onClick={inc} className="w-8 h-8 flex items-center justify-center rounded-lg text-wk-ink-500 hover:text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all">
         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 15l7-7 7 7" /></svg>
       </button>
       <input
         type="text" inputMode="numeric"
-        className="w-16 h-14 text-center text-3xl font-mono bg-transparent outline-none text-white rounded-xl border border-violet-500/30 focus:border-violet-400/70 transition-colors"
-        style={{ fontFamily: 'JetBrains Mono, monospace' }}
+        className="w-16 h-14 text-center text-3xl font-mono bg-transparent outline-none text-white rounded-xl border border-wk-orange-500/30 focus:border-wk-orange-300/70 transition-colors"
+        style={{ fontFamily: 'Sora, sans-serif' }}
         value={f2(value)}
         onChange={e => {
           const v = parseInt(e.target.value.replace(/\D/g, '').slice(-2) || '0')
           onChange(Math.min(max, Math.max(0, isNaN(v) ? 0 : v)))
         }}
       />
-      <div className="text-[10px] text-slate-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{label}</div>
-      <button onClick={dec} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-violet-300 hover:bg-violet-500/10 transition-all">
+      <div className="text-[10px] text-wk-ink-500" style={{ fontFamily: 'Sora, sans-serif' }}>{label}</div>
+      <button onClick={dec} className="w-8 h-8 flex items-center justify-center rounded-lg text-wk-ink-500 hover:text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all">
         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M19 9l-7 7-7-7" /></svg>
       </button>
     </div>
@@ -381,11 +391,11 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full bg-[#060D1A] border-[rgba(26,40,69,0.55)]">
-      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(26,40,69,0.55)]">
+    <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full bg-[#0B0B0D] border-[rgba(38,38,42,0.55)]">
+      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(38,38,42,0.55)]">
         <div className="w-8 h-8 relative flex-shrink-0">
-          <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.8)) brightness(1.1)' }} />
-          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#060D1A]" />
+          <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: ' brightness(1.1)' }} />
+          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#0B0B0D]" />
         </div>
         <div>
           <div className="text-white font-semibold text-base leading-none">Wynko</div>
@@ -395,21 +405,21 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
         {['HOME', 'STUDY', 'OTHER'].map(group => (
           <div key={group} className="mb-5">
-            <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#4E5E84]">{group}</div>
+            <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#7A756D]">{group}</div>
             {NAV.filter(n => n.group === group).map(item => {
               const isActive = active === item.id
               return (
                 <button key={item.id} onClick={() => setActive(item.id)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative`}
                   style={{
-                    background: isActive ? 'rgba(13,21,69,0.85)' : 'transparent',
-                    color: isActive ? '#EEF2FF' : '#8B9AC7',
-                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(139,92,255,0.3)' : 'none',
+                    background: isActive ? 'rgba(28,28,31,0.85)' : 'transparent',
+                    color: isActive ? '#FFF7E6' : '#9C968C',
+                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(255,138,61,0.3)' : 'none',
                   }}
-                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#D9DDF0' }}
-                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#8B9AC7' }}>
-                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#8B5CFF', boxShadow: '0 0 10px rgba(139,92,255,0.9), 0 0 20px rgba(139,92,255,0.4)' }} />}
-                  <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#9B6CFF' : undefined }} />
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#F5EFE3' }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9C968C' }}>
+                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#FF8A3D', boxShadow: 'none' }} />}
+                  <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#FFA94D' : undefined }} />
                   <span className="text-sm font-medium">{item.label}</span>
                 </button>
               )
@@ -417,15 +427,15 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
           </div>
         ))}
       </nav>
-      <div className="border-t p-4 border-[rgba(26,40,69,0.55)]">
+      <div className="border-t p-4 border-[rgba(38,38,42,0.55)]">
         <div className="flex items-center gap-2.5">
           <UserAvatar size={32} />
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-slate-200 font-medium truncate">{name}</div>
-            <div className="text-[10px] text-slate-500">{exam}</div>
+            <div className="text-sm text-wk-ink-200 font-medium truncate">{name}</div>
+            <div className="text-[10px] text-wk-ink-500">{exam}</div>
           </div>
           <button type="button" onClick={() => setActive('settings')} aria-label="Settings" title="Settings"
-            className="p-1.5 -m-1.5 rounded-md text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
+            className="p-1.5 -m-1.5 rounded-md text-wk-ink-600 hover:text-wk-ink-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
         </div>
       </div>
     </aside>
@@ -439,10 +449,10 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
   // Home still showing the design's literal "Mon, 1 Sep 2026" string.
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   return (
-    <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 backdrop-blur-sm bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+    <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 backdrop-blur-sm bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
       <div className="flex-1">
-        <div className="text-[10px] text-slate-600 mb-0.5">Home / Today</div>
-        <div className="text-sm font-semibold text-slate-200">{todayLabel}</div>
+        <div className="text-[10px] text-wk-ink-600 mb-0.5">Home / Today</div>
+        <div className="text-sm font-semibold text-wk-ink-200">{todayLabel}</div>
       </div>
       <NotificationBell />
       <UserAvatar size={32} className="cursor-pointer" />
@@ -496,47 +506,47 @@ function NotificationBell({ extraCount = 0 }: { extraCount?: number }) {
   return (
     <div className="relative">
       <button ref={btnRef} type="button" onClick={() => setOpen(o => !o)} aria-label={badge ? `Notifications, ${badge} unread` : 'Notifications'} aria-expanded={open}
-        className="relative p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-slate-200 transition-colors">
+        className="relative p-2 rounded-lg hover:bg-white/5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors">
         <Ico n="bell" cls="w-5 h-5" />
         {badge > 0 && (
-          <div className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#7C4DFF]"
-            style={{ boxShadow: '0 0 8px rgba(155,108,255,0.8)' }}>{badge > 9 ? '9+' : badge}</div>
+          <div className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-[#FF8A3D]"
+            style={{ boxShadow: 'none' }}>{badge > 9 ? '9+' : badge}</div>
         )}
       </button>
       {open && pos && createPortal(
         <div ref={panelRef} role="dialog" aria-label="Notifications"
-          className="fixed z-[1000] w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
-          style={{ top: pos.top, right: pos.right, boxShadow: '0 18px 50px rgba(0,0,0,0.55), 0 0 40px rgba(124,77,255,0.12)' }}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#1A2845]">
-            <div className="text-sm font-semibold text-slate-100">Notifications{unread > 0 && <span className="ml-2 text-[11px] font-medium text-[#C4AAFF]">{unread} new</span>}</div>
+          className="fixed z-[1000] w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border overflow-hidden bg-[#161618] border-[#26262A]"
+          style={{ top: pos.top, right: pos.right, boxShadow: '0 18px 50px rgba(0,0,0,0.55)' }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#26262A]">
+            <div className="text-sm font-semibold text-wk-ink-100">Notifications{unread > 0 && <span className="ml-2 text-[11px] font-medium text-[#FFA94D]">{unread} new</span>}</div>
             {unread > 0 && (
-              <button type="button" onClick={() => void markRead()} className="text-[11px] font-medium text-[#9B6CFF] hover:text-[#C4AAFF] transition-colors">Mark all read</button>
+              <button type="button" onClick={() => void markRead()} className="text-[11px] font-medium text-[#FFA94D] hover:text-[#FFA94D] transition-colors">Mark all read</button>
             )}
           </div>
           <div className="max-h-[420px] overflow-y-auto">
             {loading ? (
-              <div className="px-4 py-8 text-center text-xs text-slate-500">Loading…</div>
+              <div className="px-4 py-8 text-center text-xs text-wk-ink-500">Loading…</div>
             ) : error ? (
               <div className="px-4 py-6 text-center text-xs text-[#F87171]">{error}</div>
             ) : items.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <div className="text-2xl mb-2">🔔</div>
-                <div className="text-sm text-slate-300 font-medium">You're all caught up</div>
-                <div className="text-xs text-slate-500 mt-1">New notifications will show up here.</div>
+                <div className="text-sm text-wk-ink-300 font-medium">You're all caught up</div>
+                <div className="text-xs text-wk-ink-500 mt-1">New notifications will show up here.</div>
               </div>
             ) : items.map(n => (
               <button key={n.id} type="button" onClick={() => openItem(n)}
-                className={`w-full text-left flex gap-3 px-4 py-3 border-b border-[rgba(26,40,69,0.55)] last:border-b-0 transition-colors hover:bg-white/[0.04] ${n.read ? '' : 'bg-[rgba(124,77,255,0.07)]'}`}>
+                className={`w-full text-left flex gap-3 px-4 py-3 border-b border-[rgba(38,38,42,0.55)] last:border-b-0 transition-colors hover:bg-white/[0.04] ${n.read ? '' : 'bg-[rgba(255,138,61,0.07)]'}`}>
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
-                  style={{ background: 'linear-gradient(135deg, rgba(124,77,255,0.22), rgba(41,98,255,0.14))', border: '1px solid rgba(124,77,255,0.3)' }}>
+                  style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.22), rgba(156,150,140,0.14))', border: '1px solid rgba(255,138,61,0.3)' }}>
                   {notificationIcon(n.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className={`text-[13px] leading-snug ${n.read ? 'text-slate-300' : 'text-white font-semibold'}`}>{n.title}</div>
-                  {n.body && <div className="text-[12px] text-slate-400 mt-0.5 leading-snug whitespace-pre-line" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>}
-                  <div className="text-[10px] text-slate-500 mt-1">{timeAgo(n.created_at)}{notificationHref(n) ? ' · Open →' : ''}</div>
+                  <div className={`text-[13px] leading-snug ${n.read ? 'text-wk-ink-300' : 'text-white font-semibold'}`}>{n.title}</div>
+                  {n.body && <div className="text-[12px] text-wk-ink-400 mt-0.5 leading-snug whitespace-pre-line" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>}
+                  <div className="text-[10px] text-wk-ink-500 mt-1">{timeAgo(n.created_at)}{notificationHref(n) ? ' · Open →' : ''}</div>
                 </div>
-                {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-[#9B6CFF]" style={{ boxShadow: '0 0 6px rgba(155,108,255,0.8)' }} />}
+                {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-[#FFA94D]" style={{ boxShadow: 'none' }} />}
               </button>
             ))}
           </div>
@@ -637,22 +647,22 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border"
       style={{
-        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-        borderColor: 'rgba(56,132,255,0.30)',
-        boxShadow: '0 0 70px rgba(41,98,255,0.14), 0 0 140px rgba(124,77,255,0.07), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+        borderColor: 'rgba(156,150,140,0.30)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
       }}>
-      <div className="absolute top-0 right-0 w-80 h-80 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(41,98,255,0.12) 0%, transparent 65%)', transform: 'translate(20%,-35%)' }} />
-      <div className="absolute bottom-0 left-1/4 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 65%)', transform: 'translate(-40%,45%)' }} />
+      <div className="absolute top-0 right-0 w-80 h-80 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(156,150,140,0.12) 0%, transparent 65%)', transform: 'translate(20%,-35%)' }} />
+      <div className="absolute bottom-0 left-1/4 w-72 h-72 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(207,200,187,0.06) 0%, transparent 65%)', transform: 'translate(-40%,45%)' }} />
 
       <div className="relative flex items-start justify-between mb-5 flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.45)', boxShadow: '0 0 18px rgba(41,98,255,0.4)' }}>
-            <Ico n="progress" cls="w-4 h-4 text-cyan-300" />
+            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(207,200,187,0.20))', border: '1px solid rgba(156,150,140,0.45)', boxShadow: 'none' }}>
+            <Ico n="progress" cls="w-4 h-4 text-wk-ink-200" />
           </div>
           <div>
-            <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Your Study Progress</div>
-            <div className="text-xs text-slate-500">Study time · Last 7 days</div>
+            <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Your Study Progress</div>
+            <div className="text-xs text-wk-ink-500">Study time · Last 7 days</div>
           </div>
         </div>
 
@@ -660,12 +670,12 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
           {stats.map(s => (
             <div key={s.label} className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 12px rgba(41,98,255,0.35)' }}>
-                <Ico n={s.icon} cls="w-3.5 h-3.5 text-cyan-300" />
+                style={{ background: 'rgba(156,150,140,0.14)', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+                <Ico n={s.icon} cls="w-3.5 h-3.5 text-wk-ink-200" />
               </div>
               <div>
-                <div className="text-sm font-bold text-slate-100 leading-tight">{s.value}</div>
-                <div className="text-[10px] text-slate-500 leading-tight">{s.label}</div>
+                <div className="text-sm font-bold text-wk-ink-100 leading-tight">{s.value}</div>
+                <div className="text-[10px] text-wk-ink-500 leading-tight">{s.label}</div>
               </div>
             </div>
           ))}
@@ -676,13 +686,13 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
         <svg viewBox={`0 0 ${viewW} ${H}`} className="w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="spLine" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#7C4DFF" />
-              <stop offset="55%" stopColor="#2979FF" />
-              <stop offset="100%" stopColor="#22D3EE" />
+              <stop offset="0%" stopColor="#FF8A3D" />
+              <stop offset="55%" stopColor="#FFB057" />
+              <stop offset="100%" stopColor="#FFF7E6" />
             </linearGradient>
             <linearGradient id="spArea" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#2979FF" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#2979FF" stopOpacity="0" />
+              <stop offset="0%" stopColor="#FFB057" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#FFB057" stopOpacity="0" />
             </linearGradient>
             <filter id="spGlow" x="-20%" y="-60%" width="140%" height="220%">
               <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
@@ -700,9 +710,9 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
           {hourTicks.map((t, i) => (
             <g key={`hr-${i}`}>
               <line x1={padLeft} y1={t.y} x2={viewW - padX} y2={t.y}
-                stroke="rgba(148,163,184,0.08)" strokeWidth="1" />
+                stroke="rgba(156,150,140,0.08)" strokeWidth="1" />
               <text x={padLeft - 8} y={t.y + 3} textAnchor="end" fontSize="9"
-                fill="rgba(148,163,184,0.40)" fontFamily="Poppins, sans-serif">
+                fill="rgba(156,150,140,0.40)" fontFamily="Sora, sans-serif">
                 {t.hours}h
               </text>
             </g>
@@ -721,8 +731,8 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
                   onClick={() => setHoverIdx(hoverIdx === i ? null : i)}
                   style={{ cursor: 'pointer' }}>
                   <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
-                  {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#22D3EE" opacity="0.20" filter="url(#spDotGlow)" />}
-                  <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#22D3EE' : '#7C9CFF'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
+                  {d.isToday && <circle cx={p.x} cy={p.y} r="9" fill="#FFF7E6" opacity="0.20" filter="url(#spDotGlow)" />}
+                  <circle cx={p.x} cy={p.y} r={d.isToday ? 4.5 : 3} fill={d.isToday ? '#FFF7E6' : '#9C968C'} filter={d.isToday ? 'url(#spDotGlow)' : undefined} />
                   {d.isToday && <circle cx={p.x} cy={p.y} r="1.6" fill="#fff" />}
                 </g>
               )
@@ -730,8 +740,8 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
 
             {pts.map((p, i) => (
               <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="10.5"
-                fill={weeklyStudy[i].isToday ? 'rgba(34,211,238,0.9)' : 'rgba(148,163,184,0.55)'}
-                fontFamily="Poppins, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
+                fill={weeklyStudy[i].isToday ? 'rgba(207,200,187,0.9)' : 'rgba(156,150,140,0.55)'}
+                fontFamily="Sora, sans-serif" fontWeight={weeklyStudy[i].isToday ? 600 : 400}>
                 {weeklyStudy[i].label}
               </text>
             ))}
@@ -739,14 +749,14 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
         </svg>
 
         {hoverIdx !== null && (
-          <div className="absolute px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-100 pointer-events-none z-10"
+          <div className="absolute px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-wk-ink-100 pointer-events-none z-10"
             style={{
               left: `${((pts[hoverIdx].x + padLeft) / viewW) * 100}%`,
               top: `${(pts[hoverIdx].y / H) * 100}%`,
               transform: 'translate(-50%, -135%)',
-              background: '#0F1B3D',
-              border: '1px solid rgba(56,132,255,0.45)',
-              boxShadow: '0 0 16px rgba(41,98,255,0.4)',
+              background: '#1C1C1F',
+              border: '1px solid rgba(156,150,140,0.45)',
+              boxShadow: 'none',
               whiteSpace: 'nowrap',
             }}>
             {weeklyStudy[hoverIdx].label} · {formatStudyDuration(weeklyStudy[hoverIdx].minutes)}
@@ -760,9 +770,9 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 function QuickActions({ onGoFocus, onNavigate }: { onGoFocus: () => void; onNavigate: (id: string) => void }) {
   const actions = [
-    { label: 'Start Focus', sub: 'Focus Lock', icon: 'lock' as const, grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)', glow: '0 0 28px rgba(124,77,255,0.65), 0 4px 24px rgba(92,53,204,0.4)', onClick: onGoFocus },
-    { label: 'Schedules', sub: 'Plan sessions', icon: 'clock' as const, grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)', glow: '0 0 24px rgba(15,153,204,0.55), 0 4px 20px rgba(12,127,170,0.35)', onClick: () => onNavigate('schedules') },
-    { label: 'Study Room', sub: '24 online', icon: 'rooms' as const, grad: 'linear-gradient(135deg,#0A9673,#077A5E)', glow: '0 0 24px rgba(10,150,115,0.5), 0 4px 20px rgba(7,122,94,0.3)', onClick: () => onNavigate('studyrooms') },
+    { label: 'Start Focus', sub: 'Focus Lock', icon: 'lock' as const, grad: 'linear-gradient(135deg,#FF8A3D,#E9772E)', glow: '0 4px 24px rgba(233,119,46,0.4)', onClick: onGoFocus },
+    { label: 'Schedules', sub: 'Plan sessions', icon: 'clock' as const, grad: 'linear-gradient(135deg,#9C968C,#9C968C)', glow: '0 4px 20px rgba(156,150,140,0.35)', onClick: () => onNavigate('schedules') },
+    { label: 'Study Room', sub: '24 online', icon: 'rooms' as const, grad: 'linear-gradient(135deg,#10B981,#10B981)', glow: '0 4px 20px rgba(16,185,129,0.3)', onClick: () => onNavigate('studyrooms') },
   ]
   return (
     <div className="grid grid-cols-3 gap-3">
@@ -830,15 +840,15 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
 
   return (
     <div className="rounded-2xl border p-4 transition-all" style={{
-      background: '#0B1530',
-      borderColor: flash ? 'rgba(25,181,230,0.50)' : '#1A2845',
-      boxShadow: flash ? '0 0 30px rgba(25,181,230,0.10)' : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+      background: '#161618',
+      borderColor: flash ? 'rgba(207,200,187,0.50)' : '#26262A',
+      boxShadow: flash ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.03)',
       transition: 'border-color 0.4s, box-shadow 0.4s',
     }}>
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] font-semibold tracking-[0.2em] text-slate-400">NEW STUDY UNIT: QUICK ADD</div>
+        <div className="text-[10px] font-semibold tracking-[0.2em] text-wk-ink-400">NEW STUDY UNIT: QUICK ADD</div>
         {added.length > 0 && (
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#19D3A2] bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.25)]">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#34D399] bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.25)]">
             {added.length} unit{added.length > 1 ? 's' : ''} added
           </span>
         )}
@@ -847,21 +857,21 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
         {/* Subject */}
         <div ref={subjectRef} className="relative">
           <div className="flex items-center px-3 py-2 rounded-xl border cursor-text min-w-[180px] transition-colors"
-            style={{ background: '#0B1530', borderColor: subjectOpen ? '#4A3A88' : '#1A2845' }}
+            style={{ background: '#161618', borderColor: subjectOpen ? '#3A3A3A' : '#26262A' }}
             onClick={() => setSubjectOpen(true)}>
-            <input className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder-slate-500"
+            <input className="bg-transparent outline-none text-sm text-wk-ink-200 w-full placeholder-wk-ink-500"
               placeholder="Subject name"
               value={subject} onChange={e => { setSubject(e.target.value); setSubjectOpen(true) }} onFocus={() => setSubjectOpen(true)} />
           </div>
           {subjectOpen && filteredSubjects.length > 0 && (
             <div className="absolute z-50 top-full mt-1 left-0 rounded-xl border overflow-hidden w-full min-w-[200px]"
-              style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+              style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
               {filteredSubjects.map(s => (
-                <button key={s} className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-violet-500/10 hover:text-violet-200 transition-colors"
+                <button key={s} className="w-full text-left px-3 py-2 text-sm text-wk-ink-300 hover:bg-wk-orange-500/10 hover:text-wk-ink-100 transition-colors"
                   onMouseDown={e => { e.preventDefault(); setSubject(s); setSubjectOpen(false) }}>{s}</button>
               ))}
               {subject && !SUBJECT_SUGGESTIONS.map(s => s.toLowerCase()).includes(subject.toLowerCase()) && (
-                <button className="w-full text-left px-3 py-2 text-sm border-t transition-colors text-[#9B6CFF] border-[#1A2845]"
+                <button className="w-full text-left px-3 py-2 text-sm border-t transition-colors text-[#FFA94D] border-[#26262A]"
                   onMouseDown={e => { e.preventDefault(); setSubjectOpen(false) }}>
                   Use "{subject}"
                 </button>
@@ -870,36 +880,36 @@ function QuickAddUnit({ added, onAdd, onRemove }: { added: StudyUnit[]; onAdd: (
           )}
         </div>
         {/* Topic */}
-        <div className="flex items-center px-3 py-2 rounded-xl border transition-colors" style={{ background: '#0B1530', borderColor: '#1A2845', width: '180px' }}>
-          <input className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder-slate-500"
+        <div className="flex items-center px-3 py-2 rounded-xl border transition-colors" style={{ background: '#161618', borderColor: '#26262A', width: '180px' }}>
+          <input className="bg-transparent outline-none text-sm text-wk-ink-200 w-full placeholder-wk-ink-500"
             placeholder="Topic name"
             value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTopic() }} />
         </div>
         {/* Quick Add */}
         <button onClick={handleQuickAdd}
-          className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.97] flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7C4DFF, #19B5E6)', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(25,181,230,0.2)', opacity: canAdd ? 1 : 0.45 }}>
+          className="px-5 py-2 rounded-xl text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90 active:scale-[0.97] flex-shrink-0"
+          style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none', opacity: canAdd ? 1 : 0.45 }}>
           Quick Add
         </button>
       </div>
       {topics.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {topics.map(t => (
-            <span key={t} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#C4AAFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]">
+            <span key={t} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#FFA94D] bg-[rgba(38,38,42,0.55)] border-[#3A3A3A]">
               {t}
-              <button onClick={() => removeTopic(t)} className="text-slate-500 hover:text-red-400 transition-colors leading-none">×</button>
+              <button onClick={() => removeTopic(t)} className="text-wk-ink-500 hover:text-red-400 transition-colors leading-none">×</button>
             </span>
           ))}
         </div>
       )}
       {added.length > 0 && (
-        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2 border-[rgba(26,40,69,0.55)]">
+        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2 border-[rgba(38,38,42,0.55)]">
           {added.map((u, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border group text-[#7DD8F0] bg-[rgba(25,181,230,0.06)] border-[rgba(25,181,230,0.20)]">
+            <div key={i} className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border group text-[#FFF7E6] bg-[rgba(207,200,187,0.06)] border-[rgba(207,200,187,0.20)]">
               <Ico n="check" cls="w-3 h-3 text-emerald-400" />
               {u.subject}{u.exam ? ` › ${u.exam}` : ''} · {u.topics.join(', ')}
               <button onClick={() => onRemove(u.subject)}
-                className="ml-1 text-slate-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">×</button>
+                className="ml-1 text-wk-ink-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">×</button>
             </div>
           ))}
         </div>
@@ -993,52 +1003,52 @@ function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-        borderColor: 'rgba(56,132,255,0.26)',
-        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+        borderColor: 'rgba(156,150,140,0.26)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
       }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
-            <Ico n="clock" cls="w-4 h-4 text-cyan-300" />
+            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+            <Ico n="clock" cls="w-4 h-4 text-wk-ink-200" />
           </div>
-          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Study Plan</div>
+          <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Today's Study Plan</div>
         </div>
-        <div className="text-xs text-slate-500 flex-shrink-0">{todayLabel}</div>
+        <div className="text-xs text-wk-ink-500 flex-shrink-0">{todayLabel}</div>
       </div>
 
       {rows.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
           <div className="text-3xl mb-2">📭</div>
-          <div className="text-sm font-semibold text-slate-300 mb-1">No tasks scheduled for today</div>
-          <div className="text-[12px] text-slate-500 max-w-[220px] mb-4">Add a task to build today's study plan.</div>
-          <button onClick={onAddTask} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #2979FF, #22D3EE)', boxShadow: '0 0 20px rgba(41,98,255,0.45)' }}>
+          <div className="text-sm font-semibold text-wk-ink-300 mb-1">No tasks scheduled for today</div>
+          <div className="text-[12px] text-wk-ink-500 max-w-[220px] mb-4">Add a task to build today's study plan.</div>
+          <button onClick={onAddTask} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-wk-black-950 transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
             + Add Task
           </button>
         </div>
       ) : (
         <div className="space-y-2 flex-1 overflow-y-auto">
           {rows.map(r => (
-            <div key={r.key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors hover:border-[rgba(56,132,255,0.35)]"
-              style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+            <div key={r.key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors hover:border-[rgba(156,150,140,0.35)]"
+              style={{ background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(38,38,42,0.6)' }}>
               <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
                 style={{ background: `${r.color}1A`, border: `1px solid ${r.color}44` }}>{r.icon}</div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-200 truncate">{r.subject}</div>
+                <div className="text-sm font-semibold text-wk-ink-200 truncate">{r.subject}</div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] text-slate-500">{r.minutes} min</span>
+                  <span className="text-[11px] text-wk-ink-500">{r.minutes} min</span>
                 </div>
               </div>
               <button onClick={() => onRemoveTask(r.subject, r.topic)} title="Remove task"
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all text-slate-500 hover:text-red-400 hover:bg-red-500/10"
-                style={{ background: 'rgba(148,163,184,0.08)' }}>
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all text-wk-ink-500 hover:text-red-400 hover:bg-red-500/10"
+                style={{ background: 'rgba(156,150,140,0.08)' }}>
                 <Ico n="trash" cls="w-3.5 h-3.5" />
               </button>
               <button onClick={() => onStartTask(r.subject, r.topic)}
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #2979FF, #7C4DFF)', boxShadow: '0 0 14px rgba(41,98,255,0.5)' }}>
+                style={{ background: 'linear-gradient(135deg, #FFB057, #FF8A3D)', boxShadow: 'none' }}>
                 <Ico n="play" cls="w-3.5 h-3.5 text-white" />
               </button>
             </div>
@@ -1047,8 +1057,8 @@ function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
       )}
 
       {rows.length > 0 && (
-        <button onClick={onAddTask} className="mt-3 w-full py-2.5 rounded-xl text-[12px] font-semibold text-slate-300 border border-dashed transition-all hover:text-cyan-300 hover:border-cyan-500/40"
-          style={{ borderColor: 'rgba(56,132,255,0.3)' }}>
+        <button onClick={onAddTask} className="mt-3 w-full py-2.5 rounded-xl text-[12px] font-semibold text-wk-ink-300 border border-dashed transition-all hover:text-wk-ink-200 hover:border-wk-ink-400/40"
+          style={{ borderColor: 'rgba(156,150,140,0.3)' }}>
           + Add Task
         </button>
       )}
@@ -1078,20 +1088,20 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-        borderColor: 'rgba(56,132,255,0.26)',
-        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+        borderColor: 'rgba(156,150,140,0.26)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
       }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(34,211,238,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
-            <Ico n="target" cls="w-4 h-4 text-cyan-300" />
+            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(207,200,187,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+            <Ico n="target" cls="w-4 h-4 text-wk-ink-200" />
           </div>
-          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Today's Focus</div>
+          <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Today's Focus</div>
         </div>
-        <button onClick={onViewPlan} className="text-[11px] px-3 py-1.5 rounded-lg border text-slate-300 transition-colors hover:text-cyan-300 hover:border-cyan-500/40 flex-shrink-0"
-          style={{ borderColor: 'rgba(56,132,255,0.3)', background: 'rgba(41,98,255,0.06)' }}>
+        <button onClick={onViewPlan} className="text-[11px] px-3 py-1.5 rounded-lg border text-wk-ink-300 transition-colors hover:text-wk-ink-200 hover:border-wk-ink-400/40 flex-shrink-0"
+          style={{ borderColor: 'rgba(156,150,140,0.3)', background: 'rgba(156,150,140,0.06)' }}>
           View Plan
         </button>
       </div>
@@ -1101,7 +1111,7 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
           <svg width="150" height="150" viewBox="0 0 150 150">
             <defs>
               <linearGradient id="tfGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#2979FF" /><stop offset="100%" stopColor="#22D3EE" />
+                <stop offset="0%" stopColor="#FFB057" /><stop offset="100%" stopColor="#FFF7E6" />
               </linearGradient>
               <filter id="tfGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
             </defs>
@@ -1111,28 +1121,28 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
               transform="rotate(-90 75 75)" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-xl font-bold text-slate-100">{fmt(completedMinutes)}</div>
-            <div className="text-[11px] text-slate-500">/ {fmt(plannedMinutes)}</div>
+            <div className="text-xl font-bold text-wk-ink-100">{fmt(completedMinutes)}</div>
+            <div className="text-[11px] text-wk-ink-500">/ {fmt(plannedMinutes)}</div>
           </div>
         </div>
 
         <div className="flex-1 space-y-3 min-w-0">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="flex items-center gap-1.5 text-[12px] text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />Completed</span>
-              <span className="text-[12px] text-slate-300">{fmt(completedMinutes)}</span>
+              <span className="flex items-center gap-1.5 text-[12px] text-wk-ink-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />Completed</span>
+              <span className="text-[12px] text-wk-ink-300">{fmt(completedMinutes)}</span>
             </div>
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <div className="h-full rounded-full" style={{ width: `${completedPct}%`, background: 'linear-gradient(90deg,#19D3A2,#22D3EE)' }} />
+              <div className="h-full rounded-full" style={{ width: `${completedPct}%`, background: 'linear-gradient(90deg,#34D399,#FFF7E6)' }} />
             </div>
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="flex items-center gap-1.5 text-[12px] text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-slate-500 flex-shrink-0" />Remaining</span>
-              <span className="text-[12px] text-slate-300">{fmt(remainingMinutes)}</span>
+              <span className="flex items-center gap-1.5 text-[12px] text-wk-ink-300"><span className="w-1.5 h-1.5 rounded-full bg-wk-black-400 flex-shrink-0" />Remaining</span>
+              <span className="text-[12px] text-wk-ink-300">{fmt(remainingMinutes)}</span>
             </div>
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <div className="h-full rounded-full" style={{ width: `${remainingPct}%`, background: 'rgba(148,163,184,0.4)' }} />
+              <div className="h-full rounded-full" style={{ width: `${remainingPct}%`, background: 'rgba(156,150,140,0.4)' }} />
             </div>
           </div>
         </div>
@@ -1140,25 +1150,25 @@ function TodayFocusCard({ plannedMinutes, completedMinutes, activeTask, onContin
 
       {activeTask ? (
         <>
-          <div className="mt-4 flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+          <div className="mt-4 flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(38,38,42,0.6)' }}>
             {(() => {
               const { emoji, color } = subjectVisual(activeTask.subject)
               return <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: `${color}1A`, border: `1px solid ${color}44` }}>{emoji}</div>
             })()}
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-slate-200 truncate">{activeTask.subject}</div>
-              <div className="text-[11px] text-slate-500">{activeTask.mode === 'pomodoro' ? 'Pomodoro · 25/5' : 'Regular session'}</div>
+              <div className="text-sm font-semibold text-wk-ink-200 truncate">{activeTask.subject}</div>
+              <div className="text-[11px] text-wk-ink-500">{activeTask.mode === 'pomodoro' ? 'Pomodoro · 25/5' : 'Regular session'}</div>
             </div>
-            <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
+            <svg viewBox="0 0 12 12" className="w-3 h-3 text-wk-ink-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4" /></svg>
           </div>
-          <button onClick={onContinueFocus} className="mt-3 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+          <button onClick={onContinueFocus} className="mt-3 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
             <Ico n="play" cls="w-4 h-4" />Continue Focus
           </button>
         </>
       ) : (
-        <button onClick={onStartFirst ?? onViewPlan} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+        <button onClick={onStartFirst ?? onViewPlan} className="mt-4 w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
+          style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
           <Ico n="play" cls="w-4 h-4" />Start Focus
         </button>
       )}
@@ -1188,21 +1198,21 @@ function HomeFocusTimerCard({ pomo, onGoFocus }: {
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0F1240 0%, #0A0E28 100%)',
-        borderColor: 'rgba(124,77,255,0.4)',
-        boxShadow: '0 0 60px rgba(124,77,255,0.16), inset 0 1px 0 rgba(255,255,255,0.05)',
+        background: 'linear-gradient(160deg, #1C1C1F 0%, #111113 100%)',
+        borderColor: 'rgba(255,138,61,0.4)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
       }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(124,77,255,0.3), rgba(41,98,255,0.2))', border: '1px solid rgba(124,77,255,0.45)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
-            <Ico n="target" cls="w-4 h-4 text-violet-300" />
+            style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.3), rgba(156,150,140,0.2))', border: '1px solid rgba(255,138,61,0.45)', boxShadow: 'none' }}>
+            <Ico n="target" cls="w-4 h-4 text-wk-orange-300" />
           </div>
-          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Focus Timer</div>
+          <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Focus Timer</div>
         </div>
         <button onClick={() => setTimerMode(isPomo ? 'regular' : 'pomodoro')}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors hover:border-violet-400/50"
-          style={{ background: 'rgba(124,77,255,0.12)', borderColor: 'rgba(124,77,255,0.3)', color: '#C4AAFF' }}>
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors hover:border-wk-orange-300/50"
+          style={{ background: 'rgba(255,138,61,0.12)', borderColor: 'rgba(255,138,61,0.3)', color: '#FFA94D' }}>
           {isPomo ? 'Pomodoro' : 'Regular'}
           <Ico n="chevR" cls="w-3 h-3 rotate-90" />
         </button>
@@ -1212,17 +1222,17 @@ function HomeFocusTimerCard({ pomo, onGoFocus }: {
         <div className="rounded-full flex flex-col items-center justify-center flex-shrink-0"
           style={{
             width: 190, height: 190,
-            border: '3px solid rgba(148,197,255,0.65)',
-            boxShadow: '0 0 28px rgba(124,77,255,0.45), 0 0 60px rgba(56,132,255,0.25), inset 0 0 30px rgba(124,77,255,0.12)',
-            background: 'radial-gradient(circle at 50% 40%, #131A45 0%, #0A0E28 75%)',
+            border: '3px solid rgba(214,208,196,0.65)',
+            boxShadow: 'none',
+            background: 'radial-gradient(circle at 50% 40%, #26262A 0%, #111113 75%)',
           }}>
-          <div className="text-[34px] font-bold text-white tabular-nums" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{previewStr}</div>
-          <div className="text-[11px] text-slate-400 mt-1">{caption}</div>
+          <div className="text-[34px] font-bold text-white tabular-nums" style={{ fontFamily: 'Sora, sans-serif' }}>{previewStr}</div>
+          <div className="text-[11px] text-wk-ink-400 mt-1">{caption}</div>
         </div>
 
         <button onClick={onGoFocus}
-          className="flex items-center justify-center gap-2 px-8 h-11 rounded-2xl text-white font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{ background: 'linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)', boxShadow: '0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)' }}>
+          className="flex items-center justify-center gap-2 px-8 h-11 rounded-2xl text-wk-black-950 font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+          style={{ background: 'linear-gradient(135deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
           <Ico n="lock" cls="w-4 h-4" /> Focus Lock
         </button>
       </div>
@@ -1262,35 +1272,35 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-        borderColor: 'rgba(56,132,255,0.26)',
-        boxShadow: '0 0 40px rgba(41,98,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+        borderColor: 'rgba(156,150,140,0.26)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
       }}>
       <button onClick={onOpenQuickTimer}
         className="flex items-center justify-between mb-4 w-full text-left group">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(41,98,255,0.18)', border: '1px solid rgba(56,132,255,0.35)' }}>
-            <Ico n="clock" cls="w-3.5 h-3.5 text-cyan-300" />
+            style={{ background: 'rgba(156,150,140,0.18)', border: '1px solid rgba(156,150,140,0.35)' }}>
+            <Ico n="clock" cls="w-3.5 h-3.5 text-wk-ink-200" />
           </div>
-          <div className="text-sm font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Quick Timer</div>
+          <div className="text-sm font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Quick Timer</div>
         </div>
-        <Ico n="chevR" cls="w-4 h-4 text-slate-500 transition-colors group-hover:text-cyan-300" />
+        <Ico n="chevR" cls="w-4 h-4 text-wk-ink-500 transition-colors group-hover:text-wk-ink-200" />
       </button>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <div className="text-[30px] font-bold text-white tabular-nums" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+        <div className="text-[30px] font-bold text-white tabular-nums" style={{ fontFamily: 'Sora, sans-serif' }}>
           {formatClock(elapsed, true)}
         </div>
         <button onClick={() => setRunning(r => !r)}
-          className="flex items-center justify-center gap-2 px-6 h-10 rounded-2xl text-white font-semibold text-[13px] transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 18px rgba(41,98,255,0.5)' }}>
+          className="flex items-center justify-center gap-2 px-6 h-10 rounded-2xl text-wk-black-950 font-semibold text-[13px] transition-all hover:opacity-90 active:scale-[0.98]"
+          style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
           {running
             ? <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
             : <Ico n="play" cls="w-3.5 h-3.5" />}
           {running ? 'Pause' : 'Start'}
         </button>
-        <div className="text-[11px] text-slate-500">∞ No limit</div>
+        <div className="text-[11px] text-wk-ink-500">∞ No limit</div>
       </div>
     </div>
   )
@@ -1314,23 +1324,23 @@ function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-        borderColor: 'rgba(56,132,255,0.26)',
-        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+        borderColor: 'rgba(156,150,140,0.26)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
       }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 14px rgba(41,98,255,0.3)' }}>
-            <Ico n="rooms" cls="w-4 h-4 text-cyan-300" />
+            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+            <Ico n="rooms" cls="w-4 h-4 text-wk-ink-200" />
           </div>
-          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Live Study Rooms</div>
+          <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Live Study Rooms</div>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <button onClick={onViewAll} className="text-[12px] text-slate-300 hover:text-cyan-300 transition-colors">View All</button>
+          <button onClick={onViewAll} className="text-[12px] text-wk-ink-300 hover:text-wk-ink-200 transition-colors">View All</button>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] text-emerald-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{totalStudying} studying</span>
+            <span className="text-[11px] text-emerald-400" style={{ fontFamily: 'Sora, sans-serif' }}>{totalStudying} studying</span>
           </div>
         </div>
       </div>
@@ -1338,9 +1348,9 @@ function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
       {topRooms.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
           <div className="text-3xl mb-2">🌙</div>
-          <div className="text-sm font-semibold text-slate-300 mb-3">No live rooms right now</div>
-          <button onClick={onViewAll} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #2979FF, #22D3EE)', boxShadow: '0 0 20px rgba(41,98,255,0.45)' }}>
+          <div className="text-sm font-semibold text-wk-ink-300 mb-3">No live rooms right now</div>
+          <button onClick={onViewAll} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-wk-black-950 transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
             Explore Study Rooms
           </button>
         </div>
@@ -1348,18 +1358,18 @@ function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
         <div className="space-y-2.5 flex-1">
           {topRooms.map(({ room, live }) => (
             <div key={room.id} onClick={() => onEnterRoom(room)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[rgba(56,132,255,0.35)]"
-              style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }}>
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[rgba(156,150,140,0.35)]"
+              style={{ background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(38,38,42,0.6)' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base flex-shrink-0"
                 style={{ background: room.iconBg }}>{room.iconEmoji}</div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-200 truncate flex items-center gap-1.5">
+                <div className="text-sm font-semibold text-wk-ink-200 truncate flex items-center gap-1.5">
                   {room.name}{room.emoji && <span>{room.emoji}</span>}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{room.subject} · {live} / {room.members}</div>
+                <div className="text-[11px] text-wk-ink-500 mt-0.5">{room.subject} · {live} / {room.members}</div>
               </div>
               <FaceAvatars colors={room.avatarColors} inits={room.avatarInits} />
-              <svg viewBox="0 0 12 12" className="w-3 h-3 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 2l4 4-4 4" /></svg>
+              <svg viewBox="0 0 12 12" className="w-3 h-3 text-wk-ink-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 2l4 4-4 4" /></svg>
             </div>
           ))}
         </div>
@@ -1372,9 +1382,9 @@ function MotivationalCard({ onKeepGoing }: { onKeepGoing: () => void }) {
   return (
     <div className="p-5 rounded-2xl relative overflow-hidden border h-full flex flex-col justify-between"
       style={{
-        background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-        borderColor: 'rgba(56,132,255,0.26)',
-        boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+        background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+        borderColor: 'rgba(156,150,140,0.26)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
         minHeight: 260,
       }}>
       {/* Abstract night-sky/mountain illustration, blended into the card
@@ -1383,33 +1393,33 @@ function MotivationalCard({ onKeepGoing }: { onKeepGoing: () => void }) {
       <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.85 }}>
         <defs>
           <radialGradient id="mcMoonGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#22D3EE" stopOpacity="0" />
+            <stop offset="0%" stopColor="#FFF7E6" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#FFF7E6" stopOpacity="0" />
           </radialGradient>
           <linearGradient id="mcMtnBack" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22315C" /><stop offset="100%" stopColor="#0C1631" />
+            <stop offset="0%" stopColor="#3A3A3A" /><stop offset="100%" stopColor="#161618" />
           </linearGradient>
           <linearGradient id="mcMtnFront" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#141E42" /><stop offset="100%" stopColor="#090E20" />
+            <stop offset="0%" stopColor="#26262A" /><stop offset="100%" stopColor="#0B0B0D" />
           </linearGradient>
         </defs>
         <circle cx="300" cy="65" r="60" fill="url(#mcMoonGlow)" />
-        <circle cx="300" cy="65" r="15" fill="#E4ECFF" opacity="0.8" />
+        <circle cx="300" cy="65" r="15" fill="#FFF7E6" opacity="0.8" />
         <path d="M170 300 L225 185 L265 235 L305 155 L355 225 L400 185 L400 300 Z" fill="url(#mcMtnBack)" opacity="0.75" />
         <path d="M110 300 L185 205 L235 255 L295 195 L355 255 L400 235 L400 300 Z" fill="url(#mcMtnFront)" />
       </svg>
 
       <div className="relative">
-        <div className="text-xl font-bold text-slate-100 leading-snug" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <div className="text-xl font-bold text-wk-ink-100 leading-snug" style={{ fontFamily: 'Sora, sans-serif' }}>
           Better Focus.<br />Bigger Dreams.
         </div>
-        <div className="text-[12px] text-slate-400 mt-2">You're closer than you think.</div>
+        <div className="text-[12px] text-wk-ink-400 mt-2">You're closer than you think.</div>
       </div>
 
       <button onClick={onKeepGoing}
         className="relative self-start flex items-center gap-1.5 px-4 py-2 rounded-full text-[12px] font-semibold text-white transition-all hover:opacity-90"
-        style={{ background: 'rgba(41,98,255,0.16)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 16px rgba(41,98,255,0.3)' }}>
-        <Ico n="target" cls="w-3.5 h-3.5 text-cyan-300" />
+        style={{ background: 'rgba(156,150,140,0.16)', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+        <Ico n="target" cls="w-3.5 h-3.5 text-wk-ink-200" />
         Keep going
         <Ico n="arrow" cls="w-3.5 h-3.5" />
       </button>
@@ -1419,73 +1429,73 @@ function MotivationalCard({ onKeepGoing }: { onKeepGoing: () => void }) {
 
 // ─── Study Rooms ──────────────────────────────────────────────────────────────
 const ROOMS = [
-  { name: 'JEE Physics — Night Grind', cat: 'JEE Advanced', cur: 12, max: 20, cam: 'Cam off', avatars: [{ bg: '#7C4DFF', init: 'RS' }, { bg: '#0F99CC', init: 'PK' }, { bg: '#EC4899', init: 'AM' }], extra: '+9' },
-  { name: 'NEET Biology — Focus Room', cat: 'NEET 2026', cur: 8, max: 15, cam: 'Cam optional', avatars: [{ bg: '#0DAE86', init: 'SK' }, { bg: '#3B82F6', init: 'DL' }, { bg: '#F59E0B', init: 'MK' }], extra: '+5' },
-  { name: 'Math Olympiad Prep', cat: 'Competition', cur: 5, max: 10, cam: 'Cam on', avatars: [{ bg: '#F97316', init: 'AK' }, { bg: '#7C4DFF', init: 'RV' }], extra: '+3' },
+  { name: 'JEE Physics — Night Grind', cat: 'JEE Advanced', cur: 12, max: 20, cam: 'Cam off', avatars: [{ bg: '#FF8A3D', init: 'RS' }, { bg: '#9C968C', init: 'PK' }, { bg: '#EC4899', init: 'AM' }], extra: '+9' },
+  { name: 'NEET Biology — Focus Room', cat: 'NEET 2026', cur: 8, max: 15, cam: 'Cam optional', avatars: [{ bg: '#10B981', init: 'SK' }, { bg: '#3B82F6', init: 'DL' }, { bg: '#F59E0B', init: 'MK' }], extra: '+5' },
+  { name: 'Math Olympiad Prep', cat: 'Competition', cur: 5, max: 10, cam: 'Cam on', avatars: [{ bg: '#F97316', init: 'AK' }, { bg: '#FF8A3D', init: 'RV' }], extra: '+3' },
 ]
 function StudyRooms({ onNavigate }: { onNavigate: (id: string) => void }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Live Study Rooms</div>
-          <div className="text-[11px] text-slate-500 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>Active right now</div>
+          <div className="text-sm font-semibold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Live Study Rooms</div>
+          <div className="text-[11px] text-wk-ink-500 mt-0.5" style={{ fontFamily: 'Sora, sans-serif' }}>Active right now</div>
         </div>
-        <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-emerald-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>25 studying</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-emerald-400" style={{ fontFamily: 'Sora, sans-serif' }}>25 studying</span></div>
       </div>
       <div className="space-y-2.5 flex-1">
         {ROOMS.map((room, i) => (
-          <div key={i} onClick={() => onNavigate('studyrooms')} className="p-3 rounded-xl border transition-all group hover:border-violet-500/30 cursor-pointer" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(124,58,237,0.16)' }}>
+          <div key={i} onClick={() => onNavigate('studyrooms')} className="p-3 rounded-xl border transition-all group hover:border-wk-orange-500/30 cursor-pointer" style={{ background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(255,138,61,0.16)' }}>
             <div className="flex items-start justify-between mb-2.5">
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-200 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{room.name}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{room.cat}</div>
+                <div className="text-sm font-semibold text-wk-ink-200 truncate" style={{ fontFamily: 'Sora, sans-serif' }}>{room.name}</div>
+                <div className="text-[10px] text-wk-ink-500 mt-0.5" style={{ fontFamily: 'Sora, sans-serif' }}>{room.cat}</div>
               </div>
               <div className="flex-shrink-0 ml-3 flex items-center gap-1">
                 <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-sm font-semibold text-emerald-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{room.cur}</span>
-                <span className="text-[10px] text-slate-600" style={{ fontFamily: 'JetBrains Mono, monospace' }}>/ {room.max}</span>
+                <span className="text-sm font-semibold text-emerald-400" style={{ fontFamily: 'Sora, sans-serif' }}>{room.cur}</span>
+                <span className="text-[10px] text-wk-ink-600" style={{ fontFamily: 'Sora, sans-serif' }}>/ {room.max}</span>
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-1.5">
-                  {room.avatars.map((av, j) => (<div key={j} className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white border-2" style={{ background: av.bg, borderColor: '#0A0D1E' }}>{av.init}</div>))}
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-slate-400 border-2" style={{ background: 'rgba(14,21,40,0.9)', borderColor: '#0A0D1E' }}>{room.extra}</div>
+                  {room.avatars.map((av, j) => (<div key={j} className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white border-2" style={{ background: av.bg, borderColor: '#0B0B0D' }}>{av.init}</div>))}
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-wk-ink-400 border-2" style={{ background: 'rgba(22,22,24,0.9)', borderColor: '#0B0B0D' }}>{room.extra}</div>
                 </div>
-                <div className="flex items-center gap-1 text-slate-500"><Ico n="video" cls="w-3 h-3" /><span className="text-[10px]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{room.cam}</span></div>
+                <div className="flex items-center gap-1 text-wk-ink-500"><Ico n="video" cls="w-3 h-3" /><span className="text-[10px]" style={{ fontFamily: 'Sora, sans-serif' }}>{room.cam}</span></div>
               </div>
               <button className="text-[11px] px-2.5 py-1 rounded-lg border opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: '#C4B5FD', background: 'rgba(124,58,237,0.1)', borderColor: 'rgba(124,58,237,0.28)', fontFamily: 'Poppins, sans-serif' }}>Join →</button>
+                style={{ color: '#E8E2D6', background: 'rgba(255,138,61,0.1)', borderColor: 'rgba(255,138,61,0.28)', fontFamily: 'Sora, sans-serif' }}>Join →</button>
             </div>
           </div>
         ))}
       </div>
-      <button onClick={() => onNavigate('studyrooms')} className="mt-3 w-full py-2 rounded-xl text-[12px] font-semibold text-violet-300 border transition-all hover:bg-violet-500/10"
-        style={{ borderColor: 'rgba(124,58,237,0.25)' }}>View All Rooms →</button>
+      <button onClick={() => onNavigate('studyrooms')} className="mt-3 w-full py-2 rounded-xl text-[12px] font-semibold text-wk-orange-300 border transition-all hover:bg-wk-orange-500/10"
+        style={{ borderColor: 'rgba(255,138,61,0.25)' }}>View All Rooms →</button>
     </div>
   )
 }
 
 // ─── 3D Library Preview ───────────────────────────────────────────────────────
 const DESK_AVATARS: Record<string, { color: string; init: string }> = {
-  '1-1': { color: '#7C3AED', init: 'AR' }, '3-1': { color: '#22D3EE', init: 'SK' },
+  '1-1': { color: '#FF8A3D', init: 'AR' }, '3-1': { color: '#FFF7E6', init: 'SK' },
   '1-3': { color: '#34D399', init: 'PM' }, '3-3': { color: '#F59E0B', init: 'DJ' },
-  '2-2': { color: '#F87171', init: 'KV' }, '4-2': { color: '#818CF8', init: 'RV' },
+  '2-2': { color: '#F87171', init: 'KV' }, '4-2': { color: '#CFC8BB', init: 'RV' },
 }
 function LibraryPreview({ onNavigate }: { onNavigate: (id: string) => void }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <div className="text-sm font-semibold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>3D Library</div>
-          <div className="text-[11px] text-slate-500 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>Virtual study environment</div>
+          <div className="text-sm font-semibold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>3D Library</div>
+          <div className="text-[11px] text-wk-ink-500 mt-0.5" style={{ fontFamily: 'Sora, sans-serif' }}>Virtual study environment</div>
         </div>
-        <button onClick={() => onNavigate('3dlibrary')} className="flex items-center gap-1 text-[11px] transition-colors hover:text-slate-200" style={{ color: '#A78BFA', fontFamily: 'Poppins, sans-serif' }}>
+        <button onClick={() => onNavigate('3dlibrary')} className="flex items-center gap-1 text-[11px] transition-colors hover:text-wk-ink-200" style={{ color: '#FFA94D', fontFamily: 'Sora, sans-serif' }}>
           Explore <Ico n="arrow" cls="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="flex-1 relative rounded-xl overflow-hidden border" style={{ background: '#060810', borderColor: 'rgba(124,58,237,0.2)', minHeight: '130px' }}>
+      <div className="flex-1 relative rounded-xl overflow-hidden border" style={{ background: '#0B0B0D', borderColor: 'rgba(255,138,61,0.2)', minHeight: '130px' }}>
         <svg viewBox="0 0 400 175" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs><filter id="libGlow"><feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
           {[0, 1, 2, 3, 4].map(j => [0, 1, 2, 3, 4, 5].map(i => {
@@ -1494,29 +1504,29 @@ function LibraryPreview({ onNavigate }: { onNavigate: (id: string) => void }) {
             const key = `${i}-${j}`, desk = DESK_AVATARS[key], isDesk = !!desk
             return (
               <g key={key}>
-                <polygon points={`${x},${y} ${x + tw / 2},${y + th / 2} ${x},${y + th} ${x - tw / 2},${y + th / 2}`} fill={isDesk ? 'rgba(99,102,241,0.1)' : 'rgba(15,23,42,0.5)'} stroke="rgba(99,102,241,0.1)" strokeWidth="0.75" />
+                <polygon points={`${x},${y} ${x + tw / 2},${y + th / 2} ${x},${y + th} ${x - tw / 2},${y + th / 2}`} fill={isDesk ? 'rgba(156,150,140,0.1)' : 'rgba(22,22,24,0.5)'} stroke="rgba(156,150,140,0.1)" strokeWidth="0.75" />
                 {isDesk && (<>
-                  <polygon points={`${x},${y - 7} ${x + tw / 2 - 5},${y + th / 2 - 5} ${x},${y + th - 8} ${x - tw / 2 + 5},${y + th / 2 - 5}`} fill="rgba(99,102,241,0.18)" stroke="rgba(139,92,246,0.45)" strokeWidth="1" />
-                  <polygon points={`${x - tw / 2 + 5},${y + th / 2 - 5} ${x},${y + th - 8} ${x},${y + th - 1} ${x - tw / 2 + 5},${y + th / 2 + 2}`} fill="rgba(50,40,100,0.6)" stroke="rgba(99,102,241,0.2)" strokeWidth="0.75" />
+                  <polygon points={`${x},${y - 7} ${x + tw / 2 - 5},${y + th / 2 - 5} ${x},${y + th - 8} ${x - tw / 2 + 5},${y + th / 2 - 5}`} fill="rgba(156,150,140,0.18)" stroke="rgba(255,138,61,0.45)" strokeWidth="1" />
+                  <polygon points={`${x - tw / 2 + 5},${y + th / 2 - 5} ${x},${y + th - 8} ${x},${y + th - 1} ${x - tw / 2 + 5},${y + th / 2 + 2}`} fill="rgba(74,71,66,0.6)" stroke="rgba(156,150,140,0.2)" strokeWidth="0.75" />
                   <circle cx={x} cy={y - 14} r="6" fill={desk.color} filter="url(#libGlow)" opacity="0.9" />
-                  <text x={x} y={y - 11} textAnchor="middle" fontSize="5" fill="white" fontFamily="Poppins, sans-serif" fontWeight="700">{desk.init}</text>
+                  <text x={x} y={y - 11} textAnchor="middle" fontSize="5" fill="white" fontFamily="Sora, sans-serif" fontWeight="700">{desk.init}</text>
                 </>)}
               </g>
             )
           }))}
-          <text x="100" y="95" fontSize="8" fill="rgba(124,58,237,0.45)" fontFamily="JetBrains Mono, monospace">Focus Zone</text>
-          <text x="255" y="68" fontSize="8" fill="rgba(34,211,238,0.45)" fontFamily="JetBrains Mono, monospace">Collab Zone</text>
-          <text x="200" y="168" textAnchor="middle" fontSize="8" fill="rgba(100,116,139,0.5)" fontFamily="JetBrains Mono, monospace">40 seats · 6 occupied · 34 available</text>
+          <text x="100" y="95" fontSize="8" fill="rgba(255,138,61,0.45)" fontFamily="Sora, sans-serif">Focus Zone</text>
+          <text x="255" y="68" fontSize="8" fill="rgba(207,200,187,0.45)" fontFamily="Sora, sans-serif">Collab Zone</text>
+          <text x="200" y="168" textAnchor="middle" fontSize="8" fill="rgba(122,117,109,0.5)" fontFamily="Sora, sans-serif">40 seats · 6 occupied · 34 available</text>
         </svg>
       </div>
-      <button onClick={() => onNavigate('3dlibrary')} className="mt-3 w-full py-2 rounded-xl text-[12px] font-semibold text-violet-300 border transition-all hover:bg-violet-500/10"
-        style={{ borderColor: 'rgba(124,58,237,0.25)' }}>Enter 3D Library →</button>
+      <button onClick={() => onNavigate('3dlibrary')} className="mt-3 w-full py-2 rounded-xl text-[12px] font-semibold text-wk-orange-300 border transition-all hover:bg-wk-orange-500/10"
+        style={{ borderColor: 'rgba(255,138,61,0.25)' }}>Enter 3D Library →</button>
     </div>
   )
 }
 
 // ─── Subject colors ───────────────────────────────────────────────────────────
-const SUBJ_COLORS = ['#3B82F6', '#8B5CF6', '#14B8A6', '#22C55E', '#F59E0B', '#EC4899', '#F97316', '#6366F1']
+const SUBJ_COLORS = ['#3B82F6', '#8B5CF6', '#14B8A6', '#22C55E', '#F59E0B', '#EC4899', '#F97316', '#9C968C']
 const TASK_EMOJIS = ['📘', '🩺', '💊', '🧑\u200d🎓', '📄', '🧪', '📐', '🔬', '🧠', '📖']
 
 // Deterministic (not random) icon/color per subject, so the same subject
@@ -1669,14 +1679,14 @@ function ModeTab({ active, onClick, icon, title, sub }: { active: boolean; onCli
     <button onClick={onClick}
       className="flex items-center gap-3 px-5 py-3 rounded-2xl border transition-all w-full sm:w-64"
       style={{
-        background: active ? 'linear-gradient(135deg, rgba(124,77,255,0.28), rgba(25,181,230,0.14))' : '#0B1530',
-        borderColor: active ? '#6B44EE' : '#1A2845',
-        boxShadow: active ? '0 0 24px rgba(124,77,255,0.35)' : 'none',
+        background: active ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : '#161618',
+        borderColor: active ? '#E9772E' : '#26262A',
+        boxShadow: active ? 'none' : 'none',
       }}>
       <span className="text-xl flex-shrink-0 leading-none">{icon}</span>
       <span className="text-left">
-        <span className="block text-sm font-semibold text-slate-100">{title}</span>
-        <span className="block text-[11px] text-slate-400">{sub}</span>
+        <span className="block text-sm font-semibold text-wk-ink-100">{title}</span>
+        <span className="block text-[11px] text-wk-ink-400">{sub}</span>
       </span>
     </button>
   )
@@ -1696,24 +1706,24 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove, onT
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all"
       style={
         isLiveRunning
-          ? { background: 'rgba(25,211,162,0.09)', borderColor: '#19D3A2', boxShadow: '0 0 0 1px rgba(25,211,162,0.25), 0 0 20px rgba(25,211,162,0.22)' }
+          ? { background: 'rgba(52,211,153,0.09)', borderColor: '#34D399', boxShadow: '0 0 0 1px rgba(52,211,153,0.25)' }
           : isActive
-            ? { background: 'rgba(124,77,255,0.07)', borderColor: 'rgba(124,77,255,0.35)' }
-            : { background: 'rgba(11,21,48,0.55)', borderColor: 'rgba(26,40,69,0.7)' }
+            ? { background: 'rgba(255,138,61,0.07)', borderColor: 'rgba(255,138,61,0.35)' }
+            : { background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(38,38,42,0.7)' }
       }>
       <div className="relative w-10 h-10 rounded-xl flex items-center justify-center text-base flex-shrink-0"
         style={{ background: `${color}1A`, border: `1px solid ${color}44`, opacity: completed ? 0.5 : 1 }}>
         {emoji}
         {isLiveRunning && (
-          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px #19D3A2' }} />
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: 'none' }} />
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-100 truncate" style={completed ? { textDecoration: 'line-through', color: '#64748B' } : undefined}>
+        <div className="text-sm font-semibold text-wk-ink-100 truncate" style={completed ? { textDecoration: 'line-through', color: '#7A756D' } : undefined}>
           {task.subject}
         </div>
-        <div className="text-[11px] text-slate-500 truncate" style={completed ? { textDecoration: 'line-through' } : undefined}>
+        <div className="text-[11px] text-wk-ink-500 truncate" style={completed ? { textDecoration: 'line-through' } : undefined}>
           {task.topic}
         </div>
       </div>
@@ -1722,23 +1732,23 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove, onT
         <button onClick={onStart} disabled={isLiveRunning}
           title="Start"
           className="w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-40 hover:opacity-90 active:scale-95"
-          style={{ background: '#19D3A2', color: '#04140F' }}>
+          style={{ background: '#34D399', color: '#04140F' }}>
           <Ico n="play" cls="w-3.5 h-3.5" />
         </button>
         <button onClick={onPause} disabled={!isLiveRunning}
           title="Pause"
           className="w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30 hover:opacity-90 active:scale-95"
-          style={{ background: '#1A2845', color: '#C7D2FE' }}>
+          style={{ background: '#26262A', color: '#E8E2D6' }}>
           <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
         </button>
         <div className="relative">
           <button onClick={() => setMenuOpen(v => !v)} title="More"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors">
+            className="w-8 h-8 rounded-full flex items-center justify-center text-wk-ink-500 hover:text-wk-ink-300 transition-colors">
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 z-20 rounded-lg border overflow-hidden whitespace-nowrap"
-              style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+              style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
               onMouseLeave={() => setMenuOpen(false)}>
               <button onClick={() => { setMenuOpen(false); onToggleComplete() }}
                 className="px-3 py-2 text-[12px] text-emerald-400 hover:bg-emerald-500/10 transition-colors w-full text-left">
@@ -1774,37 +1784,37 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="rounded-2xl border p-7 w-[380px] max-w-[92vw]"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
         <div className="mb-5">
-          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">ADD TASK</div>
-          <div className="text-lg font-semibold text-slate-100">New study task</div>
+          <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-1.5">ADD TASK</div>
+          <div className="text-lg font-semibold text-wk-ink-100">New study task</div>
         </div>
 
-        <label className="block text-[11px] text-slate-500 mb-1.5">Subject</label>
+        <label className="block text-[11px] text-wk-ink-500 mb-1.5">Subject</label>
         <input autoFocus value={subject} onChange={e => setSubject(e.target.value)}
           placeholder="e.g. Physics"
           list="focus-subject-suggestions"
-          className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
-          style={{ borderColor: '#1A2845' }} />
+          className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-wk-ink-200 placeholder-wk-ink-600 transition-colors focus:border-wk-orange-300/70"
+          style={{ borderColor: '#26262A' }} />
         <datalist id="focus-subject-suggestions">
           {SUBJECT_SUGGESTIONS.map(s => <option key={s} value={s} />)}
         </datalist>
 
-        <label className="block text-[11px] text-slate-500 mb-1.5">Topic</label>
+        <label className="block text-[11px] text-wk-ink-500 mb-1.5">Topic</label>
         <input value={topic} onChange={e => setTopic(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
           placeholder="e.g. Electricity"
-          className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 transition-colors focus:border-violet-400/70"
-          style={{ borderColor: '#1A2845' }} />
+          className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-wk-ink-200 placeholder-wk-ink-600 transition-colors focus:border-wk-orange-300/70"
+          style={{ borderColor: '#26262A' }} />
 
         <div className="flex gap-3">
           <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+            className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">
             Cancel
           </button>
           <button onClick={submit} disabled={!canAdd}
-            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40"
-            style={{ background: 'linear-gradient(135deg, #7C4DFF, #6B44EE)', boxShadow: '0 0 24px rgba(124,77,255,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
+            className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #FF8A3D, #E9772E)', boxShadow: 'none' }}>
             Add Task
           </button>
         </div>
@@ -1831,9 +1841,9 @@ function PomodoroToggle({ checked, onChange, label }: { checked: boolean; onChan
       className="relative flex-shrink-0 rounded-full transition-colors"
       style={{
         width: 44, height: 24,
-        background: checked ? 'linear-gradient(135deg,#3B82F6,#7C4DFF)' : '#1A2845',
-        border: `1px solid ${checked ? 'rgba(124,77,255,0.7)' : '#2A3A66'}`,
-        boxShadow: checked ? '0 0 14px rgba(99,102,241,0.55)' : 'none',
+        background: checked ? 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)' : '#26262A',
+        border: `1px solid ${checked ? 'rgba(255,138,61,0.7)' : '#4A4742'}`,
+        boxShadow: checked ? 'none' : 'none',
       }}>
       <span className="absolute rounded-full bg-white transition-all" style={{ width: 18, height: 18, top: 2, left: checked ? 22 : 2 }} />
     </button>
@@ -1849,24 +1859,24 @@ function PomodoroDurationCard({ icon, title, text, onText, lim, step, presets, o
     const cur = value ?? (Number(text.replace(/\D/g, '')) || lim.min)
     onText(String(Math.min(lim.max, Math.max(lim.min, cur + d))))
   }
-  const stepBtn = 'w-10 h-10 rounded-full flex items-center justify-center text-lg text-slate-100 border transition-all hover:opacity-90 active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed flex-shrink-0'
-  const stepStyle = { background: 'rgba(59,91,255,0.22)', borderColor: 'rgba(96,130,255,0.55)', boxShadow: '0 0 12px rgba(59,91,255,0.25)' }
+  const stepBtn = 'w-10 h-10 rounded-full flex items-center justify-center text-lg text-wk-ink-100 border transition-all hover:opacity-90 active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed flex-shrink-0'
+  const stepStyle = { background: 'rgba(156,150,140,0.22)', borderColor: 'rgba(207,200,187,0.55)', boxShadow: 'none' }
   return (
-    <div className="rounded-2xl border p-4" style={{ background: 'rgba(26,40,69,0.35)', borderColor: '#1E3060' }}>
-      <div className="flex items-center gap-2 mb-3 text-slate-200">
-        <span className="text-sky-300 flex items-center">{icon}</span>
+    <div className="rounded-2xl border p-4" style={{ background: 'rgba(38,38,42,0.35)', borderColor: '#3A3A3A' }}>
+      <div className="flex items-center gap-2 mb-3 text-wk-ink-200">
+        <span className="text-wk-ink-200 flex items-center">{icon}</span>
         <span className="text-[13px] font-semibold">{title}</span>
       </div>
       <div className="flex items-center gap-2.5">
         <button type="button" aria-label={`Decrease ${title}`} onClick={() => bump(-step)}
           disabled={value !== null && value <= lim.min} className={stepBtn} style={stepStyle}>−</button>
         <div className="flex-1 min-w-0 h-11 rounded-xl border flex items-center justify-center gap-1.5 transition-colors"
-          style={{ background: 'rgba(6,13,26,0.6)', borderColor: value === null ? '#F87171' : '#1E3060' }}>
+          style={{ background: 'rgba(11,11,13,0.6)', borderColor: value === null ? '#F87171' : '#3A3A3A' }}>
           <input value={text} inputMode="numeric" maxLength={3} aria-label={title}
             onChange={e => onText(e.target.value.replace(/\D/g, ''))}
             onKeyDown={e => { if (e.key === 'Enter') onEnter() }}
             className="w-12 bg-transparent outline-none text-center text-xl font-semibold text-white tabular-nums" />
-          <span className="text-sm text-slate-400">min</span>
+          <span className="text-sm text-wk-ink-400">min</span>
         </div>
         <button type="button" aria-label={`Increase ${title}`} onClick={() => bump(step)}
           disabled={value !== null && value >= lim.max} className={stepBtn} style={stepStyle}>+</button>
@@ -1878,15 +1888,15 @@ function PomodoroDurationCard({ icon, title, text, onText, lim, step, presets, o
             <button key={p} type="button" onClick={() => onText(String(p))}
               className="min-w-[38px] h-8 px-2.5 rounded-full border text-[12px] font-medium transition-all"
               style={{
-                background: on ? 'rgba(59,91,255,0.28)' : 'rgba(6,13,26,0.5)',
-                borderColor: on ? '#6082FF' : '#1E3060',
-                color: on ? '#FFFFFF' : '#8B9AC7',
-                boxShadow: on ? '0 0 14px rgba(96,130,255,0.55)' : 'none',
+                background: on ? 'rgba(156,150,140,0.28)' : 'rgba(11,11,13,0.5)',
+                borderColor: on ? '#CFC8BB' : '#3A3A3A',
+                color: on ? '#FFFFFF' : '#9C968C',
+                boxShadow: on ? 'none' : 'none',
               }}>{p}</button>
           )
         })}
       </div>
-      <div className="mt-2.5 text-[10px] h-3 text-right" style={{ color: value === null ? '#F87171' : '#5B6A8F' }}>
+      <div className="mt-2.5 text-[10px] h-3 text-right" style={{ color: value === null ? '#F87171' : '#7A756D' }}>
         {value === null ? `Enter ${lim.min}–${lim.max} min` : 'min'}
       </div>
     </div>
@@ -1917,20 +1927,20 @@ function PomodoroSettingsModal({ initial, inProgress, onClose, onSave }: {
   }
 
   const toggleCard = 'rounded-2xl border px-4 py-3.5 flex items-center gap-3'
-  const toggleStyle = { background: 'rgba(26,40,69,0.35)', borderColor: '#1E3060' }
+  const toggleStyle = { background: 'rgba(38,38,42,0.35)', borderColor: '#3A3A3A' }
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[rgba(0,0,0,0.75)]"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div role="dialog" aria-modal="true" aria-labelledby="pomo-modal-title"
         className="w-[660px] max-w-full max-h-[94vh] overflow-y-auto rounded-2xl border p-6"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
         <div className="flex items-center justify-between mb-5">
-          <div id="pomo-modal-title" className="flex items-center gap-3 text-lg font-semibold text-slate-100">
+          <div id="pomo-modal-title" className="flex items-center gap-3 text-lg font-semibold text-wk-ink-100">
             <span className="text-2xl leading-none">🍅</span>Customize Pomodoro
           </div>
           <button type="button" onClick={onClose} aria-label="Close"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors text-xl leading-none">×</button>
+            className="w-8 h-8 rounded-full flex items-center justify-center text-wk-ink-400 hover:text-wk-ink-100 transition-colors text-xl leading-none">×</button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1943,45 +1953,45 @@ function PomodoroSettingsModal({ initial, inProgress, onClose, onSave }: {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div className={toggleCard} style={toggleStyle}>
-            <span className="text-sky-300 flex-shrink-0"><Ico n="clock" cls="w-[18px] h-[18px]" /></span>
+            <span className="text-wk-ink-200 flex-shrink-0"><Ico n="clock" cls="w-[18px] h-[18px]" /></span>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-slate-100">Auto-start breaks</div>
-              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Automatically start break after focus ends</div>
+              <div className="text-[13px] font-semibold text-wk-ink-100">Auto-start breaks</div>
+              <div className="text-[11px] text-wk-ink-500 leading-snug mt-0.5">Automatically start break after focus ends</div>
             </div>
             <PomodoroToggle checked={autoStart} onChange={setAutoStart} label="Auto-start breaks" />
           </div>
           <div className={toggleCard} style={toggleStyle}>
-            <span className="text-sky-300 flex-shrink-0">
+            <span className="text-wk-ink-200 flex-shrink-0">
               <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12a8 8 0 0113.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 01-13.7 5.6L4 16M4 20v-4h4" /></svg>
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-slate-100">Repeat</div>
-              <div className="text-[11px] text-slate-500 leading-snug mt-0.5">Keep repeating for next session</div>
+              <div className="text-[13px] font-semibold text-wk-ink-100">Repeat</div>
+              <div className="text-[11px] text-wk-ink-500 leading-snug mt-0.5">Keep repeating for next session</div>
             </div>
             <PomodoroToggle checked={repeat} onChange={setRepeat} label="Repeat" />
           </div>
         </div>
 
-        <div className="mt-5 py-3 border-y flex items-center justify-center gap-2 text-[13px] text-slate-300" style={{ borderColor: 'rgba(30,48,96,0.8)' }}>
-          <span className="text-sky-300"><Ico n="zap" cls="w-4 h-4" /></span>
+        <div className="mt-5 py-3 border-y flex items-center justify-center gap-2 text-[13px] text-wk-ink-300" style={{ borderColor: 'rgba(58,58,58,0.8)' }}>
+          <span className="text-wk-ink-200"><Ico n="zap" cls="w-4 h-4" /></span>
           <span data-testid="pomo-summary">{focusMin ?? '–'} min focus · {breakMin ?? '–'} min break</span>
         </div>
 
         {inProgress && (
-          <div className="mt-3 text-[11px] text-slate-500 text-center leading-relaxed">
+          <div className="mt-3 text-[11px] text-wk-ink-500 text-center leading-relaxed">
             A Pomodoro already under way finishes at the length it started with — these apply to every new one.
           </div>
         )}
 
         <div className="flex gap-3 mt-5 justify-end">
           <button type="button" onClick={onClose}
-            className="min-w-[110px] px-5 py-2.5 rounded-xl border text-sm text-slate-300 hover:text-white transition-colors"
-            style={{ borderColor: '#1E3060', background: 'rgba(26,40,69,0.5)' }}>
+            className="min-w-[110px] px-5 py-2.5 rounded-xl border text-sm text-wk-ink-300 hover:text-white transition-colors"
+            style={{ borderColor: '#3A3A3A', background: 'rgba(38,38,42,0.5)' }}>
             Cancel
           </button>
           <button type="button" onClick={submit} disabled={!canSave}
-            className="min-w-[150px] px-6 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(135deg, #3B5BFF, #7C4DFF)', boxShadow: '0 0 24px rgba(99,102,241,0.55), 0 0 48px rgba(25,181,230,0.2)' }}>
+            className="min-w-[150px] px-6 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
             Save Settings
           </button>
         </div>
@@ -2006,15 +2016,15 @@ function QuickNotesPanel() {
   }
   return (
     <div className="rounded-2xl border p-4 flex-1 flex flex-col min-h-[140px]"
-      style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+      style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
       <div className="flex items-center gap-2 mb-3">
         <span className="text-base leading-none">📝</span>
-        <span className="text-sm font-semibold text-slate-100">Quick Notes</span>
+        <span className="text-sm font-semibold text-wk-ink-100">Quick Notes</span>
       </div>
       <textarea value={note} onChange={e => onChange(e.target.value)} maxLength={20000}
         placeholder="No notes yet…
 Add a quick note for this session."
-        className="flex-1 w-full bg-transparent outline-none text-[13px] leading-relaxed text-slate-300 placeholder-slate-600 resize-none" />
+        className="flex-1 w-full bg-transparent outline-none text-[13px] leading-relaxed text-wk-ink-300 placeholder-wk-ink-600 resize-none" />
     </div>
   )
 }
@@ -2367,21 +2377,21 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     : <Ico n="clock" cls="w-5 h-5" />
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]">
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
 
       {/* ── Fullscreen overlay ──────────────────────────────────────────────
           True distraction-free view: only the timer, the active subject/
           topic, and an icon-only exit control. Clicking/tapping the timer
           itself toggles pause/resume - no extra button chrome on top. */}
       {fullscreen && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-[#020615]">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-[#0B0B0D]">
           <MountainBackdrop />
 
           {/* z-20 (not z-10): the content layer below is `relative z-10 h-full`, i.e.
               it covers the whole overlay and, with an equal z-index, paints OVER this
               button because it comes later in the DOM - swallowing every click. */}
           <button onClick={exitFullscreen} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen"
-            className="absolute top-6 right-6 z-20 w-11 h-11 rounded-full flex items-center justify-center text-xl text-slate-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#1E3060]">
+            className="absolute top-6 right-6 z-20 w-11 h-11 rounded-full flex items-center justify-center text-xl text-wk-ink-300 hover:text-white transition-colors bg-[rgba(255,255,255,0.06)] border border-[#3A3A3A]">
             <Ico n="compress" cls="w-5 h-5" />
           </button>
 
@@ -2396,11 +2406,11 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
             </button>
             {activeTask ? (
               <div className="text-center">
-                <div className="text-base font-semibold text-slate-100">{activeTask.subject}</div>
-                <div className="text-sm text-slate-500 mt-1">{activeTask.topic}</div>
+                <div className="text-base font-semibold text-wk-ink-100">{activeTask.subject}</div>
+                <div className="text-sm text-wk-ink-500 mt-1">{activeTask.topic}</div>
               </div>
             ) : (
-              <div className="text-sm text-slate-500">Select a task in My Study Plan to begin</div>
+              <div className="text-sm text-wk-ink-500">Select a task in My Study Plan to begin</div>
             )}
           </div>
         </div>
@@ -2412,14 +2422,14 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
         <MountainBackdrop />
 
         {/* Header */}
-        <header className="relative z-10 h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <header className="relative z-10 h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
           <button onClick={() => onNavigate('home')}
-            className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6] mr-2">
+            className="flex items-center gap-1.5 text-sm transition-colors text-[#CFC8BB] hover:text-[#FFF7E6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] tracking-[0.18em] mb-0.5 text-[#68728A]">FOCUS LOCK</div>
-            <div className="text-sm font-semibold text-[#F3F4F6] truncate">{headerStatus}</div>
+            <div className="text-[10px] tracking-[0.18em] mb-0.5 text-[#7A756D]">FOCUS LOCK</div>
+            <div className="text-sm font-semibold text-[#FFF7E6] truncate">{headerStatus}</div>
           </div>
           <UserAvatar size={32} />
         </header>
@@ -2444,7 +2454,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                     <button onClick={() => setShowPomodoroSettings(true)}
                       title="Customize Pomodoro" aria-label="Customize Pomodoro settings"
                       className="w-11 h-11 rounded-2xl border flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90 active:scale-95"
-                      style={{ background: '#0B1530', borderColor: '#1A2845', color: '#8B9AC7' }}>
+                      style={{ background: '#161618', borderColor: '#26262A', color: '#9C968C' }}>
                       <Ico n="cog" cls="w-4 h-4" />
                     </button>
                     <ModeTab active={selectedMode === 'pomodoro'} onClick={() => setTimerMode('pomodoro')}
@@ -2459,21 +2469,21 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                   <div className="relative flex items-center justify-center" style={{ width: 280, height: 280 }}>
                     <TimerCircle remaining={circleRemaining} total={circleTotal} timeStr={circleTimeStr} running={isLiveRunning} size={280} />
                     <button onClick={enterFullscreen} title="Fullscreen" aria-label="Enter fullscreen"
-                      className="absolute -top-1 -right-1 w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:opacity-90 active:scale-95 text-[#9B6CFF] bg-[rgba(124,77,255,0.10)] border border-[#1A2845]">
+                      className="absolute -top-1 -right-1 w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:opacity-90 active:scale-95 text-[#FFA94D] bg-[rgba(255,138,61,0.10)] border border-[#26262A]">
                       ⛶
                     </button>
                   </div>
-                  <div className="text-xs text-slate-500">{circleCaption}</div>
+                  <div className="text-xs text-wk-ink-500">{circleCaption}</div>
                   <div className="flex items-center gap-3 mt-2">
                     <button onClick={handleMainStart} disabled={isLiveRunning}
                       className="h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8 disabled:opacity-40"
-                      style={{ background: '#19D3A2', color: '#04140F', boxShadow: isLiveRunning ? 'none' : '0 0 24px rgba(25,211,162,0.4)' }}>
+                      style={{ background: '#34D399', color: '#04140F', boxShadow: isLiveRunning ? 'none' : 'none' }}>
                       <Ico n="play" cls="w-4 h-4 flex-shrink-0" />
                       {waitingToStartBreak ? 'Start Break' : 'Start'}
                     </button>
                     <button onClick={() => activeTask && requestPause(activeTask.id)} disabled={!isLiveRunning}
                       className="h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8 disabled:opacity-40"
-                      style={{ background: '#1A2845', color: '#C7D2FE' }}>
+                      style={{ background: '#26262A', color: '#E8E2D6' }}>
                       <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
                       Pause
                     </button>
@@ -2484,15 +2494,15 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
               {/* Right: My Study Plan (top, right next to the timer) + Quick Notes (below it) */}
               <div className="w-full lg:w-[400px] flex-shrink-0 flex flex-col gap-6">
                 <div className="rounded-2xl border flex flex-col"
-                  style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                  style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
                   <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
                     <div className="flex items-center gap-2">
-                      <Ico n="progress" cls="w-4 h-4 text-violet-400" />
-                      <span className="text-sm font-semibold text-slate-100">My Study Plan</span>
+                      <Ico n="progress" cls="w-4 h-4 text-wk-orange-300" />
+                      <span className="text-sm font-semibold text-wk-ink-100">My Study Plan</span>
                     </div>
                     <button onClick={() => setShowAddTask(true)}
-                      className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-all hover:border-violet-400/40"
-                      style={{ background: 'rgba(124,77,255,0.10)', borderColor: 'rgba(124,77,255,0.3)', color: '#C4AAFF' }}>
+                      className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-all hover:border-wk-orange-300/40"
+                      style={{ background: 'rgba(255,138,61,0.10)', borderColor: 'rgba(255,138,61,0.3)', color: '#FFA94D' }}>
                       + Add Task
                     </button>
                   </div>
@@ -2500,7 +2510,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                     {tasks.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-14 text-center">
                         <div className="text-2xl mb-2">📋</div>
-                        <div className="text-xs text-slate-500">No study tasks yet.<br />Add your first subject + topic to start a timer.</div>
+                        <div className="text-xs text-wk-ink-500">No study tasks yet.<br />Add your first subject + topic to start a timer.</div>
                       </div>
                     ) : tasks.map(task => (
                       <StudyPlanRow key={task.id} task={task} isActive={task.id === activeTaskId} running={running}
@@ -2554,46 +2564,46 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
   }, [])
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(2,6,21,0.72)', backdropFilter: 'blur(4px)' }}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(11,11,13,0.72)', backdropFilter: 'blur(4px)' }}>
       <div className="w-full rounded-3xl border relative flex flex-col"
         style={{
           maxWidth: 520,
-          background: '#0B1530',
-          borderColor: '#1E3060',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(30,72,150,0.25), 0 0 48px rgba(59,130,246,0.14)',
+          background: '#161618',
+          borderColor: '#3A3A3A',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(58,58,58,0.25)',
         }}>
         <button onClick={onClose} aria-label="Close"
-          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-wk-ink-400 hover:text-wk-ink-200 transition-colors"
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
 
         <div className="flex flex-col items-center text-center px-7 pt-8 pb-1">
           <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid #2B4E8C', boxShadow: '0 0 24px rgba(59,130,246,0.35)' }}>
-            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5AB6FF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid #3A3A3A', boxShadow: 'none' }}>
+            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#CFC8BB" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="6" y="10" width="12" height="9" rx="2" /><path d="M8.5 10V7a3.5 3.5 0 0 1 7 0v3" />
             </svg>
           </div>
-          <h2 className="mt-4 text-xl font-bold text-[#F3F4F6]">Before you pause…</h2>
-          <p className="mt-2 text-[13px] text-slate-400">Take a moment before breaking your focus.</p>
-          <p className="mt-3 text-[13px] text-slate-200">
-            Type <span className="font-semibold" style={{ color: '#5AB6FF' }}>{PAUSE_REFLECTION_MIN_WORDS} words</span> — anything on your mind.
+          <h2 className="mt-4 text-xl font-bold text-[#FFF7E6]">Before you pause…</h2>
+          <p className="mt-2 text-[13px] text-wk-ink-400">Take a moment before breaking your focus.</p>
+          <p className="mt-3 text-[13px] text-wk-ink-200">
+            Type <span className="font-semibold" style={{ color: '#CFC8BB' }}>{PAUSE_REFLECTION_MIN_WORDS} words</span> — anything on your mind.
           </p>
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
+          <p className="mt-1 text-[12px] leading-relaxed text-wk-ink-500">
             It can be what you were studying, why you want to pause, what you're thinking about — or just random words.
           </p>
         </div>
 
         <div className="px-7 pt-4">
           <div className="flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5"
-            style={{ background: 'rgba(59,130,246,0.06)', borderColor: '#1E3060' }}>
-            <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="#5AB6FF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            style={{ background: 'rgba(59,130,246,0.06)', borderColor: '#3A3A3A' }}>
+            <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="#CFC8BB" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .8 1.7v.5h5.6v-.5c0-.7.3-1.3.8-1.7A6 6 0 0 0 12 3Z" />
             </svg>
             <div className="text-[12px] leading-snug">
-              <span className="font-semibold text-slate-200">Yes, random words are allowed. </span>
-              <span className="text-slate-500">This isn't an essay.</span>
+              <span className="font-semibold text-wk-ink-200">Yes, random words are allowed. </span>
+              <span className="text-wk-ink-500">This isn't an essay.</span>
             </div>
           </div>
         </div>
@@ -2605,9 +2615,9 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
             placeholder={`Start typing... (min. ${PAUSE_REFLECTION_MIN_WORDS} words)`}
             rows={5}
             autoFocus
-            className="w-full resize-none rounded-xl border px-3.5 py-3 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none transition-colors"
-            style={{ background: 'rgba(6,13,26,0.6)', borderColor: unlocked ? '#19B5E6' : '#1A2845' }} />
-          <div className="mt-1.5 text-right text-[11px]" style={{ color: unlocked ? '#19D3A2' : '#68728A' }}>
+            className="w-full resize-none rounded-xl border px-3.5 py-3 text-[13px] text-wk-ink-100 placeholder:text-wk-ink-600 focus:outline-none transition-colors"
+            style={{ background: 'rgba(11,11,13,0.6)', borderColor: unlocked ? '#CFC8BB' : '#26262A' }} />
+          <div className="mt-1.5 text-right text-[11px]" style={{ color: unlocked ? '#34D399' : '#7A756D' }}>
             {wordCount} / {PAUSE_REFLECTION_MIN_WORDS} words
           </div>
         </div>
@@ -2618,8 +2628,8 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
             onClick={() => { if (unlocked) onUnlock() }}
             className="flex-1 h-11 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:active:scale-100"
             style={unlocked
-              ? { color: '#fff', background: 'linear-gradient(135deg, #19B5E6 0%, #0F86B8 100%)', boxShadow: '0 0 20px rgba(25,181,230,0.45), 0 0 40px rgba(25,181,230,0.2)' }
-              : { color: '#5A6478', background: 'rgba(255,255,255,0.04)', border: '1px solid #1A2845', cursor: 'not-allowed' }}>
+              ? { color: '#fff', background: 'linear-gradient(135deg, #CFC8BB 0%, #9C968C 100%)', boxShadow: 'none' }
+              : { color: '#7A756D', background: 'rgba(255,255,255,0.04)', border: '1px solid #26262A', cursor: 'not-allowed' }}>
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
             </svg>
@@ -2627,7 +2637,7 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
           </button>
           <button onClick={onClose}
             className="flex-1 h-11 rounded-2xl font-semibold text-sm flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] border"
-            style={{ color: '#5AB6FF', background: 'rgba(59,130,246,0.08)', borderColor: '#2B4E8C' }}>
+            style={{ color: '#CFC8BB', background: 'rgba(59,130,246,0.08)', borderColor: '#3A3A3A' }}>
             Keep Studying
           </button>
         </div>
@@ -2663,10 +2673,10 @@ interface ChatMsg {
 // derived deterministically from name/subject, so a room renders the same
 // everywhere without storing colours.
 const ROOM_GRADIENTS: [string, string][] = [
-  ['#1E40AF', '#3B82F6'], ['#7C4DFF', '#A855F7'], ['#0C7FAA', '#19B5E6'], ['#0A9673', '#19D3A2'],
-  ['#BE185D', '#F43F5E'], ['#1E3A8A', '#3B82F6'], ['#5835CC', '#7C4DFF'], ['#C2410C', '#F97316'],
+  ['#3A3A3A', '#3B82F6'], ['#FF8A3D', '#A855F7'], ['#9C968C', '#CFC8BB'], ['#10B981', '#34D399'],
+  ['#BE185D', '#F43F5E'], ['#3A3A3A', '#3B82F6'], ['#E9772E', '#FF8A3D'], ['#C2410C', '#F97316'],
 ]
-const FACE_COLORS = ['#7C4DFF', '#0F99CC', '#EC4899', '#F59E0B', '#0DAE86', '#3B82F6', '#F97316', '#9B6CFF']
+const FACE_COLORS = ['#FF8A3D', '#9C968C', '#EC4899', '#F59E0B', '#10B981', '#3B82F6', '#F97316', '#FFA94D']
 
 // "Popular": the busiest rooms with a few members, by live then total members.
 function popularRoomIds(rows: RoomRow[]): Set<string> {
@@ -2700,14 +2710,14 @@ function roomRowsToRoomData(rows: RoomRow[]): RoomData[] {
 
 // ─── Bot Pool ─────────────────────────────────────────────────────────────────
 const BOT_POOL = [
-  { name: 'Riya', initials: 'RI', cardGrad: 'linear-gradient(160deg,#0F1729,#1E1244,#2A1860)', accentColor: '#9B6CFF', isStudying: true },
-  { name: 'Arjun', initials: 'AR', cardGrad: 'linear-gradient(160deg,#0D2030,#0E3355,#0C4A7A)', accentColor: '#19B5E6', isStudying: true },
-  { name: 'Meera', initials: 'ME', cardGrad: 'linear-gradient(160deg,#1A0F28,#2D124A,#3D155C)', accentColor: '#A855F7', isStudying: true },
-  { name: 'Dev', initials: 'DE', cardGrad: 'linear-gradient(160deg,#0F1A20,#122A38,#0E3A50)', accentColor: '#19B5E6', isStudying: true },
-  { name: 'Anshul', initials: 'AN', cardGrad: 'linear-gradient(160deg,#15101E,#251540,#1E1060)', accentColor: '#7C4DFF', isStudying: true },
-  { name: 'Nain', initials: 'NA', cardGrad: 'linear-gradient(160deg,#0F1520,#1B2A3C,#223650)', accentColor: '#3B82F6', isStudying: false },
+  { name: 'Riya', initials: 'RI', cardGrad: 'linear-gradient(160deg,#161618,#26262A,#3A3A3A)', accentColor: '#FFA94D', isStudying: true },
+  { name: 'Arjun', initials: 'AR', cardGrad: 'linear-gradient(160deg,#161618,#26262A,#3A3A3A)', accentColor: '#CFC8BB', isStudying: true },
+  { name: 'Meera', initials: 'ME', cardGrad: 'linear-gradient(160deg,#161618,#26262A,#3A3A3A)', accentColor: '#A855F7', isStudying: true },
+  { name: 'Dev', initials: 'DE', cardGrad: 'linear-gradient(160deg,#111113,#1C1C1F,#26262A)', accentColor: '#CFC8BB', isStudying: true },
+  { name: 'Anshul', initials: 'AN', cardGrad: 'linear-gradient(160deg,#111113,#26262A,#3A3A3A)', accentColor: '#FF8A3D', isStudying: true },
+  { name: 'Nain', initials: 'NA', cardGrad: 'linear-gradient(160deg,#111113,#26262A,#3A3A3A)', accentColor: '#3B82F6', isStudying: false },
   { name: 'Adarsh', initials: 'AD', cardGrad: 'linear-gradient(160deg,#1A0F15,#2E1228,#3D1535)', accentColor: '#EC4899', isStudying: true },
-  { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#18101E,#2A1540,#371260)', accentColor: '#9B6CFF', isStudying: true },
+  { name: 'Jatin', initials: 'JA', cardGrad: 'linear-gradient(160deg,#111113,#26262A,#3A3A3A)', accentColor: '#FFA94D', isStudying: true },
 ]
 
 // Scripted participants for a community's local demo room only (no groupId).
@@ -2754,7 +2764,7 @@ function FaceAvatars({ colors, inits }: { colors: string[]; inits: string[] }) {
     <div className="flex -space-x-2">
       {colors.slice(0, 4).map((c, i) => (
         <div key={i} className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 flex-shrink-0"
-          style={{ background: c, borderColor: '#0B1530', zIndex: 4 - i }}>
+          style={{ background: c, borderColor: '#161618', zIndex: 4 - i }}>
           {inits[i]}
         </div>
       ))}
@@ -2785,7 +2795,7 @@ function StudyingAvatar({ cardGrad, accentColor }: { cardGrad: string; accentCol
         <ellipse cx="80" cy="62" rx="3" ry="4.5" fill="rgba(0,0,0,0.5)" />
       </svg>
       <div className="absolute bottom-0 left-0 right-0 h-14"
-        style={{ background: 'linear-gradient(to top, rgba(8,10,18,0.95), transparent)' }} />
+        style={{ background: 'linear-gradient(to top, rgba(11,11,13,0.95), transparent)' }} />
     </div>
   )
 }
@@ -2793,7 +2803,7 @@ function StudyingAvatar({ cardGrad, accentColor }: { cardGrad: string; accentCol
 // ─── Mic Off Icon ─────────────────────────────────────────────────────────────
 function MicOffIcon() {
   return (
-    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round">
+    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-wk-ink-300" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round">
       <rect x="5.25" y="1" width="5.5" height="8.5" rx="2.75" />
       <path d="M3 7c0 2.76 2.24 5 5 5s5-2.24 5-5" />
       <line x1="8" y1="12" x2="8" y2="14.5" />
@@ -2826,22 +2836,22 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
 
   if (state === 'offline') {
     return (
-      <div className="rounded-2xl border overflow-hidden bg-[#020615] border-[rgba(100,116,139,0.12)]">
+      <div className="rounded-2xl border overflow-hidden bg-[#0B0B0D] border-[rgba(122,117,109,0.12)]">
         <div className="h-40 flex flex-col items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(160deg,#0A0D18,#0D1120)' }}>
+          style={{ background: 'linear-gradient(160deg,#0B0B0D,#111113)' }}>
           {avatarUrl ? (
             <img src={avatarUrl} alt={bot.name} className="w-12 h-12 rounded-full object-cover grayscale opacity-60" />
           ) : (
-            <div className="w-12 h-12 rounded-full flex items-center justify-center text-slate-500 font-bold text-base"
-              style={{ background: 'rgba(100,116,139,0.06)', border: '1px solid rgba(100,116,139,0.12)' }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-wk-ink-500 font-bold text-base"
+              style={{ background: 'rgba(122,117,109,0.06)', border: '1px solid rgba(122,117,109,0.12)' }}>
               {bot.initials}
             </div>
           )}
-          <div className="text-[10px] text-slate-600 font-mono">offline</div>
+          <div className="text-[10px] text-wk-ink-600 font-mono">offline</div>
         </div>
-        <div className="p-3 border-t border-[rgba(100,116,139,0.1)]">
-          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-600" /><span className="text-slate-400 font-semibold text-sm">{bot.name}</span></div>
-          <div className="text-xs text-slate-500 mt-0.5">{bot.subject}</div>
+        <div className="p-3 border-t border-[rgba(122,117,109,0.1)]">
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-wk-black-500" /><span className="text-wk-ink-400 font-semibold text-sm">{bot.name}</span></div>
+          <div className="text-xs text-wk-ink-500 mt-0.5">{bot.subject}</div>
         </div>
       </div>
     )
@@ -2852,14 +2862,14 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
   const statusLabel = isLive ? null : 'Paused'
 
   return (
-    <div className="rounded-2xl border overflow-hidden relative bg-[#020615]" style={{ borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
+    <div className="rounded-2xl border overflow-hidden relative bg-[#0B0B0D]" style={{ borderColor: `${bot.accentColor}${isLive ? '30' : '18'}` }}>
       {avatarUrl ? (
         <div className="relative h-40 overflow-hidden" style={{ background: bot.cardGrad }}>
           <img src={avatarUrl} alt={bot.name}
             className={`absolute inset-0 w-full h-full object-cover ${isLive ? '' : 'grayscale opacity-70'}`} />
           <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 50% 110%, ${bot.accentColor}25, transparent 65%)` }} />
           <div className="absolute bottom-0 left-0 right-0 h-14"
-            style={{ background: 'linear-gradient(to top, rgba(8,10,18,0.9), transparent)' }} />
+            style={{ background: 'linear-gradient(to top, rgba(11,11,13,0.9), transparent)' }} />
         </div>
       ) : (
         <StudyingAvatar cardGrad={bot.cardGrad} accentColor={bot.accentColor} />
@@ -2881,8 +2891,8 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
           <span className="text-white font-semibold text-sm">{bot.name}</span>
           {statusLabel && <span className="text-[9px] font-mono text-amber-400/80 tracking-wide">{statusLabel}</span>}
         </div>
-        <div className="text-xs text-slate-400">{bot.subject}</div>
-        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-400">
+        <div className="text-xs text-wk-ink-400">{bot.subject}</div>
+        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-wk-ink-400">
           <Ico n="clock" cls="w-3 h-3" />{isLive ? fmtLiveTime(bot.studyTimeSecs) : fmtTime(bot.studyTimeSecs)}
         </div>
       </div>
@@ -3073,18 +3083,18 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
   }, [pendingJoinRoomId, roomsStatus])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" 
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" 
       onClick={() => setOpenMenuId(null)}>
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >STUDY ROOMS</div>
-            <div className="text-sm font-semibold text-slate-200">Find your people. Focus better.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5" >STUDY ROOMS</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Find your people. Focus better.</div>
           </div>
           <NotificationBell />
           <UserAvatar size={32} />
@@ -3092,7 +3102,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
 
         {/* Community module tabs */}
         <div className="flex-shrink-0 px-6 pt-4">
-          <div className="inline-flex items-center gap-1 p-1 rounded-full border" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+          <div className="inline-flex items-center gap-1 p-1 rounded-full border" style={{ background: '#161618', borderColor: '#26262A' }}>
             {([
               { id: 'rooms', label: 'Study Rooms' },
               { id: 'communities', label: 'Communities' },
@@ -3100,9 +3110,9 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
               <button key={t.id} onClick={() => setCommunityTab(t.id)}
                 className="px-5 py-2 rounded-full text-sm font-semibold transition-all"
                 style={{
-                  background: communityTab === t.id ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
-                  color: communityTab === t.id ? '#fff' : '#8B9AC7',
-                  boxShadow: communityTab === t.id ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                  background: communityTab === t.id ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'transparent',
+                  color: communityTab === t.id ? '#fff' : '#9C968C',
+                  boxShadow: communityTab === t.id ? 'none' : 'none',
                 }}>
                 {t.label}
               </button>
@@ -3120,24 +3130,24 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           {/* Hero */}
           <div className="flex items-start justify-between mb-6 gap-6">
             <div>
-              <div className="text-[10px] font-mono tracking-[0.22em] text-slate-500 mb-2">STUDY TOGETHER · GROW TOGETHER</div>
+              <div className="text-[10px] font-mono tracking-[0.22em] text-wk-ink-500 mb-2">STUDY TOGETHER · GROW TOGETHER</div>
               <h1 className="text-4xl font-bold leading-tight mb-2 text-white">
-                Study <span style={{ background: 'linear-gradient(90deg,#7C4DFF,#A855F7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Rooms</span>
+                Study <span style={{ background: 'linear-gradient(90deg,#FF8A3D,#FFB057)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Rooms</span>
               </h1>
-              <p className="text-slate-400 text-sm">Find your people. Focus better.</p>
+              <p className="text-wk-ink-400 text-sm">Find your people. Focus better.</p>
             </div>
             <button onClick={() => setShowCreate(true)}
               className="flex-shrink-0 flex items-center gap-4 p-5 rounded-2xl border relative overflow-hidden hover:scale-[1.02] transition-transform"
-              style={{ background: 'linear-gradient(135deg,#2D1B69,#1E3A8A)', borderColor: '#4A3A88', minWidth: '240px', boxShadow: '0 0 40px #1A2845' }}>
+              style={{ background: 'linear-gradient(135deg,#3A3A3A,#3A3A3A)', borderColor: '#3A3A3A', minWidth: '240px', boxShadow: 'none' }}>
               <div className="absolute top-2 right-8 text-2xl opacity-30 select-none">✦</div>
               <div className="absolute top-5 right-4 text-sm opacity-20 select-none">✦</div>
               <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 20px #4A3A88' }}>
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
               <div className="flex-1 text-left">
                 <div className="text-white font-bold text-base leading-tight">Create Your<br />Study Room</div>
-                <div className="text-[11px] text-slate-400 mt-1">Set your rules, invite<br />friends, or go public.</div>
+                <div className="text-[11px] text-wk-ink-400 mt-1">Set your rules, invite<br />friends, or go public.</div>
               </div>
               <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}>
                 <Ico n="chevR" cls="w-4 h-4 text-white" />
@@ -3146,12 +3156,12 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           </div>
 
           {/* Search */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border mb-5 bg-[#0B1530] border-[#1A2845]"
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border mb-5 bg-[#161618] border-[#26262A]"
             >
-            <Ico n="search" cls="w-4 h-4 text-slate-500 flex-shrink-0" />
-            <input className="flex-1 bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600"
+            <Ico n="search" cls="w-4 h-4 text-wk-ink-500 flex-shrink-0" />
+            <input className="flex-1 bg-transparent outline-none text-sm text-wk-ink-200 placeholder-wk-ink-600"
               placeholder="Search study rooms..." value={search} onChange={e => setSearch(e.target.value)} />
-            <kbd className="text-[11px] text-slate-600 border rounded px-1.5 py-0.5 bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)]"
+            <kbd className="text-[11px] text-wk-ink-600 border rounded px-1.5 py-0.5 bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)]"
               >⌘ K</kbd>
           </div>
 
@@ -3161,10 +3171,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
                 style={{
-                  background: tab === t.id ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
-                  color: tab === t.id ? '#fff' : '#8B9AC7',
-                  border: `1px solid ${tab === t.id ? '#563FA0' : '#1A2845'}`,
-                  boxShadow: tab === t.id ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                  background: tab === t.id ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : '#161618',
+                  color: tab === t.id ? '#fff' : '#9C968C',
+                  border: `1px solid ${tab === t.id ? '#7A756D' : '#26262A'}`,
+                  boxShadow: tab === t.id ? 'none' : 'none',
                 }}>
                 <span>{t.icon}</span>{t.label}
               </button>
@@ -3177,9 +3187,9 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                 <button key={s} onClick={() => setSubjectFilter(s)}
                   className="px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
                   style={{
-                    background: subjectFilter === s ? '#1A2845' : 'transparent',
-                    color: subjectFilter === s ? '#C4AAFF' : '#4E5E84',
-                    borderColor: subjectFilter === s ? '#4A3A88' : 'rgba(26,40,69,0.55)',
+                    background: subjectFilter === s ? '#26262A' : 'transparent',
+                    color: subjectFilter === s ? '#FFA94D' : '#7A756D',
+                    borderColor: subjectFilter === s ? '#3A3A3A' : 'rgba(38,38,42,0.55)',
                   }}>{s}</button>
               ))}
             </div>
@@ -3188,10 +3198,10 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           {tab === 'myrooms' && filtered.length === 0 && (
             <div className="py-16 text-center">
               <div className="text-4xl mb-3">🏠</div>
-              <div className="text-slate-300 font-semibold mb-1">No rooms yet</div>
-              <div className="text-slate-500 text-sm mb-4">Create your first study room to see it here.</div>
+              <div className="text-wk-ink-300 font-semibold mb-1">No rooms yet</div>
+              <div className="text-wk-ink-500 text-sm mb-4">Create your first study room to see it here.</div>
               <button onClick={() => setShowCreate(true)}
-                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]"
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#FF8A3D]"
                 >Create Room</button>
             </div>
           )}
@@ -3204,21 +3214,21 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             </div>
           )}
           {roomsStatus === 'loading' && allRooms.length === 0 && (
-            <div className="py-16 text-center text-slate-500 text-sm">Loading study rooms…</div>
+            <div className="py-16 text-center text-wk-ink-500 text-sm">Loading study rooms…</div>
           )}
           {roomsStatus === 'error' && allRooms.length === 0 && (
             <div className="py-16 text-center">
-              <div className="text-slate-300 font-semibold mb-1">Couldn't load study rooms</div>
-              <div className="text-slate-500 text-sm mb-4">{roomsError}</div>
+              <div className="text-wk-ink-300 font-semibold mb-1">Couldn't load study rooms</div>
+              <div className="text-wk-ink-500 text-sm mb-4">{roomsError}</div>
               <button onClick={() => void refreshRooms()}
-                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]">Try again</button>
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#FF8A3D]">Try again</button>
             </div>
           )}
           {roomsStatus === 'ready' && tab !== 'myrooms' && filtered.length === 0 && (
             <div className="py-16 text-center">
               <div className="text-4xl mb-3">🔍</div>
-              <div className="text-slate-300 font-semibold mb-1">{search ? 'No rooms match your search' : 'No study rooms here yet'}</div>
-              <div className="text-slate-500 text-sm">Create one and invite your friends.</div>
+              <div className="text-wk-ink-300 font-semibold mb-1">{search ? 'No rooms match your search' : 'No study rooms here yet'}</div>
+              <div className="text-wk-ink-500 text-sm">Create one and invite your friends.</div>
             </div>
           )}
 
@@ -3228,8 +3238,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
               const menuOpen = openMenuId === room.id
               return (
                 <div key={room.id}
-                  className="flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-violet-500/40 relative"
-                  style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+                  className="flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-wk-orange-500/40 relative"
+                  style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
                   <RoomIcon bg={room.iconBg} emoji={room.iconEmoji} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -3243,7 +3253,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                       )}
                       {room.isPublic && !room.isUserCreated && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
-                          style={{ background: 'rgba(25,211,162,0.08)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.20)' }}>
+                          style={{ background: 'rgba(52,211,153,0.08)', color: '#34D399', border: '1px solid rgba(52,211,153,0.20)' }}>
                           Public
                         </span>
                       )}
@@ -3253,16 +3263,16 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                       )}
                       {room.isOwner && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full font-mono"
-                          style={{ background: 'rgba(26,40,69,0.55)', color: '#9B6CFF', border: '1px solid #1E3060' }}>Owner</span>
+                          style={{ background: 'rgba(38,38,42,0.55)', color: '#FFA94D', border: '1px solid #3A3A3A' }}>Owner</span>
                       )}
                     </div>
-                    <div className="text-[12px] text-slate-400 mb-1" >
+                    <div className="text-[12px] text-wk-ink-400 mb-1" >
                       {room.classes} &nbsp;|&nbsp; {room.subject}
                     </div>
-                    <div className="text-sm text-slate-300 mb-3">{room.desc}</div>
+                    <div className="text-sm text-wk-ink-300 mb-3">{room.desc}</div>
                     <div className="flex items-center gap-2">
                       <FaceAvatars colors={room.avatarColors} inits={room.avatarInits} />
-                      <span className="text-[12px] text-slate-400 font-mono">+{room.members}</span>
+                      <span className="text-[12px] text-wk-ink-400 font-mono">+{room.members}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -3270,7 +3280,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                     <div className="relative">
                       <button
                         onClick={e => { e.stopPropagation(); setOpenMenuId(menuOpen ? null : room.id) }}
-                        className="p-2 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors">
+                        className="p-2 rounded-xl text-wk-ink-500 hover:text-wk-ink-300 hover:bg-white/5 transition-colors">
                         <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
                           <circle cx="10" cy="5" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="10" cy="15" r="1.2" />
                         </svg>
@@ -3278,15 +3288,15 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                       {menuOpen && (
                         <div className="absolute right-0 top-full mt-1 w-40 rounded-xl border z-20 overflow-hidden"
                           onClick={e => e.stopPropagation()}
-                          style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                          style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                           <button onClick={() => { setInviteRoom(room); setOpenMenuId(null) }}
-                            className="w-full text-left px-3 py-2.5 text-sm text-slate-300 hover:bg-violet-500/10 hover:text-violet-200 transition-colors flex items-center gap-2">
+                            className="w-full text-left px-3 py-2.5 text-sm text-wk-ink-300 hover:bg-wk-orange-500/10 hover:text-wk-ink-100 transition-colors flex items-center gap-2">
                             <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-4l2 2-2 2M14 8H7" /></svg>
                             Invite Friends
                           </button>
                           {joined && (
                             <button onClick={() => handleLeave(room)}
-                              className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-[rgba(26,40,69,0.55)]"
+                              className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-[rgba(38,38,42,0.55)]"
                               >
                               <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M17 10H7m0 0l3-3m-3 3l3 3M3 17V3" /></svg>
                               Leave Room
@@ -3300,13 +3310,13 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                     {joined ? (
                       <button onClick={() => onEnterRoom(room)}
                         className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
+                        style={{ background: '#FF8A3D', color: '#0B0B0D', boxShadow: 'none' }}>
                         Enter →
                       </button>
                     ) : (
                       <button onClick={() => handleJoin(room)} disabled={busy}
                         className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
-                        style={{ background: '#7C4DFF', color: '#fff', boxShadow: '0 0 18px rgba(40,85,204,0.6)' }}>
+                        style={{ background: '#FF8A3D', color: '#0B0B0D', boxShadow: 'none' }}>
                         {room.isPublic ? 'Join' : '🔒 Join'}
                       </button>
                     )}
@@ -3328,17 +3338,17 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
             onClick={e => { if (e.target === e.currentTarget) setPasswordRoomId(null) }}>
             <div className="rounded-2xl border p-8 w-[360px]"
-              style={{ background: '#0B1530', borderColor: 'rgba(245,158,11,0.35)', boxShadow: '0 0 60px rgba(245,158,11,0.1)' }}>
+              style={{ background: '#161618', borderColor: 'rgba(245,158,11,0.35)', boxShadow: 'none' }}>
               <div className="text-center mb-5">
                 <div className="text-3xl mb-2">🔒</div>
                 <div className="text-[10px] text-amber-400 font-mono tracking-[0.2em] mb-1">PRIVATE ROOM</div>
                 <div className="text-lg font-bold text-white">{room.name}</div>
-                <div className="text-sm text-slate-400 mt-1">Enter the room password to join</div>
+                <div className="text-sm text-wk-ink-400 mt-1">Enter the room password to join</div>
               </div>
               <input
                 type="password"
-                className="w-full px-4 py-3 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 mb-1 text-center tracking-widest transition-colors"
-                style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : '#1E3060', fontSize: '18px', letterSpacing: '4px' }}
+                className="w-full px-4 py-3 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 mb-1 text-center tracking-widest transition-colors"
+                style={{ borderColor: passwordError ? 'rgba(248,113,113,0.5)' : '#3A3A3A', fontSize: '18px', letterSpacing: '4px' }}
                 placeholder="••••••"
                 value={passwordInput}
                 onChange={e => { setPasswordInput(e.target.value); setPasswordError(null) }}
@@ -3349,11 +3359,11 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
               {!passwordError && <div className="h-4 mb-1" />}
               <div className="flex gap-3">
                 <button onClick={() => { setPasswordRoomId(null); enterAfterJoinRef.current = false }}
-                  className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                  className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]"
                   >Cancel</button>
                 <button onClick={submitPassword} disabled={busy}
-                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
-                  style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
+                  className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
+                  style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                   Enter Room
                 </button>
               </div>
@@ -3367,25 +3377,25 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setInviteRoom(null) }}>
           <div className="rounded-2xl border p-8 w-[400px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
               <div className="text-2xl mb-2">🔗</div>
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">INVITE TO ROOM</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-1">INVITE TO ROOM</div>
               <div className="text-lg font-bold text-white">{inviteRoom.name}</div>
               <div className="flex items-center justify-center gap-2 mt-1">
-                <span className="text-xs text-slate-400">{inviteRoom.isPublic ? '🌐 Public Room' : '🔒 Private Room'}</span>
+                <span className="text-xs text-wk-ink-400">{inviteRoom.isPublic ? '🌐 Public Room' : '🔒 Private Room'}</span>
               </div>
             </div>
             <div className="mb-4">
-              <div className="text-[11px] text-slate-500 mb-1.5 font-mono">INVITE LINK</div>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-[#0B1530] border-[#1A2845]"
+              <div className="text-[11px] text-wk-ink-500 mb-1.5 font-mono">INVITE LINK</div>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-[#161618] border-[#26262A]"
                 >
-                <span className="flex-1 text-sm text-violet-300 truncate" >
+                <span className="flex-1 text-sm text-wk-orange-300 truncate" >
                   {inviteRoom.groupId ? roomInviteLink(inviteRoom.groupId).replace(/^https?:\/\//, '') : ''}
                 </span>
                 <button onClick={() => copyInviteLink(inviteRoom)}
                   className="text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all flex-shrink-0"
-                  style={{ background: copied ? 'rgba(25,211,162,0.15)' : 'rgba(26,40,69,0.55)', color: copied ? '#19D3A2' : '#9B6CFF', border: `1px solid ${copied ? 'rgba(25,211,162,0.30)' : '#1E3060'}` }}>
+                  style={{ background: copied ? 'rgba(52,211,153,0.15)' : 'rgba(38,38,42,0.55)', color: copied ? '#34D399' : '#FFA94D', border: `1px solid ${copied ? 'rgba(52,211,153,0.30)' : '#3A3A3A'}` }}>
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
@@ -3400,14 +3410,14 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
             <div className="flex gap-2">
               {[{ icon: '💬', label: 'WhatsApp' }, { icon: '✈️', label: 'Telegram' }, { icon: '📧', label: 'Email' }].map(opt => (
                 <button key={opt.label} onClick={() => shareInvite(inviteRoom, opt.label)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-slate-300 hover:text-white transition-colors border-[#1A2845] bg-[#0B1530]"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs text-wk-ink-300 hover:text-white transition-colors border-[#26262A] bg-[#161618]"
                   >
                   {opt.icon} {opt.label}
                 </button>
               ))}
             </div>
             <button onClick={() => setInviteRoom(null)}
-              className="w-full mt-3 py-2 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[rgba(26,40,69,0.55)]"
+              className="w-full mt-3 py-2 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[rgba(38,38,42,0.55)]"
               >Close</button>
           </div>
         </div>
@@ -3418,53 +3428,53 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowCreate(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
               <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(40,85,204,0.6), 0 0 40px rgba(124,77,255,0.2)' }}>
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">CREATE STUDY ROOM</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-0.5">CREATE STUDY ROOM</div>
               <div className="text-lg font-bold text-white">Set up your room</div>
             </div>
             <div className="space-y-3 mb-5">
               <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                  placeholder="Room name *" />
               <input value={createForm.subject} onChange={e => setCreateForm(f => ({ ...f, subject: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                  placeholder="Subject (e.g. Physics, JEE)" />
               <textarea value={createForm.desc} onChange={e => setCreateForm(f => ({ ...f, desc: e.target.value }))}
-                rows={2} className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 resize-none focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                rows={2} className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 resize-none focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                  placeholder="Short description..." />
               {/* Public / Private toggle */}
               <div className="flex gap-2">
                 <button onClick={() => setCreateForm(f => ({ ...f, isPublic: true }))}
                   className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
-                  style={{ background: createForm.isPublic ? 'rgba(25,211,162,0.10)' : 'transparent', color: createForm.isPublic ? '#19D3A2' : '#4E5E84', borderColor: createForm.isPublic ? 'rgba(25,211,162,0.40)' : '#1A2845' }}>
+                  style={{ background: createForm.isPublic ? 'rgba(52,211,153,0.10)' : 'transparent', color: createForm.isPublic ? '#34D399' : '#7A756D', borderColor: createForm.isPublic ? 'rgba(52,211,153,0.40)' : '#26262A' }}>
                   🌐 Public
                 </button>
                 <button onClick={() => setCreateForm(f => ({ ...f, isPublic: false }))}
                   className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-all"
-                  style={{ background: !createForm.isPublic ? 'rgba(245,158,11,0.1)' : 'transparent', color: !createForm.isPublic ? '#F59E0B' : '#4E5E84', borderColor: !createForm.isPublic ? 'rgba(245,158,11,0.4)' : '#1A2845' }}>
+                  style={{ background: !createForm.isPublic ? 'rgba(245,158,11,0.1)' : 'transparent', color: !createForm.isPublic ? '#F59E0B' : '#7A756D', borderColor: !createForm.isPublic ? 'rgba(245,158,11,0.4)' : '#26262A' }}>
                   🔒 Private
                 </button>
               </div>
               {!createForm.isPublic && (
                 <input value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
                   type="password"
-                  className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-amber-500/50 transition-colors border-[rgba(245,158,11,0.3)]"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-amber-500/50 transition-colors border-[rgba(245,158,11,0.3)]"
                    placeholder="Set room password" />
               )}
             </div>
             {createError && <div className="text-[11px] text-red-400 text-center -mt-2 mb-3">{createError}</div>}
             <div className="flex gap-3">
               <button onClick={() => { setShowCreate(false); setCreateError(null) }}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]"
                 >Cancel</button>
               <button onClick={handleCreateRoom} disabled={busy}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
+                className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-60"
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 Create Room
               </button>
             </div>
@@ -3668,18 +3678,18 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
     <div className="pb-8">
       {/* 1 · Home Community hero */}
       <div className="relative rounded-3xl border overflow-hidden p-6 sm:p-7 mb-7"
-        style={{ borderColor: 'rgba(124,77,255,0.35)', boxShadow: '0 0 50px rgba(124,77,255,0.14)' }}>
+        style={{ borderColor: 'rgba(255,138,61,0.35)', boxShadow: 'none' }}>
         {/* Purple gradient base */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 55%, #7C4DFF 78%, #4629A0 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(115deg, #26262A 0%, #B43E16 30%, #B43E16 55%, #FF8A3D 78%, #B43E16 100%)' }} />
         {/* Mountain + flag silhouette, decorative, right side */}
         <svg viewBox="0 0 900 260" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60 pointer-events-none" aria-hidden="true">
-          <polygon points="480,260 560,150 610,190 680,110 760,180 830,140 900,200 900,260" fill="#1B0F45" opacity="0.55" />
-          <polygon points="560,260 640,170 700,205 770,135 900,220 900,260" fill="#150A36" opacity="0.75" />
-          <line x1="770" y1="135" x2="770" y2="95" stroke="#E8E2FF" strokeWidth="2" />
-          <path d="M770,95 L804,105 L770,116 Z" fill="#E8E2FF" opacity="0.9" />
+          <polygon points="480,260 560,150 610,190 680,110 760,180 830,140 900,200 900,260" fill="#1C1C1F" opacity="0.55" />
+          <polygon points="560,260 640,170 700,205 770,135 900,220 900,260" fill="#161618" opacity="0.75" />
+          <line x1="770" y1="135" x2="770" y2="95" stroke="#FFF7E6" strokeWidth="2" />
+          <path d="M770,95 L804,105 L770,116 Z" fill="#FFF7E6" opacity="0.9" />
         </svg>
         {/* Readability overlay so text always sits on solid-enough ground */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(15,9,42,0.55) 0%, rgba(15,9,42,0.15) 55%, rgba(15,9,42,0.05) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(17,17,19,0.55) 0%, rgba(17,17,19,0.15) 55%, rgba(17,17,19,0.05) 100%)' }} />
 
         <div className="relative z-10">
           <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
@@ -3708,7 +3718,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
             <div className="flex items-end sm:items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-                  style={{ background: home.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{home.emoji}</div>
+                  style={{ background: home.iconBg, boxShadow: 'none' }}>{home.emoji}</div>
                 <div className="min-w-0">
                   <div className="text-white font-bold text-xl leading-tight mb-1 flex items-center gap-2 min-w-0">
                     <span className="truncate">{home.name}</span>{home.monetized && <VerifiedTick size={18} />}
@@ -3727,7 +3737,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
                   </button>
                 )}
                 <button onClick={() => onOpenCommunity(home)}
-                  className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm flex items-center gap-1.5 hover:opacity-90 transition-opacity">
+                  className="px-5 py-2.5 rounded-full bg-white text-[#3A3A3A] font-semibold text-sm flex items-center gap-1.5 hover:opacity-90 transition-opacity">
                   View Community <Ico n="chevR" cls="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -3739,7 +3749,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
                 <div className="text-white/55 text-[13px] max-w-sm">Pick one community as your home base — your purchases and ad revenue support it.</div>
               </div>
               <button onClick={() => setShowPicker(true)}
-                className="px-5 py-2.5 rounded-full bg-white text-[#2E1B6B] font-semibold text-sm hover:opacity-90 transition-opacity flex-shrink-0">
+                className="px-5 py-2.5 rounded-full bg-white text-[#3A3A3A] font-semibold text-sm hover:opacity-90 transition-opacity flex-shrink-0">
                 Select Home Community
               </button>
             </div>
@@ -3750,42 +3760,42 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
       {/* 2 · Your Communities */}
       <div className="mb-7">
         <div className="text-white font-bold text-base mb-0.5">Your Communities</div>
-        <div className="text-slate-500 text-[13px] mb-4">
+        <div className="text-wk-ink-500 text-[13px] mb-4">
           {status === 'loading' && joinedCommunities.length === 0 ? 'Loading your communities…'
-            : status === 'error' && joinedCommunities.length === 0 ? <>Couldn’t load your communities. <button onClick={() => void onRefresh()} className="text-violet-300 hover:text-violet-200">Try again</button>{error ? ` (${error})` : ''}</>
+            : status === 'error' && joinedCommunities.length === 0 ? <>Couldn’t load your communities. <button onClick={() => void onRefresh()} className="text-wk-orange-300 hover:text-wk-ink-100">Try again</button>{error ? ` (${error})` : ''}</>
             : `You are part of ${otherCommunities.length} ${otherCommunities.length === 1 ? 'community' : 'communities'}${home ? ' besides your home' : ''}`}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {otherCommunities.map(c => (
-            <div key={c.id} className="p-5 rounded-2xl border flex flex-col" style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            <div key={c.id} className="p-5 rounded-2xl border flex flex-col" style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
               <div className="flex items-start justify-between mb-3">
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
                 {ownedCommunityIds.has(c.id) ? (
                   <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold flex-shrink-0"
-                    style={{ background: 'rgba(124,77,255,0.14)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>Owner</span>
+                    style={{ background: 'rgba(255,138,61,0.14)', color: '#FFA94D', border: '1px solid rgba(255,138,61,0.35)' }}>Owner</span>
                 ) : (
                   <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold flex-shrink-0"
-                    style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>Joined</span>
+                    style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }}>Joined</span>
                 )}
               </div>
               <div className="text-white font-bold text-[15px] mb-1 leading-snug flex items-center gap-1.5">
                 <span className="truncate">{c.name}</span>{c.monetized && <VerifiedTick size={15} />}
               </div>
-              <div className="text-slate-500 text-[12px] mb-0.5">{fmt(c.members)} members</div>
+              <div className="text-wk-ink-500 text-[12px] mb-0.5">{fmt(c.members)} members</div>
               {typeof c.studyingNow === 'number' && (
                 <div className="text-emerald-400 text-[12px] mb-4 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" style={{ boxShadow: 'none' }} />
                   {fmt(c.studyingNow)} studying now
                 </div>
               )}
               <div className="mt-auto flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   {c.avatarColors && c.avatarInits && <FaceAvatars colors={c.avatarColors} inits={c.avatarInits} />}
-                  {!!c.avatarExtra && <span className="text-[11px] text-slate-500 ml-0.5">+{c.avatarExtra}</span>}
+                  {!!c.avatarExtra && <span className="text-[11px] text-wk-ink-500 ml-0.5">+{c.avatarExtra}</span>}
                 </div>
                 <button onClick={() => ownedCommunityIds.has(c.id) ? onManageCommunity(c.id) : onOpenCommunity(c)}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1 flex-shrink-0 hover:opacity-90 transition-opacity"
-                  style={{ background: '#7C4DFF' }}>
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-wk-black-950 flex items-center gap-1 flex-shrink-0 hover:opacity-90 transition-opacity"
+                  style={{ background: '#FF8A3D' }}>
                   {ownedCommunityIds.has(c.id) ? 'Manage' : 'Open'} <Ico n="chevR" cls="w-3 h-3" />
                 </button>
               </div>
@@ -3797,18 +3807,18 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
       {/* Create your own community - open to everyone; monetisation needs an approved WynkoHead */}
       {status !== 'loading' && (
         <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-4"
-          style={{ background: '#0B1530', borderColor: 'rgba(124,77,255,0.35)', borderStyle: 'dashed' }}>
+          style={{ background: '#161618', borderColor: 'rgba(255,138,61,0.35)', borderStyle: 'dashed' }}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-              style={{ background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.30)' }}>🏗️</div>
+              style={{ background: 'rgba(255,138,61,0.12)', border: '1px solid rgba(255,138,61,0.30)' }}>🏗️</div>
             <div className="min-w-0">
               <div className="text-white font-semibold text-sm">{ownedCommunityIds.size > 0 ? 'Create Another Community' : 'Create Your Own Community'}</div>
-              <div className="text-slate-500 text-[12px]">Bring your friends or students together. Approved WynkoHeads can also monetise it.</div>
+              <div className="text-wk-ink-500 text-[12px]">Bring your friends or students together. Approved WynkoHeads can also monetise it.</div>
             </div>
           </div>
           <button onClick={() => { setCreateError(null); setShowCreate(true) }}
-            className="px-5 py-2 rounded-full text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity flex-shrink-0"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.4)' }}>
+            className="px-5 py-2 rounded-full text-wk-black-950 text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity flex-shrink-0"
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
             Create <Ico n="chevR" cls="w-3.5 h-3.5" />
           </button>
         </div>
@@ -3816,20 +3826,20 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
 
       {/* 3 · Discover More Communities */}
       <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap mb-4"
-        style={{ background: '#0B1530', borderColor: '#1A2845', borderStyle: 'dashed' }}>
+        style={{ background: '#161618', borderColor: '#26262A', borderStyle: 'dashed' }}>
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.30)' }}>
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-violet-300" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            style={{ background: 'rgba(255,138,61,0.12)', border: '1px solid rgba(255,138,61,0.30)' }}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5 text-wk-orange-300" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           </div>
           <div className="min-w-0">
             <div className="text-white font-semibold text-sm">Discover More Communities</div>
-            <div className="text-slate-500 text-[12px]">Find communities that match your goals or interests.</div>
+            <div className="text-wk-ink-500 text-[12px]">Find communities that match your goals or interests.</div>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <button onClick={handleExplore} className="px-5 py-2 rounded-full text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.4)' }}>
+          <button onClick={handleExplore} className="px-5 py-2 rounded-full text-wk-black-950 text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
             Explore <Ico n="chevR" cls="w-3.5 h-3.5" />
           </button>
 
@@ -3838,13 +3848,13 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
 
       {/* 4 · Join with Invite Link */}
       <div className="p-5 rounded-2xl border flex items-center justify-between gap-4 flex-wrap"
-        style={{ background: '#0B1530', borderColor: '#1A2845', borderStyle: 'dashed' }}>
+        style={{ background: '#161618', borderColor: '#26262A', borderStyle: 'dashed' }}>
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-            style={{ background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.30)' }}>🔗</div>
+            style={{ background: 'rgba(207,200,187,0.12)', border: '1px solid rgba(207,200,187,0.30)' }}>🔗</div>
           <div className="min-w-0">
             <div className="text-white font-semibold text-sm">Join with Invite Link</div>
-            <div className="text-slate-500 text-[12px]">Have an invite link or code? Join a community directly.</div>
+            <div className="text-wk-ink-500 text-[12px]">Have an invite link or code? Join a community directly.</div>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -3853,11 +3863,11 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
               type="text" placeholder="Enter invite link or code" value={inviteLink}
               onChange={e => setInviteLink(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && void handleJoinInvite()}
-              className="w-56 px-4 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
-              style={{ borderColor: '#1E3060' }} />
+              className="w-56 px-4 py-2 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 transition-colors focus:border-wk-orange-500/50"
+              style={{ borderColor: '#3A3A3A' }} />
             <button onClick={() => void handleJoinInvite()} disabled={busy}
-              className="px-5 py-2 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-opacity flex-shrink-0 disabled:opacity-60"
-              style={{ background: '#7C4DFF' }}>
+              className="px-5 py-2 rounded-xl text-wk-black-950 text-sm font-semibold hover:opacity-90 transition-opacity flex-shrink-0 disabled:opacity-60"
+              style={{ background: '#FF8A3D' }}>
               Join
             </button>
           </div>
@@ -3870,38 +3880,38 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
           onClick={e => { if (e.target === e.currentTarget) setShowPicker(false) }}>
           <div className="rounded-2xl border p-7 w-[400px] max-h-[80vh] overflow-y-auto"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
               <div className="text-2xl mb-2">👑</div>
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
               <div className="text-lg font-bold text-white">{home ? 'Change your home community' : 'Select your home community'}</div>
-              <div className="text-slate-500 text-[12px] mt-1">You can only change this once every {HOME_LOCK_DAYS} days.</div>
+              <div className="text-wk-ink-500 text-[12px] mt-1">You can only change this once every {HOME_LOCK_DAYS} days.</div>
             </div>
             {pickerError && <div className="text-[12px] text-amber-300 text-center mb-3">{pickerError}</div>}
             {joinedCommunities.length === 0 && (
-              <div className="text-[13px] text-slate-400 text-center mb-5">Join a community first — use an invite link or Explore below.</div>
+              <div className="text-[13px] text-wk-ink-400 text-center mb-5">Join a community first — use an invite link or Explore below.</div>
             )}
             <div className="space-y-2 mb-5">
               {joinedCommunities.map(c => (
                 <button key={c.id} onClick={() => void selectHomeCommunity(c.id)} disabled={busy}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-violet-500/40"
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-wk-orange-500/40"
                   style={{
-                    background: c.id === homeCommunityId ? 'rgba(124,77,255,0.12)' : 'rgba(14,21,40,0.55)',
-                    borderColor: c.id === homeCommunityId ? 'rgba(124,77,255,0.5)' : 'rgba(124,58,237,0.16)',
+                    background: c.id === homeCommunityId ? 'rgba(255,138,61,0.12)' : 'rgba(22,22,24,0.55)',
+                    borderColor: c.id === homeCommunityId ? 'rgba(255,138,61,0.5)' : 'rgba(255,138,61,0.16)',
                   }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-100 flex items-center gap-1.5 min-w-0">
+                    <div className="text-sm font-semibold text-wk-ink-100 flex items-center gap-1.5 min-w-0">
                       <span className="truncate">{c.name}</span>{c.monetized && <VerifiedTick size={14} />}
                     </div>
-                    <div className="text-[11px] text-slate-500">{fmt(c.members)} members</div>
+                    <div className="text-[11px] text-wk-ink-500">{fmt(c.members)} members</div>
                   </div>
-                  {c.id === homeCommunityId && <Ico n="check" cls="w-4 h-4 text-violet-300 flex-shrink-0" />}
+                  {c.id === homeCommunityId && <Ico n="check" cls="w-4 h-4 text-wk-orange-300 flex-shrink-0" />}
                 </button>
               ))}
             </div>
             <button onClick={() => { setShowPicker(false); setPickerError(null) }}
-              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+              className="w-full py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">
               Cancel
             </button>
           </div>
@@ -3912,25 +3922,25 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
           onClick={e => { if (e.target === e.currentTarget && !busy) setShowCreate(false) }}>
           <div className="rounded-2xl border p-7 w-[420px] max-w-[92vw]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
               <div className="text-2xl mb-2">🏗️</div>
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">NEW COMMUNITY</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-0.5">NEW COMMUNITY</div>
               <div className="text-lg font-bold text-white">Create your community</div>
-              <div className="text-slate-500 text-[12px] mt-1">New members need your approval to join. You can run as many communities as you like.</div>
+              <div className="text-wk-ink-500 text-[12px] mt-1">New members need your approval to join. You can run as many communities as you like.</div>
             </div>
-            <label className="block text-[11px] text-slate-500 mb-1.5">Name</label>
+            <label className="block text-[11px] text-wk-ink-500 mb-1.5">Name</label>
             <input autoFocus value={createName} onChange={e => setCreateName(e.target.value)} maxLength={60} placeholder="e.g. JEE 2027 Night Owls"
-              className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 focus:border-violet-400/70" style={{ borderColor: '#1A2845' }} />
-            <label className="block text-[11px] text-slate-500 mb-1.5">Description <span className="text-slate-600">(optional)</span></label>
+              className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-wk-ink-200 placeholder-wk-ink-600 focus:border-wk-orange-300/70" style={{ borderColor: '#26262A' }} />
+            <label className="block text-[11px] text-wk-ink-500 mb-1.5">Description <span className="text-wk-ink-600">(optional)</span></label>
             <textarea value={createDesc} onChange={e => setCreateDesc(e.target.value)} maxLength={240} rows={3} placeholder="What's this community about?"
-              className="w-full mb-2 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-slate-200 placeholder-slate-600 focus:border-violet-400/70 resize-none" style={{ borderColor: '#1A2845' }} />
+              className="w-full mb-2 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-wk-ink-200 placeholder-wk-ink-600 focus:border-wk-orange-300/70 resize-none" style={{ borderColor: '#26262A' }} />
             {createError && <div className="text-[12px] text-amber-300 mb-2">{createError}</div>}
             <div className="flex gap-3 mt-3">
               <button onClick={() => setShowCreate(false)} disabled={busy}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">Cancel</button>
               <button onClick={() => void submitCreate()} disabled={!createName.trim() || busy}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+                className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold hover:opacity-90 disabled:opacity-40" style={{ background: '#FF8A3D' }}>
                 {busy ? 'Creating…' : 'Create community'}
               </button>
             </div>
@@ -3943,43 +3953,43 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
           onClick={e => { if (e.target === e.currentTarget) setShowDiscover(false) }}>
           <div className="rounded-2xl border p-7 w-[440px] max-h-[80vh] overflow-y-auto"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
               <div className="text-2xl mb-2">🧭</div>
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">DISCOVER</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-0.5">DISCOVER</div>
               <div className="text-lg font-bold text-white">Communities you can join</div>
-              <div className="text-slate-500 text-[12px] mt-1">Run by verified WynkoHeads. Joining or a join request is decided by that community's WynkoHead.</div>
+              <div className="text-wk-ink-500 text-[12px] mt-1">Run by verified WynkoHeads. Joining or a join request is decided by that community's WynkoHead.</div>
             </div>
             <div className="relative mb-4">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+              <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-wk-ink-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
               <input
                 autoFocus type="text" value={discoverSearch} onChange={e => setDiscoverSearch(e.target.value)}
                 placeholder="Search communities by name or WynkoHead…"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50"
-                style={{ borderColor: '#1E3060' }} />
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 transition-colors focus:border-wk-orange-500/50"
+                style={{ borderColor: '#3A3A3A' }} />
             </div>
-            {discoverQ.status === 'loading' && <div className="text-[13px] text-slate-500 text-center py-6">Loading communities…</div>}
+            {discoverQ.status === 'loading' && <div className="text-[13px] text-wk-ink-500 text-center py-6">Loading communities…</div>}
             {discoverQ.status === 'error' && <div className="text-[13px] text-amber-300 text-center py-6">{discoverQ.error}</div>}
             {discoverQ.status === 'ready' && discoverQ.data.length === 0 && (
-              <div className="text-[13px] text-slate-500 text-center py-6">No other communities to join right now.</div>
+              <div className="text-[13px] text-wk-ink-500 text-center py-6">No other communities to join right now.</div>
             )}
             {discoverQ.status === 'ready' && discoverQ.data.length > 0 && discoverResults.length === 0 && (
-              <div className="text-[13px] text-slate-500 text-center py-6">No communities match "{discoverSearch}".</div>
+              <div className="text-[13px] text-wk-ink-500 text-center py-6">No communities match "{discoverSearch}".</div>
             )}
             <div className="space-y-2 mb-5">
               {discoverResults.map(c => (
-                <div key={c.id} className="p-3 rounded-xl border" style={{ background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(124,58,237,0.16)' }}>
+                <div key={c.id} className="p-3 rounded-xl border" style={{ background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(255,138,61,0.16)' }}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: communityLook(c.name).iconBg }}>{c.emoji || '👥'}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-slate-100 flex items-center gap-1.5 min-w-0">
+                      <div className="text-sm font-semibold text-wk-ink-100 flex items-center gap-1.5 min-w-0">
                         <span className="truncate">{c.name}</span>{discoverMonetizedQ.data.has(c.id) && <VerifiedTick size={14} />}
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate">{fmt(c.member_count)} members · by {c.head_name}</div>
+                      <div className="text-[11px] text-wk-ink-500 truncate">{fmt(c.member_count)} members · by {c.head_name}</div>
                     </div>
                     <button onClick={() => void joinFromDiscover(c)} disabled={busy || c.requested}
-                      className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
-                      style={{ background: '#7C4DFF' }}>
+                      className="px-4 py-1.5 rounded-lg text-xs font-semibold text-wk-black-950 flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+                      style={{ background: '#FF8A3D' }}>
                       {c.requested ? 'Requested' : c.join_requires_approval ? 'Request' : 'Join'}
                     </button>
                   </div>
@@ -3988,7 +3998,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
               ))}
             </div>
             <button onClick={() => setShowDiscover(false)}
-              className="w-full py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+              className="w-full py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">
               Close
             </button>
           </div>
@@ -4022,12 +4032,12 @@ function RequiredHomeCommunityPicker({ communities, currentId, onPicked }: {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(0,0,0,0.8)] px-4" role="dialog" aria-modal="true" aria-labelledby="home-pick-title">
       <div className="rounded-2xl border p-7 w-[440px] max-w-full max-h-[85vh] overflow-y-auto"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
         <div className="text-center mb-5">
           <div className="text-2xl mb-2">👑</div>
-          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
+          <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-0.5">HOME COMMUNITY</div>
           <div id="home-pick-title" className="text-lg font-bold text-white">Choose your Home Community</div>
-          <div className="text-slate-400 text-[12px] mt-1.5 leading-relaxed">
+          <div className="text-wk-ink-400 text-[12px] mt-1.5 leading-relaxed">
             You’re in {communities.length} communities. Pick one as your home — everything you buy and the ad revenue you generate supports it.
             You can change it once every {HOME_LOCK_DAYS} days.
           </div>
@@ -4035,25 +4045,25 @@ function RequiredHomeCommunityPicker({ communities, currentId, onPicked }: {
         <div className="space-y-2 mb-4">
           {communities.map(c => (
             <button key={c.id} onClick={() => setSelected(c.id)} disabled={busy}
-              className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-violet-500/40"
+              className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all hover:border-wk-orange-500/40"
               style={{
-                background: selected === c.id ? 'rgba(124,77,255,0.12)' : 'rgba(14,21,40,0.55)',
-                borderColor: selected === c.id ? 'rgba(124,77,255,0.5)' : 'rgba(124,58,237,0.16)',
+                background: selected === c.id ? 'rgba(255,138,61,0.12)' : 'rgba(22,22,24,0.55)',
+                borderColor: selected === c.id ? 'rgba(255,138,61,0.5)' : 'rgba(255,138,61,0.16)',
               }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: c.iconBg }}>{c.emoji}</div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-100 flex items-center gap-1.5 min-w-0">
+                <div className="text-sm font-semibold text-wk-ink-100 flex items-center gap-1.5 min-w-0">
                   <span className="truncate">{c.name}</span>{c.monetized && <VerifiedTick size={14} />}
                 </div>
-                <div className="text-[11px] text-slate-500">{fmt(c.members)} members</div>
+                <div className="text-[11px] text-wk-ink-500">{fmt(c.members)} members</div>
               </div>
-              {selected === c.id && <Ico n="check" cls="w-4 h-4 text-violet-300 flex-shrink-0" />}
+              {selected === c.id && <Ico n="check" cls="w-4 h-4 text-wk-orange-300 flex-shrink-0" />}
             </button>
           ))}
         </div>
         {error && <div className="text-[12px] text-amber-300 text-center mb-3">{error}</div>}
         <button onClick={() => void confirm()} disabled={!selected || busy}
-          className="w-full py-2.5 rounded-xl text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+          className="w-full py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold hover:opacity-90 disabled:opacity-40" style={{ background: '#FF8A3D' }}>
           {busy ? 'Saving…' : 'Make this my Home Community'}
         </button>
       </div>
@@ -4089,7 +4099,7 @@ interface CommunityDetail {
     community: { avgDailyMinutes: number; activeSubjects: number; avgAdherencePct: number | null }
   }
 }
-const HEAD_AVATAR_GRADIENT = 'linear-gradient(135deg,#7C4DFF,#4C2E9E)'
+const HEAD_AVATAR_GRADIENT = 'linear-gradient(135deg,#FF8A3D,#B43E16)'
 const pctText = (n: number | null | undefined) => (n == null ? '–' : `${n}%`)
 
 function toAnnouncement(a: CommunityAnnouncementRow): CommunityAnnouncement {
@@ -4113,16 +4123,16 @@ function toCommunityDetail(d: CommunityDetailData, anns: CommunityAnnouncementRo
 // Shared look for every block on this page — the same gradient card, icon tile
 // and inner row already used by Home's Today's Study Plan.
 const CM_CARD: React.CSSProperties = {
-  background: 'linear-gradient(160deg, #0C1631 0%, #090E20 100%)',
-  borderColor: 'rgba(56,132,255,0.26)',
-  boxShadow: '0 0 50px rgba(41,98,255,0.10), inset 0 1px 0 rgba(255,255,255,0.04)',
+  background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+  borderColor: 'rgba(156,150,140,0.26)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
 }
 const CM_TILE: React.CSSProperties = {
-  background: 'linear-gradient(135deg, rgba(41,98,255,0.25), rgba(124,77,255,0.20))',
-  border: '1px solid rgba(56,132,255,0.4)',
-  boxShadow: '0 0 14px rgba(41,98,255,0.3)',
+  background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))',
+  border: '1px solid rgba(156,150,140,0.4)',
+  boxShadow: 'none',
 }
-const CM_ROW: React.CSSProperties = { background: 'rgba(14,21,40,0.55)', borderColor: 'rgba(26,40,69,0.6)' }
+const CM_ROW: React.CSSProperties = { background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(38,38,42,0.6)' }
 
 function formatPostedStamp(ts: number): string {
   const d = new Date(ts), now = new Date()
@@ -4171,15 +4181,15 @@ function CommunityBannerArt() {
     <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
       <div className="absolute inset-y-0 right-0 w-[62%]"
         style={{
-          background: 'linear-gradient(115deg, #241356 0%, #3B2382 30%, #5B34B0 58%, #7C4DFF 85%, #4629A0 100%)',
+          background: 'linear-gradient(115deg, #26262A 0%, #B43E16 30%, #B43E16 58%, #FF8A3D 85%, #B43E16 100%)',
           WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
           maskImage: 'linear-gradient(to right, transparent 0%, #000 55%)',
         }}>
         <svg viewBox="0 0 700 132" preserveAspectRatio="xMaxYMax slice" className="absolute inset-0 w-full h-full opacity-60" aria-hidden="true">
-          <polygon points="140,132 230,62 285,96 380,40 470,86 545,58 700,104 700,132" fill="#1B0F45" opacity="0.55" />
-          <polygon points="250,132 340,78 405,104 490,54 700,112 700,132" fill="#150A36" opacity="0.75" />
-          <line x1="490" y1="54" x2="490" y2="22" stroke="#E8E2FF" strokeWidth="2" />
-          <path d="M490,22 L522,30 L490,39 Z" fill="#E8E2FF" opacity="0.9" />
+          <polygon points="140,132 230,62 285,96 380,40 470,86 545,58 700,104 700,132" fill="#1C1C1F" opacity="0.55" />
+          <polygon points="250,132 340,78 405,104 490,54 700,112 700,132" fill="#161618" opacity="0.75" />
+          <line x1="490" y1="54" x2="490" y2="22" stroke="#FFF7E6" strokeWidth="2" />
+          <path d="M490,22 L522,30 L490,39 Z" fill="#FFF7E6" opacity="0.9" />
         </svg>
       </div>
     </div>
@@ -4205,7 +4215,7 @@ function CommunityHeadAvatar({ head, size = 40 }: { head: CommunityHead; size?: 
     <div className="rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 select-none"
       style={{
         width: size, height: size, background: head.color, fontSize: Math.round(size * 0.34),
-        border: '1.5px solid rgba(124,77,255,0.45)', boxShadow: '0 0 14px rgba(124,77,255,0.35)',
+        border: '1.5px solid rgba(255,138,61,0.45)', boxShadow: 'none',
       }}>
       {head.initials}
     </div>
@@ -4215,7 +4225,7 @@ function CommunityHeadAvatar({ head, size = 40 }: { head: CommunityHead; size?: 
 function WynkoHeadTag() {
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0"
-      style={{ background: 'rgba(124,77,255,0.14)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
+      style={{ background: 'rgba(255,138,61,0.14)', color: '#FFA94D', border: '1px solid rgba(255,138,61,0.35)' }}>
       👑 WynkoHead
     </span>
   )
@@ -4227,7 +4237,7 @@ function AnnouncementBadges({ pinned, important }: { pinned?: boolean; important
     <div className="flex items-center gap-1.5 flex-shrink-0">
       {pinned && (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
-          style={{ background: 'rgba(56,132,255,0.12)', color: '#7FB0FF', border: '1px solid rgba(56,132,255,0.30)' }}>
+          style={{ background: 'rgba(156,150,140,0.12)', color: '#CFC8BB', border: '1px solid rgba(156,150,140,0.30)' }}>
           <Ico n="pin" cls="w-3 h-3" /> Pinned
         </span>
       )}
@@ -4246,11 +4256,11 @@ function CmCardTitle({ icon, title, sub, right }: { icon: keyof typeof IP; title
     <div className="flex items-center justify-between gap-3 mb-4">
       <div className="flex items-center gap-2.5 min-w-0">
         <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}>
-          <Ico n={icon} cls="w-4 h-4 text-cyan-300" />
+          <Ico n={icon} cls="w-4 h-4 text-wk-ink-200" />
         </div>
         <div className="min-w-0">
-          <div className="text-base font-bold text-slate-100 leading-tight" style={{ fontFamily: 'Poppins, sans-serif' }}>{title}</div>
-          {sub && <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{sub}</div>}
+          <div className="text-base font-bold text-wk-ink-100 leading-tight" style={{ fontFamily: 'Sora, sans-serif' }}>{title}</div>
+          {sub && <div className="text-[11px] text-wk-ink-500 leading-tight mt-0.5">{sub}</div>}
         </div>
       </div>
       {right}
@@ -4264,12 +4274,12 @@ function CmStat({ icon, value, label }: { icon: keyof typeof IP; value: string; 
   return (
     <div className="flex items-center gap-3 min-w-0">
       <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 12px rgba(41,98,255,0.35)' }}>
-        <Ico n={icon} cls="w-4 h-4 text-cyan-300" />
+        style={{ background: 'rgba(156,150,140,0.14)', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+        <Ico n={icon} cls="w-4 h-4 text-wk-ink-200" />
       </div>
       <div className="min-w-0">
-        <div className="text-xl font-bold text-slate-100 leading-tight">{value}</div>
-        <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{label}</div>
+        <div className="text-xl font-bold text-wk-ink-100 leading-tight">{value}</div>
+        <div className="text-[11px] text-wk-ink-500 leading-tight mt-0.5">{label}</div>
       </div>
     </div>
   )
@@ -4318,13 +4328,13 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
   function joinCommunityRoom() { onJoinRoom(communityStudyRoom(community)) }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]">
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
-            <div className="text-sm font-semibold text-slate-200">Student View</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5">COMMUNITY</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Student View</div>
           </div>
           <NotificationBell />
           <UserAvatar size={32} />
@@ -4333,28 +4343,28 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
         <main className="flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-4 pb-6">
             {/* 1 · Community header */}
-            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(56,132,255,0.30)', boxShadow: '0 0 70px rgba(41,98,255,0.14), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(156,150,140,0.30)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
               <CommunityBannerArt />
 
               <div className="relative z-10 p-5 flex items-center gap-4">
                 <button onClick={onBack} aria-label="Back to communities"
-                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-slate-300 hover:text-white transition-colors"
-                  style={{ background: 'rgba(14,21,40,0.7)', border: '1px solid rgba(56,132,255,0.30)' }}>
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-wk-ink-300 hover:text-white transition-colors"
+                  style={{ background: 'rgba(22,22,24,0.7)', border: '1px solid rgba(156,150,140,0.30)' }}>
                   <Ico n="chevL" cls="w-4 h-4" />
                 </button>
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                  style={{ background: community.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{community.emoji}</div>
+                  style={{ background: community.iconBg, boxShadow: 'none' }}>{community.emoji}</div>
                 <div className="min-w-0 flex-1">
                   <h1 className="text-2xl font-bold text-white leading-tight truncate">{community.name}</h1>
                   {community.monetized && <VerifiedTick size={20} />}
-                  <div className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: '#A5B4FC' }}>
+                  <div className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: '#D6D0C4' }}>
                     <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(members)} members
                   </div>
                   <div className="flex items-center gap-2 mt-2.5">
                     <FaceAvatars colors={faces.colors} inits={faces.inits} />
                     {members > faces.inits.length && (
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold text-slate-200"
-                        style={{ background: 'rgba(14,21,40,0.7)', border: '1px solid rgba(56,132,255,0.30)' }}>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold text-wk-ink-200"
+                        style={{ background: 'rgba(22,22,24,0.7)', border: '1px solid rgba(156,150,140,0.30)' }}>
                         +{compactCount(members - faces.inits.length)}
                       </span>
                     )}
@@ -4362,23 +4372,23 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
                 </div>
                 <div className="relative self-start flex-shrink-0">
                   <button onClick={() => setMenuOpen(o => !o)} aria-label="Community options" aria-haspopup="menu" aria-expanded={menuOpen}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-200 hover:text-white transition-colors"
-                    style={{ background: 'rgba(14,21,40,0.55)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-wk-ink-200 hover:text-white transition-colors"
+                    style={{ background: 'rgba(22,22,24,0.55)', border: '1px solid rgba(255,255,255,0.12)' }}>
                     <Ico n="dots" cls="w-5 h-5" />
                   </button>
                   {menuOpen && (
                     <>
                       <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
                       <div role="menu" className="absolute right-0 top-full mt-2 w-60 rounded-xl border p-1.5 z-40"
-                        style={{ background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 12px 40px rgba(0,0,0,0.5), 0 0 30px rgba(41,98,255,0.15)' }}>
+                        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
                         <button role="menuitem" disabled={isHome || isOwner}
                           onClick={() => { setMenuOpen(false); setConfirmLeave(true) }}
                           className="w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors enabled:hover:bg-red-500/10 disabled:cursor-not-allowed"
-                          style={{ color: isHome || isOwner ? '#4E5E84' : '#F87171' }}>
+                          style={{ color: isHome || isOwner ? '#7A756D' : '#F87171' }}>
                           Leave community
                           {isOwner
-                            ? <div className="text-[11px] font-normal text-slate-500 mt-0.5">You manage this community.</div>
-                            : isHome && <div className="text-[11px] font-normal text-slate-500 mt-0.5">This is your Home Community. Change it first.</div>}
+                            ? <div className="text-[11px] font-normal text-wk-ink-500 mt-0.5">You manage this community.</div>
+                            : isHome && <div className="text-[11px] font-normal text-wk-ink-500 mt-0.5">This is your Home Community. Change it first.</div>}
                         </button>
                       </div>
                     </>
@@ -4388,16 +4398,16 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
             </div>
 
             {/* 2 · Tabs */}
-            <div role="tablist" className="grid grid-cols-4 gap-1 p-1 rounded-2xl border" style={{ background: '#0B1530', borderColor: '#1A2845' }}>
+            <div role="tablist" className="grid grid-cols-4 gap-1 p-1 rounded-2xl border" style={{ background: '#161618', borderColor: '#26262A' }}>
               {TABS.map(t => {
                 const active = tab === t.id
                 return (
                   <button key={t.id} role="tab" aria-selected={active} onClick={() => setTab(t.id)}
                     className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all"
                     style={{
-                      background: active ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
-                      color: active ? '#fff' : '#8B9AC7',
-                      boxShadow: active ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                      background: active ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'transparent',
+                      color: active ? '#fff' : '#9C968C',
+                      boxShadow: active ? 'none' : 'none',
                     }}>
                     <Ico n={t.icon} cls="w-4 h-4 flex-shrink-0" />
                     <span className="truncate">{t.label}</span>
@@ -4411,12 +4421,12 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
               <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
                 {detailQ.status === 'error' ? (
                   <>
-                    <div className="text-sm font-semibold text-slate-300 mb-1">Couldn’t load this community</div>
-                    <div className="text-[12px] text-slate-500 mb-4">{detailQ.error}</div>
-                    <button onClick={() => void detailQ.refresh()} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+                    <div className="text-sm font-semibold text-wk-ink-300 mb-1">Couldn’t load this community</div>
+                    <div className="text-[12px] text-wk-ink-500 mb-4">{detailQ.error}</div>
+                    <button onClick={() => void detailQ.refresh()} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-wk-black-950" style={{ background: '#FF8A3D' }}>Try again</button>
                   </>
                 ) : (
-                  <div className="text-sm text-slate-500">Loading community…</div>
+                  <div className="text-sm text-wk-ink-500">Loading community…</div>
                 )}
               </div>
             ) : tab === 'home' ? (
@@ -4428,8 +4438,8 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
                   onAccept={onAcceptSchedule} onReject={onRejectSchedule} onCreateOwn={() => onNavigate('schedules')} />
               ) : (
                 <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
-                  <div className="text-sm font-semibold text-slate-300 mb-1">No schedule yet</div>
-                  <div className="text-[12px] text-slate-500">{detail.head.name} hasn’t published a community schedule yet. You’ll get a notification when they do.</div>
+                  <div className="text-sm font-semibold text-wk-ink-300 mb-1">No schedule yet</div>
+                  <div className="text-[12px] text-wk-ink-500">{detail.head.name} hasn’t published a community schedule yet. You’ll get a notification when they do.</div>
                 </div>
               )
             ) : tab === 'progress' ? (
@@ -4445,14 +4455,14 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]"
           onClick={e => { if (e.target === e.currentTarget) setConfirmLeave(false) }}>
           <div className="rounded-2xl border p-7 w-[380px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-lg font-bold text-white mb-1.5">Leave {community.name}?</div>
-            <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">
+            <div className="text-[13px] text-wk-ink-400 mb-5 leading-relaxed">
               You’ll lose access to this community’s schedule, study room and announcements. You can rejoin later with an invite link.
             </div>
             <div className="flex gap-2.5">
               <button onClick={() => setConfirmLeave(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">Cancel</button>
               <button onClick={() => { setConfirmLeave(false); onLeave() }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
                 style={{ background: '#DC2626' }}>Leave</button>
@@ -4481,7 +4491,7 @@ function CommunityHomeTab({ detail, studyingNow, faces, onViewAll, onJoinRoom }:
         <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
           <CmCardTitle icon="megaphone" title="Announcements"
             right={
-              <button onClick={onViewAll} className="flex items-center gap-1 text-[12px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors flex-shrink-0">
+              <button onClick={onViewAll} className="flex items-center gap-1 text-[12px] font-semibold text-[#CFC8BB] hover:text-[#CFC8BB] transition-colors flex-shrink-0">
                 View All <Ico n="arrow" cls="w-3.5 h-3.5" />
               </button>
             } />
@@ -4491,22 +4501,22 @@ function CommunityHomeTab({ detail, studyingNow, faces, onViewAll, onJoinRoom }:
                 <CommunityHeadAvatar head={detail.head} size={40} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-slate-100">{detail.head.name}</span>
+                    <span className="text-sm font-semibold text-wk-ink-100">{detail.head.name}</span>
                     <WynkoHeadTag />
                   </div>
-                  <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+                  <div className="flex items-center gap-1 text-[11px] text-wk-ink-500 mt-0.5">
                     <Ico n="clock" cls="w-3 h-3" /> {formatPostedAgo(latest.postedAt)}
                   </div>
                 </div>
                 <AnnouncementBadges pinned={latest.pinned} important={latest.important} />
               </div>
               <div className="rounded-xl border p-4 flex-1" style={CM_ROW}>
-                <div className="text-sm font-semibold text-slate-100 mb-1">{latest.title}</div>
-                <div className="text-[13px] text-slate-400 leading-relaxed">{latest.message}</div>
+                <div className="text-sm font-semibold text-wk-ink-100 mb-1">{latest.title}</div>
+                <div className="text-[13px] text-wk-ink-400 leading-relaxed">{latest.message}</div>
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-[13px] text-slate-500 py-8">No announcements yet.</div>
+            <div className="flex-1 flex items-center justify-center text-[13px] text-wk-ink-500 py-8">No announcements yet.</div>
           )}
         </div>
 
@@ -4515,33 +4525,33 @@ function CommunityHomeTab({ detail, studyingNow, faces, onViewAll, onJoinRoom }:
           <CmCardTitle icon="rooms" title="Community Study Room"
             right={studyingNow > 0 ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
-                style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Live
+                style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: 'none' }} /> Live
               </span>
             ) : undefined} />
           <div className="flex-1 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-3 mb-3">
                 <FaceAvatars colors={faces.colors.slice(0, 3)} inits={faces.inits.slice(0, 3)} />
-                <div className="text-[13px] text-slate-300 font-medium">
-                  <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students studying
+                <div className="text-[13px] text-wk-ink-300 font-medium">
+                  <span className="text-wk-ink-100 font-semibold">{fmt(studyingNow)}</span> students studying
                 </div>
               </div>
-              <p className="text-[13px] text-slate-400 leading-relaxed max-w-[280px]">
+              <p className="text-[13px] text-wk-ink-400 leading-relaxed max-w-[280px]">
                 Join the common study room and stay focused together with your community.
               </p>
             </div>
             <div className="hidden xl:flex w-24 h-24 rounded-full items-center justify-center flex-shrink-0"
-              style={{ border: '1px dashed rgba(124,77,255,0.35)', background: 'radial-gradient(circle, rgba(124,77,255,0.14) 0%, transparent 70%)' }}>
+              style={{ border: '1px dashed rgba(255,138,61,0.35)', background: 'radial-gradient(circle, rgba(255,138,61,0.14) 0%, transparent 70%)' }}>
               <div className="w-14 h-14 rounded-full flex items-center justify-center"
-                style={{ background: 'rgba(41,98,255,0.14)', border: '1px solid rgba(56,132,255,0.4)', boxShadow: '0 0 20px rgba(41,98,255,0.35)' }}>
-                <Ico n="rooms" cls="w-6 h-6 text-cyan-300" />
+                style={{ background: 'rgba(156,150,140,0.14)', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
+                <Ico n="rooms" cls="w-6 h-6 text-wk-ink-200" />
               </div>
             </div>
           </div>
           <button onClick={onJoinRoom}
-            className="mt-5 w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            className="mt-5 w-full py-3 rounded-xl text-wk-black-950 text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
             Join Room <Ico n="arrow" cls="w-4 h-4" />
           </button>
         </div>
@@ -4550,7 +4560,7 @@ function CommunityHomeTab({ detail, studyingNow, faces, onViewAll, onJoinRoom }:
       {/* Your Progress (This Community) */}
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="progress" title="Your Progress" sub="This community" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(26,40,69,0.9)]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(38,38,42,0.9)]">
           <div className="sm:pr-6"><CmStat icon="clock" value={formatStudyDuration(p.todayMinutes)} label="Study Time Today" /></div>
           <div className="sm:px-6"><CmStat icon="bullseye" value={String(p.todaySessions)} label="Focus Sessions" /></div>
           <div className="sm:pl-6"><CmStat icon="check" value={pctText(p.adherencePct)} label="Schedule Adherence" /></div>
@@ -4580,35 +4590,35 @@ function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCr
     <div className="space-y-3.5">
       {/* Decision card */}
       <div className="p-5 rounded-2xl border relative overflow-hidden"
-        style={{ ...CM_CARD, borderColor: choice === 'accepted' ? 'rgba(25,211,162,0.35)' : 'rgba(56,132,255,0.30)' }}>
+        style={{ ...CM_CARD, borderColor: choice === 'accepted' ? 'rgba(52,211,153,0.35)' : 'rgba(156,150,140,0.30)' }}>
         <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
-          style={{ background: `radial-gradient(circle, ${choice === 'accepted' ? 'rgba(25,211,162,0.10)' : 'rgba(41,98,255,0.12)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
+          style={{ background: `radial-gradient(circle, ${choice === 'accepted' ? 'rgba(52,211,153,0.10)' : 'rgba(156,150,140,0.12)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
         <div className="relative flex items-start gap-4 flex-wrap">
           <CommunityHeadAvatar head={{ ...head, name: by, initials: initialsOf(by) }} size={48} />
           <div className="flex-1 min-w-[260px]">
             <div className="flex items-center gap-2.5 flex-wrap mb-1">
-              <div className="text-lg font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Community Schedule</div>
+              <div className="text-lg font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Community Schedule</div>
               {choice === 'accepted' && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold"
-                  style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.35)' }}>
+                  style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.35)' }}>
                   <Ico n="check" cls="w-3.5 h-3.5" /> Following Community Schedule
                 </span>
               )}
               {choice === 'rejected' && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold"
-                  style={{ background: 'rgba(124,77,255,0.14)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
+                  style={{ background: 'rgba(255,138,61,0.14)', color: '#FFA94D', border: '1px solid rgba(255,138,61,0.35)' }}>
                   You’re using your own schedule
                 </span>
               )}
             </div>
-            <div className="text-[13px] text-slate-400 leading-relaxed">
+            <div className="text-[13px] text-wk-ink-400 leading-relaxed">
               {choice === 'accepted'
                 ? 'This is now your study schedule. It also shows up in Schedules and Today’s Study Plan.'
                 : choice === 'rejected'
                   ? 'You’re not following this community’s schedule. You can change your mind any time.'
                   : 'Your WynkoHead has created a study schedule for this community.'}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1.5">By {by} · {weekSummary(week)}</div>
+            <div className="text-[11px] text-wk-ink-500 mt-1.5">By {by} · {weekSummary(week)}</div>
           </div>
         </div>
 
@@ -4617,33 +4627,33 @@ function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCr
             <>
               <button onClick={onAccept}
                 className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
-                style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)', boxShadow: '0 0 20px rgba(25,211,162,0.35)' }}>
+                style={{ background: 'linear-gradient(135deg,#34D399,#10B981)', boxShadow: 'none' }}>
                 <Ico n="check" cls="w-4 h-4" /> Accept Schedule
               </button>
               <button onClick={onReject}
-                className={`${ghostBtn} text-slate-200 hover:text-white hover:border-[rgba(56,132,255,0.6)]`}
-                style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+                className={`${ghostBtn} text-wk-ink-200 hover:text-white hover:border-[rgba(156,150,140,0.6)]`}
+                style={{ background: 'rgba(156,150,140,0.08)', borderColor: 'rgba(156,150,140,0.35)' }}>
                 <Ico n="close" cls="w-4 h-4" /> Reject &amp; Create My Own
               </button>
             </>
           )}
           {choice === 'accepted' && (
             <button onClick={onReject}
-              className={`${ghostBtn} text-slate-300 hover:text-white hover:border-[rgba(56,132,255,0.6)]`}
-              style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+              className={`${ghostBtn} text-wk-ink-300 hover:text-white hover:border-[rgba(156,150,140,0.6)]`}
+              style={{ background: 'rgba(156,150,140,0.08)', borderColor: 'rgba(156,150,140,0.35)' }}>
               <Ico n="close" cls="w-4 h-4" /> Reject &amp; Create My Own
             </button>
           )}
           {choice === 'rejected' && (
             <>
               <button onClick={onCreateOwn}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 flex items-center gap-2 hover:opacity-90 transition-opacity"
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 Create My Schedule <Ico n="arrow" cls="w-4 h-4" />
               </button>
               <button onClick={onAccept}
-                className={`${ghostBtn} text-slate-300 hover:text-white hover:border-[rgba(25,211,162,0.6)]`}
-                style={{ background: 'rgba(25,211,162,0.06)', borderColor: 'rgba(25,211,162,0.30)' }}>
+                className={`${ghostBtn} text-wk-ink-300 hover:text-white hover:border-[rgba(52,211,153,0.6)]`}
+                style={{ background: 'rgba(52,211,153,0.06)', borderColor: 'rgba(52,211,153,0.30)' }}>
                 <Ico n="check" cls="w-4 h-4" /> Accept Schedule instead
               </button>
             </>
@@ -4654,39 +4664,39 @@ function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCr
       {/* The schedule itself: time + subject */}
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="calendar" title="Schedule" sub={uniform ? 'Repeats every day' : 'Weekly schedule'}
-          right={<div className="text-xs text-slate-500 flex-shrink-0">{formatStudyDuration(shownMins)} {uniform ? 'total' : `on ${DAYS_SHORT[day]}`}</div>} />
+          right={<div className="text-xs text-wk-ink-500 flex-shrink-0">{formatStudyDuration(shownMins)} {uniform ? 'total' : `on ${DAYS_SHORT[day]}`}</div>} />
         {!uniform && (
           <div className="flex gap-1.5 mb-3.5">
             {DAYS_SHORT.map((d, i) => (
               <button key={d} onClick={() => setDay(i)} aria-pressed={day === i}
                 className="flex-1 flex flex-col items-center py-2 rounded-xl transition-all"
                 style={{
-                  background: day === i ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
-                  border: `1px solid ${day === i ? '#563FA0' : 'rgba(26,40,69,0.55)'}`,
-                  boxShadow: day === i ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                  background: day === i ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : '#161618',
+                  border: `1px solid ${day === i ? '#7A756D' : 'rgba(38,38,42,0.55)'}`,
+                  boxShadow: day === i ? 'none' : 'none',
                 }}>
-                <span className="text-[11px] font-semibold" style={{ color: day === i ? '#fff' : '#8B9AC7' }}>{d}</span>
-                <span className="text-[10px]" style={{ color: day === i ? 'rgba(255,255,255,0.75)' : '#4E5E84' }}>{week[i]?.length ?? 0}</span>
+                <span className="text-[11px] font-semibold" style={{ color: day === i ? '#fff' : '#9C968C' }}>{d}</span>
+                <span className="text-[10px]" style={{ color: day === i ? 'rgba(255,255,255,0.75)' : '#7A756D' }}>{week[i]?.length ?? 0}</span>
               </button>
             ))}
           </div>
         )}
         {shown.length === 0 ? (
-          <div className="py-6 text-center text-[13px] text-slate-500">No sessions on {DAYS_SHORT[day]}.</div>
+          <div className="py-6 text-center text-[13px] text-wk-ink-500">No sessions on {DAYS_SHORT[day]}.</div>
         ) : (
           <div className="space-y-2">
             {shown.map(s => (
               <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={CM_ROW}>
-                <div className="w-[150px] flex-shrink-0 text-[12px] font-semibold text-slate-300 whitespace-nowrap" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                <div className="w-[150px] flex-shrink-0 text-[12px] font-semibold text-wk-ink-300 whitespace-nowrap" style={{ fontFamily: 'Sora, sans-serif' }}>
                   {s.startTime} – {s.endTime}
                 </div>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
                   style={{ background: `${s.color}1A`, border: `1px solid ${s.color}44` }}>{s.iconEmoji}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-100 truncate">{s.subject}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{s.topic}</div>
+                  <div className="text-sm font-semibold text-wk-ink-100 truncate">{s.subject}</div>
+                  <div className="text-[11px] text-wk-ink-500 truncate">{s.topic}</div>
                 </div>
-                <div className="text-[11px] text-slate-500 flex-shrink-0">{formatStudyDuration(parseTimeRangeMinutes(s.startTime, s.endTime))}</div>
+                <div className="text-[11px] text-wk-ink-500 flex-shrink-0">{formatStudyDuration(parseTimeRangeMinutes(s.startTime, s.endTime))}</div>
               </div>
             ))}
           </div>
@@ -4716,8 +4726,8 @@ function CommunityWeeklyBars({ minutes }: { minutes: number[] }) {
         <div className="relative h-44">
           {ticks.map(h => (
             <div key={h} className="absolute left-0 right-0 flex items-center" style={{ bottom: `${(h / topHours) * 100}%`, transform: 'translateY(50%)' }}>
-              <span className="w-10 text-[10px] text-slate-600 text-right pr-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{h}h</span>
-              <div className="flex-1 h-px" style={{ background: 'rgba(139,154,199,0.10)' }} />
+              <span className="w-10 text-[10px] text-wk-ink-600 text-right pr-2" style={{ fontFamily: 'Sora, sans-serif' }}>{h}h</span>
+              <div className="flex-1 h-px" style={{ background: 'rgba(156,150,140,0.10)' }} />
             </div>
           ))}
           <div className="absolute top-0 bottom-0 left-10 right-0 flex items-end gap-3">
@@ -4727,10 +4737,10 @@ function CommunityWeeklyBars({ minutes }: { minutes: number[] }) {
                   title={`${days[i].label}: ${formatStudyDuration(m)}`}
                   style={{
                     height: `${(m / yMax) * 100}%`, minHeight: m > 0 ? 4 : 0,
-                    background: days[i].isToday ? 'linear-gradient(180deg,#22D3EE,#2979FF)' : 'linear-gradient(180deg,#7C4DFF,#3B2FA8)',
-                    boxShadow: days[i].isToday ? '0 0 18px rgba(34,211,238,0.35)' : 'none',
+                    background: days[i].isToday ? 'linear-gradient(180deg,#FFF7E6,#FFB057)' : 'linear-gradient(180deg,#FF8A3D,#B43E16)',
+                    boxShadow: days[i].isToday ? 'none' : 'none',
                   }}>
-                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 whitespace-nowrap">{formatStudyDuration(m)}</span>
+                  <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-wk-ink-400 whitespace-nowrap">{formatStudyDuration(m)}</span>
                 </div>
               </div>
             ))}
@@ -4739,7 +4749,7 @@ function CommunityWeeklyBars({ minutes }: { minutes: number[] }) {
       </div>
       <div className="flex gap-3 pl-10 mt-2">
         {days.map((d, i) => (
-          <div key={i} className="flex-1 text-center text-[11px]" style={{ color: d.isToday ? '#67E8F9' : '#64748B', fontWeight: d.isToday ? 600 : 400 }}>{d.label}</div>
+          <div key={i} className="flex-1 text-center text-[11px]" style={{ color: d.isToday ? '#FFF7E6' : '#7A756D', fontWeight: d.isToday ? 600 : 400 }}>{d.label}</div>
         ))}
       </div>
     </div>
@@ -4766,13 +4776,13 @@ function CommunityProgressTab({ detail }: { detail: CommunityDetail }) {
 
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="progress" title="Weekly Study Activity" sub="Last 7 days · this community"
-          right={<div className="text-right flex-shrink-0"><div className="text-sm font-bold text-slate-100">{formatStudyDuration(weekTotal)}</div><div className="text-[10px] text-slate-500">this week</div></div>} />
+          right={<div className="text-right flex-shrink-0"><div className="text-sm font-bold text-wk-ink-100">{formatStudyDuration(weekTotal)}</div><div className="text-[10px] text-wk-ink-500">this week</div></div>} />
         <CommunityWeeklyBars minutes={p.weeklyMinutes} />
       </div>
 
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="rooms" title="Community Statistics" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(26,40,69,0.9)]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[rgba(38,38,42,0.9)]">
           <div className="sm:pr-6"><CmStat icon="clock" value={formatStudyDuration(p.community.avgDailyMinutes)} label="Avg. Study Time / Day" /></div>
           <div className="sm:px-6"><CmStat icon="library" value={String(p.community.activeSubjects)} label="Active Subjects" /></div>
           <div className="sm:pl-6"><CmStat icon="check" value={pctText(p.community.avgAdherencePct)} label="Avg. Schedule Adherence" /></div>
@@ -4789,8 +4799,8 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
   if (feed.length === 0) {
     return (
       <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
-        <div className="text-sm font-semibold text-slate-300 mb-1">No announcements yet</div>
-        <div className="text-[12px] text-slate-500">Announcements from {detail.head.name} will show up here.</div>
+        <div className="text-sm font-semibold text-wk-ink-300 mb-1">No announcements yet</div>
+        <div className="text-[12px] text-wk-ink-500">Announcements from {detail.head.name} will show up here.</div>
       </div>
     )
   }
@@ -4803,18 +4813,18 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <span className="text-sm font-semibold text-slate-100">{detail.head.name}</span>
+                  <span className="text-sm font-semibold text-wk-ink-100">{detail.head.name}</span>
                   <WynkoHeadTag />
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <AnnouncementBadges pinned={a.pinned} important={a.important} />
-                  <span className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+                  <span className="flex items-center gap-1 text-[11px] text-wk-ink-500 whitespace-nowrap">
                     <Ico n="clock" cls="w-3 h-3" /> {formatPostedStamp(a.postedAt)}
                   </span>
                 </div>
               </div>
-              <div className="text-[15px] font-semibold text-slate-100 mt-2.5 mb-1">{a.title}</div>
-              <div className="text-[13px] text-slate-400 leading-relaxed">{a.message}</div>
+              <div className="text-[15px] font-semibold text-wk-ink-100 mt-2.5 mb-1">{a.title}</div>
+              <div className="text-[13px] text-wk-ink-400 leading-relaxed">{a.message}</div>
             </div>
           </div>
         </div>
@@ -4846,7 +4856,7 @@ interface HeadCommunitySettings {
 // A community's published schedule, as the WynkoHead and students see it.
 interface PublishedSchedule { week: ScheduleItem[][]; publishedAt: number; by: string }
 
-const HEAD_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
+const HEAD_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]'
 
 function initialsOf(name: string): string {
   return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'W'
@@ -4870,16 +4880,16 @@ function CmTabBar<T extends string>({ tabs, active, onChange }: {
 }) {
   return (
     <div role="tablist" className="grid gap-1 p-1 rounded-2xl border"
-      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, background: '#0B1530', borderColor: '#1A2845' }}>
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`, background: '#161618', borderColor: '#26262A' }}>
       {tabs.map(t => {
         const on = active === t.id
         return (
           <button key={t.id} role="tab" aria-selected={on} onClick={() => onChange(t.id)} title={t.label}
             className="flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-sm font-semibold transition-all"
             style={{
-              background: on ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent',
-              color: on ? '#fff' : '#8B9AC7',
-              boxShadow: on ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+              background: on ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'transparent',
+              color: on ? '#fff' : '#9C968C',
+              boxShadow: on ? 'none' : 'none',
             }}>
             <Ico n={t.icon} cls="w-4 h-4 flex-shrink-0" />
             <span className="truncate">{t.label}</span>
@@ -4902,11 +4912,11 @@ function HeadConfirmDialog({ title, body, confirmLabel, confirmStyle, onConfirm,
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] p-4"
       onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
       <div role="dialog" aria-modal="true" aria-label={title} className="rounded-2xl border p-7 w-[420px] max-w-full"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
         <div className="text-lg font-bold text-white mb-1.5">{title}</div>
-        <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">{body}</div>
+        <div className="text-[13px] text-wk-ink-400 mb-5 leading-relaxed">{body}</div>
         <div className="flex gap-2.5">
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">Cancel</button>
           <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity" style={confirmStyle}>{confirmLabel}</button>
         </div>
       </div>
@@ -4973,16 +4983,16 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
   ]
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]">
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Communities
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5">COMMUNITY</div>
-            <div className="text-sm font-semibold text-slate-200">Manage your community, guide your students, and track their progress.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5">COMMUNITY</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Manage your community, guide your students, and track their progress.</div>
           </div>
           <NotificationBell />
           <UserAvatar size={32} />
@@ -4991,33 +5001,33 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
         <main className="flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-4 pb-6">
             {/* Community header */}
-            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(56,132,255,0.30)', boxShadow: '0 0 70px rgba(41,98,255,0.14), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+            <div className="relative rounded-2xl border" style={{ ...CM_CARD, borderColor: 'rgba(156,150,140,0.30)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
               <CommunityBannerArt />
               <div className="relative z-10 p-5 flex items-center gap-5 flex-wrap">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                  style={{ background: community.iconBg, boxShadow: '0 0 24px rgba(124,77,255,0.45)' }}>{community.emoji}</div>
+                  style={{ background: community.iconBg, boxShadow: 'none' }}>{community.emoji}</div>
                 <div className="min-w-0 flex-1 basis-[280px]">
                   <div className="flex items-center gap-3 flex-wrap">
                     <h1 className="text-2xl font-bold text-white leading-tight">{settings.name}</h1>
                     {community.monetized && <VerifiedTick size={20} />}
                     {isWynkoHead && <HeadBadge />}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[13px] mt-1.5" style={{ color: '#A5B4FC' }}>
+                  <div className="flex items-center gap-1.5 text-[13px] mt-1.5" style={{ color: '#D6D0C4' }}>
                     <Ico n="rooms" cls="w-3.5 h-3.5" /> {fmt(members)} Members
                   </div>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-300 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> {fmt(studyingNow)} active students
+                  <div className="flex items-center gap-2 text-[13px] text-wk-ink-300 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: 'none' }} /> {fmt(studyingNow)} active students
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <button onClick={() => setTab('manage')}
-                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-white flex items-center gap-2 hover:opacity-90 transition-opacity"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-wk-black-950 flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                     <Ico n="cog" cls="w-4 h-4" /> Manage Community
                   </button>
                   <button onClick={onViewAsStudent}
-                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-slate-100 hover:text-white transition-colors border"
-                    style={{ background: 'rgba(14,21,40,0.6)', borderColor: 'rgba(56,132,255,0.40)' }}>
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-wk-ink-100 hover:text-white transition-colors border"
+                    style={{ background: 'rgba(22,22,24,0.6)', borderColor: 'rgba(156,150,140,0.40)' }}>
                     View Community
                   </button>
                 </div>
@@ -5098,16 +5108,16 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
     await setEnabled(true)
   }
   return (
-    <div className="rounded-2xl border p-5 mb-4" style={{ ...CM_CARD, borderColor: monetized ? 'rgba(59,130,246,0.45)' : 'rgba(56,132,255,0.25)' }}>
+    <div className="rounded-2xl border p-5 mb-4" style={{ ...CM_CARD, borderColor: monetized ? 'rgba(59,130,246,0.45)' : 'rgba(156,150,140,0.25)' }}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <div className="text-white font-bold text-base">Monetisation Program</div>
             {monetized
-              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(59,130,246,0.14)', color: '#93C5FD', border: '1px solid rgba(59,130,246,0.35)' }}><VerifiedTick size={12} /> On</span>
-              : <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(100,116,139,0.18)', color: '#94A3B8' }}>Off</span>}
+              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(59,130,246,0.14)', color: '#CFC8BB', border: '1px solid rgba(59,130,246,0.35)' }}><VerifiedTick size={12} /> On</span>
+              : <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(122,117,109,0.18)', color: '#9C968C' }}>Off</span>}
           </div>
-          <div className="text-[13px] text-slate-400 max-w-xl">
+          <div className="text-[13px] text-wk-ink-400 max-w-xl">
             {monetized
               ? 'You earn 50% of the net revenue (after GST and store/payment fees) from members who made this their Home Community — their spending and the ad revenue they generate. Your own spending doesn’t count. It shows the verified tick; earnings count from when the program was switched on. Refunds are deducted.'
               : isWynkoHead
@@ -5117,14 +5127,14 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
           {error && <div className="text-[12px] text-amber-300 mt-2">{error}</div>}
           {needDob && !monetized && (
             <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <label className="text-[12px] text-slate-400" htmlFor={`dob-${groupId}`}>Date of birth</label>
+              <label className="text-[12px] text-wk-ink-400" htmlFor={`dob-${groupId}`}>Date of birth</label>
               <input id={`dob-${groupId}`} type="date" value={dob} onChange={e => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)}
-                className="px-3 py-1.5 rounded-xl border bg-[#0B1530] text-[13px] text-slate-200 outline-none border-[#1A2845]" style={{ colorScheme: 'dark' }} />
+                className="px-3 py-1.5 rounded-xl border bg-[#161618] text-[13px] text-wk-ink-200 outline-none border-[#26262A]" style={{ colorScheme: 'dark' }} />
               <button onClick={() => void saveDobAndEnable()} disabled={!dob || busy}
-                className="px-4 py-1.5 rounded-xl text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+                className="px-4 py-1.5 rounded-xl text-[12px] font-semibold text-wk-black-950 disabled:opacity-50" style={{ background: '#FF8A3D' }}>
                 {busy ? 'Saving…' : 'Save & turn on'}
               </button>
-              <span className="text-[11px] text-slate-500 w-full">It can only be set once, so make sure it’s right.</span>
+              <span className="text-[11px] text-wk-ink-500 w-full">It can only be set once, so make sure it’s right.</span>
             </div>
           )}
         </div>
@@ -5136,12 +5146,12 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
             </button>
           ) : isWynkoHead ? (
             <button onClick={() => void setEnabled(true)} disabled={busy}
-              className="px-5 py-2 rounded-xl text-[13px] font-semibold text-white disabled:opacity-50" style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.4)' }}>
+              className="px-5 py-2 rounded-xl text-[13px] font-semibold text-wk-black-950 disabled:opacity-50" style={{ background: '#FF8A3D', boxShadow: 'none' }}>
               {busy ? 'Turning on…' : 'Turn on monetisation'}
             </button>
           ) : (
             <button onClick={onApply}
-              className="px-5 py-2 rounded-xl text-[13px] font-semibold text-white" style={{ background: '#7C4DFF' }}>
+              className="px-5 py-2 rounded-xl text-[13px] font-semibold text-wk-black-950" style={{ background: '#FF8A3D' }}>
               Become a WynkoHead
             </button>
           )}
@@ -5149,10 +5159,10 @@ function HeadMonetizationPanel({ groupId, monetized, isWynkoHead, onChanged, onA
       </div>
       {confirmOff && (
         <div className="mt-4 rounded-xl border p-4" style={{ background: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.25)' }}>
-          <div className="text-sm text-slate-200 mb-1 font-semibold">Turn off the monetisation program?</div>
-          <div className="text-[12px] text-slate-400 mb-3">Earnings stop and the verified tick is removed. If you became a WynkoHead by taking over this community, you’ll lose that status and can’t turn it back on without being approved.</div>
+          <div className="text-sm text-wk-ink-200 mb-1 font-semibold">Turn off the monetisation program?</div>
+          <div className="text-[12px] text-wk-ink-400 mb-3">Earnings stop and the verified tick is removed. If you became a WynkoHead by taking over this community, you’ll lose that status and can’t turn it back on without being approved.</div>
           <div className="flex gap-2">
-            <button onClick={() => setConfirmOff(false)} disabled={busy} className="px-4 py-2 rounded-xl border text-[12px] text-slate-400 border-[#1A2845]">Keep it on</button>
+            <button onClick={() => setConfirmOff(false)} disabled={busy} className="px-4 py-2 rounded-xl border text-[12px] text-wk-ink-400 border-[#26262A]">Keep it on</button>
             <button onClick={() => void setEnabled(false)} disabled={busy} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: '#DC2626' }}>
               {busy ? 'Turning off…' : 'Turn off'}
             </button>
@@ -5187,26 +5197,26 @@ function HeadTransferOwnership({ groupId, monetized, onTransferred }: {
   return (
     <div className="rounded-2xl border p-5 mt-4" style={{ ...CM_CARD, borderColor: 'rgba(239,68,68,0.25)' }}>
       <div className="text-white font-bold text-base mb-1">Transfer Ownership</div>
-      <div className="text-[13px] text-slate-400 mb-4 max-w-2xl">
+      <div className="text-[13px] text-wk-ink-400 mb-4 max-w-2xl">
         Hand this community to another member. You become a regular member.
         {monetized && ' It stays in the monetisation program only if the new owner is 18+ with a date of birth on file: they become a WynkoHead for this community for as long as they own it, and earnings go to them from now on. Otherwise monetisation switches off.'}
       </div>
       {membersQ.status === 'loading' ? (
-        <div className="text-[12px] text-slate-500">Loading members…</div>
+        <div className="text-[12px] text-wk-ink-500">Loading members…</div>
       ) : membersQ.data.length === 0 ? (
-        <div className="text-[12px] text-slate-500">No other members yet — invite someone first.</div>
+        <div className="text-[12px] text-wk-ink-500">No other members yet — invite someone first.</div>
       ) : (
         <div className="flex flex-col gap-3 max-w-md">
           <select value={target} onChange={e => { setTarget(e.target.value); setConfirmText('') }}
-            className="px-3 py-2.5 rounded-xl border bg-[#0B1530] text-sm text-slate-200 outline-none border-[#1A2845]">
+            className="px-3 py-2.5 rounded-xl border bg-[#161618] text-sm text-wk-ink-200 outline-none border-[#26262A]">
             <option value="">Choose a member…</option>
             {membersQ.data.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
           </select>
           {chosen && (
             <>
-              <div className="text-[11px] text-slate-500">Type TRANSFER to hand the community to <b className="text-slate-300">{chosen.name}</b>.</div>
+              <div className="text-[11px] text-wk-ink-500">Type TRANSFER to hand the community to <b className="text-wk-ink-300">{chosen.name}</b>.</div>
               <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="TRANSFER"
-                className="px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none border-[#1A2845]" />
+                className="px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none border-[#26262A]" />
               <button onClick={() => void transfer()} disabled={confirmText !== 'TRANSFER' || busy}
                 className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40" style={{ background: '#DC2626' }}>
                 {busy ? 'Transferring…' : `Transfer to ${chosen.name}`}
@@ -5253,23 +5263,23 @@ function HeadOverviewTab({ community, overview, members, studyingNow, announceme
           <CmCardTitle icon="rooms" title="Community Study Room"
             right={studyingNow > 0 ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
-                style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Live
+                style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: 'none' }} /> Live
               </span>
             ) : undefined} />
           <div className="flex items-center gap-3 mb-4">
             <FaceAvatars colors={(community.avatarColors ?? []).slice(0, 3)} inits={(community.avatarInits ?? []).slice(0, 3)} />
-            <div className="text-[13px] text-slate-300 font-medium">
-              <span className="text-slate-100 font-semibold">{fmt(studyingNow)}</span> students online
+            <div className="text-[13px] text-wk-ink-300 font-medium">
+              <span className="text-wk-ink-100 font-semibold">{fmt(studyingNow)}</span> students online
             </div>
           </div>
           <div className="rounded-xl border p-4 mb-5" style={CM_ROW}>
-            <div className="text-[11px] text-slate-500 mb-1">Currently studying</div>
-            <div className="text-sm font-semibold text-slate-100">{overview?.current_subject || 'No one right now'}</div>
+            <div className="text-[11px] text-wk-ink-500 mb-1">Currently studying</div>
+            <div className="text-sm font-semibold text-wk-ink-100">{overview?.current_subject || 'No one right now'}</div>
           </div>
           <button onClick={onEnterRoom}
-            className="mt-auto w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            className="mt-auto w-full py-3 rounded-xl text-wk-black-950 text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
             <Ico n="play" cls="w-4 h-4" /> Enter Study Room
           </button>
         </div>
@@ -5278,24 +5288,24 @@ function HeadOverviewTab({ community, overview, members, studyingNow, announceme
         <div className="p-5 rounded-2xl border h-full flex flex-col" style={CM_CARD}>
           <CmCardTitle icon="megaphone" title="Recent Announcements"
             right={
-              <button onClick={onViewAnnouncements} className="flex items-center gap-1 text-[12px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors flex-shrink-0">
+              <button onClick={onViewAnnouncements} className="flex items-center gap-1 text-[12px] font-semibold text-[#CFC8BB] hover:text-[#CFC8BB] transition-colors flex-shrink-0">
                 View All <Ico n="arrow" cls="w-3.5 h-3.5" />
               </button>
             } />
           {recent.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-[13px] text-slate-500 py-8">No announcements yet.</div>
+            <div className="flex-1 flex items-center justify-center text-[13px] text-wk-ink-500 py-8">No announcements yet.</div>
           ) : (
             <div className="space-y-2">
               {recent.map(a => (
                 <div key={a.id} className="rounded-xl border px-4 py-3" style={CM_ROW}>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-100 truncate">{a.title}</div>
+                    <div className="text-sm font-semibold text-wk-ink-100 truncate">{a.title}</div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <AnnouncementBadges pinned={a.pinned} important={a.important} />
-                      <span className="text-[11px] text-slate-500 whitespace-nowrap">{formatPostedAgo(a.postedAt)}</span>
+                      <span className="text-[11px] text-wk-ink-500 whitespace-nowrap">{formatPostedAgo(a.postedAt)}</span>
                     </div>
                   </div>
-                  <div className="text-[12px] text-slate-500 truncate mt-0.5">{a.message}</div>
+                  <div className="text-[12px] text-wk-ink-500 truncate mt-0.5">{a.message}</div>
                 </div>
               ))}
             </div>
@@ -5341,25 +5351,25 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
   return (
     <div className="space-y-4">
       <div className="p-5 rounded-2xl border relative overflow-hidden"
-        style={{ ...CM_CARD, borderColor: justPublished ? 'rgba(25,211,162,0.35)' : 'rgba(56,132,255,0.30)' }}>
+        style={{ ...CM_CARD, borderColor: justPublished ? 'rgba(52,211,153,0.35)' : 'rgba(156,150,140,0.30)' }}>
         <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
-          style={{ background: `radial-gradient(circle, ${justPublished ? 'rgba(25,211,162,0.10)' : 'rgba(124,77,255,0.14)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
+          style={{ background: `radial-gradient(circle, ${justPublished ? 'rgba(52,211,153,0.10)' : 'rgba(255,138,61,0.14)'} 0%, transparent 65%)`, transform: 'translate(25%,-40%)' }} />
         <div className="relative flex items-center gap-4 flex-wrap">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}>
-            <Ico n="send" cls="w-5 h-5 text-cyan-300" />
+            <Ico n="send" cls="w-5 h-5 text-wk-ink-200" />
           </div>
           <div className="flex-1 min-w-[260px]">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Publish to your students</div>
+              <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Publish to your students</div>
               {unpublishedChanges && (
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
                   style={{ background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>Unpublished changes</span>
               )}
             </div>
-            <div className="text-[13px] text-slate-400 leading-relaxed mt-0.5">
+            <div className="text-[13px] text-wk-ink-400 leading-relaxed mt-0.5">
               Build the schedule below, then publish it. Students get a notification and choose whether to follow it or create their own.
             </div>
-            <div className="text-[11px] mt-1.5" style={{ color: publishError ? '#FBBF24' : justPublished ? '#19D3A2' : '#64748B' }}>
+            <div className="text-[11px] mt-1.5" style={{ color: publishError ? '#FBBF24' : justPublished ? '#34D399' : '#7A756D' }}>
               {publishError
                 ? publishError
                 : justPublished
@@ -5369,8 +5379,8 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
           </div>
           <button onClick={() => setConfirming(true)} disabled={!hasSessions || publishing}
             title={hasSessions ? undefined : 'Add at least one session first'}
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
             <Ico n="send" cls="w-4 h-4" /> Publish Schedule
           </button>
         </div>
@@ -5383,7 +5393,7 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
       {confirming && (
         <HeadConfirmDialog title="Publish this schedule?"
           body={<>{fmt(members)} students will get a notification with this schedule ({weekSummary(headSchedule)}). Each student can accept it or keep their own schedule.</>}
-          confirmLabel="Publish" confirmStyle={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}
+          confirmLabel="Publish" confirmStyle={{ background: '#FF8A3D', boxShadow: 'none' }}
           onConfirm={() => void confirmPublish()} onCancel={() => setConfirming(false)} />
       )}
     </div>
@@ -5421,7 +5431,7 @@ function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
   const toggle = (on: boolean, set: (v: boolean) => void, label: string, icon: keyof typeof IP, accent: string) => (
     <button type="button" onClick={() => set(!on)} aria-pressed={on}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors"
-      style={{ background: on ? `${accent}1F` : 'transparent', color: on ? accent : '#64748B', borderColor: on ? `${accent}66` : '#1A2845' }}>
+      style={{ background: on ? `${accent}1F` : 'transparent', color: on ? accent : '#7A756D', borderColor: on ? `${accent}66` : '#26262A' }}>
       <Ico n={icon} cls="w-3.5 h-3.5" /> {label}
     </button>
   )
@@ -5437,12 +5447,12 @@ function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               {toggle(important, setImportant, 'Important', 'alert', '#F87171')}
-              {toggle(pinned, setPinned, 'Pin to top', 'pin', '#7FB0FF')}
+              {toggle(pinned, setPinned, 'Pin to top', 'pin', '#CFC8BB')}
             </div>
             {postError && <span className="text-[12px] text-amber-300">{postError}</span>}
             <button onClick={() => void post()} disabled={!canPost || posting}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#FF8A3D', boxShadow: 'none' }}>
               <Ico n="send" cls="w-4 h-4" /> Post Announcement
             </button>
           </div>
@@ -5451,39 +5461,39 @@ function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
 
       {feed.length === 0 ? (
         <div className="p-10 rounded-2xl border text-center" style={CM_CARD}>
-          <div className="text-sm font-semibold text-slate-300 mb-1">No announcements yet</div>
-          <div className="text-[12px] text-slate-500">Post your first announcement above.</div>
+          <div className="text-sm font-semibold text-wk-ink-300 mb-1">No announcements yet</div>
+          <div className="text-[12px] text-wk-ink-500">Post your first announcement above.</div>
         </div>
       ) : feed.map(a => (
         <div key={a.id} className="p-5 rounded-2xl border" style={CM_CARD}>
           <div className="flex items-start gap-3.5">
-            <CommunityHeadAvatar head={{ name: headName, initials: initialsOf(headName), color: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' }} size={40} />
+            <CommunityHeadAvatar head={{ name: headName, initials: initialsOf(headName), color: 'linear-gradient(135deg,#FF8A3D,#B43E16)' }} size={40} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <span className="text-sm font-semibold text-slate-100">{headName}</span>
+                  <span className="text-sm font-semibold text-wk-ink-100">{headName}</span>
                   <WynkoHeadTag />
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <AnnouncementBadges pinned={a.pinned} important={a.important} />
-                  <span className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+                  <span className="flex items-center gap-1 text-[11px] text-wk-ink-500 whitespace-nowrap">
                     <Ico n="clock" cls="w-3 h-3" /> {formatPostedStamp(a.postedAt)}
                   </span>
                   {deleting === a.id ? (
                     <span className="flex items-center gap-1.5 text-[11px]">
                       <button onClick={() => { void onDelete(a.id).then(err => { if (err) setPostError(err) }); setDeleting(null) }}
                         className="font-semibold text-red-400 hover:text-red-300 transition-colors">Delete</button>
-                      <span className="text-slate-700">·</span>
-                      <button onClick={() => setDeleting(null)} className="text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
+                      <span className="text-wk-ink-700">·</span>
+                      <button onClick={() => setDeleting(null)} className="text-wk-ink-500 hover:text-wk-ink-300 transition-colors">Cancel</button>
                     </span>
                   ) : (
                     <button onClick={() => setDeleting(a.id)} aria-label={`Delete announcement: ${a.title}`}
-                      className="text-slate-600 hover:text-red-400 transition-colors"><Ico n="trash" cls="w-4 h-4" /></button>
+                      className="text-wk-ink-600 hover:text-red-400 transition-colors"><Ico n="trash" cls="w-4 h-4" /></button>
                   )}
                 </div>
               </div>
-              <div className="text-[15px] font-semibold text-slate-100 mt-2.5 mb-1">{a.title}</div>
-              <div className="text-[13px] text-slate-400 leading-relaxed whitespace-pre-wrap break-words">{a.message}</div>
+              <div className="text-[15px] font-semibold text-wk-ink-100 mt-2.5 mb-1">{a.title}</div>
+              <div className="text-[13px] text-wk-ink-400 leading-relaxed whitespace-pre-wrap break-words">{a.message}</div>
             </div>
           </div>
         </div>
@@ -5529,24 +5539,24 @@ function HeadAnalyticsTab({ groupId }: { groupId: string }) {
   const visible = showAll ? rows : rows.slice(0, 8)
 
   const ago = (m: number) => !Number.isFinite(m) ? 'Never' : m < 60 ? `${m}m ago` : m < 24 * 60 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / (24 * 60))}d ago`
-  const barFor = (p: number) => p >= 70 ? 'linear-gradient(90deg,#19D3A2,#22D3EE)' : p >= 50 ? 'linear-gradient(90deg,#2979FF,#60A5FA)' : 'linear-gradient(90deg,#7C4DFF,#A78BFA)'
+  const barFor = (p: number) => p >= 70 ? 'linear-gradient(90deg,#34D399,#FFF7E6)' : p >= 50 ? 'linear-gradient(90deg,#FFB057,#CFC8BB)' : 'linear-gradient(90deg,#FF8A3D,#FFA94D)'
   const COLS = 'grid-cols-[minmax(170px,1.6fr)_repeat(5,minmax(64px,0.7fr))_minmax(84px,0.8fr)_minmax(150px,1.3fr)]'
 
   return (
     <div className="p-5 rounded-2xl border" style={CM_CARD}>
       <div className="flex items-center gap-4 flex-wrap mb-4">
         <div className="flex items-center gap-2.5 mr-2">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="progress" cls="w-4 h-4 text-cyan-300" /></div>
-          <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Student Analytics</div>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="progress" cls="w-4 h-4 text-wk-ink-200" /></div>
+          <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Student Analytics</div>
         </div>
         <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-          <Ico n="search" cls="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Ico n="search" cls="w-4 h-4 text-wk-ink-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input value={query} onChange={e => { setQuery(e.target.value); setShowAll(false) }} placeholder="Search students..." aria-label="Search students"
-            className={`${HEAD_INPUT} pl-10`} style={{ background: 'rgba(14,21,40,0.55)' }} />
+            className={`${HEAD_INPUT} pl-10`} style={{ background: 'rgba(22,22,24,0.55)' }} />
         </div>
         <select value={filter} onChange={e => { setFilter(e.target.value as Filter); setShowAll(false) }} aria-label="Filter students"
-          className="ml-auto px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors border-[#1A2845] cursor-pointer"
-          style={{ background: 'rgba(14,21,40,0.55)', colorScheme: 'dark' }}>
+          className="ml-auto px-3.5 py-2.5 rounded-xl border text-sm text-wk-ink-200 outline-none focus:border-wk-orange-500/50 transition-colors border-[#26262A] cursor-pointer"
+          style={{ background: 'rgba(22,22,24,0.55)', colorScheme: 'dark' }}>
           <option value="all">All Students</option>
           <option value="active">Active Today</option>
           <option value="inactive">Inactive 3+ Days</option>
@@ -5556,33 +5566,33 @@ function HeadAnalyticsTab({ groupId }: { groupId: string }) {
 
       <div className="overflow-x-auto">
         <div className="min-w-[860px]">
-          <div className={`grid ${COLS} gap-3 px-4 pb-2.5 text-[11px] font-semibold text-slate-500 border-b border-[rgba(26,40,69,0.9)]`}>
+          <div className={`grid ${COLS} gap-3 px-4 pb-2.5 text-[11px] font-semibold text-wk-ink-500 border-b border-[rgba(38,38,42,0.9)]`}>
             <div>Student</div><div>Study Time</div><div>Sessions</div><div>Streak</div><div>Revision</div><div>Tasks</div><div>Last Active</div><div>Adherence</div>
           </div>
           {visible.length === 0 ? (
-            <div className="py-10 text-center text-[13px] text-slate-500">
+            <div className="py-10 text-center text-[13px] text-wk-ink-500">
               {studentsQ.status === 'loading' ? 'Loading students…'
                 : studentsQ.status === 'error' ? studentsQ.error
                 : students.length === 0 ? 'No students yet. Share your invite link from Manage Community.'
                 : 'No students match.'}
             </div>
           ) : visible.map(s => (
-            <div key={s.id} className={`grid ${COLS} gap-3 px-4 py-3 items-center text-[13px] text-slate-300 border-b border-[rgba(26,40,69,0.6)] last:border-b-0 hover:bg-white/[0.02] transition-colors`}>
+            <div key={s.id} className={`grid ${COLS} gap-3 px-4 py-3 items-center text-[13px] text-wk-ink-300 border-b border-[rgba(38,38,42,0.6)] last:border-b-0 hover:bg-white/[0.02] transition-colors`}>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: s.color }}>{s.initials}</div>
-                <span className="font-medium text-slate-100 truncate">{s.name}</span>
+                <span className="font-medium text-wk-ink-100 truncate">{s.name}</span>
               </div>
               <div>{formatStudyDuration(s.studyMinutes)}</div>
               <div>{s.sessions}</div>
               <div>{s.streakDays === 0 ? '–' : `${s.streakDays} day${s.streakDays === 1 ? '' : 's'}`}</div>
               <div>{s.revision}</div>
               <div>{s.tasks}</div>
-              <div className="text-slate-400">{ago(s.lastActiveMins)}</div>
+              <div className="text-wk-ink-400">{ago(s.lastActiveMins)}</div>
               <div className="flex items-center gap-2.5">
-                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
+                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(38,38,42,0.9)' }}>
                   <div className="h-full rounded-full" style={{ width: `${s.adherencePct ?? 0}%`, background: barFor(s.adherencePct ?? 0) }} />
                 </div>
-                <span className="w-9 text-right text-[12px] text-slate-400">{pctText(s.adherencePct)}</span>
+                <span className="w-9 text-right text-[12px] text-wk-ink-400">{pctText(s.adherencePct)}</span>
               </div>
             </div>
           ))}
@@ -5590,7 +5600,7 @@ function HeadAnalyticsTab({ groupId }: { groupId: string }) {
       </div>
 
       {rows.length > 8 && (
-        <button onClick={() => setShowAll(v => !v)} className="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-[#5B9BFF] hover:text-[#8DBBFF] transition-colors">
+        <button onClick={() => setShowAll(v => !v)} className="mt-4 flex items-center gap-1.5 text-[13px] font-semibold text-[#CFC8BB] hover:text-[#CFC8BB] transition-colors">
           {showAll ? 'Show fewer students' : 'View All Students'} {!showAll && <Ico n="arrow" cls="w-3.5 h-3.5" />}
         </button>
       )}
@@ -5618,21 +5628,21 @@ function EarningsChart({ points }: { points: { label: string; value: number }[] 
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Earnings over time">
         <defs>
           <linearGradient id="earnFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#7C4DFF" stopOpacity="0.38" />
-            <stop offset="100%" stopColor="#7C4DFF" stopOpacity="0" />
+            <stop offset="0%" stopColor="#FF8A3D" stopOpacity="0.38" />
+            <stop offset="100%" stopColor="#FF8A3D" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={area} fill="url(#earnFill)" />
-        <path d={line} fill="none" stroke="#8B7CFF" strokeWidth="2.5" strokeLinecap="round" />
+        <path d={line} fill="none" stroke="#FFA94D" strokeWidth="2.5" strokeLinecap="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={xs[i]} cy={ys[i]} r="4.5" fill="#8B7CFF" stroke="#0B1530" strokeWidth="2">
+          <circle key={i} cx={xs[i]} cy={ys[i]} r="4.5" fill="#FFA94D" stroke="#161618" strokeWidth="2">
             <title>{`${p.label} · ₹${p.value.toLocaleString('en-IN')}`}</title>
           </circle>
         ))}
       </svg>
       <div className="relative h-5 mt-1">
         {points.map((p, i) => (
-          <span key={i} className="absolute text-[10px] text-slate-500 whitespace-nowrap -translate-x-1/2" style={{ left: `${(xs[i] / W) * 100}%` }}>{p.label}</span>
+          <span key={i} className="absolute text-[10px] text-wk-ink-500 whitespace-nowrap -translate-x-1/2" style={{ left: `${(xs[i] / W) * 100}%` }}>{p.label}</span>
         ))}
       </div>
     </div>
@@ -5688,7 +5698,7 @@ function HeadEarningsTab() {
     nextDate,
   }
   const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
-  const SOURCE_COLORS = ['#7C4DFF', '#22D3EE', '#19D3A2', '#F59E0B', '#EC4899']
+  const SOURCE_COLORS = ['#FF8A3D', '#FFF7E6', '#34D399', '#F59E0B', '#EC4899']
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawn, setWithdrawn] = useState(false)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
@@ -5714,12 +5724,12 @@ function HeadEarningsTab() {
           <div className="p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="coin" cls="w-4 h-4 text-cyan-300" /></div>
-                <div className="text-base font-bold text-slate-100" style={{ fontFamily: 'Poppins, sans-serif' }}>Earnings Overview</div>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={CM_TILE}><Ico n="coin" cls="w-4 h-4 text-wk-ink-200" /></div>
+                <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Earnings Overview</div>
               </div>
               <select value={range} onChange={e => setRange(Number(e.target.value) as EarningsRange)} aria-label="Earnings period"
-                className="px-3.5 py-2 rounded-xl border text-[13px] text-slate-200 outline-none focus:border-violet-500/50 transition-colors border-[#1A2845] cursor-pointer"
-                style={{ background: 'rgba(14,21,40,0.55)', colorScheme: 'dark' }}>
+                className="px-3.5 py-2 rounded-xl border text-[13px] text-wk-ink-200 outline-none focus:border-wk-orange-500/50 transition-colors border-[#26262A] cursor-pointer"
+                style={{ background: 'rgba(22,22,24,0.55)', colorScheme: 'dark' }}>
                 <option value={7}>Last 7 Days</option>
                 <option value={30}>Last 30 Days</option>
                 <option value={90}>Last 90 Days</option>
@@ -5728,7 +5738,7 @@ function HeadEarningsTab() {
             <div className="flex items-end gap-3 mb-4">
               <div>
                 <div className="text-3xl font-bold text-white leading-tight">{inr(data.total)}</div>
-                <div className="text-[12px] text-slate-500 mt-0.5">Total Earnings</div>
+                <div className="text-[12px] text-wk-ink-500 mt-0.5">Total Earnings</div>
               </div>
               {data.changePct !== 0 && (
                 <div className={`pb-1 text-[13px] font-semibold ${data.changePct > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>{data.changePct > 0 ? '↑' : '↓'} {Math.abs(data.changePct)}%</div>
@@ -5737,31 +5747,31 @@ function HeadEarningsTab() {
             <EarningsChart points={data.points} />
           </div>
 
-          <div className="p-5 border-t lg:border-t-0 lg:border-l border-[rgba(26,40,69,0.9)] flex flex-col gap-5">
+          <div className="p-5 border-t lg:border-t-0 lg:border-l border-[rgba(38,38,42,0.9)] flex flex-col gap-5">
             <div>
-              <div className="text-[13px] text-slate-400 mb-2">Payout Status</div>
+              <div className="text-[13px] text-wk-ink-400 mb-2">Payout Status</div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold"
                 style={payout.status === 'Paid'
-                  ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                  ? { background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }
                   : { background: 'rgba(245,158,11,0.10)', color: '#FBBF24', border: '1px solid rgba(245,158,11,0.30)' }}>
                 <Ico n="check" cls="w-3.5 h-3.5" /> {payout.status}
               </span>
-              <div className="text-[11px] text-slate-500 mt-2">{latest ? `${inr(payout.lastAmount)} ${payout.status === 'Paid' ? 'paid' : 'requested'} on ${payout.lastDate}` : 'No payouts yet'}</div>
+              <div className="text-[11px] text-wk-ink-500 mt-2">{latest ? `${inr(payout.lastAmount)} ${payout.status === 'Paid' ? 'paid' : 'requested'} on ${payout.lastDate}` : 'No payouts yet'}</div>
             </div>
             <div>
-              <div className="text-[13px] text-slate-400 mb-1">Next payout</div>
-              <div className="text-lg font-bold text-slate-100">{payout.nextDate}</div>
-              <div className="text-[13px] text-slate-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-slate-500">(estimated)</span></div>
+              <div className="text-[13px] text-wk-ink-400 mb-1">Next payout</div>
+              <div className="text-lg font-bold text-wk-ink-100">{payout.nextDate}</div>
+              <div className="text-[13px] text-wk-ink-300 mt-0.5">{inr(payout.nextAmount)} <span className="text-wk-ink-500">(estimated)</span></div>
             </div>
             {withdrawError && <div className="text-[11px] text-amber-300 -mb-2">{withdrawError}</div>}
             <button onClick={() => void requestWithdraw()} disabled={withdrawing || withdrawn || balanceQ.data < MIN_PAYOUT_INR}
               className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-70 flex items-center justify-center gap-2"
               style={withdrawn
-                ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
-                : { background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', color: '#fff', boxShadow: '0 0 16px #1E3060' }}>
+                ? { background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }
+                : { background: 'linear-gradient(135deg,#FF8A3D,#E9772E)', color: '#0B0B0D', boxShadow: 'none' }}>
               {withdrawn ? <><Ico n="check" cls="w-3.5 h-3.5" /> Withdrawal requested</> : withdrawing ? 'Requesting…' : 'Withdraw'}
             </button>
-            {!withdrawn && balanceQ.data < MIN_PAYOUT_INR && <div className="text-[11px] text-slate-500 text-center -mt-1">Minimum payout is {inr(MIN_PAYOUT_INR)}</div>}
+            {!withdrawn && balanceQ.data < MIN_PAYOUT_INR && <div className="text-[11px] text-wk-ink-500 text-center -mt-1">Minimum payout is {inr(MIN_PAYOUT_INR)}</div>}
           </div>
         </div>
       </div>
@@ -5769,7 +5779,7 @@ function HeadEarningsTab() {
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="coin" title="Earnings by Source" sub={`Last ${range} days`} />
         {data.sources.length === 0 && (
-          <div className="text-[13px] text-slate-500 py-2">{ledgerQ.status === 'loading' ? 'Loading earnings…' : ledgerQ.status === 'error' ? ledgerQ.error : 'No earnings in this period yet.'}</div>
+          <div className="text-[13px] text-wk-ink-500 py-2">{ledgerQ.status === 'loading' ? 'Loading earnings…' : ledgerQ.status === 'error' ? ledgerQ.error : 'No earnings in this period yet.'}</div>
         )}
         <div className="space-y-2">
           {data.sources.map((s, i) => {
@@ -5779,15 +5789,15 @@ function HeadEarningsTab() {
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0" style={{ background: `${SOURCE_COLORS[i % SOURCE_COLORS.length]}1A`, border: `1px solid ${SOURCE_COLORS[i % SOURCE_COLORS.length]}44` }}>{s.emoji}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-100">{s.label}</div>
-                    <div className="text-[11px] text-slate-500">{s.note}</div>
+                    <div className="text-sm font-semibold text-wk-ink-100">{s.label}</div>
+                    <div className="text-[11px] text-wk-ink-500">{s.note}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-bold text-slate-100">{inr(s.amount)}</div>
-                    <div className="text-[11px] text-slate-500">{pct}%</div>
+                    <div className="text-sm font-bold text-wk-ink-100">{inr(s.amount)}</div>
+                    <div className="text-[11px] text-wk-ink-500">{pct}%</div>
                   </div>
                 </div>
-                <div className="h-1 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(26,40,69,0.9)' }}>
+                <div className="h-1 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(38,38,42,0.9)' }}>
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SOURCE_COLORS[i % SOURCE_COLORS.length] }} />
                 </div>
               </div>
@@ -5855,43 +5865,43 @@ function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChan
         <CmCardTitle icon="cog" title="Community Details" sub="How your community appears to students" />
         <div className="space-y-3.5">
           <label className="block">
-            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Community name</span>
+            <span className="block text-[11px] font-semibold text-wk-ink-500 mb-1.5">Community name</span>
             <input value={name} onChange={e => setName(e.target.value)} maxLength={60} className={HEAD_INPUT} />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Description</span>
+            <span className="block text-[11px] font-semibold text-wk-ink-500 mb-1.5">Description</span>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={240} className={`${HEAD_INPUT} resize-none`} />
           </label>
           <div className="flex items-center justify-end gap-3">
             {saveError && <span className="text-[12px] text-amber-300">{saveError}</span>}
             {saved && <span className="text-[12px] text-emerald-400">Saved</span>}
             <button onClick={() => void save()} disabled={!dirty || !name.trim()}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>Save Changes</button>
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#FF8A3D', boxShadow: 'none' }}>Save Changes</button>
           </div>
         </div>
       </div>
 
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="rooms" title="Invite & Access" sub="Control how students join" />
-        <div className="text-[11px] font-semibold text-slate-500 mb-1.5">Invite link</div>
+        <div className="text-[11px] font-semibold text-wk-ink-500 mb-1.5">Invite link</div>
         <div className="flex items-center gap-2.5 mb-5">
-          <div className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-slate-200 truncate border-[#1A2845]" style={{ background: 'rgba(14,21,40,0.55)' }}>{inviteLink.replace(/^https?:\/\//, '') || 'Loading…'}</div>
+          <div className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-wk-ink-200 truncate border-[#26262A]" style={{ background: 'rgba(22,22,24,0.55)' }}>{inviteLink.replace(/^https?:\/\//, '') || 'Loading…'}</div>
           <button onClick={copyInvite}
-            className="px-4 py-2.5 rounded-xl border text-sm font-semibold flex items-center gap-2 transition-colors text-slate-200 hover:text-white hover:border-[rgba(56,132,255,0.6)]"
-            style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+            className="px-4 py-2.5 rounded-xl border text-sm font-semibold flex items-center gap-2 transition-colors text-wk-ink-200 hover:text-white hover:border-[rgba(156,150,140,0.6)]"
+            style={{ background: 'rgba(156,150,140,0.08)', borderColor: 'rgba(156,150,140,0.35)' }}>
             <Ico n="copy" cls="w-4 h-4" /> {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
         <div className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5" style={CM_ROW}>
           <div>
-            <div className="text-sm font-semibold text-slate-100">Approve new students manually</div>
-            <div className="text-[12px] text-slate-500 mt-0.5">Students who use your link wait for your approval before they join.</div>
+            <div className="text-sm font-semibold text-wk-ink-100">Approve new students manually</div>
+            <div className="text-[12px] text-wk-ink-500 mt-0.5">Students who use your link wait for your approval before they join.</div>
           </div>
           <button role="switch" aria-checked={settings.requireApproval} aria-label="Approve new students manually"
             onClick={() => { void onChange({ requireApproval: !settings.requireApproval }).then(err => { if (err) setSaveError(err) }) }}
             className="relative w-11 h-6 rounded-full flex-shrink-0 transition-colors"
-            style={{ background: settings.requireApproval ? '#7C4DFF' : 'rgba(71,85,105,0.5)' }}>
+            style={{ background: settings.requireApproval ? '#FF8A3D' : 'rgba(90,86,80,0.5)' }}>
             <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: settings.requireApproval ? 22 : 2 }} />
           </button>
         </div>
@@ -5900,23 +5910,23 @@ function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChan
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
         <CmCardTitle icon="check" title="Join Requests" sub={settings.requireApproval || pending.length > 0 ? `${pending.length} waiting for approval` : 'Manual approval is off'} />
         {!settings.requireApproval && pending.length === 0 ? (
-          <div className="text-[13px] text-slate-500 py-2">New students join instantly. Turn on manual approval above to review them first.</div>
+          <div className="text-[13px] text-wk-ink-500 py-2">New students join instantly. Turn on manual approval above to review them first.</div>
         ) : pending.length === 0 ? (
-          <div className="text-[13px] text-slate-500 py-2">No pending requests.</div>
+          <div className="text-[13px] text-wk-ink-500 py-2">No pending requests.</div>
         ) : (
           <div className="space-y-2">
             {pending.map(r => (
               <div key={r.id} className="flex items-center gap-3 rounded-xl border px-4 py-3" style={CM_ROW}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: r.color }}>{r.initials}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-100 truncate">{r.name}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{r.note} · {r.requestedAgo}</div>
+                  <div className="text-sm font-semibold text-wk-ink-100 truncate">{r.name}</div>
+                  <div className="text-[11px] text-wk-ink-500 truncate">{r.note} · {r.requestedAgo}</div>
                 </div>
                 <button onClick={() => void handle(r.id, false)}
-                  className="px-4 py-1.5 rounded-lg border text-[12px] font-semibold text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Decline</button>
+                  className="px-4 py-1.5 rounded-lg border text-[12px] font-semibold text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">Decline</button>
                 <button onClick={() => void handle(r.id, true)}
                   className="px-4 py-1.5 rounded-lg text-[12px] font-semibold text-white flex items-center gap-1.5 hover:opacity-90 transition-opacity"
-                  style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)' }}>
+                  style={{ background: 'linear-gradient(135deg,#34D399,#10B981)' }}>
                   <Ico n="check" cls="w-3.5 h-3.5" /> Approve
                 </button>
               </div>
@@ -5940,29 +5950,29 @@ function ScheduleNotificationCard({ communityName, published, onAccept, onCreate
   const week = published.week as ScheduleItem[][]
   return (
     <div role="alert" className="fixed top-[68px] right-4 z-[70] w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border p-5"
-      style={{ background: 'linear-gradient(160deg, #0F1838 0%, #0A1024 100%)', borderColor: '#2855CC', boxShadow: '0 12px 50px rgba(0,0,0,0.55), 0 0 50px rgba(124,77,255,0.30)' }}>
+      style={{ background: 'linear-gradient(160deg, #1C1C1F 0%, #111113 100%)', borderColor: '#3A3A3A', boxShadow: '0 12px 50px rgba(0,0,0,0.55)' }}>
       <div className="flex items-start gap-3">
-        <CommunityHeadAvatar head={{ name: published.by, initials: initialsOf(published.by), color: 'linear-gradient(135deg,#7C4DFF,#4C2E9E)' }} size={40} />
+        <CommunityHeadAvatar head={{ name: published.by, initials: initialsOf(published.by), color: 'linear-gradient(135deg,#FF8A3D,#B43E16)' }} size={40} />
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">NEW SCHEDULE</div>
+          <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">NEW SCHEDULE</div>
           <div className="text-sm font-bold text-white leading-snug">{published.by} published a schedule for {communityName}</div>
         </div>
         <button onClick={onDismiss} aria-label="Decide later" title="Decide later"
-          className="w-7 h-7 -mr-1 -mt-1 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors flex-shrink-0">
+          className="w-7 h-7 -mr-1 -mt-1 rounded-lg flex items-center justify-center text-wk-ink-500 hover:text-wk-ink-200 hover:bg-white/5 transition-colors flex-shrink-0">
           <Ico n="close" cls="w-4 h-4" />
         </button>
       </div>
-      <div className="rounded-xl border px-3.5 py-2.5 mt-3.5 text-[12px] text-slate-300" style={CM_ROW}>{weekSummary(week)}</div>
-      <div className="text-[12px] text-slate-500 mt-3">Follow it, or keep and create your own. It’s your choice.</div>
+      <div className="rounded-xl border px-3.5 py-2.5 mt-3.5 text-[12px] text-wk-ink-300" style={CM_ROW}>{weekSummary(week)}</div>
+      <div className="text-[12px] text-wk-ink-500 mt-3">Follow it, or keep and create your own. It’s your choice.</div>
       <div className="flex items-center gap-2.5 mt-3.5">
         <button onClick={onAccept}
           className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
-          style={{ background: 'linear-gradient(135deg,#19D3A2,#0DAE86)', boxShadow: '0 0 18px rgba(25,211,162,0.30)' }}>
+          style={{ background: 'linear-gradient(135deg,#34D399,#10B981)', boxShadow: 'none' }}>
           <Ico n="check" cls="w-4 h-4" /> Accept Schedule
         </button>
         <button onClick={onCreateOwn}
-          className="flex-1 py-2.5 rounded-xl border text-[13px] font-semibold text-slate-200 hover:text-white transition-colors hover:border-[rgba(56,132,255,0.6)]"
-          style={{ background: 'rgba(41,98,255,0.08)', borderColor: 'rgba(56,132,255,0.35)' }}>
+          className="flex-1 py-2.5 rounded-xl border text-[13px] font-semibold text-wk-ink-200 hover:text-white transition-colors hover:border-[rgba(156,150,140,0.6)]"
+          style={{ background: 'rgba(156,150,140,0.08)', borderColor: 'rgba(156,150,140,0.35)' }}>
           Create My Own
         </button>
       </div>
@@ -6015,7 +6025,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
   const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
 
   const statusLabel = finished ? 'Completed' : running ? (onBreak ? 'Break' : isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (onBreak ? 'Break' : isPomo ? 'Focus' : 'Count up')
-  const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#38BDF8') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#60A5FA')
+  const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#CFC8BB') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#CFC8BB')
   const btnLabel = running ? 'Pause' : finished ? 'Restart' : hasProgress ? 'Resume' : onBreak ? 'Start Break' : 'Start Focus'
 
   const q = query.trim().toLowerCase()
@@ -6024,11 +6034,11 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
 
   return (
     <div className="relative rounded-2xl border px-5 py-4"
-      style={{ background: 'linear-gradient(135deg,#0B1530,#0F1845)', borderColor: '#1E3060', boxShadow: '0 0 40px rgba(124,77,255,0.18), 0 0 80px rgba(40,85,204,0.08)' }}>
+      style={{ background: 'linear-gradient(135deg,#161618,#1C1C1F)', borderColor: '#3A3A3A', boxShadow: 'none' }}>
       {/* The glow gets its own clipped layer so the card itself can stay overflow-visible for the popovers. */}
       <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
         <div className="absolute right-0 top-0 bottom-0 w-56 opacity-20"
-          style={{ background: 'radial-gradient(ellipse at right center,#7C4DFF,transparent 70%)' }} />
+          style={{ background: 'radial-gradient(ellipse at right center,#FF8A3D,transparent 70%)' }} />
       </div>
 
       <div className="relative flex flex-wrap items-center gap-x-5 gap-y-4">
@@ -6037,7 +6047,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
           <div>
             {/* tabular-nums + a fixed min-width keep neighbouring blocks from jittering as the digits change */}
             <div className="text-[42px] leading-none font-bold text-white tabular-nums whitespace-nowrap"
-              style={{ fontFamily: 'JetBrains Mono, monospace', minWidth: isPomo ? '5ch' : '8ch', textShadow: '0 0 20px #4A3A88' }}>
+              style={{ fontFamily: 'Sora, sans-serif', minWidth: isPomo ? '5ch' : '8ch', textShadow: 'none' }}>
               {timeStr}
             </div>
             <div className="mt-1.5 text-[11px] font-medium tracking-wide" style={{ color: statusColor }}>{statusLabel}</div>
@@ -6049,8 +6059,8 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
           title={selectedTask ? undefined : 'Pick a task first'}
           className="flex-shrink-0 h-[52px] px-5 rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold text-white border transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ minWidth: 128, ...(running
-            ? { background: 'rgba(255,255,255,0.06)', borderColor: '#2A3A66' }
-            : { background: 'linear-gradient(135deg,#4F6BFF 0%,#7C4DFF 100%)', borderColor: 'transparent', boxShadow: '0 0 24px rgba(99,102,241,0.45)' }) }}>
+            ? { background: 'rgba(255,255,255,0.06)', borderColor: '#4A4742' }
+            : { background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', borderColor: 'transparent', boxShadow: 'none' }) }}>
           {running
             ? <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
             : <Ico n="play" cls="w-4 h-4 flex-shrink-0" />}
@@ -6061,47 +6071,47 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
         <div ref={pickerRef} className="relative flex-shrink-0 min-w-0" style={{ width: 260 }}>
           <button onClick={() => { setQuery(''); setPickerOpen(o => !o); setMenuOpen(false) }}
             aria-haspopup="listbox" aria-expanded={pickerOpen}
-            className="w-full h-[52px] px-3.5 rounded-2xl border flex items-center gap-3 text-left transition-colors hover:border-violet-400/40"
-            style={{ background: 'rgba(26,40,69,0.55)', borderColor: pickerOpen ? 'rgba(124,77,255,0.55)' : '#1E3060' }}>
+            className="w-full h-[52px] px-3.5 rounded-2xl border flex items-center gap-3 text-left transition-colors hover:border-wk-orange-300/40"
+            style={{ background: 'rgba(38,38,42,0.55)', borderColor: pickerOpen ? 'rgba(255,138,61,0.55)' : '#3A3A3A' }}>
             {selectedTask && sel ? (
               <>
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
                   style={{ background: `${sel.color}1A`, border: `1px solid ${sel.color}44` }}>{sel.emoji}</span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-slate-100 truncate leading-tight">{selectedTask.subject}</span>
-                  <span className="block text-[11px] text-slate-400 truncate leading-tight mt-0.5">{selectedTask.topic}</span>
+                  <span className="block text-sm font-semibold text-wk-ink-100 truncate leading-tight">{selectedTask.subject}</span>
+                  <span className="block text-[11px] text-wk-ink-400 truncate leading-tight mt-0.5">{selectedTask.topic}</span>
                 </span>
               </>
             ) : (
-              <span className="flex-1 text-sm text-slate-400">{tasks.length ? 'Select a task' : 'No tasks yet'}</span>
+              <span className="flex-1 text-sm text-wk-ink-400">{tasks.length ? 'Select a task' : 'No tasks yet'}</span>
             )}
-            <Ico n="chevR" cls={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform ${pickerOpen ? '-rotate-90' : 'rotate-90'}`} />
+            <Ico n="chevR" cls={`w-3.5 h-3.5 text-wk-ink-400 flex-shrink-0 transition-transform ${pickerOpen ? '-rotate-90' : 'rotate-90'}`} />
           </button>
 
           {pickerOpen && (
             <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border p-2.5"
-              style={{ minWidth: 300, background: '#0B1530', borderColor: '#1E3060', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+              style={{ minWidth: 300, background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
               <div className="px-2 pt-1 pb-2.5">
-                <div className="text-[11px] font-semibold tracking-wide text-slate-300">Focus Lock tasks</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{running ? 'Switching tasks pauses the current timer' : 'Pick what you’re studying'}</div>
+                <div className="text-[11px] font-semibold tracking-wide text-wk-ink-300">Focus Lock tasks</div>
+                <div className="text-[11px] text-wk-ink-500 mt-0.5">{running ? 'Switching tasks pauses the current timer' : 'Pick what you’re studying'}</div>
               </div>
 
               {tasks.length > 4 && (
                 <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search tasks…" autoFocus
-                  className="w-full mb-2.5 px-3 py-2 rounded-xl border bg-transparent text-[13px] text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors"
-                  style={{ background: 'rgba(26,40,69,0.45)', borderColor: '#1A2845' }} />
+                  className="w-full mb-2.5 px-3 py-2 rounded-xl border bg-transparent text-[13px] text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/40 transition-colors"
+                  style={{ background: 'rgba(38,38,42,0.45)', borderColor: '#26262A' }} />
               )}
 
               <div role="listbox" aria-label="Focus Lock tasks" className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: 280 }}>
                 {tasks.length === 0 && (
                   <div className="px-3 py-6 text-center">
                     <div className="text-2xl mb-2">📝</div>
-                    <div className="text-[13px] font-semibold text-slate-200">No tasks in Focus Lock yet</div>
-                    <div className="text-[11px] text-slate-500 mt-1">Add a task there and it will show up here.</div>
+                    <div className="text-[13px] font-semibold text-wk-ink-200">No tasks in Focus Lock yet</div>
+                    <div className="text-[11px] text-wk-ink-500 mt-1">Add a task there and it will show up here.</div>
                   </div>
                 )}
                 {tasks.length > 0 && shown.length === 0 && (
-                  <div className="px-3 py-5 text-center text-[12px] text-slate-500">No tasks match “{query.trim()}”</div>
+                  <div className="px-3 py-5 text-center text-[12px] text-wk-ink-500">No tasks match “{query.trim()}”</div>
                 )}
                 {shown.map(t => {
                   const v = subjectVisual(t.subject)
@@ -6116,22 +6126,22 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                     <button key={t.id} role="option" aria-selected={isSel}
                       onClick={() => { setPickerOpen(false); onSelectTask(t.id) }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors hover:bg-white/[0.04]"
-                      style={{ background: isSel ? 'rgba(124,77,255,0.12)' : 'transparent', borderColor: isSel ? 'rgba(124,77,255,0.4)' : 'transparent' }}>
+                      style={{ background: isSel ? 'rgba(255,138,61,0.12)' : 'transparent', borderColor: isSel ? 'rgba(255,138,61,0.4)' : 'transparent' }}>
                       <span className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
                         style={{ background: `${v.color}1A`, border: `1px solid ${v.color}44` }}>{v.emoji}</span>
                       <span className="flex-1 min-w-0">
                         <span className="flex items-center justify-between gap-3">
-                          <span className="text-[13px] font-semibold text-slate-100 truncate">{t.subject}</span>
+                          <span className="text-[13px] font-semibold text-wk-ink-100 truncate">{t.subject}</span>
                         </span>
                         <span className="flex items-center justify-between gap-3 mt-0.5">
-                          <span className="text-[11px] text-slate-500 truncate">{t.topic}</span>
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0" style={{ color: isLive ? '#E2E8F0' : '#8B9AC7' }}>
+                          <span className="text-[11px] text-wk-ink-500 truncate">{t.topic}</span>
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0" style={{ color: isLive ? '#F5EFE3' : '#9C968C' }}>
                             {isLive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
                             {tTime}
                           </span>
                         </span>
                       </span>
-                      <span className="w-4 flex-shrink-0 flex justify-center text-violet-300">
+                      <span className="w-4 flex-shrink-0 flex justify-center text-wk-orange-300">
                         {isSel && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
                       </span>
                     </button>
@@ -6139,9 +6149,9 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                 })}
               </div>
 
-              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(30,48,96,0.7)' }}>
+              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(58,58,58,0.7)' }}>
                 <button onClick={() => { setPickerOpen(false); onOpenFocusLock() }}
-                  className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 transition-colors">
+                  className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-wk-orange-300 hover:text-wk-ink-100 hover:bg-wk-orange-500/10 transition-colors">
                   Manage tasks in Focus Lock →
                 </button>
               </div>
@@ -6153,8 +6163,8 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
         <div ref={menuRef} className="relative flex-shrink-0" style={{ isolation: 'isolate' }}>
           <button onClick={() => { setMenuOpen(o => !o); setPickerOpen(false) }}
             aria-label="More options" aria-haspopup="menu" aria-expanded={menuOpen}
-            className="w-11 h-11 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-200 border transition-colors"
-            style={{ background: 'rgba(26,40,69,0.55)', borderColor: '#1E3060' }}>
+            className="w-11 h-11 rounded-full flex items-center justify-center text-wk-ink-400 hover:text-wk-ink-200 border transition-colors"
+            style={{ background: 'rgba(38,38,42,0.55)', borderColor: '#3A3A3A' }}>
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
           </button>
           {menuOpen && (
@@ -6165,19 +6175,19 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                 minWidth: 180,
                 maxWidth: 220,
                 boxSizing: 'border-box',
-                background: '#0B1530',
-                borderColor: '#1E3060',
-                boxShadow: '0 12px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(30,72,150,0.25), 0 0 24px rgba(124,77,255,0.12)',
+                background: '#161618',
+                borderColor: '#3A3A3A',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(58,58,58,0.25)',
               }}>
               <button role="menuitem" disabled={!selectedTask || !(hasProgress || onBreak)}
                 onClick={() => { setMenuOpen(false); onReset() }}
-                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed whitespace-nowrap">
+                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[12px] text-wk-ink-200 hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed whitespace-nowrap">
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
                 Reset timer
               </button>
               <button role="menuitem"
                 onClick={() => { setMenuOpen(false); onOpenFocusLock() }}
-                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[12px] text-slate-200 hover:bg-white/[0.05] transition-colors whitespace-nowrap">
+                className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[12px] text-wk-ink-200 hover:bg-white/[0.05] transition-colors whitespace-nowrap">
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
                 Open Focus Lock
               </button>
@@ -6470,8 +6480,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
     // off — the card should track the real button, not just "> 0 secs".
     isStudying: focusRunning,
     isPaused: !focusRunning && userStudyTime > 0,
-    cardGrad: 'linear-gradient(160deg,#1A0F35,#2D1555,#3D1870)',
-    accentColor: '#7C4DFF',
+    cardGrad: 'linear-gradient(160deg,#1C1C1F,#26262A,#3A3A3A)',
+    accentColor: '#FF8A3D',
   }
 
   // Real room: one card per member, from room_members (today's study time,
@@ -6521,25 +6531,25 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   const allParticipants = [userCard, ...visibleBots]
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#060914]" >
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0 bg-[rgba(6,9,20,0.95)] border-[rgba(26,40,69,0.55)]"
+        <header className="h-14 flex items-center px-6 gap-3 border-b flex-shrink-0 bg-[rgba(11,11,13,0.95)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm flex-shrink-0">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm flex-shrink-0">
             <Ico n="chevL" cls="w-4 h-4" /> {backLabel}
           </button>
-          <div className="w-px h-5 bg-slate-700 flex-shrink-0" />
+          <div className="w-px h-5 bg-wk-black-600 flex-shrink-0" />
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] text-emerald-400 font-mono">Live Now</span>
           </div>
-          <span className="text-slate-200 font-semibold text-sm truncate">{room.name} {room.emoji}</span>
+          <span className="text-wk-ink-200 font-semibold text-sm truncate">{room.name} {room.emoji}</span>
           <div className="flex-1" />
-          <div className="flex items-center gap-1.5 text-slate-400 text-sm flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-wk-ink-400 text-sm flex-shrink-0">
             <Ico n="rooms" cls="w-4 h-4" />
-            <span className="text-slate-300 font-mono text-sm">{studyingCount} studying</span>
+            <span className="text-wk-ink-300 font-mono text-sm">{studyingCount} studying</span>
           </div>
           <UserAvatar size={32} />
         </header>
@@ -6548,7 +6558,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
           {/* Timer bar: pinned to the top of the scroll area so it can never scroll out of reach.
               flex-shrink-0 matters - main is a flex column and a shrinkable overflow-hidden child
               gets squashed to a sliver once the participant grid grows taller than the viewport. */}
-          <div className="sticky top-0 z-20 -mx-6 px-6 pt-5 pb-5 flex-shrink-0 bg-[#060914]">
+          <div className="sticky top-0 z-20 -mx-6 px-6 pt-5 pb-5 flex-shrink-0 bg-[#0B0B0D]">
             <RoomFocusBar
               tasks={planTasks}
               selectedTask={selectedTask}
@@ -6562,15 +6572,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
           </div>
 
           {/* Tabs */}
-          <div className="flex-shrink-0 mb-5 flex rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]"
+          <div className="flex-shrink-0 mb-5 flex rounded-2xl border overflow-hidden bg-[#161618] border-[#26262A]"
             >
             {([['studying', '👥', 'Active Studying'], ['chat', '💬', 'Chat']] as const).map(([id, icon, label]) => (
               <button key={id} onClick={() => setActiveTab(id as 'studying' | 'chat')}
                 className="flex-1 flex items-center justify-center gap-2.5 py-3 text-sm font-semibold transition-all"
                 style={{
-                  color: activeTab === id ? '#9B6CFF' : '#4E5E84',
-                  background: activeTab === id ? 'rgba(26,40,69,0.55)' : 'transparent',
-                  borderBottom: activeTab === id ? '2px solid #7C4DFF' : '2px solid transparent',
+                  color: activeTab === id ? '#FFA94D' : '#7A756D',
+                  background: activeTab === id ? 'rgba(38,38,42,0.55)' : 'transparent',
+                  borderBottom: activeTab === id ? '2px solid #FF8A3D' : '2px solid transparent',
                 }}>
                 <span>{icon}</span>{label}
               </button>
@@ -6580,14 +6590,14 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
           {/* Tab content */}
           <div className="flex-1 pb-6">
             {activeTab === 'studying' && isRealRoom && live.status === 'loading' && (
-              <div className="py-16 text-center text-slate-500 text-sm">Loading who's studying…</div>
+              <div className="py-16 text-center text-wk-ink-500 text-sm">Loading who's studying…</div>
             )}
             {activeTab === 'studying' && isRealRoom && live.status === 'error' && (
               <div className="py-16 text-center">
-                <div className="text-slate-300 font-semibold mb-1">Couldn't load this room</div>
-                <div className="text-slate-500 text-sm mb-4">{live.error}</div>
+                <div className="text-wk-ink-300 font-semibold mb-1">Couldn't load this room</div>
+                <div className="text-wk-ink-500 text-sm mb-4">{live.error}</div>
                 <button onClick={() => void live.refreshMembers()}
-                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#7C4DFF]">Try again</button>
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 bg-[#FF8A3D]">Try again</button>
               </div>
             )}
             {activeTab === 'studying' && isRealRoom && live.status === 'ready' && (
@@ -6601,13 +6611,13 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                   />
                 ))}
                 {seatsLeft > 0 && (
-                  <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-violet-500/30 transition-colors"
-                    style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
-                    <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#1E3060]">
-                      <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-wk-orange-500/30 transition-colors"
+                    style={{ background: '#161618', borderColor: 'rgba(38,38,42,0.55)', borderStyle: 'dashed' }}>
+                    <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#3A3A3A]">
+                      <svg viewBox="0 0 24 24" className="w-6 h-6 text-wk-orange-300" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                     </div>
-                    <div className="text-slate-300 font-semibold text-sm">Seat Available</div>
-                    <div className="text-slate-500 text-xs mt-0.5">Invite a friend to study</div>
+                    <div className="text-wk-ink-300 font-semibold text-sm">Seat Available</div>
+                    <div className="text-wk-ink-500 text-xs mt-0.5">Invite a friend to study</div>
                   </div>
                 )}
               </div>
@@ -6623,14 +6633,14 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                   />
                 ))}
                 {/* Seat available card */}
-                <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-violet-500/30 transition-colors"
-                  style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
-                  <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#1E3060]"
+                <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-wk-orange-500/30 transition-colors"
+                  style={{ background: '#161618', borderColor: 'rgba(38,38,42,0.55)', borderStyle: 'dashed' }}>
+                  <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center mb-3 border-[#3A3A3A]"
                     >
-                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-wk-orange-300" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </div>
-                  <div className="text-slate-300 font-semibold text-sm">Seat Available</div>
-                  <div className="text-slate-500 text-xs mt-0.5">Join and start studying</div>
+                  <div className="text-wk-ink-300 font-semibold text-sm">Seat Available</div>
+                  <div className="text-wk-ink-500 text-xs mt-0.5">Join and start studying</div>
                 </div>
               </div>
             )}
@@ -6640,15 +6650,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                 {chatLocked ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8 py-16">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-                      style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>🔒</div>
-                    <div className="text-slate-200 font-bold text-base">Chat is locked during focus study</div>
-                    <div className="text-slate-400 text-sm leading-relaxed">
+                      style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #26262A' }}>🔒</div>
+                    <div className="text-wk-ink-200 font-bold text-base">Chat is locked during focus study</div>
+                    <div className="text-wk-ink-400 text-sm leading-relaxed">
                       Finish your focus time to unlock chat.<br />
-                      <span className="text-violet-400">Chat opens during breaks only.</span>
+                      <span className="text-wk-orange-300">Chat opens during breaks only.</span>
                     </div>
                     <button onClick={() => { if (focusRunning) toggleFocus() }}
-                      className="mt-2 px-6 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                      style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>
+                      className="mt-2 px-6 py-2 rounded-full text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
+                      style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                       Pause & Open Chat
                     </button>
                   </div>
@@ -6656,29 +6666,29 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                   <>
                     <div className="flex-1 overflow-y-auto space-y-3 pb-3" style={{ minHeight: '300px' }}>
                       {isRealRoom && shownMessages.length === 0 && (
-                        <div className="py-12 text-center text-slate-500 text-sm">No messages yet. Say hi 👋</div>
+                        <div className="py-12 text-center text-wk-ink-500 text-sm">No messages yet. Say hi 👋</div>
                       )}
                       {shownMessages.map(msg => (
                         <div key={msg.id} className={`flex gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                            style={{ background: msg.isMe ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#1A2845' }}>
+                            style={{ background: msg.isMe ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : '#26262A' }}>
                             {msg.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div className={`flex flex-col gap-0.5 max-w-[70%] ${msg.isMe ? 'items-end' : ''}`}>
-                            {!msg.isMe && <span className="text-[10px] text-slate-500 font-mono">{msg.name}</span>}
-                            <div className="px-3.5 py-2 rounded-2xl text-sm text-slate-200"
-                              style={{ background: msg.isMe ? '#1A2845' : '#0B1530', border: `1px solid ${msg.isMe ? '#1E3060' : 'rgba(26,40,69,0.55)'}` }}>
+                            {!msg.isMe && <span className="text-[10px] text-wk-ink-500 font-mono">{msg.name}</span>}
+                            <div className="px-3.5 py-2 rounded-2xl text-sm text-wk-ink-200"
+                              style={{ background: msg.isMe ? '#26262A' : '#161618', border: `1px solid ${msg.isMe ? '#3A3A3A' : 'rgba(38,38,42,0.55)'}` }}>
                               {msg.text}
                             </div>
-                            <span className="text-[9px] text-slate-600 font-mono">{msg.time}</span>
+                            <span className="text-[9px] text-wk-ink-600 font-mono">{msg.time}</span>
                           </div>
                         </div>
                       ))}
                       <div ref={chatEndRef} />
                     </div>
-                    <div className="flex items-center gap-2 pt-3 border-t border-[rgba(26,40,69,0.55)]" >
+                    <div className="flex items-center gap-2 pt-3 border-t border-[rgba(38,38,42,0.55)]" >
                       <input
-                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors bg-[#0B1530] border-[#1A2845]"
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/40 transition-colors bg-[#161618] border-[#26262A]"
                         
                         placeholder="Type a message..."
                         value={chatInput}
@@ -6687,7 +6697,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
                         maxLength={2000}
                       />
                       <button onClick={() => void sendMessage()} disabled={sending}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0 bg-[#7C4DFF]"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:opacity-90 flex-shrink-0 bg-[#FF8A3D]"
                         >
                         <Ico n="arrow" cls="w-4 h-4" />
                       </button>
@@ -6716,7 +6726,7 @@ function BattleAnimeAvatar({ color, size = 56, initials = '??' }: { color: strin
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-        <circle cx="28" cy="28" r="27" stroke={color} strokeWidth="2" fill="#0B1530" />
+        <circle cx="28" cy="28" r="27" stroke={color} strokeWidth="2" fill="#161618" />
         <circle cx="28" cy="28" r="26" stroke={color} strokeWidth="0.5" opacity="0.3" />
         {/* Glow */}
         <circle cx="28" cy="28" r="24" fill={`${color}08`} />
@@ -6744,7 +6754,7 @@ function BattleAnimeAvatar({ color, size = 56, initials = '??' }: { color: strin
 }
 
 function BattleTrophySVG({ tier }: { tier: 'bronze' | 'silver' | 'gold' | 'diamond' }) {
-  const cols = { bronze: '#CD7F32', silver: '#B8C4CC', gold: '#FFD700', diamond: '#B57BEE' }
+  const cols = { bronze: '#CD7F32', silver: '#CFC8BB', gold: '#FFD700', diamond: '#B57BEE' }
   const c = cols[tier]
   const hasStar = tier === 'gold' || tier === 'diamond'
   return (
@@ -6787,9 +6797,9 @@ function getWeekDates(): number[] {
 }
 
 const SUBJECT_COLOR_MAP: Record<string, string> = {
-  physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#19B5E6', maths: '#19B5E6',
-  biology: '#19D3A2', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
-  economics: '#7C4DFF', computer: '#19B5E6',
+  physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#CFC8BB', maths: '#CFC8BB',
+  biology: '#34D399', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
+  economics: '#FF8A3D', computer: '#CFC8BB',
 }
 function subjectColor(name: string): string {
   const key = name.toLowerCase()
@@ -6832,7 +6842,7 @@ const WEBSITE_SUGGESTIONS = [
   'twitch.tv', 'facebook.com', 'tiktok.com', 'pinterest.com', 'amazon.com',
 ]
 
-const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#19B5E6', '#19D3A2', '#F59E0B', '#F87171', '#EC4899']
+const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#CFC8BB', '#34D399', '#F59E0B', '#F87171', '#EC4899']
 
 // ─── Schedule AI chat ─────────────────────────────────────────────────────────
 // "Generate with AI" on the Schedules page opens this chat dialog (it replaced
@@ -6847,7 +6857,7 @@ const AI_CHAT_GREETING = 'Hi! I’m your Wynko study assistant. Tell me your sub
 function MascotAvatar({ size }: { size: number }) {
   return (
     <div className="rounded-full flex items-center justify-center flex-shrink-0"
-      style={{ width: size, height: size, background: 'rgba(124,77,255,0.14)', border: '1px solid rgba(124,77,255,0.4)', boxShadow: '0 0 14px rgba(124,77,255,0.35)' }}>
+      style={{ width: size, height: size, background: 'rgba(255,138,61,0.14)', border: '1px solid rgba(255,138,61,0.4)', boxShadow: 'none' }}>
       <img src={wynkoMascot} alt="" className="w-auto object-contain" style={{ height: '78%' }} />
     </div>
   )
@@ -6890,21 +6900,21 @@ function ScheduleAIChat({ onClose }: { onClose: () => void }) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div role="dialog" aria-modal="true" aria-label="Wynko AI assistant"
         className="rounded-2xl border w-[520px] max-w-full h-[620px] max-h-[90vh] flex flex-col overflow-hidden"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
 
         {/* Header */}
         <div className="flex items-center gap-3.5 px-5 py-4 border-b flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: '#1A2845' }}>
+          style={{ background: 'linear-gradient(135deg,#1C1C1F,#1C1C1F)', borderColor: '#26262A' }}>
           <MascotAvatar size={52} />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
+            <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
             <div className="text-base font-bold text-white leading-tight">Create Your Study Schedule</div>
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} /> Online
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: 'none' }} /> Online
             </div>
           </div>
           <button onClick={onClose} aria-label="Close chat"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors flex-shrink-0">
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-wk-ink-400 hover:text-wk-ink-100 hover:bg-white/5 transition-colors flex-shrink-0">
             <Ico n="close" cls="w-4 h-4" />
           </button>
         </div>
@@ -6914,22 +6924,22 @@ function ScheduleAIChat({ onClose }: { onClose: () => void }) {
           {messages.map(m => m.from === 'bot' ? (
             <div key={m.id} className="flex items-end gap-2.5">
               <MascotAvatar size={34} />
-              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-slate-200 leading-relaxed whitespace-pre-wrap break-words border"
-                style={{ background: 'rgba(14,21,40,0.85)', borderColor: '#1A2845' }}>{m.text}</div>
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
+                style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>{m.text}</div>
             </div>
           ) : (
             <div key={m.id} className="flex justify-end">
-              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md text-[13px] text-white leading-relaxed whitespace-pre-wrap break-words"
-                style={{ background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', boxShadow: '0 0 16px rgba(124,77,255,0.35)' }}>{m.text}</div>
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-md text-[13px] text-wk-black-950 leading-relaxed whitespace-pre-wrap break-words"
+                style={{ background: 'linear-gradient(135deg,#FF8A3D,#E9772E)', boxShadow: 'none' }}>{m.text}</div>
             </div>
           ))}
           {typing && (
             <div className="flex items-end gap-2.5">
               <MascotAvatar size={34} />
               <div className="px-4 py-3.5 rounded-2xl rounded-bl-md border flex items-center gap-1.5" aria-label="Assistant is typing"
-                style={{ background: 'rgba(14,21,40,0.85)', borderColor: '#1A2845' }}>
+                style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
                 {[0, 1, 2].map(i => (
-                  <span key={i} className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                  <span key={i} className="w-1.5 h-1.5 rounded-full bg-wk-orange-300 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                 ))}
               </div>
             </div>
@@ -6937,14 +6947,14 @@ function ScheduleAIChat({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Input */}
-        <div className="flex items-center gap-2.5 px-4 py-3.5 border-t flex-shrink-0" style={{ borderColor: '#1A2845' }}>
+        <div className="flex items-center gap-2.5 px-4 py-3.5 border-t flex-shrink-0" style={{ borderColor: '#26262A' }}>
           <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             placeholder="Type your subjects, exam and study hours…"
-            className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]" />
+            className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]" />
           <button onClick={send} disabled={!input.trim() || typing} aria-label="Send message"
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.45)' }}>
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-wk-black-950 flex-shrink-0 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>
             <Ico n="arrow" cls="w-4 h-4" />
           </button>
         </div>
@@ -7091,28 +7101,28 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
       {!embedded && (
           <div>
             <h1 className="text-2xl font-bold text-white">Schedule & Blockers</h1>
-            <p className="text-slate-400 text-sm mt-0.5">Build your perfect study routine and stay distraction-free.</p>
+            <p className="text-wk-ink-400 text-sm mt-0.5">Build your perfect study routine and stay distraction-free.</p>
           </div>
       )}
 
           {/* ── AI Assistant Banner ── */}
           <div className="rounded-2xl border p-5 relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg,#0F1535,#141B40)', borderColor: '#2855CC', boxShadow: '0 0 40px rgba(124,77,255,0.25), 0 0 80px rgba(40,85,204,0.1)' }}>
+            style={{ background: 'linear-gradient(135deg,#1C1C1F,#1C1C1F)', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right,#7C4DFF,transparent)' }} />
+              style={{ background: 'radial-gradient(ellipse at right,#FF8A3D,transparent)' }} />
             <div className="flex items-center gap-5 relative">
               <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
                 <img src={wynkoMascot} alt="Wynko mascot" className="h-full w-auto object-contain"
-                  style={{ filter: 'drop-shadow(0 0 14px rgba(124,77,255,0.45))' }} />
+                  style={{ filter: '' }} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] text-violet-400 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
+                <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
                 <div className="text-lg font-bold text-white mb-0.5">Create Your Study Schedule</div>
-                <div className="text-sm text-slate-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
+                <div className="text-sm text-wk-ink-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
               </div>
               <button onClick={() => setShowAI(true)}
-                className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-all hover:opacity-90 active:scale-95"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 24px rgba(40,85,204,0.55), 0 0 48px rgba(124,77,255,0.2)' }}>
+                className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm transition-all hover:opacity-90 active:scale-95"
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 ✦ Generate with AI
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
@@ -7121,20 +7131,20 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Your Schedule ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>
-                  <Ico n="clock" cls="w-4 h-4 text-violet-400" />
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #3A3A3A' }}>
+                  <Ico n="clock" cls="w-4 h-4 text-wk-orange-300" />
                 </div>
                 <div>
                   <div className="text-base font-bold text-white">{scheduleTitle}</div>
-                  <div className="text-[11px] text-slate-500">{scheduleSubtitle}</div>
+                  <div className="text-[11px] text-wk-ink-500">{scheduleSubtitle}</div>
                 </div>
               </div>
               <button onClick={() => setEditMode(e => !e)}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-sm transition-all"
-                style={{ borderColor: editMode ? '#4A3A88' : '#1A2845', color: editMode ? '#9B6CFF' : '#4E5E84', background: editMode ? 'rgba(26,40,69,0.55)' : 'transparent' }}>
+                style={{ borderColor: editMode ? '#3A3A3A' : '#26262A', color: editMode ? '#FFA94D' : '#7A756D', background: editMode ? 'rgba(38,38,42,0.55)' : 'transparent' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
                 {editMode ? 'Done' : 'Edit'}
               </button>
@@ -7146,12 +7156,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 <button key={i} onClick={() => setActiveDay(i)}
                   className="flex-1 flex flex-col items-center py-2.5 rounded-xl transition-all"
                   style={{
-                    background: activeDay === i ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : '#0B1530',
-                    border: `1px solid ${activeDay === i ? '#563FA0' : 'rgba(26,40,69,0.55)'}`,
-                    boxShadow: activeDay === i ? '0 0 16px rgba(124,77,255,0.5)' : 'none',
+                    background: activeDay === i ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : '#161618',
+                    border: `1px solid ${activeDay === i ? '#7A756D' : 'rgba(38,38,42,0.55)'}`,
+                    boxShadow: activeDay === i ? 'none' : 'none',
                   }}>
-                  <span className="text-[10px] font-semibold" style={{ color: activeDay === i ? 'rgba(255,255,255,0.75)' : '#4E5E84' }}>{day}</span>
-                  <span className="text-base font-bold leading-tight" style={{ color: activeDay === i ? '#fff' : '#4E5E84' }}>{weekDates[i]}</span>
+                  <span className="text-[10px] font-semibold" style={{ color: activeDay === i ? 'rgba(255,255,255,0.75)' : '#7A756D' }}>{day}</span>
+                  <span className="text-base font-bold leading-tight" style={{ color: activeDay === i ? '#fff' : '#7A756D' }}>{weekDates[i]}</span>
                 </button>
               ))}
             </div>
@@ -7159,11 +7169,11 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             {/* Session rows */}
             <div className="px-4 pb-2 space-y-2">
               {currentDaySchedule.length === 0 && (
-                <div className="py-8 text-center text-slate-500 text-sm">No sessions for {DAYS_SHORT[activeDay]}. Add one below!</div>
+                <div className="py-8 text-center text-wk-ink-500 text-sm">No sessions for {DAYS_SHORT[activeDay]}. Add one below!</div>
               )}
               {currentDaySchedule.map(session => (
                 <div key={session.id}
-                  className="flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:border-violet-500/30 group bg-[#0B1530] border-[rgba(26,40,69,0.55)]"
+                  className="flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:border-wk-orange-500/30 group bg-[#161618] border-[rgba(38,38,42,0.55)]"
                   >
                   {editMode && (
                     <button onClick={() => deleteSession(session.id)}
@@ -7177,19 +7187,19 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     {session.iconEmoji}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-slate-100">{session.subject}</div>
-                    <div className="text-[11px] text-slate-500">{session.topic}</div>
+                    <div className="text-sm font-bold text-wk-ink-100">{session.subject}</div>
+                    <div className="text-[11px] text-wk-ink-500">{session.topic}</div>
                   </div>
-                  <div className="text-[11px] text-slate-400 mr-3 flex-shrink-0" >
+                  <div className="text-[11px] text-wk-ink-400 mr-3 flex-shrink-0" >
                     {session.startTime} – {session.endTime}
                   </div>
                   {!embedded && (
                     <>
-                      <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white flex-shrink-0 transition-all hover:opacity-90"
-                        style={{ background: '#7C4DFF', boxShadow: '0 0 12px rgba(124,77,255,0.45)' }}>
+                      <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-wk-black-950 flex-shrink-0 transition-all hover:opacity-90"
+                        style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                         🎯 Focus Mode
                       </button>
-                      <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+                      <Ico n="chevR" cls="w-4 h-4 text-wk-ink-600" />
                     </>
                   )}
                 </div>
@@ -7198,14 +7208,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
             {/* Add new */}
             <button onClick={() => setShowAddSession(true)}
-              className="w-full flex items-center gap-3 px-5 py-4 border-t transition-all hover:bg-white/[0.02] group border-[rgba(26,40,69,0.55)]"
+              className="w-full flex items-center gap-3 px-5 py-4 border-t transition-all hover:bg-white/[0.02] group border-[rgba(38,38,42,0.55)]"
               >
               <div className="w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                style={{ borderColor: '#2855CC', borderStyle: 'dashed' }}>
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                style={{ borderColor: '#3A3A3A', borderStyle: 'dashed' }}>
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-wk-orange-300" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </div>
-              <span className="text-sm font-medium text-slate-400 group-hover:text-slate-200 transition-colors">Add New Schedule</span>
-              <Ico n="chevR" cls="w-4 h-4 text-slate-600 ml-auto" />
+              <span className="text-sm font-medium text-wk-ink-400 group-hover:text-wk-ink-200 transition-colors">Add New Schedule</span>
+              <Ico n="chevR" cls="w-4 h-4 text-wk-ink-600 ml-auto" />
             </button>
           </div>
 
@@ -7213,7 +7223,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
         <>
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
@@ -7222,62 +7232,62 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
                 <div>
                   <div className="text-base font-bold text-white">Block Distracting Apps & Websites</div>
-                  <div className="text-[11px] text-slate-500">Select what to block during your study time.</div>
+                  <div className="text-[11px] text-wk-ink-500">Select what to block during your study time.</div>
                 </div>
               </div>
               <button onClick={() => setShowMoreApps(true)}
-                className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
+                className="flex items-center gap-1 text-[11px] text-wk-orange-300 hover:text-wk-orange-300 transition-colors">
                 All apps <Ico n="arrow" cls="w-3 h-3" />
               </button>
             </div>
 
             {/* App grid */}
             <div className="px-5 mb-1">
-              <div className="text-[10px] text-slate-500 font-mono mb-2">APPS</div>
+              <div className="text-[10px] text-wk-ink-500 font-mono mb-2">APPS</div>
               <div className="grid grid-cols-6 gap-3 mb-4">
                 {APP_LIST.slice(0, 5).map(app => {
                   const blocked = blockedApps.has(app.name)
                   return (
                     <button key={app.name} onClick={() => toggleApp(app.name)}
                       className="flex flex-col items-center gap-2 p-3 rounded-2xl border relative transition-all hover:scale-[1.04]"
-                      style={{ background: blocked ? 'rgba(124,77,255,0.08)' : '#0B1530', borderColor: blocked ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
+                      style={{ background: blocked ? 'rgba(255,138,61,0.08)' : '#161618', borderColor: blocked ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                       {blocked && (
-                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#FF8A3D]" >
                           <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                         </div>
                       )}
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: app.bg, color: app.textDark ? '#000' : '#fff' }}>
                         {app.label}
                       </div>
-                      <span className="text-[10px] text-slate-400 text-center leading-tight">{app.name}</span>
+                      <span className="text-[10px] text-wk-ink-400 text-center leading-tight">{app.name}</span>
                     </button>
                   )
                 })}
                 <button onClick={() => setShowMoreApps(true)}
                   className="flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all hover:scale-[1.04]"
-                  style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  style={{ background: '#161618', borderColor: 'rgba(38,38,42,0.55)', borderStyle: 'dashed' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #26262A' }}>
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-wk-orange-300" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </div>
-                  <span className="text-[10px] text-slate-400">More</span>
+                  <span className="text-[10px] text-wk-ink-400">More</span>
                 </button>
               </div>
             </div>
 
             {/* Website blocker */}
-            <div className="px-5 pb-5 border-t pt-4 border-[rgba(26,40,69,0.55)]" >
-              <div className="text-[10px] text-slate-500 font-mono mb-3">WEBSITES</div>
+            <div className="px-5 pb-5 border-t pt-4 border-[rgba(38,38,42,0.55)]" >
+              <div className="text-[10px] text-wk-ink-500 font-mono mb-3">WEBSITES</div>
               <div className="flex gap-2 mb-3">
                 <input value={websiteInput} onChange={e => setWebsiteInput(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                    placeholder="e.g. youtube.com, reddit.com..."
                   onKeyDown={e => e.key === 'Enter' && addBlockedWebsite()} />
                 <button onClick={addBlockedWebsite}
-                  className="px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#7C4DFF]"
+                  className="px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#FF8A3D]"
                   >Block</button>
               </div>
               {blockedWebsites.length === 0 ? (
-                <div className="text-[11px] text-slate-600 text-center py-2">No websites blocked yet. Add URLs above.</div>
+                <div className="text-[11px] text-wk-ink-600 text-center py-2">No websites blocked yet. Add URLs above.</div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {blockedWebsites.map(w => (
@@ -7285,7 +7295,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                       >
                       🌐 {w}
                       <button onClick={() => setBlockedWebsites(prev => prev.filter(x => x !== w))}
-                        className="text-slate-500 hover:text-red-400 transition-colors ml-0.5">×</button>
+                        className="text-wk-ink-500 hover:text-red-400 transition-colors ml-0.5">×</button>
                     </div>
                   ))}
                 </div>
@@ -7295,18 +7305,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
           {/* ── Create Focus Routine ── */}
           <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0B1530', borderColor: '#1A2845', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between px-5 py-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1E3060' }}>⏰</div>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #3A3A3A' }}>⏰</div>
                 <div>
                   <div className="text-base font-bold text-white">Create Focus Routine</div>
-                  <div className="text-[11px] text-slate-500">Set blocking rules once, activate like an alarm when needed.</div>
+                  <div className="text-[11px] text-wk-ink-500">Set blocking rules once, activate like an alarm when needed.</div>
                 </div>
               </div>
               <button onClick={() => setShowCreateRoutine(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 16px rgba(124,77,255,0.5)' }}>
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                 New Routine
               </button>
@@ -7314,22 +7324,22 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
             <div className="px-4 pb-4 space-y-3">
               {routines.length === 0 && (
-                <div className="py-8 text-center text-slate-500 text-sm">No routines yet. Create one to get started.</div>
+                <div className="py-8 text-center text-wk-ink-500 text-sm">No routines yet. Create one to get started.</div>
               )}
               {routines.map(routine => (
                 <div key={routine.id} className="p-4 rounded-2xl border transition-all"
-                  style={{ background: '#0B1530', borderColor: routine.enabled ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
+                  style={{ background: '#161618', borderColor: routine.enabled ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2.5">
                       <span className="text-base font-bold text-white">{routine.name}</span>
                       {routine.enabled && (
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.25)' }}>ACTIVE</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.25)' }}>ACTIVE</span>
                       )}
                     </div>
                     <button
                       onClick={() => setRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, enabled: !r.enabled } : r))}
                       className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative"
-                      style={{ background: routine.enabled ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.3)', boxShadow: routine.enabled ? '0 0 12px rgba(40,85,204,0.45)' : 'none' }}>
+                      style={{ background: routine.enabled ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'rgba(122,117,109,0.3)', boxShadow: routine.enabled ? 'none' : 'none' }}>
                       <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md"
                         style={{ left: routine.enabled ? 'calc(100% - 22px)' : '2px' }} />
                     </button>
@@ -7340,17 +7350,17 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     {DAYS_SHORT.map((day, i) => (
                       <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                         style={{
-                          background: routine.days.includes(i) ? '#1A2845' : '#0B1530',
-                          color: routine.days.includes(i) ? '#C4AAFF' : '#4E5E84',
-                          border: `1px solid ${routine.days.includes(i) ? '#2855CC' : 'rgba(26,40,69,0.55)'}`,
+                          background: routine.days.includes(i) ? '#26262A' : '#161618',
+                          color: routine.days.includes(i) ? '#FFA94D' : '#7A756D',
+                          border: `1px solid ${routine.days.includes(i) ? '#3A3A3A' : 'rgba(38,38,42,0.55)'}`,
                         }}>{day}</span>
                     ))}
                   </div>
 
                   {/* Info row */}
-                  <div className="flex items-center gap-4 text-[11px] text-slate-400">
+                  <div className="flex items-center gap-4 text-[11px] text-wk-ink-400">
                     <div className="flex items-center gap-1.5">
-                      <Ico n="clock" cls="w-3 h-3 text-violet-400" />
+                      <Ico n="clock" cls="w-3 h-3 text-wk-orange-300" />
                       <span >{fmtTime(routine.timeFrom)} → {fmtTime(routine.timeTo)}</span>
                     </div>
                     {routine.apps.length > 0 && (
@@ -7367,7 +7377,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-[rgba(26,40,69,0.55)]" >
+                  <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-[rgba(38,38,42,0.55)]" >
                     <button onClick={() => setRoutines(prev => prev.filter(r => r.id !== routine.id))}
                       className="text-[11px] text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10">
                       Delete routine
@@ -7393,35 +7403,35 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowAddSession(false) }}>
           <div className="rounded-2xl border p-7 w-[420px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">NEW SESSION</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-1">NEW SESSION</div>
               <div className="text-lg font-bold text-white">Add Study Session</div>
-              <div className="text-sm text-slate-400 mt-0.5">{DAYS_SHORT[activeDay]}, {weekDates[activeDay]}</div>
+              <div className="text-sm text-wk-ink-400 mt-0.5">{DAYS_SHORT[activeDay]}, {weekDates[activeDay]}</div>
             </div>
             <div className="space-y-3 mb-5">
               <input value={newSession.subject} onChange={e => setNewSession(s => ({ ...s, subject: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                  placeholder="Subject (e.g. Physics)" />
               <input value={newSession.topic} onChange={e => setNewSession(s => ({ ...s, topic: e.target.value }))}
-                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                  placeholder="Topic (e.g. Chapter 5 – Current Electricity)" />
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="text-[10px] text-slate-500 mb-1 block font-mono">FROM</label>
+                  <label className="text-[10px] text-wk-ink-500 mb-1 block font-mono">FROM</label>
                   <input value={newSession.startTime} onChange={e => setNewSession(s => ({ ...s, startTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600 border-[#1A2845]"
+                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none focus:border-wk-orange-500/50 transition-colors placeholder-wk-ink-600 border-[#26262A]"
                      placeholder="9:00 AM" />
                 </div>
                 <div className="flex-1">
-                  <label className="text-[10px] text-slate-500 mb-1 block font-mono">TO</label>
+                  <label className="text-[10px] text-wk-ink-500 mb-1 block font-mono">TO</label>
                   <input value={newSession.endTime} onChange={e => setNewSession(s => ({ ...s, endTime: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors placeholder-slate-600 border-[#1A2845]"
+                    className="w-full px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none focus:border-wk-orange-500/50 transition-colors placeholder-wk-ink-600 border-[#26262A]"
                      placeholder="11:00 AM" />
                 </div>
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 mb-2 block font-mono">COLOR</label>
+                <label className="text-[10px] text-wk-ink-500 mb-2 block font-mono">COLOR</label>
                 <div className="flex gap-2">
                   {SUBJECT_COLORS.map(c => (
                     <button key={c} onClick={() => setNewSession(s => ({ ...s, color: c }))}
@@ -7433,10 +7443,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowAddSession(false)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
+                className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]" >Cancel</button>
               <button onClick={addSession}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Add Session</button>
+                className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90"
+                style={{ background: '#FF8A3D', boxShadow: 'none' }}>Add Session</button>
             </div>
           </div>
         </div>
@@ -7447,11 +7457,11 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowMoreApps(false) }}>
           <div className="rounded-2xl border p-7 w-[480px]"
-            style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 50px rgba(124,77,255,0.3), 0 0 100px rgba(40,85,204,0.12)' }}>
+            style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="text-center mb-5">
-              <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">APP BLOCKER</div>
+              <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-1">APP BLOCKER</div>
               <div className="text-lg font-bold text-white">Manage Blocked Apps</div>
-              <div className="text-sm text-slate-400 mt-0.5">{blockedApps.size} app{blockedApps.size !== 1 ? 's' : ''} currently blocked</div>
+              <div className="text-sm text-wk-ink-400 mt-0.5">{blockedApps.size} app{blockedApps.size !== 1 ? 's' : ''} currently blocked</div>
             </div>
             <div className="grid grid-cols-4 gap-3 mb-5 max-h-72 overflow-y-auto">
               {APP_LIST.map(app => {
@@ -7459,20 +7469,20 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 return (
                   <button key={app.name} onClick={() => toggleApp(app.name)}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border relative transition-all hover:scale-105"
-                    style={{ background: blocked ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: blocked ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+                    style={{ background: blocked ? 'rgba(38,38,42,0.55)' : '#161618', borderColor: blocked ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                     {blocked && (
-                      <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
+                      <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center bg-[#FF8A3D]" >
                         <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                       </div>
                     )}
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: app.bg, color: app.textDark ? '#000' : '#fff' }}>{app.label}</div>
-                    <span className="text-[9px] text-slate-400 text-center">{app.name}</span>
+                    <span className="text-[9px] text-wk-ink-400 text-center">{app.name}</span>
                   </button>
                 )
               })}
             </div>
             <button onClick={() => setShowMoreApps(false)}
-              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#7C4DFF]"
+              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 bg-[#FF8A3D]"
               >Done</button>
           </div>
         </div>
@@ -7482,42 +7492,42 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
       {showCreateRoutine && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.78)]" 
           onClick={e => { if (e.target === e.currentTarget) setShowCreateRoutine(false) }}>
-          <div className="rounded-2xl border w-[500px] overflow-hidden" style={{ maxHeight: '90vh', background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+          <div className="rounded-2xl border w-[500px] overflow-hidden" style={{ maxHeight: '90vh', background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="overflow-y-auto" style={{ maxHeight: '90vh' }}>
               <div className="p-7">
                 <div className="text-center mb-6">
                   <div className="text-3xl mb-2">⏰</div>
-                  <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1">FOCUS ROUTINE</div>
+                  <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-1">FOCUS ROUTINE</div>
                   <div className="text-lg font-bold text-white">Create Blocking Routine</div>
-                  <div className="text-sm text-slate-400 mt-0.5">Set it once, activate when needed — like an alarm.</div>
+                  <div className="text-sm text-wk-ink-400 mt-0.5">Set it once, activate when needed — like an alarm.</div>
                 </div>
 
                 <div className="space-y-5">
                   {/* Name */}
                   <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-1.5 block">ROUTINE NAME</label>
+                    <label className="text-[11px] text-wk-ink-500 font-mono mb-1.5 block">ROUTINE NAME</label>
                     <input value={newRoutine.name} onChange={e => setNewRoutine(r => ({ ...r, name: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]"
+                      className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                        placeholder="e.g. Study Week, Morning Focus, Exam Mode..." />
                   </div>
 
                   {/* Days */}
                   <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-2 block">ACTIVE DAYS</label>
+                    <label className="text-[11px] text-wk-ink-500 font-mono mb-2 block">ACTIVE DAYS</label>
                     <div className="flex gap-2 flex-wrap">
                       {DAYS_SHORT.map((day, i) => {
                         const sel = newRoutine.days.includes(i)
                         return (
                           <button key={i} onClick={() => toggleRoutineDay(i)}
                             className="px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all"
-                            style={{ background: sel ? '#1A2845' : '#0B1530', color: sel ? '#C4AAFF' : '#4E5E84', borderColor: sel ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+                            style={{ background: sel ? '#26262A' : '#161618', color: sel ? '#FFA94D' : '#7A756D', borderColor: sel ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                             {day}
                           </button>
                         )
                       })}
                       <button onClick={() => setNewRoutine(r => ({ ...r, days: r.days.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6] }))}
                         className="px-3.5 py-2 rounded-xl border text-sm font-semibold transition-all"
-                        style={{ borderColor: '#1A2845', color: '#4E5E84', background: 'transparent' }}>
+                        style={{ borderColor: '#26262A', color: '#7A756D', background: 'transparent' }}>
                         {newRoutine.days.length === 7 ? 'Clear' : 'All'}
                       </button>
                     </div>
@@ -7525,35 +7535,35 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
                   {/* Time range */}
                   <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-1.5 block">BLOCK TIME RANGE</label>
+                    <label className="text-[11px] text-wk-ink-500 font-mono mb-1.5 block">BLOCK TIME RANGE</label>
                     <div className="flex gap-3 items-center">
                       <input type="time" value={newRoutine.timeFrom} onChange={e => setNewRoutine(r => ({ ...r, timeFrom: e.target.value }))}
-                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors"
-                        style={{ borderColor: '#1A2845', colorScheme: 'dark' }} />
-                      <span className="text-slate-500">→</span>
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none focus:border-wk-orange-500/50 transition-colors"
+                        style={{ borderColor: '#26262A', colorScheme: 'dark' }} />
+                      <span className="text-wk-ink-500">→</span>
                       <input type="time" value={newRoutine.timeTo} onChange={e => setNewRoutine(r => ({ ...r, timeTo: e.target.value }))}
-                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none focus:border-violet-500/50 transition-colors"
-                        style={{ borderColor: '#1A2845', colorScheme: 'dark' }} />
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none focus:border-wk-orange-500/50 transition-colors"
+                        style={{ borderColor: '#26262A', colorScheme: 'dark' }} />
                     </div>
                   </div>
 
                   {/* Block Apps */}
                   <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-2 block">BLOCK APPS</label>
+                    <label className="text-[11px] text-wk-ink-500 font-mono mb-2 block">BLOCK APPS</label>
                     <div className="grid grid-cols-4 gap-2">
                       {APP_LIST.map(app => {
                         const sel = newRoutine.apps.includes(app.name)
                         return (
                           <button key={app.name} onClick={() => toggleRoutineApp(app.name)}
                             className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl border relative transition-all hover:scale-105"
-                            style={{ background: sel ? 'rgba(26,40,69,0.55)' : '#0B1530', borderColor: sel ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
+                            style={{ background: sel ? 'rgba(38,38,42,0.55)' : '#161618', borderColor: sel ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                             {sel && (
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-[#7C4DFF]" >
+                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-[#FF8A3D]" >
                                 <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 6l2 2 4-4" /></svg>
                               </div>
                             )}
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base" style={{ background: app.bg, color: app.textDark ? '#000' : '#fff' }}>{app.label}</div>
-                            <span className="text-[9px] text-slate-400 text-center leading-tight">{app.name}</span>
+                            <span className="text-[9px] text-wk-ink-400 text-center leading-tight">{app.name}</span>
                           </button>
                         )
                       })}
@@ -7562,14 +7572,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
                   {/* Block Websites */}
                   <div>
-                    <label className="text-[11px] text-slate-500 font-mono mb-2 block">BLOCK WEBSITES</label>
+                    <label className="text-[11px] text-wk-ink-500 font-mono mb-2 block">BLOCK WEBSITES</label>
                     <div className="flex flex-wrap gap-1.5 mb-2.5">
                       {WEBSITE_SUGGESTIONS.map(w => {
                         const sel = newRoutine.websites.includes(w)
                         return (
                           <button key={w} onClick={() => toggleRoutineWebsite(w)}
                             className="px-2.5 py-1 rounded-full text-[11px] transition-all border"
-                            style={{ background: sel ? 'rgba(26,40,69,0.55)' : '#0B1530', color: sel ? '#C4AAFF' : '#4E5E84', borderColor: sel ? '#2855CC' : 'rgba(26,40,69,0.55)' }}>
+                            style={{ background: sel ? 'rgba(38,38,42,0.55)' : '#161618', color: sel ? '#FFA94D' : '#7A756D', borderColor: sel ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                             {sel ? '✓ ' : ''}{w}
                           </button>
                         )
@@ -7577,21 +7587,21 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                     </div>
                     <div className="flex gap-2">
                       <input value={newRoutine.customWebsite} onChange={e => setNewRoutine(r => ({ ...r, customWebsite: e.target.value }))}
-                        className="flex-1 px-3 py-2 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/40 transition-colors border-[#1A2845]"
+                        className="flex-1 px-3 py-2 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/40 transition-colors border-[#26262A]"
                          placeholder="Add custom URL (e.g. example.com)"
                         onKeyDown={e => e.key === 'Enter' && addCustomWebsite()} />
                       <button onClick={addCustomWebsite}
-                        className="px-4 py-2 rounded-xl text-violet-400 border transition-colors hover:border-violet-400/40 border-[#1A2845] bg-[rgba(124,77,255,0.08)]"
+                        className="px-4 py-2 rounded-xl text-wk-orange-300 border transition-colors hover:border-wk-orange-300/40 border-[#26262A] bg-[rgba(255,138,61,0.08)]"
                         >Add</button>
                     </div>
                     {newRoutine.websites.filter(w => !WEBSITE_SUGGESTIONS.includes(w)).length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {newRoutine.websites.filter(w => !WEBSITE_SUGGESTIONS.includes(w)).map(w => (
-                          <span key={w} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#7DD8F0] bg-[rgba(25,181,230,0.06)] border-[rgba(25,181,230,0.20)]"
+                          <span key={w} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border text-[#FFF7E6] bg-[rgba(207,200,187,0.06)] border-[rgba(207,200,187,0.20)]"
                             >
                             🌐 {w}
                             <button onClick={() => setNewRoutine(r => ({ ...r, websites: r.websites.filter(x => x !== w) }))}
-                              className="text-slate-500 hover:text-red-400 transition-colors">×</button>
+                              className="text-wk-ink-500 hover:text-red-400 transition-colors">×</button>
                           </span>
                         ))}
                       </div>
@@ -7601,10 +7611,10 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
                 <div className="flex gap-3 mt-6">
                   <button onClick={() => setShowCreateRoutine(false)}
-                    className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]" >Cancel</button>
+                    className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]" >Cancel</button>
                   <button onClick={createRoutine}
-                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }}>Create Routine</button>
+                    className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90"
+                    style={{ background: '#FF8A3D', boxShadow: 'none' }}>Create Routine</button>
                 </div>
               </div>
             </div>
@@ -7617,17 +7627,17 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   if (embedded) return <div className="space-y-5">{pageBody}{modals}</div>
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
       <Sidebar active="schedules" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
-            <div className="text-sm font-semibold text-slate-200">Build your perfect study routine.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5" >SCHEDULES & BLOCKERS</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Build your perfect study routine.</div>
           </div>
           <NotificationBell />
           <UserAvatar size={32} />
@@ -7658,12 +7668,12 @@ function AnimeAvatarSVG({ color, variant = 0, size = 56 }: { color: string; vari
       <circle cx="28" cy="28" r="28" fill={`${color}18`} />
       {hair}
       <ellipse cx="28" cy="29" rx="10" ry="12" fill="#F2C9A0" />
-      <ellipse cx="23.5" cy="27" rx="2.2" ry="2.8" fill="#1a0820" />
-      <ellipse cx="32.5" cy="27" rx="2.2" ry="2.8" fill="#1a0820" />
+      <ellipse cx="23.5" cy="27" rx="2.2" ry="2.8" fill="#0B0B0D" />
+      <ellipse cx="32.5" cy="27" rx="2.2" ry="2.8" fill="#0B0B0D" />
       <circle cx="24.3" cy="26.1" r="0.7" fill="white" opacity="0.9" />
       <circle cx="33.3" cy="26.1" r="0.7" fill="white" opacity="0.9" />
-      <path d="M21 23 Q23.5 21.5 26 23" stroke="#4a2060" strokeWidth="1.1" fill="none" strokeLinecap="round" />
-      <path d="M30 23 Q32.5 21.5 35 23" stroke="#4a2060" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+      <path d="M21 23 Q23.5 21.5 26 23" stroke="#3A3A3A" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+      <path d="M30 23 Q32.5 21.5 35 23" stroke="#3A3A3A" strokeWidth="1.1" fill="none" strokeLinecap="round" />
       <path d="M24.5 33 Q28 35 31.5 33" stroke="#c07050" strokeWidth="1.1" fill="none" strokeLinecap="round" />
       <path d="M12 56 Q13 44 28 42 Q43 44 44 56 Z" fill={color} opacity="0.8" />
       <path d="M17 26 Q17 14 28 14 Q39 14 39 26" stroke={color} strokeWidth="2.5" fill="none" opacity="0.7" strokeLinecap="round" />
@@ -7738,17 +7748,17 @@ function BAStatGrid({ battles, wins, losses, streak, best, focusSecs, xp }: {
     { l: 'Total battles', v: battles },
     { l: 'Wins', v: wins, sub: `${wr}% win rate`, c: '#4ade80' },
     { l: 'Losses', v: losses, c: '#f87171' },
-    { l: 'Win streak', v: streak, sub: `Best: ${best}`, c: '#22d3ee' },
+    { l: 'Win streak', v: streak, sub: `Best: ${best}`, c: '#FFF7E6' },
     { l: 'Focus time', v: focusStr, sub: 'In battles' },
-    { l: 'Battle XP', v: baFmtXP(xp), c: '#C4AAFF' },
+    { l: 'Battle XP', v: baFmtXP(xp), c: '#FFA94D' },
   ]
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
       {items.map(it => (
-        <div key={it.l} className="rounded-xl border p-3 bg-[rgba(255,255,255,0.02)] border-[#1A2845]">
-          <div className="text-[11px] text-slate-500 mb-1">{it.l}</div>
+        <div key={it.l} className="rounded-xl border p-3 bg-[rgba(255,255,255,0.02)] border-[#26262A]">
+          <div className="text-[11px] text-wk-ink-500 mb-1">{it.l}</div>
           <div className="text-lg font-bold" style={{ color: it.c || '#fff' }}>{it.v}</div>
-          {it.sub && <div className="text-[10px] text-slate-600 mt-0.5">{it.sub}</div>}
+          {it.sub && <div className="text-[10px] text-wk-ink-600 mt-0.5">{it.sub}</div>}
         </div>
       ))}
     </div>
@@ -7989,7 +7999,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
   function OpponentAvatar({ id, avatar, size, glow, ringColor }: { id: string; avatar: string | null; size: number; glow?: boolean; ringColor?: string }) {
     if (avatar) {
       return (
-        <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: `2.5px solid ${ringColor || '#7C4DFF'}`, boxShadow: glow ? `0 0 16px ${ringColor || '#7C4DFF'}80` : 'none' }}>
+        <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: `2.5px solid ${ringColor || '#FF8A3D'}`, boxShadow: glow ? `0 0 16px ${ringColor || '#FF8A3D'}80` : 'none' }}>
           <img src={avatar} alt="" className="w-full h-full object-cover" />
         </div>
       )
@@ -8000,20 +8010,20 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
   if (bg.status === 'loading' && !bg.data) {
     return (
-      <div className="flex h-screen overflow-hidden bg-[#020615]">
+      <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
         <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
-        <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Loading Battleground…</div>
+        <div className="flex-1 flex items-center justify-center text-wk-ink-500 text-sm">Loading Battleground…</div>
       </div>
     )
   }
   if (bg.status === 'error' && !bg.data) {
     return (
-      <div className="flex h-screen overflow-hidden bg-[#020615]">
+      <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
         <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
-          <div className="text-slate-200 text-sm font-semibold">Couldn't load Battleground</div>
-          <div className="text-slate-500 text-xs max-w-xs">{bg.error}</div>
-          <button onClick={() => void bg.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+          <div className="text-wk-ink-200 text-sm font-semibold">Couldn't load Battleground</div>
+          <div className="text-wk-ink-500 text-xs max-w-xs">{bg.error}</div>
+          <button onClick={() => void bg.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-wk-black-950" style={{ background: '#FF8A3D' }}>Try again</button>
         </div>
       </div>
     )
@@ -8026,9 +8036,9 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
       ? Math.max(0, Math.floor((Date.now() - new Date(activeBattle.started_at).getTime()) / 1000)) : 0
 
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020615] text-center px-6">
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0B0B0D] text-center px-6">
         <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6">
-          <div className="text-sm font-bold tracking-wider text-white">WYN<span className="text-[#7C4DFF]">KO</span></div>
+          <div className="text-sm font-bold tracking-wider text-white">WYN<span className="text-[#FF8A3D]">KO</span></div>
           {phase === 'live' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
               <Ico n="lock" cls="w-3.5 h-3.5" /> Focus Lock on
@@ -8044,67 +8054,67 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
         {phase === 'ready' && activeBattle && (
           <div>
-            <p className="text-slate-400 text-sm mb-4">Both players ready up. Focus Lock turns on and the clock starts the moment you're both in.</p>
+            <p className="text-wk-ink-400 text-sm mb-4">Both players ready up. Focus Lock turns on and the clock starts the moment you're both in.</p>
             <div className="flex items-center justify-center gap-6 mb-6">
               <div className="flex flex-col items-center gap-2">
-                <BattleAvatar color="#7C4DFF" variant={0} size={64} glow={activeBattle.i_am_ready} />
+                <BattleAvatar color="#FF8A3D" variant={0} size={64} glow={activeBattle.i_am_ready} />
                 <div className="text-sm font-semibold text-white">You</div>
-                <div className="text-[11px]" style={{ color: activeBattle.i_am_ready ? '#4ade80' : '#64748b' }}>{activeBattle.i_am_ready ? 'Ready' : 'Not ready'}</div>
+                <div className="text-[11px]" style={{ color: activeBattle.i_am_ready ? '#4ade80' : '#7A756D' }}>{activeBattle.i_am_ready ? 'Ready' : 'Not ready'}</div>
               </div>
-              <span className="text-slate-500 text-xs font-bold">VS</span>
+              <span className="text-wk-ink-500 text-xs font-bold">VS</span>
               <div className="flex flex-col items-center gap-2">
                 <OpponentAvatar id={activeBattle.opponent_id} avatar={activeBattle.opponent_avatar} size={64} glow={activeBattle.opponent_ready} ringColor={battleAvatarLook(activeBattle.opponent_id).color} />
                 <div className="text-sm font-semibold text-white">{activeBattle.opponent_username}</div>
-                <div className="text-[11px]" style={{ color: activeBattle.opponent_ready ? '#4ade80' : '#64748b' }}>{activeBattle.opponent_ready ? 'Ready' : 'Not ready'}</div>
+                <div className="text-[11px]" style={{ color: activeBattle.opponent_ready ? '#4ade80' : '#7A756D' }}>{activeBattle.opponent_ready ? 'Ready' : 'Not ready'}</div>
               </div>
             </div>
             {activeBattle.i_am_ready ? (
-              <p className="text-slate-500 text-xs mb-6">Waiting for {activeBattle.opponent_username} to ready up…</p>
+              <p className="text-wk-ink-500 text-xs mb-6">Waiting for {activeBattle.opponent_username} to ready up…</p>
             ) : (
-              <button onClick={markReady} disabled={busy} className="px-8 py-3 rounded-2xl font-bold text-white disabled:opacity-50 mb-4" style={{ background: '#7C4DFF' }}>I'm ready</button>
+              <button onClick={markReady} disabled={busy} className="px-8 py-3 rounded-2xl font-bold text-wk-black-950 disabled:opacity-50 mb-4" style={{ background: '#FF8A3D' }}>I'm ready</button>
             )}
             <div>
-              <button onClick={cancelWaitingRoom} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845] disabled:opacity-50">Cancel battle</button>
+              <button onClick={cancelWaitingRoom} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A] disabled:opacity-50">Cancel battle</button>
             </div>
           </div>
         )}
 
         {phase === 'live' && activeBattle && (
           <div className="w-full max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mb-8" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF', border: '1px solid rgba(124,77,255,0.35)' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" /> BATTLE ACTIVE
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mb-8" style={{ background: 'rgba(255,138,61,0.15)', color: '#FFA94D', border: '1px solid rgba(255,138,61,0.35)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF8A3D] animate-pulse" /> BATTLE ACTIVE
             </div>
             <div className="flex items-center justify-center gap-8 mb-6">
               <div className="flex flex-col items-center gap-2">
-                <BattleAvatar color="#7C4DFF" variant={0} size={88} glow />
+                <BattleAvatar color="#FF8A3D" variant={0} size={88} glow />
                 <div className="text-sm font-semibold text-white">You</div>
-                <div className="text-[11px] text-slate-500">Your focus time</div>
+                <div className="text-[11px] text-wk-ink-500">Your focus time</div>
                 <div className="text-3xl font-black text-white" style={{ fontFamily: 'monospace' }}>{baFmtTime(elapsedSecs)}</div>
                 <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Focusing</div>
               </div>
-              <div className="text-slate-600 text-xs font-bold">VS</div>
+              <div className="text-wk-ink-600 text-xs font-bold">VS</div>
               <div className="flex flex-col items-center gap-2">
                 <OpponentAvatar id={activeBattle.opponent_id} avatar={activeBattle.opponent_avatar} size={88} glow ringColor={battleAvatarLook(activeBattle.opponent_id).color} />
                 <div className="text-sm font-semibold text-white">{activeBattle.opponent_username}</div>
-                <div className="text-[11px] text-slate-500">{activeBattle.opponent_username}'s focus time</div>
+                <div className="text-[11px] text-wk-ink-500">{activeBattle.opponent_username}'s focus time</div>
                 <div className="text-3xl font-black text-white" style={{ fontFamily: 'monospace' }}>{baFmtTime(elapsedSecs)}</div>
                 <div className="flex items-center gap-1 text-[11px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Focusing</div>
               </div>
             </div>
-            <p className="text-slate-500 text-xs mb-5">First person to pause loses.</p>
+            <p className="text-wk-ink-500 text-xs mb-5">First person to pause loses.</p>
             <button onClick={requestPause} disabled={busy} className="mx-auto flex items-center gap-2 px-8 py-3 rounded-2xl font-bold disabled:opacity-50" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
               PAUSE
             </button>
-            <p className="text-slate-600 text-[11px] mt-4">Pausing Focus Lock counts as pausing the battle.</p>
+            <p className="text-wk-ink-600 text-[11px] mt-4">Pausing Focus Lock counts as pausing the battle.</p>
 
             {pauseConfirmOpen && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 px-4">
-                <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[#1E3060] p-6">
+                <div className="w-full max-w-sm rounded-2xl border bg-[#161618] border-[#3A3A3A] p-6">
                   <h2 className="text-lg font-bold text-white mb-2">Pause and lose the battle?</h2>
-                  <p className="text-slate-400 text-sm mb-5">{activeBattle.opponent_username} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
+                  <p className="text-wk-ink-400 text-sm mb-5">{activeBattle.opponent_username} wins the moment you pause. Your {baFmtTime(elapsedSecs)} of focus is still saved.</p>
                   <div className="flex flex-col gap-2">
-                    <button onClick={keepFocusing} className="w-full py-2.5 rounded-xl font-bold text-white" style={{ background: '#7C4DFF' }}>Keep focusing</button>
+                    <button onClick={keepFocusing} className="w-full py-2.5 rounded-xl font-bold text-wk-black-950" style={{ background: '#FF8A3D' }}>Keep focusing</button>
                     <button onClick={confirmPause} disabled={busy} className="w-full py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>Pause and lose</button>
                   </div>
                 </div>
@@ -8117,30 +8127,30 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           <div className="w-full max-w-md">
             <div className="text-6xl mb-3">{result.kind === 'won' ? '🏆' : '💀'}</div>
             <h1 className="text-3xl font-black text-white mb-1">{result.kind === 'won' ? 'YOU WIN' : 'DEFEAT'}</h1>
-            <p className="text-slate-400 text-sm mb-1">{result.kind === 'won' ? 'Your opponent paused first.' : 'You paused first.'}</p>
-            <p className="text-slate-500 text-xs mb-6">You vs {result.opponentName}</p>
+            <p className="text-wk-ink-400 text-sm mb-1">{result.kind === 'won' ? 'Your opponent paused first.' : 'You paused first.'}</p>
+            <p className="text-wk-ink-500 text-xs mb-6">You vs {result.opponentName}</p>
             <div className="flex items-center justify-center gap-8 mb-6">
-              <div><div className="text-[11px] text-slate-500 mb-1">Focus time</div><div className="text-xl font-bold text-white">{baFmtTime(result.elapsed)}</div></div>
-              <div><div className="text-[11px] text-slate-500 mb-1">Battle XP</div><div className="text-xl font-bold text-emerald-400">+{result.gain}</div></div>
+              <div><div className="text-[11px] text-wk-ink-500 mb-1">Focus time</div><div className="text-xl font-bold text-white">{baFmtTime(result.elapsed)}</div></div>
+              <div><div className="text-[11px] text-wk-ink-500 mb-1">Battle XP</div><div className="text-xl font-bold text-emerald-400">+{result.gain}</div></div>
             </div>
             {(() => {
               const a = baTierInfo(result.xpBefore), b = baTierInfo(result.xpAfter), promoted = b.i > a.i
               return (
                 <div className="mb-6">
                   <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{b.cur.n}</span>
-                    <span className="text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.xpAfter)} XP</span>
+                    <span className="px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,138,61,0.15)', color: '#FFA94D' }}>{b.cur.n}</span>
+                    <span className="text-wk-ink-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(result.xpAfter)} XP</span>
                   </div>
-                  <div className="h-2 rounded-full bg-[#1A2845] overflow-hidden">
-                    <div className="h-full rounded-full bg-[#7C4DFF]" style={{ width: `${promoted ? b.pct : a.pct}%` }} />
+                  <div className="h-2 rounded-full bg-[#26262A] overflow-hidden">
+                    <div className="h-full rounded-full bg-[#FF8A3D]" style={{ width: `${promoted ? b.pct : a.pct}%` }} />
                   </div>
-                  <p className="text-[11px] mt-1.5" style={{ color: promoted ? '#4ade80' : '#64748b' }}>
+                  <p className="text-[11px] mt-1.5" style={{ color: promoted ? '#4ade80' : '#7A756D' }}>
                     {promoted ? `New title unlocked: ${b.cur.n}` : b.next ? `${baFmtXP(b.need)} XP to ${b.next.n}` : 'Top title reached'}
                   </p>
                 </div>
               )
             })()}
-            <button onClick={backToBattlegroundFromResult} className="w-full py-3 rounded-2xl font-bold text-white" style={{ background: '#7C4DFF' }}>Back to Battleground</button>
+            <button onClick={backToBattlegroundFromResult} className="w-full py-3 rounded-2xl font-bold text-wk-black-950" style={{ background: '#FF8A3D' }}>Back to Battleground</button>
           </div>
         )}
       </div>
@@ -8150,22 +8160,22 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
   const incoming = bg.data?.incoming_invites ?? []
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]">
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
       <Sidebar active="battleground" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
           {view === 'profile' ? (
-            <button onClick={() => setView('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <button onClick={() => setView('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Battleground
             </button>
           ) : (
-            <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Home
             </button>
           )}
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5">BATTLEGROUND</div>
-            <div className="text-sm font-semibold text-slate-200">Challenge. Compete. Win.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5">BATTLEGROUND</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Challenge. Compete. Win.</div>
           </div>
           <NotificationBell extraCount={incoming.length} />
           <UserAvatar size={32} />
@@ -8182,83 +8192,83 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
           {view === 'waiting' && outgoing && (
             <div className="max-w-md mx-auto text-center py-16">
               <div className="flex items-center justify-center gap-4 mb-6">
-                <BattleAvatar color="#7C4DFF" variant={0} size={64} />
-                <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#7C4DFF] animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />)}</div>
+                <BattleAvatar color="#FF8A3D" variant={0} size={64} />
+                <div className="flex gap-1">{[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#FF8A3D] animate-pulse" style={{ animationDelay: `${i * 0.15}s` }} />)}</div>
                 <OpponentAvatar id={outgoing.to_user} avatar={outgoing.avatar_url} size={64} glow ringColor={battleAvatarLook(outgoing.to_user).color} />
               </div>
               <h2 className="text-lg font-bold text-white mb-2">Waiting for {outgoing.username} to accept</h2>
-              <p className="text-slate-400 text-sm mb-6">Once they accept, you'll both ready up and the battle begins.</p>
-              <div className="text-xs text-slate-500 mb-6">
-                Invitation expires in <b className="text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(Math.max(0, Math.floor((new Date(outgoing.expires_at).getTime() - Date.now()) / 1000)))}</b>
+              <p className="text-wk-ink-400 text-sm mb-6">Once they accept, you'll both ready up and the battle begins.</p>
+              <div className="text-xs text-wk-ink-500 mb-6">
+                Invitation expires in <b className="text-wk-ink-300" style={{ fontFamily: 'monospace' }}>{baFmtTime(Math.max(0, Math.floor((new Date(outgoing.expires_at).getTime() - Date.now()) / 1000)))}</b>
               </div>
-              <button onClick={cancelChallenge} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845] disabled:opacity-50">Cancel challenge</button>
+              <button onClick={cancelChallenge} disabled={busy} className="px-6 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A] disabled:opacity-50">Cancel challenge</button>
             </div>
           )}
           {view === 'waiting' && !outgoing && (() => { setView('home'); return null })()}
 
           {view === 'profile' && (
             <div className="max-w-2xl mx-auto space-y-4">
-              <div className="rounded-2xl border p-6 flex items-center gap-5 bg-[#0B1530] border-[#1E3060]">
-                <BattleAvatar color="#7C4DFF" variant={0} size={72} glow />
+              <div className="rounded-2xl border p-6 flex items-center gap-5 bg-[#161618] border-[#3A3A3A]">
+                <BattleAvatar color="#FF8A3D" variant={0} size={72} glow />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h1 className="text-xl font-bold text-white">You</h1>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{rank.cur.n}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold" style={{ background: 'rgba(255,138,61,0.15)', color: '#FFA94D' }}>{rank.cur.n}</span>
                   </div>
-                  <div className="text-2xl font-black text-white mb-2">{baFmtXP(meXp)} <span className="text-xs font-normal text-slate-500">Battle XP</span></div>
-                  <div className="h-2 rounded-full bg-[#1A2845] overflow-hidden mb-1.5"><div className="h-full rounded-full bg-[#7C4DFF]" style={{ width: `${rank.pct}%` }} /></div>
-                  <div className="text-[11px] text-slate-500">{rank.next ? <>{baFmtXP(rank.need)} XP to {rank.next.n}</> : 'Top title reached'}</div>
+                  <div className="text-2xl font-black text-white mb-2">{baFmtXP(meXp)} <span className="text-xs font-normal text-wk-ink-500">Battle XP</span></div>
+                  <div className="h-2 rounded-full bg-[#26262A] overflow-hidden mb-1.5"><div className="h-full rounded-full bg-[#FF8A3D]" style={{ width: `${rank.pct}%` }} /></div>
+                  <div className="text-[11px] text-wk-ink-500">{rank.next ? <>{baFmtXP(rank.need)} XP to {rank.next.n}</> : 'Top title reached'}</div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]">
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-sm font-bold text-white">Battle titles</div>
-                  <div className="text-[11px] text-slate-500">Earned with Battle XP</div>
+                  <div className="text-[11px] text-wk-ink-500">Earned with Battle XP</div>
                 </div>
                 <div className="space-y-2">
                   {BA_TIERS.map((t, i) => {
                     const done = i < rank.i, cur = i === rank.i
                     return (
                       <div key={t.n} className="flex items-center gap-3 py-1.5">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] flex-shrink-0" style={{ background: done ? '#4ade80' : cur ? '#7C4DFF' : '#1A2845', color: done || cur ? '#020615' : '#64748b' }}>
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] flex-shrink-0" style={{ background: done ? '#4ade80' : cur ? '#FF8A3D' : '#26262A', color: done || cur ? '#0B0B0D' : '#7A756D' }}>
                           {done ? '✓' : ''}
                         </div>
-                        <div className={`text-sm font-semibold flex-1 ${cur ? 'text-white' : done ? 'text-slate-300' : 'text-slate-500'}`}>{t.n}</div>
-                        <div className="text-[11px] text-slate-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(t.min)} XP</div>
+                        <div className={`text-sm font-semibold flex-1 ${cur ? 'text-white' : done ? 'text-wk-ink-300' : 'text-wk-ink-500'}`}>{t.n}</div>
+                        <div className="text-[11px] text-wk-ink-500" style={{ fontFamily: 'monospace' }}>{baFmtXP(t.min)} XP</div>
                       </div>
                     )
                   })}
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1A2845] text-[11px] text-slate-500">
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#26262A] text-[11px] text-wk-ink-500">
                   <span>Win a battle <b className="text-emerald-400">+20-60 XP</b></span>
-                  <span>Lose a battle <b className="text-slate-400">+0-20 XP</b></span>
+                  <span>Lose a battle <b className="text-wk-ink-400">+0-20 XP</b></span>
                 </div>
               </div>
 
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]">
                 <div className="text-sm font-bold text-white mb-4">Battle stats</div>
                 <BAStatGrid battles={stats.total} wins={stats.wins} losses={stats.losses} streak={streak} best={best} focusSecs={stats.total_focus_seconds} xp={meXp} />
-                <div className="mt-4 flex items-center gap-3 text-xs text-slate-400">
+                <div className="mt-4 flex items-center gap-3 text-xs text-wk-ink-400">
                   <span><b className="text-emerald-400">{stats.wins}</b> wins</span>
                   <span><b className="text-red-400">{stats.losses}</b> losses</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden flex mt-1.5 bg-[#1A2845]">
+                <div className="h-1.5 rounded-full overflow-hidden flex mt-1.5 bg-[#26262A]">
                   <div className="h-full bg-emerald-400" style={{ width: `${stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0}%` }} />
                   <div className="h-full flex-1" style={{ background: 'rgba(248,113,113,0.7)' }} />
                 </div>
               </div>
 
               {earnedTrophies.length > 0 && (
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]">
                   <div className="text-sm font-bold text-white mb-4">Trophies</div>
                   <div className="grid grid-cols-4 gap-3">
                     {TROPHY_TIERS.map(t => {
                       const earned = earnedTrophies.includes(t)
                       return (
-                        <div key={t.tier} className="rounded-xl border p-3 text-center" style={{ background: earned ? t.bg : 'rgba(255,255,255,0.02)', borderColor: earned ? t.border : '#1A2845', opacity: earned ? 1 : 0.4 }}>
+                        <div key={t.tier} className="rounded-xl border p-3 text-center" style={{ background: earned ? t.bg : 'rgba(255,255,255,0.02)', borderColor: earned ? t.border : '#26262A', opacity: earned ? 1 : 0.4 }}>
                           <img src={t.img} alt={t.tier} className="w-10 h-10 mx-auto mb-1.5 object-contain" />
-                          <div className="text-[10px] text-slate-400">{t.sub}</div>
+                          <div className="text-[10px] text-wk-ink-400">{t.sub}</div>
                         </div>
                       )
                     })}
@@ -8272,34 +8282,34 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
             <>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg,#1E3060,rgba(124,77,255,0.25))', border: '1px solid #4A3A88', boxShadow: '0 0 20px #1A2845' }}>⚔️</div>
+                  style={{ background: 'linear-gradient(135deg,#3A3A3A,rgba(255,138,61,0.25))', border: '1px solid #3A3A3A', boxShadow: 'none' }}>⚔️</div>
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold text-white">Battleground</h1>
-                  <p className="text-slate-400 text-sm">Challenge someone. Stay focused. Don't pause.</p>
+                  <p className="text-wk-ink-400 text-sm">Challenge someone. Stay focused. Don't pause.</p>
                 </div>
                 <button onClick={() => setView('profile')} className="text-right hover:opacity-80 transition-opacity">
-                  <div className="text-[10px] text-slate-500 mb-0.5">Your battle title</div>
+                  <div className="text-[10px] text-wk-ink-500 mb-0.5">Your battle title</div>
                   <div className="flex items-center gap-1.5 justify-end">
-                    <span className="text-sm font-bold" style={{ color: '#C4AAFF' }}>{rank.cur.n}</span>
-                    <span className="text-xs text-slate-500">{baFmtXP(meXp)} XP</span>
+                    <span className="text-sm font-bold" style={{ color: '#FFA94D' }}>{rank.cur.n}</span>
+                    <span className="text-xs text-wk-ink-500">{baFmtXP(meXp)} XP</span>
                   </div>
                 </button>
               </div>
 
-              <div className="rounded-2xl border p-6 bg-[#0B1530] border-[#1E3060]">
+              <div className="rounded-2xl border p-6 bg-[#161618] border-[#3A3A3A]">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                   <div>
                     <h2 className="text-lg font-bold text-white mb-1.5">Ready for a challenge?</h2>
-                    <p className="text-slate-400 text-sm mb-4">Challenge someone and see who can stay focused longer.</p>
-                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-white text-sm" style={{ background: '#7C4DFF' }}>⚔️ Challenge someone</button>
+                    <p className="text-wk-ink-400 text-sm mb-4">Challenge someone and see who can stay focused longer.</p>
+                    <button onClick={openPicker} className="px-5 py-2.5 rounded-xl font-bold text-wk-black-950 text-sm" style={{ background: '#FF8A3D' }}>⚔️ Challenge someone</button>
                   </div>
                   <div className="flex items-center gap-3">
-                    <BattleAvatar color="#7C4DFF" variant={0} size={56} />
-                    <span className="text-slate-600 text-xs font-bold">VS</span>
-                    <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#1E3060] flex items-center justify-center text-slate-600">?</div>
+                    <BattleAvatar color="#FF8A3D" variant={0} size={56} />
+                    <span className="text-wk-ink-600 text-xs font-bold">VS</span>
+                    <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#3A3A3A] flex items-center justify-center text-wk-ink-600">?</div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-5 pt-5 border-t border-[#1A2845] text-[11px] text-slate-400">
+                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-5 pt-5 border-t border-[#26262A] text-[11px] text-wk-ink-400">
                   <span className="flex items-center gap-1.5"><Ico n="check" cls="w-3.5 h-3.5 text-emerald-400" /> You both start together</span>
                   <span className="flex items-center gap-1.5"><Ico n="lock" cls="w-3.5 h-3.5" /> Focus Lock stays on</span>
                   <span className="flex items-center gap-1.5">⏸ First to pause loses</span>
@@ -8307,54 +8317,54 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               </div>
 
               {incoming.length > 0 && (
-                <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]">
+                <div className="rounded-2xl border overflow-hidden bg-[#161618] border-[#3A3A3A]">
                   <div className="flex items-center gap-2.5 px-5 pt-4 pb-3">
-                    <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+                    <div className="w-2 h-2 rounded-full bg-wk-orange-300 animate-pulse" />
                     <div className="text-sm font-bold text-white">Battle Invitations</div>
-                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1A2845] text-[#C4AAFF]">{incoming.length} pending</div>
+                    <div className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#26262A] text-[#FFA94D]">{incoming.length} pending</div>
                   </div>
                   <div className="px-4 pb-4 space-y-2">
                     {incoming.map(inv => (
-                      <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(124,77,255,0.06)' }}>
+                      <div key={inv.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(255,138,61,0.06)' }}>
                         <OpponentAvatar id={inv.from_user} avatar={inv.avatar_url} size={36} />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-white">{inv.username} <span className="text-slate-400 font-normal">challenged you</span></div>
-                          <div className="text-[11px] text-slate-500">{inv.title}</div>
+                          <div className="text-sm font-semibold text-white">{inv.username} <span className="text-wk-ink-400 font-normal">challenged you</span></div>
+                          <div className="text-[11px] text-wk-ink-500">{inv.title}</div>
                         </div>
-                        <button onClick={() => void acceptInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>Accept</button>
-                        <button onClick={() => void rejectInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 border border-[#1A2845] disabled:opacity-50">Reject</button>
+                        <button onClick={() => void acceptInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs font-bold text-wk-black-950 disabled:opacity-50" style={{ background: '#FF8A3D' }}>Accept</button>
+                        <button onClick={() => void rejectInvite(inv.id)} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs text-wk-ink-400 hover:text-wk-ink-200 border border-[#26262A] disabled:opacity-50">Reject</button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]">
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-sm font-bold text-white">Your battle stats</div>
-                  <button onClick={() => setView('profile')} className="text-[11px] font-semibold" style={{ color: '#C4AAFF' }}>View profile</button>
+                  <button onClick={() => setView('profile')} className="text-[11px] font-semibold" style={{ color: '#FFA94D' }}>View profile</button>
                 </div>
                 <BAStatGrid battles={stats.total} wins={stats.wins} losses={stats.losses} streak={streak} best={best} focusSecs={stats.total_focus_seconds} xp={meXp} />
               </div>
 
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]">
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]">
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-sm font-bold text-white">🏆 Leaderboard</div>
-                  <div className="text-[11px] text-slate-500">Ranked by Battle XP</div>
+                  <div className="text-[11px] text-wk-ink-500">Ranked by Battle XP</div>
                 </div>
                 {boardRows.length <= 1 ? (
-                  <div className="text-[12px] text-slate-500 text-center py-6">No one else has Battle XP yet - challenge someone to get the board started.</div>
+                  <div className="text-[12px] text-wk-ink-500 text-center py-6">No one else has Battle XP yet - challenge someone to get the board started.</div>
                 ) : (
                   <div className="space-y-1">
                     {boardRows.map((r, i) => (
-                      <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(124,77,255,0.08)' } : undefined}>
-                        <div className="w-5 text-center text-xs font-bold text-slate-500">{i + 1}</div>
+                      <div key={r.id} className="flex items-center gap-3 py-2 px-2 rounded-xl" style={r.me ? { background: 'rgba(255,138,61,0.08)' } : undefined}>
+                        <div className="w-5 text-center text-xs font-bold text-wk-ink-500">{i + 1}</div>
                         <OpponentAvatar id={r.id} avatar={r.avatar} size={32} />
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <span className="text-sm font-semibold text-white truncate">{r.name}</span>
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(124,77,255,0.15)', color: '#C4AAFF' }}>{baTierInfo(r.xp).cur.n}</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(255,138,61,0.15)', color: '#FFA94D' }}>{baTierInfo(r.xp).cur.n}</span>
                         </div>
-                        <div className="text-xs font-bold text-slate-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-slate-600 font-normal">XP</span></div>
+                        <div className="text-xs font-bold text-wk-ink-300" style={{ fontFamily: 'monospace' }}>{baFmtXP(r.xp)} <span className="text-wk-ink-600 font-normal">XP</span></div>
                       </div>
                     ))}
                   </div>
@@ -8367,22 +8377,22 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
 
       {pickerOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 px-4" onClick={closePicker}>
-          <div className="w-full max-w-md rounded-2xl border bg-[#0B1530] border-[#1E3060] p-5" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-2xl border bg-[#161618] border-[#3A3A3A] p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="text-base font-bold text-white">Challenge someone</div>
-                <div className="text-xs text-slate-500 mt-0.5">Search by username.</div>
+                <div className="text-xs text-wk-ink-500 mt-0.5">Search by username.</div>
               </div>
-              <button onClick={closePicker} className="text-slate-500 hover:text-slate-300 text-lg leading-none">✕</button>
+              <button onClick={closePicker} className="text-wk-ink-500 hover:text-wk-ink-300 text-lg leading-none">✕</button>
             </div>
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 border-[#1A2845]">
-              <Ico n="search" cls="w-4 h-4 text-slate-500" />
-              <input autoFocus value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-600 outline-none" />
+            <div className="flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 border-[#26262A]">
+              <Ico n="search" cls="w-4 h-4 text-wk-ink-500" />
+              <input autoFocus value={pickerQuery} onChange={e => setPickerQuery(e.target.value)} placeholder="Search username" className="flex-1 bg-transparent text-sm text-white placeholder:text-wk-ink-600 outline-none" />
             </div>
             <div className="max-h-64 overflow-y-auto space-y-1 mb-3">
-              {pickerLoading && <div className="text-[12px] text-slate-500 text-center py-6">Searching…</div>}
+              {pickerLoading && <div className="text-[12px] text-wk-ink-500 text-center py-6">Searching…</div>}
               {!pickerLoading && pickerResults.length === 0 && (
-                <div className="text-[12px] text-slate-500 text-center py-6">{pickerQuery.trim() ? 'No one matches that username.' : 'Type a username to search.'}</div>
+                <div className="text-[12px] text-wk-ink-500 text-center py-6">{pickerQuery.trim() ? 'No one matches that username.' : 'Type a username to search.'}</div>
               )}
               {!pickerLoading && pickerResults.map(f => {
                 const sel = pickerSel?.id === f.id
@@ -8390,26 +8400,26 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
                 return (
                   <button key={f.id} onClick={() => setPickerSel(f)}
                     className="w-full flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-white/5"
-                    style={sel ? { background: 'rgba(124,77,255,0.12)', border: '1px solid rgba(124,77,255,0.4)' } : { border: '1px solid transparent' }}>
+                    style={sel ? { background: 'rgba(255,138,61,0.12)', border: '1px solid rgba(255,138,61,0.4)' } : { border: '1px solid transparent' }}>
                     {f.avatar_url
                       ? <img src={f.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                       : <BattleAvatar color={look.color} variant={look.variant} size={36} />}
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-white">{f.username}</div>
-                      <div className="text-[11px] text-slate-500">{f.title} · {baFmtXP(f.battle_xp)} XP</div>
+                      <div className="text-[11px] text-wk-ink-500">{f.title} · {baFmtXP(f.battle_xp)} XP</div>
                     </div>
-                    {sel && <Ico n="check" cls="w-4 h-4 text-[#7C4DFF]" />}
+                    {sel && <Ico n="check" cls="w-4 h-4 text-[#FF8A3D]" />}
                   </button>
                 )
               })}
             </div>
-            <div className="flex items-start gap-2 text-[11px] text-slate-500 mb-4">
+            <div className="flex items-start gap-2 text-[11px] text-wk-ink-500 mb-4">
               <Ico n="lock" cls="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>First person to pause loses. Focus Lock turns on for both of you.</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={closePicker} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
-              <button onClick={() => void sendChallenge()} disabled={!pickerSel || busy} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#7C4DFF' }}>
+              <button onClick={closePicker} className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 border-[#26262A]">Cancel</button>
+              <button onClick={() => void sendChallenge()} disabled={!pickerSel || busy} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-wk-black-950 disabled:opacity-40" style={{ background: '#FF8A3D' }}>
                 {pickerSel ? `Challenge ${pickerSel.username}` : 'Send challenge'}
               </button>
             </div>
@@ -8431,7 +8441,7 @@ function StToggle({ val, onChange, disabled }: { val: boolean; onChange: (v: boo
   return (
     <button onClick={() => onChange(!val)} disabled={disabled} role="switch" aria-checked={val}
       className="w-11 h-6 rounded-full transition-all flex-shrink-0 relative disabled:opacity-50"
-      style={{ background: val ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(100,116,139,0.35)', boxShadow: val ? '0 0 10px #2855CC' : 'none' }}>
+      style={{ background: val ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'rgba(122,117,109,0.35)', boxShadow: val ? 'none' : 'none' }}>
       <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
         style={{ left: val ? 'calc(100% - 22px)' : '2px' }} />
     </button>
@@ -8440,10 +8450,10 @@ function StToggle({ val, onChange, disabled }: { val: boolean; onChange: (v: boo
 
 function StRow({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]">
+    <div className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(38,38,42,0.55)]">
       <div>
-        <div className="text-sm font-medium text-slate-200">{label}</div>
-        {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+        <div className="text-sm font-medium text-wk-ink-200">{label}</div>
+        {sub && <div className="text-[11px] text-wk-ink-500 mt-0.5">{sub}</div>}
       </div>
       <div className="ml-4 flex-shrink-0">{children}</div>
     </div>
@@ -8452,9 +8462,9 @@ function StRow({ label, sub, children }: { label: string; sub?: string; children
 
 function StSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1A2845]">
+    <div className="rounded-2xl border overflow-hidden bg-[#161618] border-[#26262A]">
       <div className="px-5 pt-5 pb-1">
-        <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">{title}</div>
+        <div className="text-[10px] font-mono tracking-[0.18em] text-wk-orange-300 mb-4">{title}</div>
         {children}
       </div>
       <div className="h-2" />
@@ -8466,24 +8476,24 @@ function StField({ label, value, onChange, placeholder, type = 'text', maxLength
   label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; maxLength?: number; hint?: string
 }) {
   return (
-    <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
-      <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
+    <div className="py-3.5 border-b border-[rgba(38,38,42,0.55)]">
+      <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">{label}</div>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength}
-        className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 transition-colors focus:border-violet-500/50 border-[#1A2845]" />
-      {hint && <div className="text-[10px] text-slate-600 mt-1">{hint}</div>}
+        className="w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 transition-colors focus:border-wk-orange-500/50 border-[#26262A]" />
+      {hint && <div className="text-[10px] text-wk-ink-600 mt-1">{hint}</div>}
     </div>
   )
 }
 
 function StChoice({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
   return (
-    <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
-      <div className="text-[10px] text-slate-500 font-mono mb-1.5">{label}</div>
+    <div className="py-3.5 border-b border-[rgba(38,38,42,0.55)]">
+      <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">{label}</div>
       <div className="flex flex-wrap gap-2">
         {options.map(o => (
           <button key={o} onClick={() => onChange(value === o ? '' : o)}
             className="px-3.5 py-1.5 rounded-xl border text-sm font-medium transition-all"
-            style={{ background: value === o ? '#1A2845' : '#0B1530', color: value === o ? '#C4AAFF' : '#4E5E84', borderColor: value === o ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+            style={{ background: value === o ? '#26262A' : '#161618', color: value === o ? '#FFA94D' : '#7A756D', borderColor: value === o ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
             {o}
           </button>
         ))}
@@ -8492,13 +8502,13 @@ function StChoice({ label, value, onChange, options }: { label: string; value: s
   )
 }
 
-const ST_PRIMARY_BTN = 'w-full py-3 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50'
-const ST_PRIMARY_STYLE = { background: '#7C4DFF', boxShadow: '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' }
-const ST_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1A2845]'
+const ST_PRIMARY_BTN = 'w-full py-3 rounded-xl text-wk-black-950 font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50'
+const ST_PRIMARY_STYLE = { background: '#FF8A3D', boxShadow: 'none' }
+const ST_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]'
 const ST_GOAL_HOURS = [2, 3, 4, 6, 8, 10, 12]
 const ST_PROVIDERS: { id: LinkableProvider; name: string; dot: string }[] = [
-  { id: 'google', name: 'Google', dot: 'radial-gradient(circle at 35% 35%,#7BAAF7,#2A62D6)' },
-  { id: 'discord', name: 'Discord', dot: 'radial-gradient(circle at 35% 35%,#A48BFF,#5865F2)' },
+  { id: 'google', name: 'Google', dot: 'radial-gradient(circle at 35% 35%,#CFC8BB,#8F8A82)' },
+  { id: 'discord', name: 'Discord', dot: 'radial-gradient(circle at 35% 35%,#FFA94D,#5865F2)' },
 ]
 
 function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
@@ -8719,13 +8729,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   let content: React.ReactNode
   if (settingsQ.status === 'loading' && !s) {
-    content = <div className="text-sm text-slate-500 py-16 text-center">Loading your settings…</div>
+    content = <div className="text-sm text-wk-ink-500 py-16 text-center">Loading your settings…</div>
   } else if (!s) {
     content = (
       <div className="py-16 text-center space-y-3">
-        <div className="text-sm text-slate-300 font-semibold">Couldn’t load your settings</div>
-        <div className="text-xs text-slate-500">{settingsQ.error}</div>
-        <button onClick={() => void settingsQ.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#7C4DFF' }}>Try again</button>
+        <div className="text-sm text-wk-ink-300 font-semibold">Couldn’t load your settings</div>
+        <div className="text-xs text-wk-ink-500">{settingsQ.error}</div>
+        <button onClick={() => void settingsQ.refresh()} className="px-4 py-2 rounded-lg text-sm font-bold text-wk-black-950" style={{ background: '#FF8A3D' }}>Try again</button>
       </div>
     )
   } else if (activeTab === 'profile') {
@@ -8733,24 +8743,24 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <>
         <div>
           <h2 className="text-xl font-bold text-white">Profile</h2>
-          <p className="text-slate-400 text-sm mt-0.5">How others see you on Wynko.</p>
+          <p className="text-wk-ink-400 text-sm mt-0.5">How others see you on Wynko.</p>
         </div>
 
-        <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]">
-          <div className="text-[10px] font-mono tracking-[0.18em] text-violet-400 mb-4">PROFILE PICTURE</div>
+        <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]">
+          <div className="text-[10px] font-mono tracking-[0.18em] text-wk-orange-300 mb-4">PROFILE PICTURE</div>
           <div className="flex items-center gap-6">
             <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0"
-              style={{ border: '2px solid rgba(124,77,255,0.5)', boxShadow: '0 0 24px rgba(124,77,255,0.3)' }}>
+              style={{ border: '2px solid rgba(255,138,61,0.5)', boxShadow: 'none' }}>
               <img src={previewAvatar} alt="Selected avatar" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1">
-              <div className="text-[11px] text-slate-500 mb-3">Choose avatar <span className="text-slate-600">· saves instantly</span></div>
+              <div className="text-[11px] text-wk-ink-500 mb-3">Choose avatar <span className="text-wk-ink-600">· saves instantly</span></div>
               <div className="grid grid-cols-6 gap-2">
                 {AVATAR_OPTIONS.map((av, i) => (
                   <button key={i} onClick={() => pickAvatar(i)}
                     className="rounded-xl overflow-hidden transition-all hover:scale-105 border-2"
-                    style={{ borderColor: selectedPreset === i ? '#8B5CFF' : 'transparent', boxShadow: selectedPreset === i ? '0 0 12px rgba(139,92,255,0.6)' : 'none' }}>
-                    <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(26,40,69,0.4)]" />
+                    style={{ borderColor: selectedPreset === i ? '#FF8A3D' : 'transparent', boxShadow: selectedPreset === i ? 'none' : 'none' }}>
+                    <img src={av} alt={`Avatar ${i + 1}`} className="w-full aspect-square object-contain bg-[rgba(38,38,42,0.4)]" />
                   </button>
                 ))}
               </div>
@@ -8782,48 +8792,48 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <>
         <div>
           <h2 className="text-xl font-bold text-white">Account</h2>
-          <p className="text-slate-400 text-sm mt-0.5">Manage your login details and security.</p>
+          <p className="text-wk-ink-400 text-sm mt-0.5">Manage your login details and security.</p>
         </div>
 
         <StSection title="EMAIL ADDRESS">
-          <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
-            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT EMAIL</div>
-            <div className="text-sm text-slate-200">{s.email || '—'}</div>
+          <div className="py-3.5 border-b border-[rgba(38,38,42,0.55)]">
+            <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">CURRENT EMAIL</div>
+            <div className="text-sm text-wk-ink-200">{s.email || '—'}</div>
           </div>
           <div className="py-3.5">
-            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CHANGE EMAIL</div>
+            <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">CHANGE EMAIL</div>
             <div className="flex gap-2">
               <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="new@email.com" className={ST_INPUT} />
               <button onClick={() => void submitEmail()} disabled={!newEmail.trim() || busy === 'email'}
-                className="px-4 rounded-xl text-[12px] font-semibold text-white flex-shrink-0 disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+                className="px-4 rounded-xl text-[12px] font-semibold text-wk-black-950 flex-shrink-0 disabled:opacity-50" style={{ background: '#FF8A3D' }}>
                 {busy === 'email' ? 'Sending…' : 'Update'}
               </button>
             </div>
-            <div className="text-[10px] text-slate-600 mt-1">We’ll email a confirmation link to both addresses.</div>
+            <div className="text-[10px] text-wk-ink-600 mt-1">We’ll email a confirmation link to both addresses.</div>
           </div>
         </StSection>
 
         <StSection title={hasPassword ? 'CHANGE PASSWORD' : 'SET A PASSWORD'}>
           {!hasPassword && (
-            <div className="text-[12px] text-slate-400 pb-2">You sign in with {identitiesQ.data.map(i => i.provider === 'google' ? 'Google' : i.provider === 'discord' ? 'Discord' : i.provider).join(' / ') || 'a linked account'}. Set a password to also sign in with your email.</div>
+            <div className="text-[12px] text-wk-ink-400 pb-2">You sign in with {identitiesQ.data.map(i => i.provider === 'google' ? 'Google' : i.provider === 'discord' ? 'Discord' : i.provider).join(' / ') || 'a linked account'}. Set a password to also sign in with your email.</div>
           )}
           {hasPassword && (
-            <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
-              <div className="text-[10px] text-slate-500 font-mono mb-1.5">CURRENT PASSWORD</div>
+            <div className="py-3.5 border-b border-[rgba(38,38,42,0.55)]">
+              <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">CURRENT PASSWORD</div>
               <input type="password" autoComplete="current-password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} placeholder="Enter current password" className={ST_INPUT} />
             </div>
           )}
-          <div className="py-3.5 border-b border-[rgba(26,40,69,0.55)]">
-            <div className="text-[10px] text-slate-500 font-mono mb-1.5">NEW PASSWORD</div>
+          <div className="py-3.5 border-b border-[rgba(38,38,42,0.55)]">
+            <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">NEW PASSWORD</div>
             <input type="password" autoComplete="new-password" value={pwNew} onChange={e => setPwNew(e.target.value)} placeholder="At least 8 characters" className={ST_INPUT} />
           </div>
           <div className="py-3.5">
-            <div className="text-[10px] text-slate-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
+            <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">CONFIRM NEW PASSWORD</div>
             <input type="password" autoComplete="new-password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} placeholder="Confirm new password" className={ST_INPUT} />
           </div>
           <div className="pb-3">
             <button onClick={() => void submitPassword()} disabled={!pwNew || busy === 'password'}
-              className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: '#7C4DFF' }}>
+              className="px-4 py-2 rounded-xl text-[12px] font-semibold text-wk-black-950 disabled:opacity-50" style={{ background: '#FF8A3D' }}>
               {busy === 'password' ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
             </button>
           </div>
@@ -8834,20 +8844,20 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             const linked = identitiesQ.data.find(i => i.provider === p.id)
             const onlyLogin = !!linked && identitiesQ.data.length <= 1
             return (
-              <div key={p.id} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]">
+              <div key={p.id} className="flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(38,38,42,0.55)]">
                 <div className="flex items-center gap-3">
                   <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: p.dot }} />
                   <div>
-                    <div className="text-sm font-medium text-slate-200">{p.name}</div>
-                    <div className="text-[11px]" style={{ color: linked ? '#19D3A2' : '#4E5E84' }}>
+                    <div className="text-sm font-medium text-wk-ink-200">{p.name}</div>
+                    <div className="text-[11px]" style={{ color: linked ? '#34D399' : '#7A756D' }}>
                       {identitiesQ.status === 'loading' ? 'Checking…' : linked ? `Connected${linked.email ? ` · ${linked.email}` : ''}` : 'Not connected'}
                     </div>
                   </div>
                 </div>
                 <button onClick={() => void toggleProvider(p.id)} disabled={onlyLogin || identitiesQ.status === 'loading' || busy === `provider:${p.id}`}
                   title={onlyLogin ? 'This is your only way to sign in — connect another account or set a password first.' : undefined}
-                  className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-violet-500/40 disabled:opacity-40"
-                  style={{ borderColor: '#1A2845', color: linked ? '#F87171' : '#9B6CFF' }}>
+                  className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all hover:border-wk-orange-500/40 disabled:opacity-40"
+                  style={{ borderColor: '#26262A', color: linked ? '#F87171' : '#FFA94D' }}>
                   {busy === `provider:${p.id}` ? '…' : linked ? 'Disconnect' : 'Connect'}
                 </button>
               </div>
@@ -8860,7 +8870,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-red-300">Delete Account</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Permanently delete your Wynko account and all data. This can’t be undone.</div>
+              <div className="text-[11px] text-wk-ink-500 mt-0.5">Permanently delete your Wynko account and all data. This can’t be undone.</div>
             </div>
             <button onClick={() => { setDeleteText(''); setDeleteOpen(true) }}
               className="px-4 py-2 rounded-xl text-[12px] font-bold text-red-400 border transition-all hover:bg-red-500/10 border-[rgba(239,68,68,0.35)]">Delete</button>
@@ -8873,7 +8883,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <>
         <div>
           <h2 className="text-xl font-bold text-white">Notifications</h2>
-          <p className="text-slate-400 text-sm mt-0.5">Control what alerts you receive. Changes save instantly.</p>
+          <p className="text-wk-ink-400 text-sm mt-0.5">Control what alerts you receive. Changes save instantly.</p>
         </div>
         <StSection title="STUDY ALERTS">
           <StRow label="Study Reminders" sub="Reminders to start your scheduled sessions (Telegram)">
@@ -8897,7 +8907,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <>
         <div>
           <h2 className="text-xl font-bold text-white">Privacy</h2>
-          <p className="text-slate-400 text-sm mt-0.5">Control who can see your data. Changes save instantly.</p>
+          <p className="text-wk-ink-400 text-sm mt-0.5">Control who can see your data. Changes save instantly.</p>
         </div>
         <StSection title="PROFILE VISIBILITY">
           <StRow label="Public Profile" sub="Anyone on Wynko can see your profile"><StToggle val={prefs.privacy_public_profile} onChange={v => void updatePrefs({ privacy_public_profile: v })} /></StRow>
@@ -8913,7 +8923,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         <StSection title="DATA & PRIVACY">
           <StRow label="Download My Data" sub="Your profile, study sessions, plan and battle history as JSON">
             <button onClick={() => void downloadData()} disabled={busy === 'export'}
-              className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-violet-400 hover:border-violet-500/50 transition-all border-[#1E3060] disabled:opacity-50">
+              className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-wk-orange-300 hover:border-wk-orange-500/50 transition-all border-[#3A3A3A] disabled:opacity-50">
               {busy === 'export' ? 'Preparing…' : 'Download'}
             </button>
           </StRow>
@@ -8925,18 +8935,18 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <>
         <div>
           <h2 className="text-xl font-bold text-white">Study Preferences</h2>
-          <p className="text-slate-400 text-sm mt-0.5">Personalize your study experience. Changes save instantly.</p>
+          <p className="text-wk-ink-400 text-sm mt-0.5">Personalize your study experience. Changes save instantly.</p>
         </div>
         <StSection title="DAILY GOALS">
           <div className="py-3.5">
-            <div className="text-[10px] text-slate-500 font-mono mb-2">DAILY STUDY GOAL (HOURS) · drives Home’s Today’s Focus</div>
+            <div className="text-[10px] text-wk-ink-500 font-mono mb-2">DAILY STUDY GOAL (HOURS) · drives Home’s Today’s Focus</div>
             <div className="flex gap-2 flex-wrap">
               {goalHoursOptions.map(h => {
                 const m = Math.round(h * 60), on = goalMinutes === m
                 return (
                   <button key={h} onClick={() => { if (!on) void updateColumn(setGoalMinutes, goalMinutes, m, { daily_focus_goal_minutes: m }, `✓ Daily goal set to ${h}h`) }}
                     className="px-4 py-2 rounded-xl border text-sm font-semibold transition-all"
-                    style={{ background: on ? '#1A2845' : '#0B1530', color: on ? '#C4AAFF' : '#4E5E84', borderColor: on ? '#4A3A88' : 'rgba(26,40,69,0.55)' }}>
+                    style={{ background: on ? '#26262A' : '#161618', color: on ? '#FFA94D' : '#7A756D', borderColor: on ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
                     {h}h
                   </button>
                 )
@@ -8950,18 +8960,18 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             { mode: 'regular' as const, name: 'Regular (count up)', sub: 'No time limit — stop when you’re done' },
           ]).map(t => (
             <button key={t.mode} onClick={() => setTimerMode(t.mode)}
-              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(26,40,69,0.55)] text-left">
+              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 border-[rgba(38,38,42,0.55)] text-left">
               <div>
-                <div className="text-sm font-medium text-slate-200">{t.name}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{t.sub}</div>
+                <div className="text-sm font-medium text-wk-ink-200">{t.name}</div>
+                <div className="text-[11px] text-wk-ink-500 mt-0.5">{t.sub}</div>
               </div>
               <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                style={{ borderColor: timerMode === t.mode ? '#7C4DFF' : '#1E3060' }}>
-                {timerMode === t.mode && <div className="w-2 h-2 rounded-full bg-violet-500" />}
+                style={{ borderColor: timerMode === t.mode ? '#FF8A3D' : '#3A3A3A' }}>
+                {timerMode === t.mode && <div className="w-2 h-2 rounded-full bg-wk-orange-500" />}
               </div>
             </button>
           ))}
-          <div className="text-[10px] text-slate-600 pb-3">Pomodoro lengths are edited from the Pomodoro card in Focus Lock.</div>
+          <div className="text-[10px] text-wk-ink-600 pb-3">Pomodoro lengths are edited from the Pomodoro card in Focus Lock.</div>
         </StSection>
         <StSection title="FOCUS SESSION">
           <StRow label="Auto-start Breaks" sub="Automatically start break timer after focus"><StToggle val={prefs.focus_auto_start_breaks} onChange={v => void updatePrefs({ focus_auto_start_breaks: v })} /></StRow>
@@ -8975,14 +8985,14 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <>
         <div>
           <h2 className="text-xl font-bold text-white">About Wynko</h2>
-          <p className="text-slate-400 text-sm mt-0.5">App info and legal.</p>
+          <p className="text-wk-ink-400 text-sm mt-0.5">App info and legal.</p>
         </div>
-        <div className="rounded-2xl border p-8 text-center bg-[#0B1530] border-[#1A2845]">
+        <div className="rounded-2xl border p-8 text-center bg-[#161618] border-[#26262A]">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 32px rgba(124,77,255,0.6), 0 0 64px rgba(40,85,204,0.3)' }}>W</div>
+            style={{ background: '#FF8A3D', boxShadow: 'none' }}>W</div>
           <div className="text-xl font-black text-white mb-1">Wynko</div>
-          <div className="text-[11px] text-slate-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
-          <div className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
+          <div className="text-[11px] text-wk-ink-500 font-mono mb-4">VERSION 1.0.0 (BETA)</div>
+          <div className="text-sm text-wk-ink-400 max-w-xs mx-auto leading-relaxed">Better Focus. Better Results. Study smarter with your community.</div>
         </div>
         <StSection title="LEGAL & INFO">
           {[
@@ -8990,12 +9000,12 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             { label: 'Privacy Policy', icon: '🔒', href: '/privacy' },
           ].map(item => (
             <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer"
-              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(26,40,69,0.55)]">
+              className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(38,38,42,0.55)]">
               <div className="flex items-center gap-3">
                 <span className="text-base">{item.icon}</span>
-                <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{item.label}</span>
+                <span className="text-sm font-medium text-wk-ink-200 group-hover:text-white transition-colors">{item.label}</span>
               </div>
-              <Ico n="chevR" cls="w-4 h-4 text-slate-600" />
+              <Ico n="chevR" cls="w-4 h-4 text-wk-ink-600" />
             </a>
           ))}
         </StSection>
@@ -9004,21 +9014,21 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]">
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]">
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5">SETTINGS</div>
-            <div className="text-sm font-semibold text-slate-200">Manage your account & preferences.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5">SETTINGS</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Manage your account & preferences.</div>
           </div>
           {toast && (
             <div role="status" className="max-w-md px-3 py-1.5 rounded-full text-[11px] font-semibold truncate"
               style={toast.ok
-                ? { background: 'rgba(25,211,162,0.12)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }
+                ? { background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }
                 : { background: 'rgba(239,68,68,0.12)', color: '#F87171', border: '1px solid rgba(239,68,68,0.35)' }}>
               {toast.msg}
             </div>
@@ -9027,20 +9037,20 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(26,40,69,0.55)] bg-[rgba(6,8,15,0.5)]">
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(38,38,42,0.55)] bg-[rgba(11,11,13,0.5)]">
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
                 style={{
-                  background: activeTab === tab.id ? 'rgba(26,40,69,0.55)' : 'transparent',
-                  color: activeTab === tab.id ? '#C4AAFF' : '#4E5E84',
-                  border: `1px solid ${activeTab === tab.id ? '#1E3060' : 'transparent'}`,
+                  background: activeTab === tab.id ? 'rgba(38,38,42,0.55)' : 'transparent',
+                  color: activeTab === tab.id ? '#FFA94D' : '#7A756D',
+                  border: `1px solid ${activeTab === tab.id ? '#3A3A3A' : 'transparent'}`,
                 }}>
                 <span className="text-base">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
-            <div className="pt-4 mt-4 border-t px-1 border-[rgba(26,40,69,0.55)]">
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(38,38,42,0.55)]">
               <button onClick={() => void handleLogout()} disabled={busy === 'logout'}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
                 <span className="text-base">🚪</span> {busy === 'logout' ? 'Signing out…' : 'Log Out'}
@@ -9057,13 +9067,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
       {deleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => { if (busy !== 'delete') setDeleteOpen(false) }}>
-          <div className="w-full max-w-sm rounded-2xl border bg-[#0B1530] border-[rgba(239,68,68,0.35)] p-6" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl border bg-[#161618] border-[rgba(239,68,68,0.35)] p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-white mb-2">Delete your account?</h2>
-            <p className="text-slate-400 text-sm mb-4">This permanently deletes your profile, study history, plans, battles and everything else tied to your account. It can’t be undone.</p>
-            <div className="text-[10px] text-slate-500 font-mono mb-1.5">TYPE DELETE TO CONFIRM</div>
+            <p className="text-wk-ink-400 text-sm mb-4">This permanently deletes your profile, study history, plans, battles and everything else tied to your account. It can’t be undone.</p>
+            <div className="text-[10px] text-wk-ink-500 font-mono mb-1.5">TYPE DELETE TO CONFIRM</div>
             <input value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="DELETE" className={`${ST_INPUT} mb-4`} autoFocus />
             <div className="flex gap-2">
-              <button onClick={() => setDeleteOpen(false)} disabled={busy === 'delete'} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 border-[#1A2845]">Cancel</button>
+              <button onClick={() => setDeleteOpen(false)} disabled={busy === 'delete'} className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 border-[#26262A]">Cancel</button>
               <button onClick={() => void confirmDelete()} disabled={deleteText !== 'DELETE' || busy === 'delete'}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40" style={{ background: '#DC2626' }}>
                 {busy === 'delete' ? 'Deleting…' : 'Delete forever'}
@@ -9140,8 +9150,8 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   }
 
   const PACK_STYLES = [
-    { color: '#7C4DFF', glow: '#2855CC', grad: 'linear-gradient(135deg,#7C4DFF,#5C35CC)' },
-    { color: '#19B5E6', glow: 'rgba(25,181,230,0.40)', grad: 'linear-gradient(135deg,#0F99CC,#0C7FAA)' },
+    { color: '#FF8A3D', glow: '#3A3A3A', grad: 'linear-gradient(135deg,#FF8A3D,#E9772E)' },
+    { color: '#CFC8BB', glow: 'rgba(207,200,187,0.40)', grad: 'linear-gradient(135deg,#9C968C,#9C968C)' },
     { color: '#F59E0B', glow: 'rgba(245,158,11,0.40)', grad: 'linear-gradient(135deg,#F59E0B,#D97706)' },
   ]
   const PACKS = packagesQ.data.map((p, i) => {
@@ -9156,19 +9166,19 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   })
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
       <Sidebar active="wynkoins" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOINS</div>
-            <div className="text-sm font-semibold text-slate-200">Buy coins. Unlock perks.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5" >WYNKOINS</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Buy coins. Unlock perks.</div>
           </div>
           {/* Balance pill */}
           <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
@@ -9184,9 +9194,9 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         {toast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl transition-all"
             style={{
-              background: toast.type === 'success' ? 'rgba(25,211,162,0.15)' : 'rgba(239,68,68,0.15)',
-              border: `1px solid ${toast.type === 'success' ? 'rgba(25,211,162,0.40)' : 'rgba(239,68,68,0.4)'}`,
-              color: toast.type === 'success' ? '#19D3A2' : '#F87171',
+              background: toast.type === 'success' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)',
+              border: `1px solid ${toast.type === 'success' ? 'rgba(52,211,153,0.40)' : 'rgba(239,68,68,0.4)'}`,
+              color: toast.type === 'success' ? '#34D399' : '#F87171',
               backdropFilter: 'blur(12px)',
             }}>
             {toast.msg}
@@ -9197,22 +9207,22 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
           {/* Hero */}
           <div className="relative overflow-hidden px-8 py-8 border-b"
-            style={{ background: 'linear-gradient(130deg,#080B1A,#12083A 60%,#080B1A)', borderColor: 'rgba(245,158,11,0.15)' }}>
+            style={{ background: 'linear-gradient(130deg,#0B0B0D,#161618 60%,#0B0B0D)', borderColor: 'rgba(245,158,11,0.15)' }}>
             <div className="absolute inset-0 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at 60% 50%,rgba(245,158,11,0.1),transparent 65%)' }} />
             <div className="relative z-10 flex items-center gap-10">
               {/* Giant coin */}
               <div className="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', boxShadow: '0 0 48px rgba(245,158,11,0.5), 0 0 96px rgba(245,158,11,0.2)' }}>
+                style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', boxShadow: 'none' }}>
                 <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 object-contain" />
               </div>
               <div>
                 <div className="text-[10px] font-mono tracking-[0.28em] text-amber-500 mb-2">WYNKO VIRTUAL CURRENCY</div>
                 <h1 className="text-3xl font-black text-white mb-1">WYNKOINS</h1>
-                <p className="text-slate-400 text-sm max-w-lg leading-relaxed">Buy WYNKOINS to unlock exclusive perks inside Wynko — remove ads, unlock features, and more coming soon.</p>
+                <p className="text-wk-ink-400 text-sm max-w-lg leading-relaxed">Buy WYNKOINS to unlock exclusive perks inside Wynko — remove ads, unlock features, and more coming soon.</p>
               </div>
               <div className="ml-auto flex-shrink-0 text-right">
-                <div className="text-[10px] text-slate-500 font-mono mb-1">YOUR BALANCE</div>
+                <div className="text-[10px] text-wk-ink-500 font-mono mb-1">YOUR BALANCE</div>
                 <div className="text-5xl font-black text-amber-400" >{balance}</div>
                 <div className="text-[11px] text-amber-600 mt-0.5">WYNKOINS</div>
               </div>
@@ -9227,12 +9237,12 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               {/* ── BUY WYNKOINS ── */}
               <div>
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">BUY WYNKOINS</div>
-                {packagesQ.status === 'loading' && PACKS.length === 0 && <div className="text-[12px] text-slate-500">Loading coin packs…</div>}
+                {packagesQ.status === 'loading' && PACKS.length === 0 && <div className="text-[12px] text-wk-ink-500">Loading coin packs…</div>}
                 {packagesQ.status === 'error' && PACKS.length === 0 && <div className="text-[12px] text-amber-300">{packagesQ.error}</div>}
                 <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
                   {PACKS.map(pack => (
                     <div key={pack.id} className="relative rounded-2xl border overflow-hidden"
-                      style={{ borderColor: pack.popular ? pack.color + '60' : '#1A2845', background: '#0B1530', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
+                      style={{ borderColor: pack.popular ? pack.color + '60' : '#26262A', background: '#161618', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
                       {pack.popular && (
                         <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: pack.grad }} />
                       )}
@@ -9249,11 +9259,11 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                           </div>
                           <div>
                             <div className="text-3xl font-black text-white" >{pack.coins}</div>
-                            <div className="text-[10px] text-slate-500">WYNKOINS · {pack.perCoin}</div>
+                            <div className="text-[10px] text-wk-ink-500">WYNKOINS · {pack.perCoin}</div>
                           </div>
                         </div>
                         <div className="text-2xl font-black mb-1" style={{ color: pack.color }}>{pack.price}</div>
-                        <div className="text-[11px] text-slate-500 mb-5">one-time purchase · UPI, cards, net banking via Razorpay</div>
+                        <div className="text-[11px] text-wk-ink-500 mb-5">one-time purchase · UPI, cards, net banking via Razorpay</div>
                         <button
                           onClick={() => handleBuy(pack)}
                           disabled={!!buying}
@@ -9271,21 +9281,21 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
               {/* ── SPEND WYNKOINS ── */}
               <div>
-                <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">SPEND WYNKOINS</div>
-                <div className="rounded-2xl border overflow-hidden" style={{ background: '#0B1530', borderColor: adsFree ? 'rgba(25,211,162,0.40)' : '#1A2845' }}>
-                  {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#19D3A2,#0DAE86)' }} />}
+                <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">SPEND WYNKOINS</div>
+                <div className="rounded-2xl border overflow-hidden" style={{ background: '#161618', borderColor: adsFree ? 'rgba(52,211,153,0.40)' : '#26262A' }}>
+                  {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#34D399,#10B981)' }} />}
                   <div className="p-6 flex items-center gap-5">
                     {/* Icon */}
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                      style={{ background: adsFree ? 'rgba(25,211,162,0.12)' : 'rgba(26,40,69,0.55)', border: `1.5px solid ${adsFree ? 'rgba(25,211,162,0.40)' : '#1E3060'}` }}>
+                      style={{ background: adsFree ? 'rgba(52,211,153,0.12)' : 'rgba(38,38,42,0.55)', border: `1.5px solid ${adsFree ? 'rgba(52,211,153,0.40)' : '#3A3A3A'}` }}>
                       🚫
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="text-base font-black text-white">Remove Ads</div>
-                        {adsFree && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(25,211,162,0.15)', color: '#19D3A2', border: '1px solid rgba(25,211,162,0.30)' }}>ACTIVE</span>}
+                        {adsFree && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(52,211,153,0.15)', color: '#34D399', border: '1px solid rgba(52,211,153,0.30)' }}>ACTIVE</span>}
                       </div>
-                      <div className="text-sm text-slate-400 mb-2">Enjoy Wynko completely ad-free for <span className="text-white font-semibold">1 full month</span>.</div>
+                      <div className="text-sm text-wk-ink-400 mb-2">Enjoy Wynko completely ad-free for <span className="text-white font-semibold">1 full month</span>.</div>
                       {adsFree && adsFreeExpiry && (
                         <div className="text-[11px] font-mono text-emerald-400">Ad-free active until {adsFreeExpiry}</div>
                       )}
@@ -9303,10 +9313,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         disabled={spending || !adFreeItem || balance < adFreeCost}
                         className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                         style={{
-                          background: balance >= adFreeCost ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'rgba(30,30,50,0.8)',
-                          color: balance >= adFreeCost ? '#fff' : '#4E5E84',
-                          border: balance >= adFreeCost ? 'none' : '1px solid #1A2845',
-                          boxShadow: balance >= adFreeCost ? '0 0 20px rgba(124,77,255,0.55), 0 0 40px rgba(92,53,204,0.25)' : 'none',
+                          background: balance >= adFreeCost ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'rgba(28,28,31,0.8)',
+                          color: balance >= adFreeCost ? '#fff' : '#7A756D',
+                          border: balance >= adFreeCost ? 'none' : '1px solid #26262A',
+                          boxShadow: balance >= adFreeCost ? 'none' : 'none',
                         }}>
                         {spending ? 'Unlocking…' : balance >= adFreeCost ? (<>Unlock for {adFreeCost} <img src="/wynkoin.png" alt="Wynkoin" className="w-4 h-4 object-contain inline-block" style={{ verticalAlign: '-3px' }} /></>) : 'Not enough coins'}
                       </button>
@@ -9323,11 +9333,11 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                     { icon: '🏆', label: 'Exclusive Badges', coins: '???', soon: true },
                   ].map(p => (
                     <div key={p.label} className="rounded-xl border p-4 flex items-center gap-3 opacity-50"
-                      style={{ background: '#0B1530', borderColor: 'rgba(26,40,69,0.55)', borderStyle: 'dashed' }}>
+                      style={{ background: '#161618', borderColor: 'rgba(38,38,42,0.55)', borderStyle: 'dashed' }}>
                       <span className="text-2xl">{p.icon}</span>
                       <div>
-                        <div className="text-sm font-bold text-slate-300">{p.label}</div>
-                        <div className="text-[10px] text-slate-600">Coming soon</div>
+                        <div className="text-sm font-bold text-wk-ink-300">{p.label}</div>
+                        <div className="text-[10px] text-wk-ink-600">Coming soon</div>
                       </div>
                     </div>
                   ))}
@@ -9339,7 +9349,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <div className="w-72 flex-shrink-0 space-y-4">
 
               {/* Balance card */}
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.35)]" >
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[rgba(245,158,11,0.35)]" >
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">WALLET</div>
                 <div className="flex items-end gap-2 mb-1">
                   <div className="text-5xl font-black text-amber-400" >{balance}</div>
@@ -9348,35 +9358,35 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="w-full rounded-full h-2 mb-3 bg-[rgba(245,158,11,0.12)]" >
                   <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(100, (balance / Math.max(adFreeCost, 1)) * 100)}%`, background: 'linear-gradient(90deg,#F59E0B,#D97706)' }} />
                 </div>
-                <div className="text-[10px] text-slate-600 mb-4">{balance < adFreeCost ? `${adFreeCost - balance} more coins needed to remove ads` : 'Enough to remove ads!'}</div>
+                <div className="text-[10px] text-wk-ink-600 mb-4">{balance < adFreeCost ? `${adFreeCost - balance} more coins needed to remove ads` : 'Enough to remove ads!'}</div>
                 {adsFree && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3 bg-[rgba(25,211,162,0.08)] border-[rgba(25,211,162,0.30)]"
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border mb-3 bg-[rgba(52,211,153,0.08)] border-[rgba(52,211,153,0.30)]"
                     >
                     <span>🚫</span>
                     <div className="text-[11px] text-emerald-400 font-semibold">Ad-free until {adsFreeExpiry}</div>
                   </div>
                 )}
-                <button onClick={() => onNavigate('earn')} className="w-full py-2 rounded-xl border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]"
+                <button onClick={() => onNavigate('earn')} className="w-full py-2 rounded-xl border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]"
                   >
                   Earn free WYNKOINS →
                 </button>
               </div>
 
               {/* Transaction history */}
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">TRANSACTION HISTORY</div>
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
+                <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">TRANSACTION HISTORY</div>
                 {history.length === 0 ? (
-                  <div className="text-center py-6 text-slate-600 text-[12px]">No transactions yet</div>
+                  <div className="text-center py-6 text-wk-ink-600 text-[12px]">No transactions yet</div>
                 ) : (
                   <div className="space-y-0">
                     {history.map((h, i) => (
-                      <div key={i} className="flex items-center justify-between py-2.5 border-b last:border-0 border-[rgba(26,40,69,0.55)]"
+                      <div key={i} className="flex items-center justify-between py-2.5 border-b last:border-0 border-[rgba(38,38,42,0.55)]"
                         >
                         <div>
-                          <div className="text-[12px] font-medium text-slate-300">{h.label}</div>
-                          <div className="text-[10px] text-slate-600 font-mono">{h.date}</div>
+                          <div className="text-[12px] font-medium text-wk-ink-300">{h.label}</div>
+                          <div className="text-[10px] text-wk-ink-600 font-mono">{h.date}</div>
                         </div>
-                        <div className="text-sm font-black" style={{ color: h.type === 'credit' ? '#19D3A2' : '#F87171' }}>
+                        <div className="text-sm font-black" style={{ color: h.type === 'credit' ? '#34D399' : '#F87171' }}>
                           {h.type === 'credit' ? '+' : '−'}{h.amount}
                         </div>
                       </div>
@@ -9386,8 +9396,8 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
               </div>
 
               {/* How to earn free */}
-              <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(26,40,69,0.55)]" >
-                <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">EARN FREE WYNKOINS</div>
+              <div className="rounded-2xl border p-5 bg-[#161618] border-[rgba(38,38,42,0.55)]" >
+                <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">EARN FREE WYNKOINS</div>
                 <div className="space-y-2.5">
                   {[
                     { icon: '🎁', label: 'Invite a friend', sub: '+50 coins after their 3-day streak' },
@@ -9396,10 +9406,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                   ].map(e => (
                     <div key={e.label} className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                        style={{ background: 'rgba(26,40,69,0.55)', border: '1px solid #1A2845' }}>{e.icon}</div>
+                        style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #26262A' }}>{e.icon}</div>
                       <div>
-                        <div className="text-[12px] font-semibold text-slate-300">{e.label}</div>
-                        <div className="text-[10px] text-slate-600">{e.sub}</div>
+                        <div className="text-[12px] font-semibold text-wk-ink-300">{e.label}</div>
+                        <div className="text-[10px] text-wk-ink-600">{e.sub}</div>
                       </div>
                     </div>
                   ))}
@@ -9465,7 +9475,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
       : t.reason.startsWith('redeem_') ? `Redeemed ${t.reason.slice(7).replace(/_/g, ' ')}`
       : t.reason.replace(/_/g, ' '),
     coins: `${t.amount >= 0 ? '+' : '−'}${Math.abs(t.amount).toLocaleString('en-IN')}`,
-    color: t.amount >= 0 ? '#19D3A2' : '#F87171',
+    color: t.amount >= 0 ? '#34D399' : '#F87171',
   }))
 
   function copyFriend() { if (!friendLink) return; navigator.clipboard?.writeText(friendLink); setFriendCopied(true); setTimeout(() => setFriendCopied(false), 2000) }
@@ -9517,21 +9527,21 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
       { name: "Priya Meena", joined: "5 days ago", purchases: "₹800", earn: "₹400" },
     ]
     return (
-      <div className="flex h-screen overflow-hidden bg-[#020615]" >
+      <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
         <Sidebar active="earn" setActive={onNavigate} profile={profile} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+          <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
             >
-            <button onClick={() => setInLibrary(false)} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+            <button onClick={() => setInLibrary(false)} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Back
             </button>
             <div className="flex-1">
-              <div className="text-[10px] text-slate-600 mb-0.5" >WYNKOHEAD LIBRARY</div>
-              <div className="text-sm font-semibold text-slate-200">Your community dashboard</div>
+              <div className="text-[10px] text-wk-ink-600 mb-0.5" >WYNKOHEAD LIBRARY</div>
+              <div className="text-sm font-semibold text-wk-ink-200">Your community dashboard</div>
             </div>
             {communityCreated && (
               <button onClick={() => onNavigate("studyrooms")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]">
                 👑 Visit your community
               </button>
             )}
@@ -9549,13 +9559,13 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
               <div className="flex-1 min-w-0 space-y-4">
 
                 {/* Share link */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">YOUR WYNKOHEAD INVITE LINK</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Share this link — anyone who joins Wynko via this link is added to your community.</div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
-                    <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold truncate" >{linkLabel(wynkoHeadLink)}</span>
-                    <button onClick={copyHeadLink} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]" >
+                  <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-1">YOUR WYNKOHEAD INVITE LINK</div>
+                  <div className="text-[11px] text-wk-ink-500 mb-3">Share this link — anyone who joins Wynko via this link is added to your community.</div>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#161618] border-[#26262A]" >
+                    <span className="text-wk-orange-300">🔗</span>
+                    <span className="text-sm text-wk-ink-200 flex-1 font-bold truncate" >{linkLabel(wynkoHeadLink)}</span>
+                    <button onClick={copyHeadLink} className="text-wk-ink-500 hover:text-wk-orange-300 transition-colors p-1">
                       {headLinkCopied ? <span className="text-[10px] text-emerald-400">✓ Copied</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
                     </button>
@@ -9572,54 +9582,54 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 </div>
 
                 {/* Community */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
                   <div className="flex items-center justify-between mb-1">
-                    <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400">YOUR COMMUNITY</div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#9B6CFF] bg-[rgba(26,40,69,0.55)] border-[#1E3060]" >{communityMembers.length} members</span>
+                    <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300">YOUR COMMUNITY</div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-[#FFA94D] bg-[rgba(38,38,42,0.55)] border-[#3A3A3A]" >{communityMembers.length} members</span>
                   </div>
-                  <div className="text-[11px] text-slate-500 mb-4">Only users who joined Wynko via your link appear here.</div>
+                  <div className="text-[11px] text-wk-ink-500 mb-4">Only users who joined Wynko via your link appear here.</div>
 
                   {communityMembers.length === 0 ? (
                     <div className="py-10 flex flex-col items-center text-center gap-2">
                       <div className="text-4xl">👥</div>
-                      <div className="text-sm font-semibold text-slate-400">No members yet</div>
-                      <div className="text-[11px] text-slate-600 max-w-xs">Share your WynkoHead invite link above. When someone joins Wynko using that link, they will appear here.</div>
+                      <div className="text-sm font-semibold text-wk-ink-400">No members yet</div>
+                      <div className="text-[11px] text-wk-ink-600 max-w-xs">Share your WynkoHead invite link above. When someone joins Wynko using that link, they will appear here.</div>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {communityMembers.map((m, i) => (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[#0B1530] border-[rgba(26,40,69,0.55)]" >
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-[#161618] border-[rgba(38,38,42,0.55)]" >
                           <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)" }}>
+                            style={{ background: "linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)" }}>
                             {m.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-semibold text-slate-200">{m.name}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">Joined {m.joined}</div>
+                            <div className="text-sm font-semibold text-wk-ink-200">{m.name}</div>
+                            <div className="text-[10px] text-wk-ink-500 font-mono">Joined {m.joined}</div>
                           </div>
-                          <div className="px-2 py-0.5 rounded-full text-[9px] font-bold border text-[#19D3A2] bg-[rgba(25,211,162,0.10)] border-[rgba(25,211,162,0.30)]" >ACTIVE</div>
+                          <div className="px-2 py-0.5 rounded-full text-[9px] font-bold border text-[#34D399] bg-[rgba(52,211,153,0.10)] border-[rgba(52,211,153,0.30)]" >ACTIVE</div>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {/* Dev helper: simulate a user joining */}
-                  <div className="mt-4 pt-4 border-t flex gap-2 items-center border-[rgba(26,40,69,0.55)]" >
-                    <div className="text-[9px] text-slate-600 flex-shrink-0 font-mono">SIMULATE JOIN (DEMO)</div>
+                  <div className="mt-4 pt-4 border-t flex gap-2 items-center border-[rgba(38,38,42,0.55)]" >
+                    <div className="text-[9px] text-wk-ink-600 flex-shrink-0 font-mono">SIMULATE JOIN (DEMO)</div>
                     <input value={simName} onChange={e => setSimName(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && addSimMember()}
                       placeholder="Enter a name to simulate..."
-                      className="flex-1 px-3 py-1.5 rounded-lg border bg-transparent text-[11px] text-slate-300 outline-none placeholder-slate-700 border-[#1A2845]"
+                      className="flex-1 px-3 py-1.5 rounded-lg border bg-transparent text-[11px] text-wk-ink-300 outline-none placeholder-wk-ink-700 border-[#26262A]"
                        />
                     <button onClick={addSimMember}
-                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-violet-300 border hover:border-violet-500/50 transition-all border-[#1E3060]"
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-wk-orange-300 border hover:border-wk-orange-500/50 transition-all border-[#3A3A3A]"
                       >Add</button>
                   </div>
                 </div>
 
                 {/* Community revenue detail */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">REVENUE BREAKDOWN — EXAMPLE</div>
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
+                  <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">REVENUE BREAKDOWN — EXAMPLE</div>
                   <div className="mb-3 px-3 py-2 rounded-lg text-[10px] font-mono" style={{ background: "rgba(245,158,11,0.07)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.2)" }}>
                     ⚠ THESE ARE EXAMPLE EARNINGS — YOUR ACTUAL NUMBERS WILL APPEAR AS YOUR COMMUNITY GROWS
                   </div>
@@ -9628,12 +9638,12 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                       { icon: "👥", label: "Community purchases", price: "₹1,200", earn: "₹600", note: "50% share" },
                       { icon: "📚", label: "Study Pack purchase", price: "₹500", earn: "₹250", note: "50% share" },
                     ].map(ex => (
-                      <div key={ex.label} className="flex-1 p-3.5 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
+                      <div key={ex.label} className="flex-1 p-3.5 rounded-xl border bg-[rgba(255,138,61,0.08)] border-[rgba(38,38,42,0.55)]" >
                         <div className="text-xl mb-2">{ex.icon}</div>
-                        <div className="text-[11px] font-bold text-slate-300 mb-0.5">{ex.label}</div>
-                        <div className="text-[10px] text-slate-500">{ex.price} · {ex.note}</div>
-                        <div className="mt-2 pt-2 border-t text-[11px] border-[rgba(26,40,69,0.55)]" >
-                          You earn: <span className="font-bold text-[#19D3A2]" >{ex.earn}</span>
+                        <div className="text-[11px] font-bold text-wk-ink-300 mb-0.5">{ex.label}</div>
+                        <div className="text-[10px] text-wk-ink-500">{ex.price} · {ex.note}</div>
+                        <div className="mt-2 pt-2 border-t text-[11px] border-[rgba(38,38,42,0.55)]" >
+                          You earn: <span className="font-bold text-[#34D399]" >{ex.earn}</span>
                         </div>
                       </div>
                     ))}
@@ -9644,7 +9654,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
 
               {/* Right sidebar — earnings */}
               <div className="w-68 flex-shrink-0 space-y-4" style={{ width: "268px" }}>
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]" >
                   <div className="flex items-center gap-2 mb-4">
                     <span>👑</span>
                     <span className="text-sm font-bold text-white">Your Earnings</span>
@@ -9654,30 +9664,30 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                   <div className="text-[10px] text-amber-500 mb-3 font-mono">EXAMPLE — grows as your community grows</div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(245,158,11,0.06)] border-[rgba(245,158,11,0.2)]" >
-                      <div className="flex items-center gap-2"><span>⏱️</span><span className="text-[11px] text-slate-400">Pending confirmation</span></div>
+                      <div className="flex items-center gap-2"><span>⏱️</span><span className="text-[11px] text-wk-ink-400">Pending confirmation</span></div>
                       <span className="text-sm font-bold text-amber-400">{pending}</span>
                     </div>
-                    <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(25,211,162,0.06)] border-[rgba(25,211,162,0.20)]" >
-                      <div className="flex items-center gap-2"><span>💳</span><span className="text-[11px] text-slate-400">Available to withdraw</span></div>
+                    <div className="flex items-center justify-between p-3 rounded-xl border bg-[rgba(52,211,153,0.06)] border-[rgba(52,211,153,0.20)]" >
+                      <div className="flex items-center gap-2"><span>💳</span><span className="text-[11px] text-wk-ink-400">Available to withdraw</span></div>
                       <span className="text-sm font-bold text-emerald-400">{available}</span>
                     </div>
                   </div>
                   <button className="w-full mt-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)", boxShadow: "0 0 16px #1E3060" }}>
+                    style={{ background: "linear-gradient(135deg,#FF8A3D,#E9772E)", boxShadow: "0 0 16px #3A3A3A" }}>
                     Withdraw Earnings
                   </button>
                 </div>
 
                 {/* WYNKOINS */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">WYNKOINS</span></div>
                   <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Recent activity</div>
+                  <div className="text-[11px] text-wk-ink-500 mb-3">Recent activity</div>
                   <div className="space-y-1.5 text-[11px]">
-                    {coinHistory.length === 0 && <div className="text-slate-600 py-1.5">{coinHistoryQ.status === 'loading' ? 'Loading…' : 'No coin activity yet'}</div>}
+                    {coinHistory.length === 0 && <div className="text-wk-ink-600 py-1.5">{coinHistoryQ.status === 'loading' ? 'Loading…' : 'No coin activity yet'}</div>}
                     {coinHistory.map((e, i) => (
                       <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
-                        <span className="text-slate-400">{e.label}</span>
+                        <span className="text-wk-ink-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
@@ -9686,15 +9696,15 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                     >Redeem WYNKOINS</button>
                 </div>
 
-                <div className="rounded-2xl border p-4 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">COMMUNITY STATS</div>
+                <div className="rounded-2xl border p-4 bg-[#161618] border-[#26262A]" >
+                  <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">COMMUNITY STATS</div>
                   <div className="grid grid-cols-1 gap-2">
                     {[
-                      { label: "Members", val: String(communityMembers.length), color: "#C4AAFF" },
+                      { label: "Members", val: String(communityMembers.length), color: "#FFA94D" },
                     ].map(s => (
-                      <div key={s.label} className="p-3 rounded-xl border text-center border-[rgba(26,40,69,0.55)] bg-[#0B1530]" >
+                      <div key={s.label} className="p-3 rounded-xl border text-center border-[rgba(38,38,42,0.55)] bg-[#161618]" >
                         <div className="text-xl font-black" style={{ color: s.color }}>{s.val}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">{s.label}</div>
+                        <div className="text-[10px] text-wk-ink-500 mt-0.5">{s.label}</div>
                       </div>
                     ))}
                   </div>
@@ -9709,21 +9719,21 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
 
   // ── Main Earn Page ──
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020615]" >
+    <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
       <Sidebar active="earn" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]"
+        <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate("home")} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate("home")} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
-            <div className="text-[10px] text-slate-600 mb-0.5" >EARN WITH WYNKO</div>
-            <div className="text-sm font-semibold text-slate-200">Build your community. Share the revenue.</div>
+            <div className="text-[10px] text-wk-ink-600 mb-0.5" >EARN WITH WYNKO</div>
+            <div className="text-sm font-semibold text-wk-ink-200">Build your community. Share the revenue.</div>
           </div>
           {isWynkoHead && communityCreated && (
             <button onClick={() => onNavigate("studyrooms")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-violet-300 hover:bg-violet-500/10 transition-all border-[#1E3060]">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]">
               👑 Visit your community
             </button>
           )}
@@ -9737,12 +9747,12 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
 
         <main className="flex-1 overflow-y-auto">
           {/* Hero — no revenue split visual */}
-          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#080B1A 0%,#12083A 55%,#080B1A 100%)", borderBottom: "1px solid #1A2845" }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,#1A2845,transparent 65%)" }} />
+          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#0B0B0D 0%,#161618 55%,#0B0B0D 100%)", borderBottom: "1px solid #26262A" }}>
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,#26262A,transparent 65%)" }} />
             <div className="relative z-10">
-              <div className="text-[10px] font-mono tracking-[0.28em] text-violet-400 mb-3">EARN WITH WYNKO</div>
-              <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(135deg,#7C4DFF,#19B5E6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Or simply invite friends and earn WYNKOINS together.</p>
+              <div className="text-[10px] font-mono tracking-[0.28em] text-wk-orange-300 mb-3">EARN WITH WYNKO</div>
+              <h1 className="text-3xl font-black text-white leading-tight mb-1">Become a <span style={{ background: "linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>WynkoHead.</span></h1>
+              <p className="text-wk-ink-400 text-sm leading-relaxed max-w-2xl mb-5">Build your own community of students on Wynko. Earn 50% revenue share on every purchase your students make. Or simply invite friends and earn WYNKOINS together.</p>
               <div className="flex gap-6 flex-wrap">
                 {[
                   { icon: "👑", v: "50%", label: "Revenue from your community" },
@@ -9750,10 +9760,10 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 ].map(f => (
                   <div key={f.label} className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                      style={{ background: "rgba(26,40,69,0.55)", border: "1px solid #1E3060" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
+                      style={{ background: "rgba(38,38,42,0.55)", border: "1px solid #3A3A3A" }}>{f.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-6 h-6 object-contain" /> : f.icon}</div>
                     <div>
-                      <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#C4AAFF,#7DD8F0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
-                      <div className="text-[10px] text-slate-500">{f.label}</div>
+                      <div className="text-base font-black" style={{ background: "linear-gradient(135deg,#FFA94D,#FFF7E6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{f.v}</div>
+                      <div className="text-[10px] text-wk-ink-500">{f.label}</div>
                     </div>
                   </div>
                 ))}
@@ -9762,7 +9772,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
           </div>
 
           {/* Tab switcher */}
-          <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(26,40,69,0.55)]" >
+          <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(38,38,42,0.55)]" >
             {([
               { id: "wynkohead" as EarnTab, icon: "👑", label: "WynkoHead Program" },
               { id: "invite" as EarnTab, icon: "🎁", label: "Invite a Friend" },
@@ -9770,9 +9780,9 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
                 style={{
-                  background: tab === t.id ? "rgba(26,40,69,0.55)" : "transparent",
-                  color: tab === t.id ? "#C4AAFF" : "#4E5E84",
-                  border: "1px solid " + (tab === t.id ? "#1E3060" : "transparent"),
+                  background: tab === t.id ? "rgba(38,38,42,0.55)" : "transparent",
+                  color: tab === t.id ? "#FFA94D" : "#7A756D",
+                  border: "1px solid " + (tab === t.id ? "#3A3A3A" : "transparent"),
                 }}>
                 {t.icon} {t.label}
               </button>
@@ -9785,22 +9795,22 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
             {tab === "wynkohead" && (
               <div className="space-y-4">
                 {/* How it works */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">HOW WYNKOHEAD WORKS</div>
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
+                  <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">HOW WYNKOHEAD WORKS</div>
                   <div className="grid grid-cols-3 gap-4">
                     {[
                       { n: "1", icon: "📣", title: "Invite Students", desc: "Share your WynkoHead link. Students who join Wynko via your link become part of your community." },
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
                       { n: "3", icon: "👑", title: "Create Your Community", desc: "Give your community a name and description, then manage it, publish schedules, and track earnings from your dashboard." },
                     ].map(s => (
-                      <div key={s.n} className="p-4 rounded-xl border bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
+                      <div key={s.n} className="p-4 rounded-xl border bg-[rgba(255,138,61,0.08)] border-[rgba(38,38,42,0.55)]" >
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)" }}>{s.n}</div>
+                            style={{ background: "linear-gradient(135deg,#FF8A3D,#E9772E)" }}>{s.n}</div>
                           <span className="text-xl">{s.icon}</span>
                         </div>
                         <div className="text-sm font-bold text-white mb-1.5">{s.title}</div>
-                        <div className="text-[11px] text-slate-400 leading-relaxed">{s.desc}</div>
+                        <div className="text-[11px] text-wk-ink-400 leading-relaxed">{s.desc}</div>
                       </div>
                     ))}
                   </div>
@@ -9811,53 +9821,53 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                   <div className="mb-3 px-4 py-2.5 rounded-xl border text-[13px] text-amber-300" style={{ background: 'rgba(245,158,11,0.07)', borderColor: 'rgba(245,158,11,0.25)' }}>{earnError}</div>
                 )}
                 {!isWynkoHead && applicationPending ? (
-                  <div className="rounded-2xl border p-6 bg-[#0B1530] border-[#1E3060]">
-                    <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">APPLICATION RECEIVED</div>
+                  <div className="rounded-2xl border p-6 bg-[#161618] border-[#3A3A3A]">
+                    <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-1">APPLICATION RECEIVED</div>
                     <div className="text-lg font-black text-white mb-1">Your WynkoHead application is under review</div>
-                    <div className="text-[12px] text-slate-400">We’ll verify your details. Once approved, you can create your community here and start earning.</div>
+                    <div className="text-[12px] text-wk-ink-400">We’ll verify your details. Once approved, you can create your community here and start earning.</div>
                   </div>
                 ) : !isWynkoHead ? (
-                  <div className="rounded-2xl border overflow-hidden bg-[#0B1530] border-[#1E3060]" >
+                  <div className="rounded-2xl border overflow-hidden bg-[#161618] border-[#3A3A3A]" >
                     {!registering ? (
                       <div className="p-6 flex items-center justify-between gap-6">
                         <div>
-                          <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-1">READY TO START?</div>
+                          <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-1">READY TO START?</div>
                           <div className="text-lg font-black text-white mb-1">Register as a WynkoHead</div>
-                          <div className="text-[12px] text-slate-400">{applicationRejected
+                          <div className="text-[12px] text-wk-ink-400">{applicationRejected
                             ? 'Your previous application wasn’t approved. You can apply again.'
                             : 'Apply to unlock your community dashboard, share your invite link, and start earning 50% revenue share.'}</div>
                         </div>
                         <button onClick={() => setRegistering(true)}
                           className="flex-shrink-0 px-6 py-3 rounded-xl text-white font-bold text-sm transition-all hover:scale-[1.03]"
-                          style={{ background: "linear-gradient(135deg,#7C4DFF,#6B44EE)", boxShadow: "0 0 28px #2855CC" }}>
+                          style={{ background: "linear-gradient(135deg,#FF8A3D,#E9772E)", boxShadow: "0 0 28px #3A3A3A" }}>
                           👑 Register as WynkoHead
                         </button>
                       </div>
                     ) : (
                       <div className="p-6">
-                        <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">WYNKOHEAD REGISTRATION</div>
+                        <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">WYNKOHEAD REGISTRATION</div>
                         <div className="space-y-3 max-w-md">
                           <div>
-                            <div className="text-[10px] text-slate-500 mb-1.5">FULL NAME *</div>
+                            <div className="text-[10px] text-wk-ink-500 mb-1.5">FULL NAME *</div>
                             <input value={regName} onChange={e => setRegName(e.target.value)}
                               placeholder="Your full name"
-                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#3A3A3A]"
                                />
                           </div>
                           <div>
-                            <div className="text-[10px] text-slate-500 mb-1.5">PHONE / SOCIAL HANDLE (optional)</div>
+                            <div className="text-[10px] text-wk-ink-500 mb-1.5">PHONE / SOCIAL HANDLE (optional)</div>
                             <input value={regPhone} onChange={e => setRegPhone(e.target.value)}
                               placeholder="+91 or @handle"
-                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-slate-200 outline-none placeholder-slate-600 focus:border-violet-500/50 transition-colors border-[#1E3060]"
+                              className="w-full px-4 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#3A3A3A]"
                                />
                           </div>
                           <div className="flex gap-3 pt-1">
                             <button onClick={() => setRegistering(false)}
-                              className="px-4 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]"
+                              className="px-4 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]"
                               >Cancel</button>
                             <button onClick={() => void handleRegister()} disabled={earnBusy}
                               className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
-                              style={{ background: regName.trim() ? "linear-gradient(135deg,#7C4DFF,#6B44EE)" : "#0B1530", opacity: regName.trim() ? 1 : 0.5 }}>
+                              style={{ background: regName.trim() ? "linear-gradient(135deg,#FF8A3D,#E9772E)" : "#161618", opacity: regName.trim() ? 1 : 0.5 }}>
                               Complete Registration →
                             </button>
                           </div>
@@ -9868,41 +9878,41 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 ) : !communityCreated ? (
                   <button onClick={() => setShowCreateCommunity(true)}
                     className="w-full flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
-                    style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
+                    style={{ background: "linear-gradient(135deg,rgba(38,38,42,0.55),rgba(156,150,140,0.12))", borderColor: "#3A3A3A", boxShadow: "0 0 32px rgba(255,138,61,0.25)" }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>🏘️</div>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#26262A", border: "1px solid #3A3A3A" }}>🏘️</div>
                       <div className="text-left">
                         <div className="text-sm font-bold text-white">Create your community</div>
-                        <div className="text-[11px] text-slate-400">Give it a name & description to get started</div>
+                        <div className="text-[11px] text-wk-ink-400">Give it a name & description to get started</div>
                       </div>
                     </div>
-                    <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                    <Ico n="chevR" cls="w-5 h-5 text-wk-orange-300" />
                   </button>
                 ) : (
                   <div className="flex gap-3 flex-wrap">
                     <button onClick={() => onNavigate("studyrooms")}
                       className="flex-1 min-w-[260px] flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
-                      style={{ background: "linear-gradient(135deg,rgba(26,40,69,0.55),rgba(79,70,229,0.12))", borderColor: "#2855CC", boxShadow: "0 0 32px rgba(124,77,255,0.25)" }}>
+                      style={{ background: "linear-gradient(135deg,rgba(38,38,42,0.55),rgba(156,150,140,0.12))", borderColor: "#3A3A3A", boxShadow: "0 0 32px rgba(255,138,61,0.25)" }}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>👑</div>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#26262A", border: "1px solid #3A3A3A" }}>👑</div>
                         <div className="text-left">
                           <div className="text-sm font-bold text-white">Visit your community</div>
-                          <div className="text-[11px] text-slate-400">Manage students, schedule & earnings</div>
+                          <div className="text-[11px] text-wk-ink-400">Manage students, schedule & earnings</div>
                         </div>
                       </div>
-                      <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                      <Ico n="chevR" cls="w-5 h-5 text-wk-orange-300" />
                     </button>
                     <button onClick={() => setInLibrary(true)}
                       className="flex-1 min-w-[260px] flex items-center justify-between px-6 py-4 rounded-2xl border transition-all hover:scale-[1.01]"
-                      style={{ background: "rgba(26,40,69,0.30)", borderColor: "#1E3060" }}>
+                      style={{ background: "rgba(38,38,42,0.30)", borderColor: "#3A3A3A" }}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A2845", border: "1px solid #4A3A88" }}>🔗</div>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#26262A", border: "1px solid #3A3A3A" }}>🔗</div>
                         <div className="text-left">
                           <div className="text-sm font-bold text-white">Open WynkoHead Library</div>
-                          <div className="text-[11px] text-slate-400">{communityMembers.length} community members · invite links</div>
+                          <div className="text-[11px] text-wk-ink-400">{communityMembers.length} community members · invite links</div>
                         </div>
                       </div>
-                      <Ico n="chevR" cls="w-5 h-5 text-violet-400" />
+                      <Ico n="chevR" cls="w-5 h-5 text-wk-orange-300" />
                     </button>
                   </div>
                 )}
@@ -9913,8 +9923,8 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
             {tab === "invite" && (
               <div className="space-y-4">
                 {/* How it works */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-4">HOW FRIEND INVITES WORK</div>
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
+                  <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">HOW FRIEND INVITES WORK</div>
                   <div className="flex gap-4">
                     {[
                       { icon: "🔗", title: "Share Your Link", desc: "Copy your unique invite link and send it to a friend." },
@@ -9922,10 +9932,10 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                       { icon: "🔥", title: "3-Day Streak", desc: "They study for 3 consecutive days on Wynko." },
                       { icon: "🪙", title: "Both Get WYNKOINS", desc: "You and your friend each receive WYNKOINS instantly!" },
                     ].map((s, i) => (
-                      <div key={i} className="flex-1 p-3.5 rounded-xl border text-center bg-[rgba(124,77,255,0.08)] border-[rgba(26,40,69,0.55)]" >
+                      <div key={i} className="flex-1 p-3.5 rounded-xl border text-center bg-[rgba(255,138,61,0.08)] border-[rgba(38,38,42,0.55)]" >
                         <div className="text-2xl mb-2 flex justify-center">{s.icon === "🪙" ? <img src="/wynkoin.png" alt="Wynkoin" className="w-7 h-7 object-contain" /> : s.icon}</div>
                         <div className="text-[12px] font-bold text-white mb-1">{s.title}</div>
-                        <div className="text-[10px] text-slate-400 leading-relaxed">{s.desc}</div>
+                        <div className="text-[10px] text-wk-ink-400 leading-relaxed">{s.desc}</div>
                       </div>
                     ))}
                   </div>
@@ -9933,18 +9943,18 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                     <span className="text-3xl">🪙</span>
                     <div>
                       <div className="text-sm font-bold text-amber-300">WYNKOINS Reward</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">After your friend completes their 3-day streak — <span className="text-amber-400 font-bold">you get 50 WYNKOINS</span> and <span className="text-amber-400 font-bold">they get 50 WYNKOINS</span> too.</div>
+                      <div className="text-[11px] text-wk-ink-400 mt-0.5">After your friend completes their 3-day streak — <span className="text-amber-400 font-bold">you get 50 WYNKOINS</span> and <span className="text-amber-400 font-bold">they get 50 WYNKOINS</span> too.</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Referral link */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1E3060]" >
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-3">YOUR INVITE LINK</div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#0B1530] border-[#1A2845]" >
-                    <span className="text-violet-400">🔗</span>
-                    <span className="text-sm text-slate-200 flex-1 font-bold" >{linkLabel(friendLink)}</span>
-                    <button onClick={copyFriend} className="text-slate-500 hover:text-violet-400 transition-colors p-1">
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#3A3A3A]" >
+                  <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">YOUR INVITE LINK</div>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#161618] border-[#26262A]" >
+                    <span className="text-wk-orange-300">🔗</span>
+                    <span className="text-sm text-wk-ink-200 flex-1 font-bold" >{linkLabel(friendLink)}</span>
+                    <button onClick={copyFriend} className="text-wk-ink-500 hover:text-wk-orange-300 transition-colors p-1">
                       {friendCopied ? <span className="text-[10px] text-emerald-400">✓ Copied!</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
                     </button>
@@ -9961,28 +9971,28 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 </div>
 
                 {/* Friend tracking — clearly labeled */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[#1A2845]" >
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
                   <div className="flex items-center justify-between mb-1">
-                    <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400">FRIENDS YOU INVITED</div>
+                    <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300">FRIENDS YOU INVITED</div>
                   </div>
-                  <div className="text-[11px] text-slate-500 mb-3">Only friends who joined Wynko via your link appear here. Real users only — no examples.</div>
+                  <div className="text-[11px] text-wk-ink-500 mb-3">Only friends who joined Wynko via your link appear here. Real users only — no examples.</div>
                   <div className="py-10 flex flex-col items-center text-center gap-2">
                     <div className="text-4xl">🎁</div>
-                    <div className="text-sm font-semibold text-slate-400">No invites yet</div>
-                    <div className="text-[11px] text-slate-600 max-w-xs">Share your invite link above. When a friend joins Wynko and completes a 3-day streak, you both get WYNKOINS.</div>
+                    <div className="text-sm font-semibold text-wk-ink-400">No invites yet</div>
+                    <div className="text-[11px] text-wk-ink-600 max-w-xs">Share your invite link above. When a friend joins Wynko and completes a 3-day streak, you both get WYNKOINS.</div>
                   </div>
                 </div>
 
                 {/* WYNKOINS balance */}
-                <div className="rounded-2xl border p-5 bg-[#0B1530] border-[rgba(245,158,11,0.3)]" >
+                <div className="rounded-2xl border p-5 bg-[#161618] border-[rgba(245,158,11,0.3)]" >
                   <div className="flex items-center gap-2 mb-3"><span className="text-xl">🪙</span><span className="text-sm font-bold text-white">Your WYNKOINS</span></div>
                   <div className="text-4xl font-black text-amber-400 mb-1" >{wynkoins}</div>
-                  <div className="text-[11px] text-slate-500 mb-3">Recent activity</div>
+                  <div className="text-[11px] text-wk-ink-500 mb-3">Recent activity</div>
                   <div className="space-y-1.5 text-[11px]">
-                    {coinHistory.length === 0 && <div className="text-slate-600 py-1.5">{coinHistoryQ.status === 'loading' ? 'Loading…' : 'No coin activity yet'}</div>}
+                    {coinHistory.length === 0 && <div className="text-wk-ink-600 py-1.5">{coinHistoryQ.status === 'loading' ? 'Loading…' : 'No coin activity yet'}</div>}
                     {coinHistory.map((e, i) => (
                       <div key={i} className="flex items-center justify-between py-1.5 border-b border-[rgba(245,158,11,0.1)]" >
-                        <span className="text-slate-400">{e.label}</span>
+                        <span className="text-wk-ink-400">{e.label}</span>
                         <span className="font-bold" style={{ color: e.color }}>{e.coins}</span>
                       </div>
                     ))}
@@ -10019,29 +10029,29 @@ function CreateCommunityDialog({ name, setName, description, setDescription, onC
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.75)] p-4"
       onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
       <div role="dialog" aria-modal="true" aria-label="Create your community" className="rounded-2xl border p-7 w-[440px] max-w-full"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
-        <div className="text-[10px] font-mono tracking-[0.2em] text-violet-400 mb-2">CREATE YOUR COMMUNITY</div>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
+        <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-2">CREATE YOUR COMMUNITY</div>
         <div className="text-lg font-bold text-white mb-1.5">Name your community</div>
-        <div className="text-[13px] text-slate-400 mb-5 leading-relaxed">This is what your students will see. You can change it later from Manage Community.</div>
+        <div className="text-[13px] text-wk-ink-400 mb-5 leading-relaxed">This is what your students will see. You can change it later from Manage Community.</div>
         <div className="space-y-3.5">
           <label className="block">
-            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Community name *</span>
+            <span className="block text-[11px] font-semibold text-wk-ink-500 mb-1.5">Community name *</span>
             <input value={name} onChange={e => setName(e.target.value)} maxLength={60} autoFocus
               placeholder="e.g. JEE 2026 Grind Room"
               className={HEAD_INPUT} />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">Description</span>
+            <span className="block text-[11px] font-semibold text-wk-ink-500 mb-1.5">Description</span>
             <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={200} rows={3}
               placeholder="What is this community about, and who is it for?"
               className={HEAD_INPUT + " resize-none"} />
           </label>
         </div>
         <div className="flex gap-2.5 mt-5">
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">Cancel</button>
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">Cancel</button>
           <button onClick={onCreate} disabled={!name.trim()}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg,#7C4DFF,#6B44EE)', boxShadow: '0 0 16px #1E3060' }}>
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 hover:opacity-90 transition-opacity disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#FF8A3D,#E9772E)', boxShadow: 'none' }}>
             Create Community →
           </button>
         </div>
@@ -10065,43 +10075,43 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
           className="absolute inset-0 w-full h-full object-cover"
         />
         {/* Translucent overlay */}
-        <div className="absolute inset-0" style={{ background: 'rgba(6,8,15,0.62)', backdropFilter: 'blur(1px)' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(11,11,13,0.62)', backdropFilter: 'blur(1px)' }} />
         {/* Coming Soon CTA */}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-8 text-center">
           {/* Icon */}
           <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mb-2"
-            style={{ background: '#1A2845', border: '1.5px solid #4A3A88', boxShadow: '0 0 48px #1E3060', backdropFilter: 'blur(8px)' }}>
+            style={{ background: '#26262A', border: '1.5px solid #3A3A3A', boxShadow: 'none', backdropFilter: 'blur(8px)' }}>
             🏛️
           </div>
           {/* Label */}
-          <div className="text-[11px] font-mono tracking-[0.3em] text-violet-400">3D LIBRARY</div>
+          <div className="text-[11px] font-mono tracking-[0.3em] text-wk-orange-300">3D LIBRARY</div>
           {/* Heading */}
           <h1 className="text-6xl font-black text-white leading-tight"
-            style={{ textShadow: '0 0 60px #563FA0, 0 0 120px #2855CC', letterSpacing: '-0.02em' }}>
+            style={{ textShadow: 'none', letterSpacing: '-0.02em' }}>
             Coming Soon
           </h1>
           {/* Sub */}
-          <p className="text-lg text-slate-300 max-w-md leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.8)' }}>
+          <p className="text-lg text-wk-ink-300 max-w-md leading-relaxed" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.8)' }}>
             Your immersive 3D virtual study library is being crafted. Study, explore, and level up in a whole new dimension.
           </p>
           {/* Pill badges */}
           <div className="flex gap-3 flex-wrap justify-center mt-2">
             {['Virtual Study Rooms', 'Solo Pods', 'Discussion Corner', 'Resource Hub'].map(f => (
               <div key={f} className="px-4 py-1.5 rounded-full text-sm font-medium border"
-                style={{ background: 'rgba(26,40,69,0.55)', borderColor: '#2855CC', color: '#C4AAFF', backdropFilter: 'blur(8px)' }}>
+                style={{ background: 'rgba(38,38,42,0.55)', borderColor: '#3A3A3A', color: '#FFA94D', backdropFilter: 'blur(8px)' }}>
                 {f}
               </div>
             ))}
           </div>
           {/* Notify button */}
-          <button className="mt-2 flex items-center gap-2.5 px-8 py-3.5 rounded-full font-bold text-white text-base transition-all hover:opacity-90 active:scale-95"
-            style={{ background: '#7C4DFF', boxShadow: '0 0 32px #4A3A88', backdropFilter: 'blur(8px)' }}>
+          <button className="mt-2 flex items-center gap-2.5 px-8 py-3.5 rounded-full font-bold text-wk-black-950 text-base transition-all hover:opacity-90 active:scale-95"
+            style={{ background: '#FF8A3D', boxShadow: 'none', backdropFilter: 'blur(8px)' }}>
             <Ico n="bell" cls="w-5 h-5" />
             Notify Me When It's Live
           </button>
           {/* Back */}
           <button onClick={() => onNavigate('home')}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-sm mt-1">
+            className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mt-1">
             <Ico n="chevL" cls="w-4 h-4" /> Back to Home
           </button>
         </div>
@@ -10182,25 +10192,25 @@ function QuickTimerDurationPicker({ initialSeconds, onClose, onSet }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(0,0,0,0.75)]"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div role="dialog" aria-modal="true" className="w-[380px] max-w-full rounded-2xl border p-6"
-        style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 0 60px rgba(124,77,255,0.35), 0 0 120px rgba(40,85,204,0.15)' }}>
+        style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
         <div className="text-center mb-5">
-          <div className="text-[10px] text-violet-400 font-mono tracking-[0.2em] mb-1.5">QUICK TIMER</div>
-          <div className="text-lg font-semibold text-slate-100">Set duration</div>
+          <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-1.5">QUICK TIMER</div>
+          <div className="text-lg font-semibold text-wk-ink-100">Set duration</div>
         </div>
         <div className="flex items-center justify-center gap-3">
           <TimeSpinner label="HOURS" value={h} onChange={setH} max={23} />
-          <div className="text-2xl text-slate-600 pb-6">:</div>
+          <div className="text-2xl text-wk-ink-600 pb-6">:</div>
           <TimeSpinner label="MIN" value={m} onChange={setM} max={59} />
-          <div className="text-2xl text-slate-600 pb-6">:</div>
+          <div className="text-2xl text-wk-ink-600 pb-6">:</div>
           <TimeSpinner label="SEC" value={s} onChange={setS} max={59} />
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border text-sm text-slate-400 hover:text-slate-200 transition-colors border-[#1A2845]">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border text-sm text-wk-ink-400 hover:text-wk-ink-200 transition-colors border-[#26262A]">
             Cancel
           </button>
           <button onClick={() => total > 0 && onSet(total)} disabled={total <= 0}
-            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            className="flex-1 py-2.5 rounded-xl text-wk-black-950 text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
             Set Timer
           </button>
         </div>
@@ -10282,13 +10292,13 @@ function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
   const timeStr = formatClock(remaining, remaining >= 3600 || state.totalSeconds >= 3600)
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col" style={{ background: '#080A12' }}>
-      <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(6,13,26,0.97)] border-[rgba(26,40,69,0.55)]">
+    <div className="h-screen overflow-hidden flex flex-col" style={{ background: '#0B0B0D' }}>
+      <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
         <button onClick={() => onNavigate('home')}
-          className="flex items-center gap-1.5 text-sm transition-colors text-[#A5AEC2] hover:text-[#F3F4F6]">
+          className="flex items-center gap-1.5 text-sm transition-colors text-[#CFC8BB] hover:text-[#FFF7E6]">
           <Ico n="chevL" cls="w-4 h-4" /> Home
         </button>
-        <div className="text-[10px] tracking-[0.18em] text-[#68728A]">QUICK TIMER</div>
+        <div className="text-[10px] tracking-[0.18em] text-[#7A756D]">QUICK TIMER</div>
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
@@ -10296,26 +10306,26 @@ function QuickTimerPage({ onNavigate }: { onNavigate: (id: string) => void }) {
         <button onClick={() => setShowPicker(true)} title="Tap to set the time" aria-label="Set timer duration"
           className="bg-transparent border-none p-0 leading-none tabular-nums"
           style={{
-            fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#F1F5F9',
+            fontFamily: 'Sora, sans-serif', fontWeight: 600, color: '#FFF7E6',
             fontSize: 'min(19vh, 15vw, 160px)', letterSpacing: '-0.02em',
           }}>
           {timeStr}
         </button>
 
-        <div className="text-xs text-slate-500">{remaining <= 0 ? 'Tap the timer to set a duration' : 'Tap the timer to change the time'}</div>
+        <div className="text-xs text-wk-ink-500">{remaining <= 0 ? 'Tap the timer to set a duration' : 'Tap the timer to change the time'}</div>
 
         <div className="flex items-center gap-4">
           <button onClick={reset} title="Reset" aria-label="Reset timer"
             className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-90 active:scale-95"
-            style={{ background: '#1A2845', color: '#C7D2FE' }}>
+            style={{ background: '#26262A', color: '#E8E2D6' }}>
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 12a8 8 0 0113.7-5.6L20 8M20 4v4h-4M20 12a8 8 0 01-13.7 5.6L4 16M4 20v-4h4" />
             </svg>
           </button>
           <button onClick={() => (state.running ? pause() : start())}
             title={state.running ? 'Pause' : 'Start'} aria-label={state.running ? 'Pause timer' : 'Start timer'}
-            className="w-16 h-16 rounded-full flex items-center justify-center text-white transition-all hover:opacity-90 active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)', boxShadow: '0 0 24px rgba(41,98,255,0.5), 0 0 48px rgba(34,211,238,0.2)' }}>
+            className="w-16 h-16 rounded-full flex items-center justify-center text-wk-black-950 transition-all hover:opacity-90 active:scale-95"
+            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
             {state.running
               ? <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
               : <Ico n="play" cls="w-6 h-6" />}
@@ -10818,26 +10828,26 @@ export default function DesktopDashboard() {
     // ── Home (the module wired to real data this pass) ──
     if (authState === 'loading' || (authState === 'ready' && (homeLoading || planStore.status === 'loading'))) {
       return (
-        <div className="flex h-screen items-center justify-center text-slate-500 text-sm" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+        <div className="flex h-screen items-center justify-center text-wk-ink-500 text-sm" style={{ background: '#0B0B0D', fontFamily: 'Sora, sans-serif' }}>
           Loading your dashboard…
         </div>
       )
     }
     if (authState === 'signed-out') {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
-          <div className="text-slate-200 text-base font-semibold">Sign in to see your dashboard</div>
-          <div className="text-slate-500 text-sm max-w-xs">Your review queue and study data will show up here once you're signed in.</div>
-          <a href="/login.html" className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Go to sign in</a>
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#0B0B0D', fontFamily: 'Sora, sans-serif' }}>
+          <div className="text-wk-ink-200 text-base font-semibold">Sign in to see your dashboard</div>
+          <div className="text-wk-ink-500 text-sm max-w-xs">Your review queue and study data will show up here once you're signed in.</div>
+          <a href="/login.html" className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#FF8A3D', color: '#0B0B0D' }}>Go to sign in</a>
         </div>
       )
     }
     if (homeError) {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
-          <div className="text-slate-200 text-base font-semibold">Couldn't load your dashboard</div>
-          <div className="text-slate-500 text-sm max-w-xs">Check your connection and try again. Your study data is safe.</div>
-          <button onClick={retryHome} className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#8b5cf6', color: '#fff' }}>Try again</button>
+        <div className="flex h-screen flex-col items-center justify-center gap-4 text-center px-6" style={{ background: '#0B0B0D', fontFamily: 'Sora, sans-serif' }}>
+          <div className="text-wk-ink-200 text-base font-semibold">Couldn't load your dashboard</div>
+          <div className="text-wk-ink-500 text-sm max-w-xs">Check your connection and try again. Your study data is safe.</div>
+          <button onClick={retryHome} className="mt-2 px-4 py-2 rounded-lg text-sm font-bold" style={{ background: '#FF8A3D', color: '#0B0B0D' }}>Try again</button>
         </div>
       )
     }
@@ -10850,7 +10860,7 @@ export default function DesktopDashboard() {
 
     // Focus Timer's "completed today" count: pomodoro tasks in the live plan
     return (
-      <div className="flex h-screen overflow-hidden text-slate-200" style={{ background: '#080A12', fontFamily: 'Poppins, sans-serif' }}>
+      <div className="flex h-screen overflow-hidden text-wk-ink-200" style={{ background: '#0B0B0D', fontFamily: 'Sora, sans-serif' }}>
         <Sidebar active={activeNav} setActive={handleNav} profile={profile} />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header profile={profile} />
@@ -10895,10 +10905,10 @@ export default function DesktopDashboard() {
           onDismiss={dismissScheduleNotif} />
       )}
       {communityNotice && (
-        <div role="status" className="fixed bottom-5 right-5 z-[80] max-w-[360px] rounded-xl border px-4 py-3 flex items-start gap-3 text-[13px] text-slate-200"
-          style={{ background: '#0B1530', borderColor: '#2855CC', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+        <div role="status" className="fixed bottom-5 right-5 z-[80] max-w-[360px] rounded-xl border px-4 py-3 flex items-start gap-3 text-[13px] text-wk-ink-200"
+          style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
           <span className="flex-1">{communityNotice}</span>
-          <button onClick={() => setCommunityNotice(null)} aria-label="Dismiss" className="text-slate-500 hover:text-slate-200"><Ico n="close" cls="w-4 h-4" /></button>
+          <button onClick={() => setCommunityNotice(null)} aria-label="Dismiss" className="text-wk-ink-500 hover:text-wk-ink-200"><Ico n="close" cls="w-4 h-4" /></button>
         </div>
       )}
     </UserAvatarCtx.Provider>
