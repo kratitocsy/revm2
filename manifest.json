@@ -2,10 +2,10 @@
   "name": "WYNKO — Focus · Study · Together",
   "short_name": "Wynko",
   "description": "Ebbinghaus revision tracker, study timer, marks calculator and rank predictor for JEE, NEET, CAT and UPSC.",
-  "start_url": "/tracker.html",
+  "start_url": "/home",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#c8a96e",
+  "background_color": "#0B0B0D",
+  "theme_color": "#0B0B0D",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -22,6 +22,9 @@
     }
   ],
   "screenshots": [],
-  "categories": ["education", "productivity"],
+  "categories": [
+    "education",
+    "productivity"
+  ],
   "lang": "en-IN"
 }

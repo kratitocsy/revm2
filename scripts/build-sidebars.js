@@ -13,9 +13,6 @@
      npm run build:sidebars
    and commit both.
 
-   pledge.html deliberately has its OWN different sidebar (different
-   nav items, not a duplicate of this one) — it is not in this list
-   and this script never touches it. See docs/MODULARIZATION.md.
    ============================================================ */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -31,13 +28,6 @@ const ROOT = resolve(__dirname, '..');
 // where the original file had a hardcoded placeholder value.
 const PAGES = [
   { file: 'home.html',     active: 'home.html',     showSignOut: true,  trackText: 'JEE Main 2026', examText: '128 days remaining' },
-  { file: 'tracker.html',  active: 'tracker.html',  showSignOut: true },
-  { file: 'timer.html',    active: 'timer.html',    showSignOut: true },
-  { file: 'battle.html',   active: 'battle.html',   showSignOut: true },
-  { file: 'groups.html',   active: 'groups.html',   showFooter: false },
-  { file: 'chat.html',     active: 'chat.html',     showSignOut: true },
-  { file: 'partners.html', active: 'partners.html', showFooter: false },
-  { file: 'store.html',    active: 'store.html',    showFooter: false },
   { file: 'blocks.html',   active: 'blocks.html',   showSignOut: false }, // blocks.html's sidebar has no sign-out button
 ];
 
