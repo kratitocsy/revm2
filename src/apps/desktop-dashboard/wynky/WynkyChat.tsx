@@ -3,52 +3,85 @@ import wynkoMascot from '../imports/wynko-mascot.png'
 import { sb } from '../../_shared/supabaseClient'
 import { REVM2_CONFIG } from '../../../lib/supabase.js'
 import {
-  loadKnownProfile, loadRemembered, defaultDailyMinutes, distractionSites, distractionApps,
+  loadKnownProfile, loadRemembered, loadEvents, recordEvents, fetchPeerStats, fetchChannelSignals,
+  defaultDailyMinutes, bucketMinutes, distractionSites, distractionApps,
   recommend, confirmPlan, confirmAiPlan, ensurePresets, rememberAnswers, rememberAllowlists, recordOutcome,
   NoEnforceableBlocksError, STUDY_MODE_OPTIONS, examFamilyKey, subjectKey, seedQueriesFor,
   resolveChannelSeed, fetchPopularChannels, setChannelPick, channelPickId, appPickerAvailable, listPickableApps,
   type WynkyKnownProfile, type WynkyRemembered, type SubjectAllowlist, type AiSlot, type ChannelPick,
-  type PickableApp, type PlanSlotInput,
+  type PickableApp, type PlanSlotInput, type NewEvent,
 } from './wynkyPlanner'
 import {
-  subjectChoices, uniqueCaseless, isEnforceable, hasSavedSetup, hoursOptions, minutesFromOptionId,
+  subjectChoices, examSubjects, uniqueCaseless, isEnforceable, hoursOptions, minutesFromOptionId,
   parseStudyMinutes, clockOptions, parseClock, fmtClock, fmtHours, siteFromText, filterOptions, clearMatch,
-  formatRecommendedPlan, type ChatOption,
+  blockOptions, parseBusyText, fmtBusy, formatRecommendedPlan, type ChatOption,
 } from './wynkyChatFlow'
+import {
+  rank, best, preselect, isSettled, sourceLabel, blockMinutesPriors, sitePriors, busyPriors, needsBusyQuestion,
+  parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
+  type WynkyEvent, type PeerStats, type Candidate, type Prior,
+} from './wynkyRecommender'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 /* ============================================================
    WynkyChat.tsx
 
    "Generate with AI" on the Schedules page opens this: Wynky as a
-   support-bot style chat. Every question comes with options to tap
-   (subjects, the platforms each subject is studied on, real YouTube
-   channels, apps, hours, wake/sleep times) and typing either filters
-   them or answers in the student's own words, so the whole set-up
-   happens here instead of on a separate form. A returning student
-   skips straight to "plan my day". The recommended day comes from the
-   rule-based generator; anything the options don't cover goes to the
-   ai-generate-schedule function (Gemini Flash). Nothing is saved until
-   the student taps Confirm.
+   support-bot style chat that asks as little as possible.
+
+   It opens with what it already knows (Study DNA, onboarding, earlier
+   plans) and a ready plan, pre-filled by wynkyRecommender.ts from the
+   student's own history, students in the same exam and their Study DNA.
+   It only asks what it can't work out yet (usually busy hours and
+   wake/sleep, the first time), each with the best guess pre-selected.
+   Everything the student keeps, changes or asks for is logged to
+   wynky_events so the next plan needs even fewer taps.
+
+   Typed requests Wynky understands ("5 hours", "I wake at 6",
+   "pw.live for Physics") are applied and remembered straight away;
+   anything else goes to Gemini Flash (ai-generate-schedule) in the same
+   chat. The full set-up (subjects, sites, channels, apps) is still one
+   tap away under "Change my set-up". Nothing is saved until the student
+   taps Confirm.
    ============================================================ */
 
-type Step = 'loading' | 'signed_out' | 'returning' | 'subjects' | 'sites' | 'channels' | 'apps' | 'apps_mode'
-  | 'hours' | 'wake' | 'sleep' | 'preview' | 'ai_preview' | 'done'
+type Step = 'loading' | 'signed_out' | 'subjects' | 'sites' | 'channels' | 'apps' | 'apps_mode'
+  | 'busy' | 'hours' | 'block' | 'wake' | 'sleep' | 'preview' | 'ai_preview' | 'done'
 
-const MULTI_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps']
+type Gap = 'busy' | 'wake' | 'sleep' | 'hours'
+
+const MULTI_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'busy']
 // Steps where typing narrows the options, like "Start typing to see options…".
 const FILTER_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'hours', 'wake', 'sleep']
 
 interface Msg { id: number; from: 'bot' | 'user'; text: string }
-interface Profile { uid: string; known: WynkyKnownProfile; remembered: WynkyRemembered }
+interface Profile {
+  uid: string
+  known: WynkyKnownProfile
+  remembered: WynkyRemembered
+  events: WynkyEvent[]
+  peers: PeerStats
+}
 interface Draft {
   subjects: string[]
   allow: Record<string, SubjectAllowlist>
   dailyMinutes: number
+  blockMinutes: number
+  /** Busy windows as "HH:MM-HH:MM", or [NOTHING_FIXED]. */
+  busy: string[]
   wakeTime: string | null
   sleepTime: string | null
 }
-interface ChannelSuggestion extends ChannelPick { pickCount: number }
+/** What Wynky recommended when the chat opened, to tell kept from changed. */
+interface Recs {
+  dailyMinutes: Candidate | null
+  blockMinutes: Candidate | null
+  busy: Candidate | null
+  wake: Candidate | null
+  sleep: Candidate | null
+  sites: Record<string, string[]>
+}
+interface ChannelSuggestion extends ChannelPick { pickCount: number; note?: string; score: number }
 interface AiSchedule { name: string; days_of_week: number[]; slots: AiSlot[] }
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
@@ -56,9 +89,11 @@ const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
 // the last one instead of stacking a second active schedule on top.
 const PLAN_NAME = 'Wynky Plan'
 const MAX_SHOWN_OPTIONS = 40
+const TIME_RE = /^\d{2}:\d{2}$/
 
 const EMPTY_KNOWN: WynkyKnownProfile = {
   subjects: [], exam: null, dailyHoursBucket: null, customDailyHoursText: null, distractionTags: [], customDistractionText: null,
+  dna: { dayType: null, studyStyle: [], challenges: [], archetype: null },
 }
 const EMPTY_REMEMBERED: WynkyRemembered = {
   wakeTime: null, sleepTime: null, subjectAllowlists: {}, lastDailyMinutes: null, acceptedCount: 0, adjustedCount: 0,
@@ -67,6 +102,7 @@ const EMPTY_REMEMBERED: WynkyRemembered = {
 const emptyAllow = (): SubjectAllowlist => ({ sites: [], apps: [], channels: [] })
 const isYoutubeSite = (s: string) => s === 'youtube.com' || s.endsWith('.youtube.com')
 const uniq = <T,>(xs: T[]) => [...new Set(xs)]
+const sitesField = (subject: string) => `sites:${subjectKey(subject)}`
 
 function normalizeAllow(saved: Record<string, SubjectAllowlist>): Record<string, SubjectAllowlist> {
   const out: Record<string, SubjectAllowlist> = {}
@@ -109,12 +145,24 @@ function formatAiSchedule(schedule: AiSchedule): string {
   return `Here's "${schedule.name}":\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what else to change.`
 }
 
+const busyWindows = (busy: string[]) => busy.map(parseBusy).filter((b): b is { start: string; end: string } => !!b)
+const busyValue = (busy: string[]) => (busy.length ? [...busy].sort().join(',') : NOTHING_FIXED)
+const busyList = (value: string | undefined) => (!value || value === NOTHING_FIXED ? [] : value.split(',').filter(v => !!parseBusy(v)))
+const busyLabel = (value: string) => BUSY_OPTIONS.find(o => o.value === value)?.label ?? fmtBusy(value)
+const siteLabel = (site: string) => (STUDY_MODE_OPTIONS.find(o => o.site === site)?.label ?? site).replace(/\s*\(.*\)$/, '')
+
 /** What the AI should assume unless the student's own words say otherwise. */
-function aiGoalText(d: Draft, text: string): string {
+function aiGoalText(d: Draft, text: string, known: WynkyKnownProfile, notes: string[]): string {
   const facts: string[] = []
   if (d.wakeTime && d.sleepTime) facts.push(`I usually wake at ${fmtClock(d.wakeTime)} and sleep at ${fmtClock(d.sleepTime)}`)
-  facts.push(`I'd like about ${fmtHours(d.dailyMinutes)} of study`)
-  return `${text}\n\n(Unless I said otherwise above: ${facts.join('; ')}.)`
+  facts.push(`I'd like about ${fmtHours(d.dailyMinutes)} of study, in blocks of about ${d.blockMinutes} minutes`)
+  const busy = busyWindows(d.busy)
+  if (busy.length) facts.push(`I'm busy (school/coaching/work) ${busy.map(b => `${b.start}–${b.end}`).join(' and ')}`)
+  if (known.exam) facts.push(`I'm preparing for ${known.exam}`)
+  if (known.dna.studyStyle.length) facts.push(`I learn best with ${known.dna.studyStyle.join(' and ')}`)
+  if (known.dna.challenges.length) facts.push(`I struggle with ${known.dna.challenges.join(' and ')}`)
+  const earlier = notes.length ? `\nEarlier I asked you: ${notes.map(n => `"${n}"`).join('; ')}.` : ''
+  return `${text}\n\n(Unless I said otherwise above: ${facts.join('; ')}.)${earlier}`
 }
 
 // The Wynko mascot as a round avatar (header, every bot message, typing indicator).
@@ -135,6 +183,72 @@ function Icon({ d, cls }: { d: string; cls: string }) {
   )
 }
 
+/** Earlier plans saved before wynky_events existed still count as the
+ *  student's own answers, so nobody is asked again after this update. */
+function withRememberedEvents(events: WynkyEvent[], r: WynkyRemembered, now: number): WynkyEvent[] {
+  const out = [...events]
+  const at = new Date(now - 86_400_000).toISOString()
+  const seed = (field: string, value: string | null, times: number) => {
+    if (!value || events.some(e => e.field === field)) return
+    for (let i = 0; i < times; i++) out.push({ field, value, multi: false, action: 'accepted', at })
+  }
+  seed('wake', r.wakeTime, 2)
+  seed('sleep', r.sleepTime, 2)
+  // The remembered daily figure is already an average of every plan they confirmed.
+  seed('daily_minutes', r.lastDailyMinutes != null ? String(r.lastDailyMinutes) : null, Math.max(2, Math.min(4, r.acceptedCount + r.adjustedCount)))
+  return out
+}
+
+/** The plan Wynky would build right now, and which questions are still open. */
+function recommendDraft(p: Profile, now: number): { draft: Draft; recs: Recs; gaps: Gap[] } {
+  const { known, remembered, events, peers } = p
+  const dna = known.dna
+  const saved = Object.keys(remembered.subjectAllowlists || {})
+  const subjects = saved.length ? saved : known.subjects.length ? known.subjects : examSubjects(known.exam)
+  const allow = normalizeAllow(remembered.subjectAllowlists)
+  const sites: Record<string, string[]> = {}
+  for (const s of subjects) {
+    if (isEnforceable(allow[s])) continue
+    const picks = preselect({ field: sitesField(s), events, peers: peers[sitesField(s)], priors: sitePriors(dna), now })
+      .map(c => c.value).filter(v => v !== 'offline' && !!siteFromText(v))
+    if (picks.length) {
+      sites[s] = picks
+      allow[s] = { ...(allow[s] || emptyAllow()), sites: picks }
+    }
+  }
+
+  const minutesPriors: Prior[] = known.dailyHoursBucket ? [{ value: String(bucketMinutes(known)), weight: 1, source: 'study_dna' }] : []
+  const dailyMinutes = best({ field: 'daily_minutes', events, peers: peers.daily_minutes, priors: minutesPriors, now })
+  const blockMinutes = best({ field: 'block_minutes', events, peers: peers.block_minutes, priors: blockMinutesPriors(dna), now })
+  const busyPrior = busyPriors(dna)
+  const busy = needsBusyQuestion(dna)
+    ? best({ field: 'busy', events, peers: peers.busy, now, priors: busyPrior.length ? [{ value: busyValue(busyPrior.map(b => b.value).filter(v => v !== NOTHING_FIXED)), weight: 1, source: 'study_dna' }] : [] })
+    : null
+  const wake = best({ field: 'wake', events, peers: peers.wake, now })
+  const sleep = best({ field: 'sleep', events, peers: peers.sleep, now })
+
+  const num = (c: Candidate | null, lo: number, hi: number) => {
+    const n = c ? parseInt(c.value, 10) : NaN
+    return n >= lo && n <= hi ? n : null
+  }
+  const draft: Draft = {
+    subjects,
+    allow,
+    dailyMinutes: num(dailyMinutes, 30, 720) ?? defaultDailyMinutes(known, remembered),
+    blockMinutes: num(blockMinutes, 20, 180) ?? 60,
+    busy: busy ? busyList(busy.value) : [],
+    wakeTime: wake && TIME_RE.test(wake.value) ? wake.value : null,
+    sleepTime: sleep && TIME_RE.test(sleep.value) ? sleep.value : null,
+  }
+
+  const gaps: Gap[] = []
+  if (needsBusyQuestion(dna) && !isSettled(events, 'busy')) gaps.push('busy')
+  if (!isSettled(events, 'wake')) gaps.push('wake')
+  if (!isSettled(events, 'sleep')) gaps.push('sleep')
+  if (!dailyMinutes && remembered.lastDailyMinutes == null) gaps.push('hours')
+  return { draft, recs: { dailyMinutes, blockMinutes, busy, wake, sleep, sites }, gaps }
+}
+
 export default function WynkyChat({ onClose, onPlanConfirmed }: {
   onClose: () => void
   onPlanConfirmed: (plan: { days_of_week: number[]; slots: AiSlot[] }) => void
@@ -147,7 +261,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   const [subjIdx, setSubjIdx] = useState(0)
   const [picked, setPicked] = useState<string[]>([]) // selected option ids on a pick-several question
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [draft, setDraft] = useState<Draft>({ subjects: [], allow: {}, dailyMinutes: 240, wakeTime: null, sleepTime: null })
+  const [draft, setDraft] = useState<Draft>({ subjects: [], allow: {}, dailyMinutes: 240, blockMinutes: 60, busy: [], wakeTime: null, sleepTime: null })
   const [channelSugs, setChannelSugs] = useState<Record<string, ChannelSuggestion[]>>({})
   const [channelsLoadingFor, setChannelsLoadingFor] = useState<string | null>(null)
   const [deviceApps, setDeviceApps] = useState<PickableApp[] | null>(null)
@@ -155,12 +269,16 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   const [ruleResult, setRuleResult] = useState<GeneratorResult | null>(null)
   const [aiSchedule, setAiSchedule] = useState<AiSchedule | null>(null)
   const profileRef = useRef<Profile | null>(null)
+  const recsRef = useRef<Recs | null>(null)
+  const gapsRef = useRef<Gap[]>([])
+  const openedAt = useRef(Date.now())
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(1)
 
   const busy = typing || saving || step === 'loading'
   const subject = draft.subjects[subjIdx] ?? ''
+  const exam = profile?.known.exam ?? null
 
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }) }, [messages, typing])
   useEffect(() => { if (!busy) inputRef.current?.focus() }, [step, busy])
@@ -188,9 +306,25 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     const tags = profileRef.current?.known.distractionTags || []
     return { freeSites: distractionSites(tags), freeApps: distractionApps(tags) }
   }
+  function cohort() {
+    const k = profileRef.current?.known
+    return { examKey: examFamilyKey(k?.exam ?? null), dayType: k?.dna.dayType ?? null }
+  }
+  /** Logs to wynky_events and keeps the in-memory history in step, so what
+   *  the student just asked for shapes the rest of this chat too. */
+  function learn(events: NewEvent[]) {
+    const p = profileRef.current
+    if (!p || !events.length) return
+    const at = new Date().toISOString()
+    p.events = [...events.map(e => ({ field: e.field, value: e.value, multi: !!e.multi, action: e.action, at })), ...p.events]
+    void recordEvents(sb as any, p.uid, cohort(), events).catch(() => { /* learning is best-effort */ })
+  }
+  function why(c: Candidate | null | undefined): string | null {
+    return c ? sourceLabel(c.source, exam) : null
+  }
 
-  // Load what Wynky already knows, then either offer the saved set-up
-  // or start asking. Nothing to type until this is ready.
+  // Load what Wynky already knows, then show a ready plan or ask the few
+  // things it can't work out. Nothing to type until this is ready.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -204,36 +338,71 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       }
       let known = EMPTY_KNOWN
       let remembered = EMPTY_REMEMBERED
+      let events: WynkyEvent[] = []
       try {
         [known, remembered] = await Promise.all([loadKnownProfile(sb as any, uid), loadRemembered(sb as any, uid)])
       } catch {
-        // Start the set-up from scratch rather than fail: every answer can be picked again.
+        // Start from scratch rather than fail: every answer can be picked again.
       }
+      try { events = await loadEvents(sb as any, uid) } catch { /* no history yet */ }
+      const now = Date.now()
+      events = withRememberedEvents(events, remembered, now)
+      const subjectsForPeers = Object.keys(remembered.subjectAllowlists || {}).length
+        ? Object.keys(remembered.subjectAllowlists) : known.subjects.length ? known.subjects : examSubjects(known.exam)
+      let peers: PeerStats = {}
+      try {
+        peers = await fetchPeerStats(sb as any, examFamilyKey(known.exam), known.dna.dayType,
+          ['wake', 'sleep', 'daily_minutes', 'block_minutes', 'busy', ...uniq(subjectsForPeers.map(sitesField))])
+      } catch { /* Study DNA and defaults still work */ }
       if (cancelled) return
-      const p: Profile = { uid, known, remembered }
+      const p: Profile = { uid, known, remembered, events, peers }
       profileRef.current = p
       setProfile(p)
-      const saved = Object.keys(remembered.subjectAllowlists || {})
-      const d: Draft = {
-        subjects: saved.length ? saved : known.subjects,
-        allow: normalizeAllow(remembered.subjectAllowlists),
-        dailyMinutes: defaultDailyMinutes(known, remembered),
-        wakeTime: remembered.wakeTime,
-        sleepTime: remembered.sleepTime,
-      }
+      const { draft: d, recs, gaps } = recommendDraft(p, now)
+      recsRef.current = recs
+      gapsRef.current = gaps
       setTyping(false)
-      if (hasSavedSetup(remembered)) {
-        setDraft(d)
-        ask('returning', `Welcome back! Want me to plan today with your usual set-up for ${d.subjects.join(', ')}? You can also just tell me what today looks like.`)
-      } else {
-        say(`Hi, I'm Wynky!${known.exam ? ` I see you're prepping for ${known.exam}.` : ''} Let's set up your study plan together. It only takes a minute.`)
-        enterSubjects(d)
-      }
+      say(summaryText(p, d, gaps.length))
+      nextGap(d)
     })()
     return () => { cancelled = true }
   }, [])
 
+  function summaryText(p: Profile, d: Draft, gapCount: number): string {
+    const returning = p.events.length > 0 || Object.keys(p.remembered.subjectAllowlists || {}).length > 0
+    const lines: string[] = []
+    lines.push(`• ${p.known.exam ? `${p.known.exam}: ` : ''}${d.subjects.join(', ')}`)
+    lines.push(`• About ${fmtHours(d.dailyMinutes)} of study a day, in ${d.blockMinutes}-minute blocks`)
+    const busy = busyWindows(d.busy)
+    if (busy.length) lines.push(`• Busy: ${d.busy.map(busyLabel).join(', ')}`)
+    for (const s of d.subjects) {
+      const a = d.allow[s]
+      if (!isEnforceable(a)) continue
+      const bits = (a.sites || []).map(siteLabel)
+      if ((a.channels || []).length) bits.push(`${a.channels!.length} YouTube channel${a.channels!.length === 1 ? '' : 's'}`)
+      if (a.apps.length) bits.push(`${a.apps.length} app${a.apps.length === 1 ? '' : 's'}`)
+      lines.push(`• During ${s}: ${bits.join(', ')} open`)
+    }
+    const { freeSites } = freeTimeLists()
+    if (freeSites.length) lines.push(`• Free time: ${freeSites.join(', ')} locked`)
+    const head = returning
+      ? "Welcome back! Here's your usual set-up:"
+      : `Hi, I'm Wynky! Here's what I know from your Study DNA${p.known.exam ? ` and your ${p.known.exam} prep` : ''}:`
+    const tail = gapCount === 0 ? "Here's today's plan." : gapCount === 1 ? 'One quick question and your plan is ready.' : `${gapCount} quick questions and your plan is ready.`
+    return `${head}\n${lines.join('\n')}\n\n${tail}`
+  }
+
   // ── Questions ──────────────────────────────────────────────────────────
+
+  /** Asks the next open question, or shows the plan when none is left. */
+  function nextGap(d: Draft) {
+    const gap = gapsRef.current.shift()
+    if (gap === 'busy') enterBusy(d)
+    else if (gap === 'wake') enterWake(d)
+    else if (gap === 'sleep') enterSleep(d)
+    else if (gap === 'hours') enterHours(d)
+    else buildPreview(d)
+  }
 
   function enterSubjects(d: Draft) {
     setDraft(d)
@@ -255,30 +424,41 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   function enterChannels(d: Draft, idx: number) {
     setDraft(d); setSubjIdx(idx)
     const name = d.subjects[idx]
-    const exam = profileRef.current?.known.exam
     ask('channels',
-      `Which YouTube channels do you watch for ${name}? These are real channels${exam ? `, ranked by what other ${exam} students pick` : ''}. Type a name to search for another, or skip to allow all of YouTube.`,
+      `Which YouTube channels do you watch for ${name}? These are real channels${exam ? `, ranked by what ${exam} students pick` : ''}. Type a name to search for another, or skip to allow all of YouTube.`,
       (d.allow[name]?.channels || []).map(c => c.id))
-    if (!channelSugs[name]) void loadChannels(name)
+    if (!channelSugs[name]) void loadChannels(name, (d.allow[name]?.channels || []).map(c => c.id))
   }
 
-  async function loadChannels(name: string) {
-    const exam = profileRef.current?.known.exam ?? null
+  // Same-exam popularity, the same subject in other exams and "students who
+  // watch your channels also watch", then real YouTube search for seeds.
+  async function loadChannels(name: string, mine: string[]) {
+    const examKey = examFamilyKey(exam)
     setChannelsLoadingFor(name)
     try {
-      const popular = await fetchPopularChannels(sb as any, examFamilyKey(exam), subjectKey(name), 10)
+      const [popular, signals] = await Promise.all([
+        fetchPopularChannels(sb as any, examKey, subjectKey(name), 10).catch(() => []),
+        fetchChannelSignals(sb as any, examKey, subjectKey(name), mine).catch(() => []),
+      ])
       const byId = new Map<string, ChannelSuggestion>()
-      for (const c of popular) byId.set(c.channel_id, { id: c.channel_id, label: c.channel_label, pickCount: c.pick_count })
+      for (const c of popular) byId.set(c.channel_id, { id: c.channel_id, label: c.channel_label, pickCount: Number(c.pick_count), score: Number(c.pick_count) })
+      for (const s of signals) {
+        const cur = byId.get(s.channelId) ?? { id: s.channelId, label: s.label, pickCount: s.sameExam, score: s.sameExam }
+        cur.score = Math.max(cur.pickCount, s.sameExam) + 0.5 * s.alsoPicked + 0.3 * s.otherExams
+        if (s.alsoPicked > 0) cur.note = 'watched by students with your channels'
+        else if (!cur.pickCount && s.otherExams > 0) cur.note = 'popular in other exams'
+        byId.set(s.channelId, cur)
+      }
       if (byId.size < 8) {
         const seeds = seedQueriesFor(exam, name).slice(0, 5)
         const found = await Promise.all(seeds.map(q => resolveChannelSeed(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON, q).catch(() => null)))
         for (const m of found) {
           if (!m) continue
           const id = channelPickId(m)
-          if (!byId.has(id)) byId.set(id, { id, label: m.title, pickCount: 0 })
+          if (!byId.has(id)) byId.set(id, { id, label: m.title, pickCount: 0, score: 0 })
         }
       }
-      setChannelSugs(prev => ({ ...prev, [name]: [...byId.values()].sort((a, b) => b.pickCount - a.pickCount) }))
+      setChannelSugs(prev => ({ ...prev, [name]: [...byId.values()].sort((a, b) => b.score - a.score) }))
     } catch {
       setChannelSugs(prev => ({ ...prev, [name]: prev[name] || [] })) // typing a channel name still works
     } finally {
@@ -319,7 +499,14 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       return
     }
     void rememberAllowlists(sb as any, p.uid, allowFor(d)).catch(() => { /* saved again on Confirm */ })
-    enterHours(d)
+    nextGap(d)
+  }
+
+  function enterBusy(d: Draft) {
+    setDraft(d)
+    const pre = d.busy.length ? d.busy : [NOTHING_FIXED]
+    const note = why(recsRef.current?.busy)
+    ask('busy', `When are you busy with school, coaching or work?${note ? ` I've ticked what's ${note === 'your usual' ? 'usual for you' : note}.` : ''} Change anything, or type a time like 4-7 pm, then tap Done.`, pre)
   }
 
   function enterHours(d: Draft) {
@@ -327,9 +514,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     ask('hours', 'How many hours do you want to study today?')
   }
 
-  function afterHours(d: Draft) {
-    if (d.wakeTime && d.sleepTime) buildPreview(d)
-    else enterWake(d)
+  function enterBlock(d: Draft) {
+    setDraft(d)
+    ask('block', 'How long should each study block be?')
   }
 
   function enterWake(d: Draft) {
@@ -344,16 +531,25 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
 
   function buildPreview(d: Draft) {
     setDraft(d)
-    if (!d.wakeTime || !d.sleepTime) { enterWake(d); return }
+    if (!d.wakeTime) { enterWake(d); return }
+    if (!d.sleepTime) { enterSleep(d); return }
     const { freeSites, freeApps } = freeTimeLists()
+    const enforceable = d.subjects.filter(s => isEnforceable(d.allow[s]))
+    if (!enforceable.length && !freeSites.length && !freeApps.length) {
+      say("To lock anything during study time I need to know how you study. Let's pick that for each subject, it's quick.")
+      enterSites(d, 0)
+      return
+    }
     // A subject with nothing of its own to allow still gets blocks when the
     // free-time blocklist can cover them; otherwise those blocks would be
     // dropped on save, so leave the subject out of the plan.
-    const enforceable = d.subjects.filter(s => isEnforceable(d.allow[s]))
     const subjects = freeSites.length || freeApps.length ? d.subjects : enforceable
-    const result = recommend({ wakeTime: d.wakeTime, sleepTime: d.sleepTime, dailyMinutes: d.dailyMinutes, subjects, blockLengthMinutes: 60 })
+    const result = recommend({
+      wakeTime: d.wakeTime, sleepTime: d.sleepTime, dailyMinutes: d.dailyMinutes, subjects,
+      blockLengthMinutes: d.blockMinutes, fixedCommitments: busyWindows(d.busy),
+    })
     if (!result.blocks.some(b => b.kind === 'study')) {
-      say("Those wake and sleep times don't leave any room for study. Let's pick them again.")
+      say("Those times don't leave any room for study. Let's pick your wake and sleep times again.")
       enterWake(d)
       return
     }
@@ -367,21 +563,32 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   let options: ChatOption[] = []
   let doneLabel = 'Done'
   const multi = MULTI_STEPS.includes(step)
-  if (step === 'returning') {
-    options = [{ id: 'plan', label: 'Plan my day' }, { id: 'setup', label: 'Change my set-up' }]
-  } else if (step === 'subjects') {
+  const recs = recsRef.current
+  if (step === 'subjects') {
     const names = profile ? subjectChoices(profile.known, profile.remembered) : []
     options = uniqueCaseless([...names, ...draft.subjects, ...picked.map(id => id.slice(5))]).map(n => ({ id: `subj:${n}`, label: n }))
   } else if (step === 'sites') {
-    const custom = uniq([...(draft.allow[subject]?.sites || []), ...picked.filter(id => id.startsWith('site:')).map(id => id.slice(5))])
+    // Ranked by the student's own history, students in the same exam and
+    // their Study DNA; the platforms themselves are the fixed real list.
+    const ranked = profile ? rank({ field: sitesField(subject), events: profile.events, peers: profile.peers[sitesField(subject)], priors: sitePriors(profile.known.dna), now: Date.now() }) : []
+    const scoreOf = (site: string | null) => ranked.find(c => c.value === (site ?? 'offline'))
+    const custom = uniq([...(draft.allow[subject]?.sites || []), ...picked.filter(id => id.startsWith('site:')).map(id => id.slice(5)),
+      ...ranked.map(c => c.value).filter(v => v !== 'offline' && !!siteFromText(v))])
       .filter(s => !STUDY_MODE_OPTIONS.some(o => o.site === s))
-    options = [...STUDY_MODE_OPTIONS.map(o => ({ id: o.id, label: o.label })), ...custom.map(s => ({ id: `site:${s}`, label: s }))]
+    const noteFor = (c: Candidate | undefined) => (c && (c.source === 'peers' || c.source === 'request') ? ` · ${sourceLabel(c.source, exam)}` : '')
+    options = [
+      ...STUDY_MODE_OPTIONS.map(o => ({ id: o.id, label: o.label + noteFor(scoreOf(o.site)), score: scoreOf(o.site)?.score ?? 0 })),
+      ...custom.map(s => ({ id: `site:${s}`, label: s + noteFor(scoreOf(s)), score: scoreOf(s)?.score ?? 0 })),
+    ].sort((a, b) => b.score - a.score).map(({ id, label }) => ({ id, label }))
     doneLabel = picked.length ? 'Done' : 'Skip'
   } else if (step === 'channels') {
     const seen = new Set<string>()
     options = [
-      ...(channelSugs[subject] || []).map(c => ({ id: c.id, label: c.pickCount > 0 ? `${c.label} · ${c.pickCount} students` : c.label })),
       ...(draft.allow[subject]?.channels || []).map(c => ({ id: c.id, label: c.label })),
+      ...(channelSugs[subject] || []).map(c => ({
+        id: c.id,
+        label: c.pickCount > 0 ? `${c.label} · ${c.pickCount} ${exam ? `${exam} ` : ''}students` : c.note ? `${c.label} · ${c.note}` : c.label,
+      })),
     ].filter(o => !seen.has(o.id) && !!seen.add(o.id))
     doneLabel = picked.length ? 'Done' : 'Skip'
   } else if (step === 'apps') {
@@ -391,23 +598,39 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     doneLabel = picked.length ? 'Done' : 'No apps'
   } else if (step === 'apps_mode') {
     options = [{ id: 'whitelist', label: 'Keep only these open' }, { id: 'blacklist', label: 'Close these apps' }]
+  } else if (step === 'busy') {
+    const custom = uniq([...draft.busy, ...picked]).filter(v => v !== NOTHING_FIXED && !BUSY_OPTIONS.some(o => o.value === v))
+    options = [
+      ...BUSY_OPTIONS.map(o => ({ id: o.value, label: o.label })),
+      ...custom.map(v => ({ id: v, label: fmtBusy(v) })),
+      { id: NOTHING_FIXED, label: 'Nothing fixed' },
+    ]
   } else if (step === 'hours') {
-    options = profile ? hoursOptions(profile.known, profile.remembered) : []
+    const rec = recs?.dailyMinutes
+    options = profile ? hoursOptions(profile.known, profile.remembered, { minutes: draft.dailyMinutes, why: rec?.value === String(draft.dailyMinutes) ? why(rec) : 'current' }) : []
+  } else if (step === 'block') {
+    const rec = recs?.blockMinutes
+    options = blockOptions(draft.blockMinutes, rec?.value === String(draft.blockMinutes) ? why(rec) : 'current')
   } else if (step === 'wake' || step === 'sleep') {
-    options = clockOptions(step, (step === 'wake' ? profile?.remembered.wakeTime : profile?.remembered.sleepTime) ?? null)
+    const rec = step === 'wake' ? recs?.wake : recs?.sleep
+    const current = step === 'wake' ? draft.wakeTime : draft.sleepTime
+    const note = current && rec?.value === current ? why(rec) : current ? 'current' : null
+    options = clockOptions(step, current, note)
   } else if (step === 'preview') {
     options = [
       { id: 'confirm', label: 'Confirm this plan' }, { id: 'hours', label: 'Change study hours' },
-      { id: 'times', label: 'Change wake/sleep times' }, { id: 'setup', label: 'Change my set-up' },
+      ...(profile && needsBusyQuestion(profile.known.dna) ? [{ id: 'busy', label: 'Change busy times' }] : []),
+      { id: 'times', label: 'Change wake/sleep times' }, { id: 'block', label: 'Change block length' },
+      { id: 'setup', label: 'Change subjects & sites' },
     ]
   } else if (step === 'ai_preview') {
     options = [
       { id: 'confirm', label: 'Confirm this plan' },
       ...(draft.wakeTime && draft.sleepTime ? [{ id: 'rule', label: 'Back to my recommended day' }] : []),
-      { id: 'setup', label: 'Change my set-up' },
+      { id: 'setup', label: 'Change subjects & sites' },
     ]
   } else if (step === 'done') {
-    options = [{ id: 'again', label: 'Plan again' }, { id: 'setup', label: 'Change my set-up' }]
+    options = [{ id: 'again', label: 'Plan again' }, { id: 'setup', label: 'Change subjects & sites' }]
   }
   const filtering = FILTER_STEPS.includes(step)
   const shown = filtering ? filterOptions(options, input) : options
@@ -418,12 +641,17 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     if (busy) return
     const on = forceOn || !picked.includes(id)
     if (on && picked.includes(id)) return
+    if (step === 'busy') {
+      // "Nothing fixed" and actual busy times rule each other out.
+      setPicked(p => (on ? (id === NOTHING_FIXED ? [NOTHING_FIXED] : [...p.filter(x => x !== NOTHING_FIXED), id]) : p.filter(x => x !== id)))
+      return
+    }
     setPicked(p => (on ? [...p, id] : p.filter(x => x !== id)))
     if (step === 'channels') {
       const ch = options.find(o => o.id === id)
       const label = (channelSugs[subject] || []).find(c => c.id === id)?.label || ch?.label || id
       void setChannelPick(sb as any, {
-        examKey: examFamilyKey(profileRef.current?.known.exam ?? null), subjectKey: subjectKey(subject),
+        examKey: examFamilyKey(exam), subjectKey: subjectKey(subject),
         channelId: id, channelLabel: label, picked: on,
       }).catch(() => {})
     }
@@ -442,6 +670,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       enterSites({ ...d, subjects, allow }, 0)
       return
     }
+    if (step === 'busy') {
+      const windows = picked.filter(v => v !== NOTHING_FIXED)
+      echo(windows.length ? windows.map(labelOf).join(', ') : 'Nothing fixed')
+      nextGap({ ...d, busy: windows })
+      return
+    }
     const cur = d.allow[subject] || emptyAllow()
     if (step === 'sites') {
       const sites = uniq(picked.flatMap(id => {
@@ -449,7 +683,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         const site = STUDY_MODE_OPTIONS.find(o => o.id === id)?.site
         return site ? [site] : []
       }))
-      echo(picked.length ? picked.map(labelOf).join(', ') : 'Nothing for this one')
+      echo(picked.length ? picked.map(id => labelOf(id).split(' · ')[0]).join(', ') : 'Nothing for this one')
       const hasYoutube = sites.some(isYoutubeSite)
       const next = withAllow(d, subject, { sites, channels: hasYoutube ? cur.channels || [] : [] })
       if (hasYoutube) enterChannels(next, subjIdx)
@@ -482,26 +716,34 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     if (step === 'preview' && opt.id === 'confirm') { void confirmRecommended(d); return }
     if (step === 'ai_preview' && opt.id === 'confirm') { void confirmAi(d); return }
     echo(opt.label)
-    if (step === 'returning') {
-      if (opt.id === 'plan') enterHours(d); else enterSubjects(d)
-    } else if (step === 'apps_mode') {
+    if (step === 'apps_mode') {
       afterSubject(withAllow(d, subject, { appsMode: opt.id === 'whitelist' ? 'whitelist' : 'blacklist' }), subjIdx)
     } else if (step === 'hours') {
       const minutes = minutesFromOptionId(opt.id)
-      if (minutes) afterHours({ ...d, dailyMinutes: minutes })
+      if (minutes) nextGap({ ...d, dailyMinutes: minutes })
+    } else if (step === 'block') {
+      const m = /^b(\d+)$/.exec(opt.id)
+      if (m) nextGap({ ...d, blockMinutes: parseInt(m[1], 10) })
     } else if (step === 'wake') {
-      enterSleep({ ...d, wakeTime: opt.id })
+      afterWake({ ...d, wakeTime: opt.id })
     } else if (step === 'sleep') {
-      buildPreview({ ...d, sleepTime: opt.id })
+      nextGap({ ...d, sleepTime: opt.id })
     } else if (step === 'preview') {
       if (opt.id === 'hours') enterHours(d)
-      else if (opt.id === 'times') enterWake(d)
+      else if (opt.id === 'busy') enterBusy(d)
+      else if (opt.id === 'times') { gapsRef.current = ['sleep']; enterWake(d) }
+      else if (opt.id === 'block') enterBlock(d)
       else enterSubjects(d)
     } else if (step === 'ai_preview') {
       if (opt.id === 'rule') buildPreview(d); else enterSubjects(d)
     } else if (step === 'done') {
-      if (opt.id === 'again') enterHours(d); else enterSubjects(d)
+      if (opt.id === 'again') buildPreview(d); else enterSubjects(d)
     }
+  }
+
+  // Sleep follows wake only when it is still open too.
+  function afterWake(d: Draft) {
+    if (gapsRef.current[0] === 'sleep') { gapsRef.current.shift(); enterSleep(d) } else nextGap(d)
   }
 
   async function searchChannel(name: string, query: string) {
@@ -509,19 +751,53 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     try {
       const m = await resolveChannelSeed(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON, query)
       if (!m) { say(`I couldn't find a YouTube channel called "${query}". Try another name.`); return }
-      const found: ChannelSuggestion = { id: channelPickId(m), label: m.title, pickCount: 0 }
+      const found: ChannelSuggestion = { id: channelPickId(m), label: m.title, pickCount: 0, score: 0 }
       setChannelSugs(prev => ({ ...prev, [name]: [found, ...(prev[name] || []).filter(c => c.id !== found.id)] }))
       setPicked(p => (p.includes(found.id) ? p : [...p, found.id]))
+      // Counts toward this exam's ranking straight away, and toward other
+      // exams' "popular for this subject" list too.
       void setChannelPick(sb as any, {
-        examKey: examFamilyKey(profileRef.current?.known.exam ?? null), subjectKey: subjectKey(name),
+        examKey: examFamilyKey(exam), subjectKey: subjectKey(name),
         channelId: found.id, channelLabel: found.label, picked: true,
       }).catch(() => {})
-      say(`Found ${m.title} and ticked it.`)
+      say(`Found ${m.title} and ticked it. I'll remember it for ${name}.`)
     } catch (e) {
       say(chatErrorText(e, "I couldn't search YouTube just now."))
     } finally {
       setTyping(false)
     }
+  }
+
+  /** Applies a request Wynky understood on its own and remembers it as the
+   *  student's preference. Returns false when it isn't one. */
+  function applyLocalRequest(text: string, d: Draft): Draft | false {
+    const req = parseLocalRequest(text, d.subjects, { parseClock, siteFromText })
+    if (!req) return false
+    if (req.kind === 'hours') {
+      learn([{ field: 'daily_minutes', value: String(req.minutes), action: 'requested' }])
+      say(`Got it, ${fmtHours(req.minutes)}. I'll remember that.`)
+      return { ...d, dailyMinutes: req.minutes }
+    }
+    if (req.kind === 'block') {
+      learn([{ field: 'block_minutes', value: String(req.minutes), action: 'requested' }])
+      say(`Got it, ${req.minutes}-minute blocks from now on.`)
+      return { ...d, blockMinutes: req.minutes }
+    }
+    if (req.kind === 'wake' || req.kind === 'sleep') {
+      learn([{ field: req.kind, value: req.time, action: 'requested' }])
+      say(`Got it, ${req.kind === 'wake' ? 'up at' : 'asleep by'} ${fmtClock(req.time)}. I'll remember that.`)
+      return req.kind === 'wake' ? { ...d, wakeTime: req.time } : { ...d, sleepTime: req.time }
+    }
+    if (req.kind !== 'site') return d
+    const target = req.subject ?? (d.subjects.length === 1 ? d.subjects[0] : null)
+    if (!target) {
+      say(`Which subject is ${req.site} for? Say it like "${req.site} for ${d.subjects[0] || 'Physics'}".`)
+      return d
+    }
+    const cur = d.allow[target] || emptyAllow()
+    learn([{ field: sitesField(target), value: req.site, multi: true, action: 'requested' }])
+    say(`Got it, ${req.site} stays open during ${target}. I'll remember that.`)
+    return withAllow(d, target, { sites: uniq([...cur.sites, req.site]) })
   }
 
   async function submit() {
@@ -539,7 +815,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       if (match) { togglePick(match.id, true); return }
       const site = siteFromText(text)
       // A typed khanacademy.org is the Khan Academy option, not a second copy of it.
-      if (site) { togglePick(STUDY_MODE_OPTIONS.find(o => o.site === site)?.id ?? `site:${site}`, true); return }
+      if (site) {
+        togglePick(STUDY_MODE_OPTIONS.find(o => o.site === site)?.id ?? `site:${site}`, true)
+        learn([{ field: sitesField(subject), value: site, multi: true, action: 'requested' }])
+        return
+      }
       echo(text)
       say('Type a website like allen.ac.in, or pick one of the options.')
     } else if (step === 'channels') {
@@ -548,6 +828,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       await searchChannel(subject, text)
     } else if (step === 'apps') {
       togglePick(match ? match.id : `app:${text}`, true)
+    } else if (step === 'busy') {
+      const value = parseBusyText(text)
+      if (value) { togglePick(value, true); return }
+      if (/^(none|nothing|no|free)\b/i.test(text)) { togglePick(NOTHING_FIXED, true); return }
+      echo(text)
+      say('Type a time like 4-7 pm, or tap the options.')
     } else if (step === 'apps_mode') {
       if (match) { pickSingle(match); return }
       echo(text)
@@ -556,20 +842,29 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       if (match) { pickSingle(match); return }
       echo(text)
       const minutes = parseStudyMinutes(text)
-      if (minutes) afterHours({ ...draft, dailyMinutes: minutes })
+      if (minutes) nextGap({ ...draft, dailyMinutes: minutes })
       else say("I didn't catch that. Pick an option, or type the hours, like 5.")
+    } else if (step === 'block') {
+      if (match) { pickSingle(match); return }
+      echo(text)
+      const minutes = parseStudyMinutes(/\d\s*$/.test(text) ? `${text} min` : text)
+      if (minutes && minutes <= 180) nextGap({ ...draft, blockMinutes: minutes })
+      else say('Pick an option, or type the minutes, like 50.')
     } else if (step === 'wake' || step === 'sleep') {
       if (match) { pickSingle(match); return }
       echo(text)
       const t = parseClock(text, step)
       if (!t) say('Type a time like 6:30 am, or pick one of the options.')
-      else if (step === 'wake') enterSleep({ ...draft, wakeTime: t })
-      else buildPreview({ ...draft, sleepTime: t })
+      else if (step === 'wake') afterWake({ ...draft, wakeTime: t })
+      else nextGap({ ...draft, sleepTime: t })
     } else {
-      // returning / preview / ai_preview / done: anything the options don't cover goes to the AI.
+      // preview / ai_preview / done: simple requests are handled here and
+      // remembered; anything else goes to the AI.
       const exact = options.find(o => o.label.toLowerCase() === text.toLowerCase())
       if (exact) { pickSingle(exact); return }
       echo(text)
+      const updated = applyLocalRequest(text, draft)
+      if (updated) { if (updated !== draft) buildPreview(updated); return }
       await askAi(draft, text)
     }
   }
@@ -577,6 +872,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   async function askAi(d: Draft, text: string) {
     const p = profileRef.current
     if (!p) return
+    const notes = p.events.filter(e => e.field === 'note').slice(0, 3).map(e => e.value)
+    learn([{ field: 'note', value: text.slice(0, 300), action: 'requested' }])
     setTyping(true)
     try {
       const { freeSites, freeApps } = freeTimeLists()
@@ -592,7 +889,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ mode: 'text', goal_text: aiGoalText(d, text), presets: presetNames.map(n => ({ name: n })), subjects: d.subjects }),
+        body: JSON.stringify({ mode: 'text', goal_text: aiGoalText(d, text, p.known, notes), presets: presetNames.map(n => ({ name: n })), subjects: d.subjects }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || "Wynky couldn't build that.")
@@ -604,7 +901,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       setAiSchedule(schedule)
       ask('ai_preview', formatAiSchedule(schedule))
     } catch (e) {
-      say(chatErrorText(e, 'Something went wrong building that schedule.'))
+      say(`${chatErrorText(e, 'Something went wrong building that schedule.')} Your recommended plan is still here.`)
     } finally {
       setTyping(false)
     }
@@ -612,9 +909,33 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
 
   // ── Saving ─────────────────────────────────────────────────────────────
 
+  /** What to learn from a confirmed plan: each answer kept or changed,
+   *  sites added or dropped per subject, and how long the set-up took. */
+  function confirmedEvents(d: Draft): NewEvent[] {
+    const r = recsRef.current
+    const kept = (c: Candidate | null | undefined, value: string) => (c && c.value === value ? 'accepted' : 'changed') as NewEvent['action']
+    const out: NewEvent[] = [
+      { field: 'daily_minutes', value: String(d.dailyMinutes), action: kept(r?.dailyMinutes, String(d.dailyMinutes)) },
+      { field: 'block_minutes', value: String(d.blockMinutes), action: kept(r?.blockMinutes, String(d.blockMinutes)) },
+      { field: 'setup_seconds', value: String(Math.round((Date.now() - openedAt.current) / 1000)), action: 'accepted' },
+    ]
+    if (d.wakeTime) out.push({ field: 'wake', value: d.wakeTime, action: kept(r?.wake, d.wakeTime) })
+    if (d.sleepTime) out.push({ field: 'sleep', value: d.sleepTime, action: kept(r?.sleep, d.sleepTime) })
+    if (profileRef.current && needsBusyQuestion(profileRef.current.known.dna)) {
+      out.push({ field: 'busy', value: busyValue(d.busy), action: kept(r?.busy, busyValue(d.busy)) })
+    }
+    for (const s of d.subjects) {
+      const sites = d.allow[s]?.sites || []
+      for (const site of sites) out.push({ field: sitesField(s), value: site, multi: true, action: 'accepted' })
+      if (!sites.length && isEnforceable(d.allow[s])) out.push({ field: sitesField(s), value: 'offline', multi: true, action: 'accepted' })
+      for (const site of r?.sites[s] || []) if (!sites.includes(site)) out.push({ field: sitesField(s), value: site, multi: true, action: 'removed' })
+    }
+    return out
+  }
+
   function finishConfirmed(skipped: number) {
     const note = skipped > 0 ? ` I left out ${skipped} block${skipped === 1 ? '' : 's'} with nothing to lock.` : ''
-    ask('done', `Done, it's live. Focus Lock will follow it from the next scheduled block, and it's in Your Schedule too.${note}`)
+    ask('done', `Done, it's live. Focus Lock will follow it from the next scheduled block, and it's in Your Schedule too.${note} Next time I'll have it ready even faster.`)
   }
 
   function saveFailed(e: unknown, d: Draft) {
@@ -640,11 +961,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         freeTimeSites: freeSites, freeTimeApps: freeApps, daysOfWeek: ALL_DAYS,
       })
       const slots = toAiSlots(writtenSlots)
-      // The plan is saved at this point; remembering answers is best-effort.
+      // The plan is saved at this point; remembering and learning are best-effort.
       await rememberAnswers(sb as any, p.uid, { wakeTime: d.wakeTime, sleepTime: d.sleepTime, subjectAllowlists: allow }).catch(() => {})
+      learn(confirmedEvents(d))
       await recordOutcome(sb as any, {
         source: 'rule_based', requestedMinutes: d.dailyMinutes, confirmedMinutes: ruleResult.scheduledStudyMinutes,
-        outcome: d.dailyMinutes === defaultDailyMinutes(p.known, p.remembered) ? 'accepted_as_is' : 'accepted_edited',
+        outcome: String(d.dailyMinutes) === recsRef.current?.dailyMinutes?.value ? 'accepted_as_is' : 'accepted_edited',
       }).catch(() => {})
       onPlanConfirmed({ days_of_week: ALL_DAYS, slots })
       finishConfirmed(ruleResult.blocks.filter(b => b.kind === 'study').length - slots.filter(s => !s.is_sleep).length)
@@ -672,6 +994,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         ? rememberAnswers(sb as any, p.uid, { wakeTime: d.wakeTime, sleepTime: d.sleepTime, subjectAllowlists: allow })
         : rememberAllowlists(sb as any, p.uid, allow)
       await remember.catch(() => {})
+      // The AI plan's own hours aren't the student's usual amount, so only
+      // the set-up and timing are learned from it.
+      learn(confirmedEvents(d).filter(e => e.field !== 'daily_minutes' && e.field !== 'block_minutes'))
       await recordOutcome(sb as any, { source: 'ai_custom', requestedMinutes: null, confirmedMinutes: studyMinutes(writtenSlots), outcome: 'accepted_as_is' }).catch(() => {})
       onPlanConfirmed({ days_of_week: days, slots: writtenSlots })
       finishConfirmed(aiSchedule.slots.filter(s => !s.is_sleep).length - writtenSlots.filter(s => !s.is_sleep).length)
@@ -699,9 +1024,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     : step === 'signed_out' ? 'Sign in to use Wynky'
     : step === 'channels' ? 'Type a channel name to search YouTube…'
     : step === 'sites' ? 'Start typing to see options, or type a website…'
-    : filtering || step === 'apps_mode' ? 'Start typing to see options…'
-    : step === 'returning' ? 'Or tell me what today looks like…'
-    : 'Or tell me what to change…'
+    : step === 'busy' ? 'Type a time like 4-7 pm…'
+    : filtering || step === 'apps_mode' || step === 'block' ? 'Start typing to see options…'
+    : 'Or tell me what to change, like "5 hours" or "pw.live for Physics"…'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4"
