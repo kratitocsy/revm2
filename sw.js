@@ -11,6 +11,11 @@ const CACHE = 'revm2-v11'; // bumped: was v10 - Wynko rebrand. Clears the old
 const SHELL = [
   '/',
   '/home',
+  // The dashboard's bundle, so the new start page also works offline right
+  // after this version installs. home.html requests these with a ?v= cache
+  // buster, so the offline fallback below matches with ignoreSearch.
+  '/home-app-dist/home-app.css',
+  '/home-app-dist/home-app.js',
   '/login',
   '/tracker',
   '/groups',
@@ -82,7 +87,7 @@ self.addEventListener('fetch', e => {
       }
       return res;
     }).catch(() =>
-      caches.match(e.request).then(cached => cached || new Response(
+      caches.match(e.request, { ignoreSearch: true }).then(cached => cached || new Response(
         '<h1>Offline</h1><p>This page isn\'t cached yet — reconnect and try again.</p>',
         { status: 503, headers: { 'Content-Type': 'text/html' } }
       ))
