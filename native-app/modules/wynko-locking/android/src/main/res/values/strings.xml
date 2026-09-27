@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wynko_accessibility_service_description">Lets Wynko detect when a blocked app comes to the foreground during an active focus session, so it can show the block screen. Does not read screen content, only which app is currently open. Only active while you have a focus session running.</string>
+</resources>

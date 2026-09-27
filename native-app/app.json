@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Wynko",
+    "slug": "wynko",
+    "scheme": "wynko",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#08080c",
+    "ios": {
+      "bundleIdentifier": "com.wynko.app",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.wynko.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#08080c",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": ["expo-router", "expo-web-browser"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
