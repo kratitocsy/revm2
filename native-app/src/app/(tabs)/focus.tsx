@@ -15,6 +15,7 @@ const PERMISSION_STEPS: { key: keyof LockPermissions; label: string; request: ()
   { key: 'overlay', label: 'Show the block screen', request: WynkoLocking.requestOverlay },
   { key: 'vpn', label: 'Block websites', request: WynkoLocking.requestVpn },
   { key: 'deviceAdmin', label: 'Uninstall protection', request: WynkoLocking.requestDeviceAdmin },
+  { key: 'usageAccess', label: 'Screen-time stats', request: WynkoLocking.requestUsageAccess },
 ];
 
 /**

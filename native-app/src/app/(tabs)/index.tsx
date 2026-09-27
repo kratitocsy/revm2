@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors } from '../../lib/theme';
 
-export default function Home() {
+export default function Tracker() {
   const { session } = useAuth();
   const [username, setUsername] = useState<string | null>(null);
 
@@ -20,12 +20,12 @@ export default function Home() {
   }, [session]);
 
   return (
-    <Screen title={username ? `Hey, ${username}` : 'Home'}>
+    <Screen title={username ? `Hey, ${username}` : 'Tracker'}>
       <Card>
         <Text style={styles.label}>Scaffold</Text>
         <Text style={styles.body}>
-          This screen reads your profile from the same Supabase project as the website. The mobile
-          home redesign (src/apps/mobile-home/MobileHome.tsx on the web) gets rebuilt here next.
+          This screen reads your profile from the same Supabase project as the website. The
+          spaced-repetition tracker (tracker.html on the web) gets rebuilt here next.
         </Text>
       </Card>
     </Screen>

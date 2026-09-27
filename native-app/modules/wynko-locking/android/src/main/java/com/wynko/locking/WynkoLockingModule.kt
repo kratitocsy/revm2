@@ -1,5 +1,6 @@
 package com.wynko.locking
 
+import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
@@ -58,7 +59,8 @@ class WynkoLockingModule : Module() {
         "accessibility" to isAccessibilityServiceEnabled(),
         "overlay" to Settings.canDrawOverlays(context),
         "vpn" to (VpnService.prepare(context) == null), // null = already granted
-        "deviceAdmin" to (dpm?.isAdminActive(adminComponent) == true)
+        "deviceAdmin" to (dpm?.isAdminActive(adminComponent) == true),
+        "usageAccess" to hasUsageAccess()
       )
     }
 
@@ -95,6 +97,12 @@ class WynkoLockingModule : Module() {
           "step instead of one tap. Revocable anytime from Settings."
       )
       startSettings(intent)
+    }
+
+    // Usage Access: study/screen-time stats parity with desktop (part of
+    // the locked-in Android feature set in docs/revm2-locking-research.md).
+    AsyncFunction("requestUsageAccess") {
+      startSettings(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
     }
 
     // ── Block list + session control ───────────────────────────────
@@ -145,6 +153,18 @@ class WynkoLockingModule : Module() {
   private fun startSettings(intent: Intent) {
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
+  }
+
+  private fun hasUsageAccess(): Boolean {
+    val appOps = context.getSystemService(AppOpsManager::class.java) ?: return false
+    val uid = android.os.Process.myUid()
+    val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+      appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, uid, context.packageName)
+    } else {
+      @Suppress("DEPRECATION")
+      appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, uid, context.packageName)
+    }
+    return mode == AppOpsManager.MODE_ALLOWED
   }
 
   private fun isAccessibilityServiceEnabled(): Boolean {

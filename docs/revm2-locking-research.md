@@ -260,3 +260,42 @@ shell:
 Fastest path to something real: Phases 1–2 alone (wrapper + mobile-native
 shell, no blocking yet) is a shippable v1 APK in under a week — Tier 2+3
 blocking can follow as a v1.1 once the base app is stable on real devices.
+
+---
+
+## Addendum (Sep 2026): mobile moves from Capacitor to a native Expo app
+
+The "Build path" and "UI approach: Capacitor" sections above are
+superseded for the app shell. Capacitor still rendered the website inside
+a WebView, so it kept feeling like a website, and it ties the mobile app
+to how the web pages are built (a planned move to Next.js would break the
+`sync-web.js` copy). The new app is `native-app/` (Expo / React Native).
+`mobile/` stays in place until the native app reaches parity. Desktop
+stays on Tauri.
+
+How the tiers map onto it:
+
+| Tier | Capacitor app (`mobile/`) | Native app (`native-app/`) |
+|---|---|---|
+| 1: app shell, bottom nav | `initMobileNativeShell()` in `shared.js` over the web pages | Real native screens and a platform tab bar: Tracker / Groups / Focus (Timer + Focus Lock) / Leaderboard / Profile |
+| 2: Accessibility overlay block | `RevM2AccessibilityService` | Same Kotlin, moved into `native-app/modules/wynko-locking` |
+| 3: local VPN site blocking | `RevM2VpnService` | Same Kotlin, same module |
+| Device Admin uninstall-resistance | `RevM2DeviceAdminReceiver` | Same Kotlin, same module |
+| Usage Access stats | Permission declared, no code | Check + request added to the module (`usageAccess`) |
+| 4: Device Owner "Advanced Lock" | Not started | Not started. Same rule applies: never in the Play build. Implement it as a separate local module that only a direct-download EAS build profile includes |
+
+Only the JS bridge changed (`RevM2LockingPlugin` became
+`WynkoLockingModule`, Expo Modules API). Method names and result shapes
+are the same, so the session wiring in `blocks.html`
+(`syncSessionToMobile()`) ports directly. Supabase still needs zero
+schema changes.
+
+Unchanged from above: distribute through the Play Store internal testing
+track from day one (EAS Build + EAS Submit), budget for the Accessibility,
+VPN, `QUERY_ALL_PACKAGES` and Device Admin declarations, and expect OEM
+battery managers to be the main reliability problem.
+
+iOS was never in this plan (target users are Android-first). If it is
+added later it needs Apple's Screen Time APIs and an Apple-approved
+entitlement, not a port of the Android tiers. `native-app/README.md` has
+the details.

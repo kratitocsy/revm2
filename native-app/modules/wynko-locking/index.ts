@@ -15,6 +15,7 @@ export type LockPermissions = {
   overlay: boolean;
   vpn: boolean;
   deviceAdmin: boolean;
+  usageAccess: boolean;
 };
 
 export type InstalledApp = { packageName: string; label: string };
@@ -41,6 +42,7 @@ type NativeModule = {
   requestOverlay(): Promise<void>;
   requestVpn(): Promise<void>;
   requestDeviceAdmin(): Promise<void>;
+  requestUsageAccess(): Promise<void>;
   setBlockListAndStart(options: StartOptions): Promise<void>;
   endSession(unlockPhrase: string | null): Promise<void>;
   getSessionState(): Promise<SessionState>;
@@ -63,6 +65,7 @@ export const WynkoLocking = {
   requestOverlay: () => need().requestOverlay(),
   requestVpn: () => need().requestVpn(),
   requestDeviceAdmin: () => need().requestDeviceAdmin(),
+  requestUsageAccess: () => need().requestUsageAccess(),
   setBlockListAndStart: (options: StartOptions) => need().setBlockListAndStart(options),
   endSession: (unlockPhrase: string | null = null) => need().endSession(unlockPhrase),
   getSessionState: () => need().getSessionState(),

@@ -33,11 +33,20 @@ URL under Supabase > Authentication > URL Configuration > Redirect URLs.
 ## Layout
 
 - `src/app/` routes (Expo Router): `login`, and the `(tabs)` group with
-  Home, Focus Lock, Groups and Profile
+  Tracker, Groups, Focus (Timer + Focus Lock), Leaderboard and Profile,
+  following the bottom-nav list in `../docs/revm2-locking-research.md`
 - `src/lib/supabase.ts` the same Supabase project as the website,
   with sessions stored in AsyncStorage
 - `src/lib/auth.tsx` session context, email and Google sign-in
 - `modules/wynko-locking/` Android blocking as a local Expo module
+
+## Mobile tiers
+
+The tier plan lives in `../docs/revm2-locking-research.md`; its latest
+addendum maps each tier to this app. In short: Tier 1 (shell) is these
+native screens, Tiers 2 and 3 plus Device Admin are the ported Kotlin in
+`modules/wynko-locking`, Usage Access is added, and Tier 4 (Device Owner)
+is still not started and must never ship in the Play build.
 
 ## What carried over from the Capacitor app
 
@@ -70,7 +79,9 @@ calls written inline, so the order that makes sense is:
 
 ## iOS blocking
 
-There is no iOS app today, and Android's approach does not exist there.
+There is no iOS app today, and the tiers plan targets Android only, so
+this is a later decision. If iOS is added, Android's approach does not
+exist there.
 iOS blocking has to use Apple's Screen Time APIs (FamilyControls,
 ManagedSettings, DeviceActivity):
 
