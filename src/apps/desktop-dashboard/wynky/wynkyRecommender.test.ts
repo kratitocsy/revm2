@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  rank, best, preselect, isSettled, blendWeights, personalEvidence, blockMinutesPriors, sitePriors, busyPriors,
+  rank, best, preselect, isSettled, latestOwn, blendWeights, personalEvidence, blockMinutesPriors, sitePriors, busyPriors,
   parseLocalRequest, type WynkyEvent,
 } from './wynkyRecommender';
 import { parseClock, siteFromText, parseBusyText } from './wynkyChatFlow';
@@ -79,6 +79,25 @@ describe('rank', () => {
   });
 });
 
+describe('removals', () => {
+  it('keeps a removed site out even when peers and Study DNA like it', () => {
+    const ranked = rank({
+      field: 'sites:physics', now: NOW,
+      events: [ev('sites:physics', 'youtube.com', 'accepted', 5, true), ev('sites:physics', 'youtube.com', 'removed', 1, true)],
+      peers: { cohort: 'exam', cohortUsers: 30, counts: [{ value: 'youtube.com', users: 25 }] },
+      priors: [{ value: 'youtube.com', weight: 1, source: 'study_dna' }],
+    });
+    expect(ranked.map(c => c.value)).not.toContain('youtube.com');
+  });
+  it('lets a later re-add bring it back', () => {
+    const ranked = rank({ field: 'sites:physics', now: NOW, events: [ev('sites:physics', 'pw.live', 'removed', 5, true), ev('sites:physics', 'pw.live', 'accepted', 1, true)] });
+    expect(ranked.map(c => c.value)).toContain('pw.live');
+  });
+  it('reads the latest own answer', () => {
+    expect(latestOwn([ev('wake', '06:00', 'accepted', 30), ev('wake', '05:30', 'changed', 2)], 'wake')).toBe('05:30');
+  });
+});
+
 describe('isSettled', () => {
   it('stops asking after the same answer twice, or a request', () => {
     expect(isSettled([ev('wake', '06:00')], 'wake')).toBe(false);
@@ -114,13 +133,15 @@ describe('parseLocalRequest', () => {
     expect(parseLocalRequest('I have coaching 4 to 7 on weekdays', subjects, helpers)).toBeNull();
     expect(parseLocalRequest('wake at 6 and study 5 hours', subjects, helpers)).toBeNull();
     expect(parseLocalRequest('maths first please', subjects, helpers)).toBeNull();
+    expect(parseLocalRequest('block instagram.com during physics', subjects, helpers)).toBeNull();
+    expect(parseLocalRequest('no youtube.com for maths', subjects, helpers)).toBeNull();
   });
 });
 
 describe('parseBusyText', () => {
   it.each([
     ['4-7 pm', '16:00-19:00'], ['16:00-19:00', '16:00-19:00'], ['8 to 2', '08:00-14:00'],
-    ['11-2 pm', '11:00-14:00'], ['6am-9am', '06:00-09:00'],
+    ['11-2 pm', '11:00-14:00'], ['6am-9am', '06:00-09:00'], ['5-8', '17:00-20:00'], ['2-5', '14:00-17:00'], ['6-9', '06:00-09:00'],
   ])('%s -> %s', (text, out) => {
     expect(parseBusyText(text)).toBe(out);
   });

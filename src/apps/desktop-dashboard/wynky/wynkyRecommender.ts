@@ -73,11 +73,23 @@ function decay(ageMs: number, halfLifeDays: number): number {
 }
 
 /** The student's own evidence per value, and the total positive evidence. */
-export function personalEvidence(events: WynkyEvent[], field: string, now: number): { byValue: Map<string, number>; total: number; requested: Set<string> } {
+export function personalEvidence(events: WynkyEvent[], field: string, now: number): { byValue: Map<string, number>; total: number; requested: Set<string>; suppressed: Set<string> } {
   const byValue = new Map<string, number>()
   const requested = new Set<string>()
+  // Values whose latest event is a removal: the student said no, so no
+  // other signal (peers, Study DNA) may bring them back.
+  const latest = new Map<string, WynkyEvent>()
   for (const e of events) {
     if (e.field !== field) continue
+    const cur = latest.get(e.value)
+    if (!cur || Date.parse(e.at) >= Date.parse(cur.at)) latest.set(e.value, e)
+  }
+  const suppressed = new Set([...latest.values()].filter(e => e.action === 'removed').map(e => e.value))
+  for (const e of events) {
+    if (e.field !== field) continue
+    // A removal the student later undid (re-added the value) no longer counts.
+    const last = latest.get(e.value)
+    if (e.action === 'removed' && last && last.action !== 'removed') continue
     const age = now - Date.parse(e.at)
     const w = ACTION_WEIGHT[e.action] * decay(age, e.action === 'requested' ? REQUEST_HALF_LIFE_DAYS : HALF_LIFE_DAYS)
     byValue.set(e.value, (byValue.get(e.value) || 0) + w)
@@ -88,7 +100,14 @@ export function personalEvidence(events: WynkyEvent[], field: string, now: numbe
     if (w <= 0) byValue.delete(v)
     else total += w
   }
-  return { byValue, total, requested }
+  return { byValue, total, requested, suppressed }
+}
+
+/** The student's own most recent answer for a one-answer field. */
+export function latestOwn(events: WynkyEvent[], field: string): string | null {
+  let best: WynkyEvent | null = null
+  for (const e of events) if (e.field === field && !e.multi && e.action !== 'removed' && (!best || Date.parse(e.at) > Date.parse(best.at))) best = e
+  return best?.value ?? null
 }
 
 function shares(entries: [string, number][]): Map<string, number> {
@@ -122,6 +141,7 @@ export function rank(input: RankInput): Candidate[] {
   const values = new Set<string>([...youShare.keys(), ...peerShare.keys(), ...priorShare.keys(), ...(input.extras || []).map(x => x.value)])
   const out: Candidate[] = []
   for (const value of values) {
+    if (own.suppressed.has(value)) continue
     const parts: [Source, number][] = [
       [own.requested.has(value) ? 'request' : 'you', w.you * (youShare.get(value) || 0)],
       ['peers', wPeers * (peerShare.get(value) || 0)],
@@ -245,6 +265,9 @@ export function parseLocalRequest(
   if (t.length > 80) return null
   // Several instructions at once ("wake 6, 5 hours, maths first") are for the AI.
   if ((t.match(/,|\band\b|;/g) || []).length > 0) return null
+  // So is anything negative ("block instagram.com", "no youtube.com"), which
+  // must never be read as keeping that site open.
+  if (/\b(no|not|don'?t|never|block|stop|without|avoid|except|instead|remove|less)\b/.test(t)) return null
 
   const domain = t.split(/\s+/).map(w => helpers.siteFromText(w)).find(Boolean)
   if (domain) {

@@ -498,8 +498,10 @@ export async function recordEvents(sb: SupaLike, userId: string, cohort: { examK
   if (error) throw new Error(error.message);
 }
 
-export async function fetchPeerStats(sb: SupaLike, examKey: string, dayType: string | null, fields: string[]): Promise<PeerStats> {
-  const { data } = await sb.rpc('rpc_wynky_peer_stats', { p_exam_key: examKey, p_day_type: dayType, p_fields: fields });
+/** Same-exam counts per field. The server narrows to the student's own
+ *  Study DNA day type itself when that group is big enough. */
+export async function fetchPeerStats(sb: SupaLike, examKey: string, fields: string[]): Promise<PeerStats> {
+  const { data } = await sb.rpc('rpc_wynky_peer_stats', { p_exam_key: examKey, p_fields: fields });
   const out: PeerStats = {};
   for (const r of (Array.isArray(data) ? data : []) as { field: string; value: string; users: number; cohort_users: number; cohort: 'exam_daytype' | 'exam' }[]) {
     const f = out[r.field] || (out[r.field] = { cohort: r.cohort, cohortUsers: Number(r.cohort_users), counts: [] });

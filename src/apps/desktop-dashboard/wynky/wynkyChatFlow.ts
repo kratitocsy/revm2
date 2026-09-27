@@ -177,8 +177,9 @@ export function blockOptions(recommended: number, why: string | null): ChatOptio
   return opts;
 }
 
-/** "4-7 pm", "16:00-19:00", "8 to 2" -> "HH:MM-HH:MM", or null. A plain
- *  end hour earlier than the start is read as afternoon ("8 to 2"). */
+/** "4-7 pm", "16:00-19:00", "8 to 2", "5-8" -> "HH:MM-HH:MM", or null.
+ *  Without am/pm, an end hour earlier than the start is read as afternoon
+ *  ("8 to 2"), and a window starting before 6 as evening ("5-8"). */
 export function parseBusyText(text: string): string | null {
   const m = /^(\d{1,2}(?:[:.]\d{2})?)\s*([ap]\.?m\.?)?\s*(?:-|to|–)\s*(\d{1,2}(?:[:.]\d{2})?)\s*([ap]\.?m\.?)?$/i.exec(text.trim().toLowerCase());
   if (!m) return null;
@@ -189,6 +190,11 @@ export function parseBusyText(text: string): string | null {
   let start = clock(m[1], startAp);
   // "11-2 pm": the pm belongs to the end only.
   if (!m[2] && start && end && start >= end) start = clock(m[1], null);
+  // "2-5" or "5-8" with no am/pm: nobody means the middle of the night.
+  if (!startAp && start && end && start < '06:00' && end <= '12:00') {
+    const plus12 = (t: string) => `${String(Number(t.slice(0, 2)) + 12).padStart(2, '0')}${t.slice(2)}`;
+    start = plus12(start); end = plus12(end);
+  }
   if (!start || !end) return null;
   if (end <= start && !endAp) {
     const [eh, em] = end.split(':').map(Number);

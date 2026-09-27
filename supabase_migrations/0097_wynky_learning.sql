@@ -43,15 +43,17 @@ create index if not exists idx_wynky_events_cohort on public.wynky_events(exam_k
 -- counts, so a student who changed their mind stops counting for the old
 -- answer. Only the last 120 days count.
 --
--- The narrower cohort (same exam AND same Study DNA day type, e.g. JEE +
--- school and coaching) is used for a field when at least 5 students in it
--- have answered that field; otherwise the whole exam; otherwise nothing.
+-- The narrower cohort (same exam AND the caller's own Study DNA day type,
+-- e.g. JEE + school and coaching) is used for a field when at least 5
+-- students in it have answered that field; otherwise the whole exam;
+-- otherwise nothing. The day type is read from the caller's own profile,
+-- not taken as a parameter, so nobody can ask for both levels and subtract
+-- one from the other to see a small group's answers.
 -- A value must be chosen by at least 3 students to be returned at all, so
 -- nothing one student typed (a private site, say) can leak to others.
 -- Free-text notes and set-up timings are never aggregated.
 create or replace function public.rpc_wynky_peer_stats(
   p_exam_key text,
-  p_day_type text,
   p_fields text[]
 ) returns table (field text, value text, users bigint, cohort_users bigint, cohort text)
 language sql
@@ -59,13 +61,18 @@ stable
 security definer
 set search_path = public
 as $$
-  with recent as (
+  with me as (
+    select nullif(up.quiz_answers->>'day_type', '') as day_type
+    from public.user_profiles up where up.id = auth.uid()
+  ),
+  recent as (
     select e.*
     from public.wynky_events e
     where e.exam_key = p_exam_key
       and e.field = any(p_fields)
       and e.field not in ('note', 'setup_seconds')
       and e.created_at > now() - interval '120 days'
+      and auth.uid() is not null
   ),
   latest_single as (
     select distinct on (user_id, field) user_id, field, value, action, day_type
@@ -84,7 +91,7 @@ as $$
   ),
   cohort_size as (
     select field,
-      count(distinct user_id) filter (where p_day_type is not null and day_type = p_day_type) as daytype_users,
+      count(distinct user_id) filter (where day_type = (select day_type from me)) as daytype_users,
       count(distinct user_id) as exam_users
     from current_choices group by field
   ),
@@ -97,13 +104,14 @@ as $$
   select c.field, c.value, count(distinct c.user_id) as users, ch.cohort_users, ch.cohort
   from current_choices c
   join chosen ch on ch.field = c.field and ch.cohort is not null
-  where ch.cohort = 'exam' or c.day_type = p_day_type
+  where ch.cohort = 'exam' or c.day_type = (select day_type from me)
   group by c.field, c.value, ch.cohort_users, ch.cohort
   having count(distinct c.user_id) >= 3
   order by c.field, users desc;
 $$;
 
-grant execute on function public.rpc_wynky_peer_stats(text, text, text[]) to authenticated;
+revoke execute on function public.rpc_wynky_peer_stats(text, text[]) from public, anon;
+grant execute on function public.rpc_wynky_peer_stats(text, text[]) to authenticated;
 
 -- Everything Wynky knows about the YouTube channels for one subject, in
 -- one call, as counts only (same 3-student floor as above):
@@ -125,7 +133,7 @@ security definer
 set search_path = public
 as $$
   with subject_picks as (
-    select * from public.wynky_channel_picks where subject_key = p_subject_key
+    select * from public.wynky_channel_picks where subject_key = p_subject_key and auth.uid() is not null
   ),
   co_users as (
     select distinct user_id from subject_picks
@@ -133,7 +141,8 @@ as $$
   ),
   agg as (
     select sp.channel_id,
-      min(sp.channel_label) as channel_label,
+      -- The name most students saved, so one odd label can't rename a channel.
+      mode() within group (order by sp.channel_label) as channel_label,
       count(distinct sp.user_id) filter (where sp.exam_key = p_exam_key) as same_exam_users,
       count(distinct sp.user_id) filter (where sp.exam_key <> p_exam_key) as other_exam_users,
       count(distinct sp.user_id) filter (where sp.exam_key = p_exam_key and sp.user_id in (select user_id from co_users)
@@ -141,7 +150,9 @@ as $$
     from subject_picks sp
     group by sp.channel_id
   )
-  select channel_id, channel_label, same_exam_users, other_exam_users,
+  select channel_id, channel_label,
+    case when same_exam_users >= 3 then same_exam_users else 0 end,
+    case when other_exam_users >= 3 then other_exam_users else 0 end,
     case when also_picked_users >= 3 then also_picked_users else 0 end
   from agg
   where same_exam_users >= 3 or other_exam_users >= 3
@@ -149,4 +160,5 @@ as $$
   limit 40;
 $$;
 
+revoke execute on function public.rpc_wynky_channel_signals(text, text, text[]) from public, anon;
 grant execute on function public.rpc_wynky_channel_signals(text, text, text[]) to authenticated;
