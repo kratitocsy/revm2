@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "extensionPath": "/blocked/blocked.html?site=adult-keyword&adult=1&reason=keyword"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https?://([a-z0-9-]+\\.)*(brazzers|camgirl|camwhore|chaturbate|livejasmin|livesex|porn|pornhub|pornsite|redtube|sexcam|spankbang|stripchat|webcamsex|xhamster|xnxx|xvideos|youporn)(-[a-z0-9-]*)?\\.[a-z]{2,}",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "extensionPath": "/blocked/blocked.html?site=adult-keyword&adult=1&reason=keyword"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https?://([a-z0-9-]+\\.)*(adultfriendfinder|bdsmporn|creampie|cuckold|deepthroat|escortsex|fetishporn|gangbang|hardcoreporn|hentai|milfporn|nudes|nudevista|sexmovies|sextape|sexvideos|shemaleporn|teenporn|trannyporn|xxx)(-[a-z0-9-]*)?\\.[a-z]{2,}",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "extensionPath": "/blocked/blocked.html?site=adult-keyword&adult=1&reason=keyword"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https?://([a-z0-9-]+\\.)*(adultstories|adultstory|antarvasna|auntysex|bhabhisex|chudai|chudaikahani|chudaistory|chudwaya|desichudai|desiporn|desisex|eroticstories|eroticstory|hindisex|hindisexstories|hindisexstory|indiansexstories|indiansexstory|kahanisex|kamukta|kamvasna|sexkahani|sexkahaniya|sexstories|sexstory)(-[a-z0-9-]*)?\\.[a-z]{2,}",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  }
+]

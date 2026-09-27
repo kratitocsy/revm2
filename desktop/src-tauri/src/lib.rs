@@ -697,7 +697,7 @@ async fn run_guard_tick(
                 app,
                 "Wynko - Incognito access not allowed",
                 &format!(
-                    "{name}'s RevM2 extension doesn't have Incognito access. Go to chrome://extensions -> RevM2 -> Details -> turn on \"Allow in Incognito\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
+                    "{name}'s Wynko extension doesn't have Incognito access. Go to chrome://extensions -> Wynko Focus Lock -> Details -> turn on \"Allow in Incognito\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
                 ),
             );
         } else if reason == "site_access" {
@@ -705,7 +705,7 @@ async fn run_guard_tick(
                 app,
                 "Wynko - Site access restricted",
                 &format!(
-                    "{name}'s RevM2 extension's Site access is set to something other than \"On all sites\". Go to chrome://extensions -> RevM2 -> Details -> Site access -> \"On all sites\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
+                    "{name}'s Wynko extension's Site access is set to something other than \"On all sites\". Go to chrome://extensions -> Wynko Focus Lock -> Details -> Site access -> \"On all sites\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
                 ),
             );
         } else {
@@ -713,7 +713,7 @@ async fn run_guard_tick(
                 app,
                 "Wynko - Extension disabled",
                 &format!(
-                    "{name}'s RevM2 extension is missing or disabled. Re-enable it within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
+                    "{name}'s Wynko extension is missing or disabled. Re-enable it within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
                 ),
             );
         }
@@ -726,7 +726,7 @@ async fn run_guard_tick(
         notify(
             app,
             "Wynko - Extension re-enabled",
-            &format!("{name}'s RevM2 extension is back on - {name} is protected again."),
+            &format!("{name}'s Wynko extension is back on - {name} is protected again."),
         );
     }
 
@@ -742,7 +742,7 @@ async fn run_guard_tick(
                 app,
                 "Wynko - Browser closed",
                 &format!(
-                    "{} was closed because the RevM2 extension wasn't re-enabled in time.",
+                    "{} was closed because the Wynko extension wasn't re-enabled in time.",
                     killed.join(", ")
                 ),
             );
