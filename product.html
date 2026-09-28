@@ -17,7 +17,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Figtree:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* =====================================================================
    WYNKO — PRODUCT / STUDY OS
@@ -52,10 +52,12 @@
 
   --font:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
-  --hero-font:'Figtree',var(--font);
+
+  /* hero + header theme (orange / cream) */
   --hero-btn:linear-gradient(180deg,rgba(255,226,160,.32) 0%,rgba(255,226,160,0) 46%),
              linear-gradient(90deg,#FD4C00 0%,#FE6210 32%,#FE8A1E 62%,#FFB22A 88%,#FFBF30 100%);
   --hero-os:linear-gradient(180deg,#FDC66A 10%,#FBB35E 38%,#F9994F 62%,#F5884A 80%,#F27C3A 100%);
+  --hero-line:linear-gradient(90deg,#F2CE7C 0%,#E49A55 45%,#D26936 100%);
   --maxw:1200px;
   --r:16px;
   --r-sm:10px;
@@ -116,48 +118,32 @@ img{ max-width:100%; display:block; }
 
 /* ---------- nav ---------- */
 header{
-  --nav-h:144px;
   position:sticky; top:0; z-index:50;
-  background:rgba(10,10,18,.72);
+  background:rgba(8,6,5,.74);
   backdrop-filter:blur(16px) saturate(140%);
-  border-bottom:1px solid var(--border);
-  transition:background .25s ease, border-color .25s ease;
+  border-bottom:1px solid rgba(255,170,110,.09);
 }
-main{ --nav-h:144px; }
-header.scrolled .nav{ height:84px; }
-.nav{ transition:height .25s ease; }
-.nav{ display:flex; align-items:center; gap:34px; height:var(--nav-h); }
-header .wrap.nav{ max-width:1308px; padding:0 0 0 0; }
+.nav{ display:flex; align-items:center; gap:34px; height:66px; }
 .brand{ display:flex; align-items:center; gap:11px; flex-shrink:0; }
 .brand-mark{
   width:40px; height:40px; display:flex; align-items:center; justify-content:center;
 }
 .brand-mark img{ width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 10px var(--glow-v)); }
+header .brand-mark img{ filter:drop-shadow(0 0 10px rgba(255,130,50,.35)); }
+header .brand-word{ color:#FFF7E6; }
+header .brand-word b{ font-weight:inherit; background:linear-gradient(180deg,#FFB47A,#EE8446); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .brand-word{ font-weight:800; font-size:1.18rem; letter-spacing:.14em; }
-header .brand{ gap:14px; }
-header .brand-mark{ width:78px; height:60px; }
-header .brand-mark img{ filter:drop-shadow(0 4px 14px rgba(255,120,40,.28)); }
-header .brand-word{ font-family:var(--hero-font); font-weight:800; font-size:2.1rem; letter-spacing:.02em; line-height:1; color:#fff; }
-header .brand-word b{
-  font-weight:800; background:linear-gradient(180deg,#FFB47A 0%,#F59A5E 55%,#EE8446 100%);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.nav-links{ display:flex; align-items:center; gap:46px; margin-left:54px; }
-.nav-links a{ position:relative; font-family:var(--hero-font); font-size:1.08rem; font-weight:500; white-space:nowrap; color:rgba(255,255,255,.7); transition:color .18s; }
+.nav-links{ display:flex; align-items:center; gap:26px; margin-left:8px; }
+.nav-links a{ font-size:.9rem; font-weight:500; color:var(--text-2); transition:color .18s; }
 .nav-links a:hover{ color:#fff; }
-.nav-links a.active{ color:#fff; font-weight:600; }
-.nav-links a.active::after{ content:''; position:absolute; left:0; right:0; bottom:-12px; height:3px; border-radius:3px; background:linear-gradient(90deg,#F2CE7C 0%,#E49A55 45%,#D26936 100%); }
-.nav-right{ margin-left:auto; display:flex; align-items:center; gap:33px; }
-.nav-right .login{ font-family:var(--hero-font); white-space:nowrap; font-size:1.08rem; font-weight:500; color:rgba(255,255,255,.86); }
+.nav-links a.active{ color:#fff; }
+.nav-links a.active::after{ content:''; display:block; height:2px; margin-top:3px; border-radius:2px; background:var(--hero-line); }
+.nav-right{ margin-left:auto; display:flex; align-items:center; gap:18px; }
+.nav-right .login{ font-size:.9rem; font-weight:500; color:var(--text-2); }
 .nav-right .login:hover{ color:#fff; }
-header .nav-dl{ height:52px; padding:0 30px 0 26px; gap:13px; font-size:.95rem; }
-header .nav-dl svg{ width:19px; height:19px; }
 .nav-dot{ width:6px; height:6px; border-radius:50%; background:var(--mint); display:inline-block; margin-right:7px; box-shadow:0 0 10px var(--mint); animation:pulse 2s infinite; }
 @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
 .nav-toggle{ display:none; background:none; border:0; color:var(--text); font-size:1.5rem; cursor:pointer; }
-@media (max-width:1320px){ header .wrap.nav{ padding:0 28px; } .nav-links{ gap:34px; margin-left:24px; } .nav-right{ gap:22px; } }
-@media (max-width:1100px){ header{ --nav-h:80px; } main{ --nav-h:80px; } header.scrolled .nav{ height:68px; } header .brand-mark{ width:58px; height:45px; } header .brand-word{ font-size:1.6rem; } .nav-links{ gap:24px; margin-left:8px; } }
-@media (max-width:560px){ header{ --nav-h:66px; } main{ --nav-h:66px; } header.scrolled .nav{ height:60px; } header .brand-mark{ width:46px; height:36px; } header .brand-word{ font-size:1.3rem; } header .nav-dl{ height:40px; padding:0 16px; font-size:.84rem; gap:8px; } header .nav-dl svg{ width:15px; height:15px; } }
 
 /* ---------- generic section scaffolding ---------- */
 section{ padding:96px 0; }
@@ -198,96 +184,32 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .float-badge-a{ top:8%; left:-4%; }
 .float-badge-b{ bottom:12%; right:-6%; }
 
-/* =============================================================
-   HERO — cinematic backdrop + devices/Wynky foreground
-   Colours sampled from the Wynko hero reference.
-   ============================================================= */
-.hero{
-  position:relative; overflow:hidden;
-  margin-top:calc(-1 * var(--nav-h));
-  padding:var(--nav-h) 0 160px;
-  font-family:var(--hero-font);
-  min-height:max(760px, 100svh);
-  display:flex; align-items:center;
-  background:#060505 url('assets/hero/wynko-hero-bg.webp') center bottom / cover no-repeat;
-}
-.hero .wrap{ width:100%; max-width:1290px; padding:0; }
-.hero-grid{ display:grid; grid-template-columns:560px minmax(0,1fr); align-items:center; }
-.hero-copy{ position:relative; z-index:2; }
+/* ---------- hero ---------- */
+.hero{ padding-top:70px; padding-bottom:80px; background:#060505 url('assets/hero/wynko-hero-bg.webp') center bottom / cover no-repeat; }
+.hero-grid{ display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; }
+.hero-cta{ display:flex; gap:14px; flex-wrap:wrap; margin-top:32px; }
+.hero-meta{ display:flex; align-items:center; gap:22px; margin-top:26px; flex-wrap:wrap; }
+.hero-meta .item{ font-size:.8rem; color:var(--text-3); display:flex; align-items:center; gap:8px; }
+.hero-meta .item b{ color:var(--text); font-family:var(--mono); }
+.hero h1{ margin-bottom:22px; }
 
-.hero-eyebrow{
-  display:inline-flex; align-items:center; gap:16px; height:37px; padding:0 18px 0 14px;
-  border-radius:999px; border:1px solid transparent;
-  background:linear-gradient(#0b0605,#0b0605) padding-box,
-             linear-gradient(90deg,#B99772,#C79A76 60%,#C8683A) border-box;
-  font-size:.82rem; font-weight:600; letter-spacing:.17em; text-transform:uppercase; line-height:1;
-}
-.hero-eyebrow i{ width:6px; height:6px; border-radius:50%; background:#D9BC86; flex-shrink:0; }
-.hero-eyebrow span{
-  background:linear-gradient(90deg,#EFC08E 0%,#E9B893 45%,#E89A68 78%,#DE6E36 100%);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.hero h1{
-  margin:30px 0 0; color:#fdfdfd; font-weight:800;
-  font-size:clamp(2.6rem,5.1vw,4.65rem); line-height:.955; letter-spacing:-.03em;
-}
-.hero h1 .ln{ display:block; }
-.hero h1 .os{
-  background:var(--hero-os); -webkit-background-clip:text; background-clip:text; color:transparent;
-  padding-bottom:.06em;
-}
-.hero-lead{
-  margin:30px 0 0; max-width:522px; color:#D9DCE3;
-  font-size:1.22rem; font-weight:400; line-height:1.48;
-}
-.hero-cta{ display:flex; gap:16px; flex-wrap:wrap; margin-top:30px; }
-.hero-btn{
-  display:inline-flex; align-items:center; justify-content:center; gap:14px;
-  height:65px; padding:0 34px; border-radius:999px;
-  font-family:var(--hero-font); font-size:1.06rem; font-weight:500; color:#fff; white-space:nowrap;
-  transition:transform .18s ease, box-shadow .22s ease, filter .2s ease;
-}
-.hero-btn:active{ transform:scale(.97); }
-.hero-btn svg{ flex-shrink:0; }
-.hero-btn-primary{ background:var(--hero-btn); box-shadow:0 12px 36px -12px rgba(253,92,8,.75); }
-.hero-btn-primary:hover{ transform:translateY(-1px); filter:brightness(1.06); box-shadow:0 16px 44px -12px rgba(253,92,8,.9); }
-.hero-btn-ghost{
-  padding:0 30px; border:1px solid transparent;
-  background:linear-gradient(#0f0503,#0f0503) padding-box,
-             linear-gradient(90deg,#9A7058,#D5B8A8 50%,#A57A62) border-box;
-}
-.hero-btn-ghost:hover{ transform:translateY(-1px); background:linear-gradient(#1a0904,#1a0904) padding-box, linear-gradient(90deg,#C08868,#F0D2BE 50%,#C8906E) border-box; }
+/* hero + header colour theme (sizes untouched) */
+header .btn-primary, .hero .btn-primary{ background:var(--hero-btn); color:#fff; box-shadow:0 10px 30px -12px rgba(253,92,8,.75); }
+header .btn-primary:hover, .hero .btn-primary:hover{ box-shadow:0 14px 40px -12px rgba(253,92,8,.9); filter:brightness(1.05); }
+.hero .btn-ghost{ color:#fff; border-color:transparent; background:linear-gradient(#0f0503,#0f0503) padding-box, linear-gradient(90deg,#9A7058,#D5B8A8 50%,#A57A62) border-box; }
+.hero .btn-ghost:hover{ background:linear-gradient(#1a0904,#1a0904) padding-box, linear-gradient(90deg,#C08868,#F0D2BE 50%,#C8906E) border-box; }
+.hero .kicker-chip{ border-color:transparent; color:#E9C9A6; background:linear-gradient(#0b0605,#0b0605) padding-box, linear-gradient(90deg,#B99772,#C79A76 60%,#C8683A) border-box; }
+.hero .kicker-chip b{ color:#F2914A; }
+.hero .nav-dot{ background:#FF9A4D; box-shadow:0 0 10px rgba(255,138,61,.8); }
+.hero .grad-text{ background:var(--hero-os); -webkit-background-clip:text; background-clip:text; }
+.hero .lead{ color:#D9D4CC; }
+.hero-meta .item{ color:#A9A196; }
 
-.hero-visual{ position:relative; z-index:1; transform:translateY(7%); }
+/* hero visual: devices + Wynky, in the same 590px-tall box the phone mockup used */
+.hero-visual{ position:relative; display:flex; align-items:center; min-height:590px; }
 .hero-visual img{
-  width:calc(100% + 214px); max-width:none; height:auto; margin-left:-112px;
+  width:calc(100% + 60px + clamp(0px, (100vw - 1200px) / 2 + 4px, 180px)); max-width:none; height:auto; margin-left:-60px;
   filter:drop-shadow(0 28px 36px rgba(0,0,0,.55));
-}
-
-/* header sits transparently on the hero, then frosts once the page scrolls */
-header.on-hero{ background:transparent; border-bottom-color:transparent; backdrop-filter:none; -webkit-backdrop-filter:none; }
-header.on-hero.scrolled{ background:rgba(8,6,5,.78); backdrop-filter:blur(16px) saturate(140%); -webkit-backdrop-filter:blur(16px) saturate(140%); border-bottom-color:rgba(255,170,110,.1); }
-
-@media (max-width:1280px){
-  .hero .wrap{ padding:0 40px; }
-  .hero-grid{ grid-template-columns:520px minmax(0,1fr); }
-  .hero-visual img{ width:calc(100% + 150px); margin-left:-90px; }
-}
-@media (max-width:1100px){
-  .hero{ min-height:0; padding:calc(var(--nav-h) + 40px) 0 56px; background-image:url('assets/hero/wynko-hero-bg-960.webp'); background-position:70% bottom; }
-  .hero .wrap{ padding:0 28px; }
-  .hero-grid{ grid-template-columns:1fr; gap:36px; }
-  .hero-visual{ transform:none; max-width:760px; width:100%; margin:0 auto; }
-  .hero-visual img{ width:100%; margin:0; }
-}
-@media (max-width:560px){
-  .hero .wrap{ padding:0 16px; }
-  .hero-eyebrow{ height:32px; gap:10px; padding:0 13px 0 11px; font-size:.66rem; letter-spacing:.15em; }
-  .hero h1{ margin-top:22px; }
-  .hero-lead{ font-size:1.02rem; margin-top:20px; }
-  .hero-cta{ margin-top:24px; gap:12px; }
-  .hero-btn{ height:56px; padding:0 24px; font-size:.98rem; gap:12px; flex:1 1 auto; }
-  .hero-btn-ghost{ padding:0 22px; }
 }
 
 /* ---------- marquee / built-for ---------- */
@@ -564,6 +486,9 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 
 /* ---------- responsive ---------- */
 @media (max-width:1024px){
+  .hero-grid{ grid-template-columns:1fr; gap:48px; }
+  .hero-visual{ min-height:0; max-width:640px; width:100%; margin:0 auto; }
+  .hero-visual img{ width:100%; margin:0; }
   .split{ grid-template-columns:1fr; gap:44px; }
   .cards-4{ grid-template-columns:repeat(2,1fr); }
   .quotes{ grid-template-columns:1fr; }
@@ -582,9 +507,9 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .cta{ padding:52px 22px; }
   .earn-panel{ padding:22px; }
 }
-/* ---------- nav: collapses to a dropdown below 1100px (the full row of links doesn't fit) ---------- */
+/* ---------- nav: collapses to a dropdown below 960px (the full row of links doesn't fit) ---------- */
 .lbl-short, .nav-links .nav-mobile-only{ display:none; }
-@media (max-width:1100px){
+@media (max-width:960px){
   .nav{ gap:16px; }
   .nav-toggle{ display:block; }
   .nav-right{ gap:12px; }
@@ -595,7 +520,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     background:rgba(10,7,5,.97); border-bottom:1px solid var(--border);
   }
   header.nav-open .nav-links{ display:flex; }
-  .nav-links a{ padding:13px 0; font-size:1rem; border-bottom:1px solid var(--border); color:rgba(255,255,255,.82); }
+  .nav-links a{ padding:13px 0; font-size:1rem; border-bottom:1px solid var(--border); }
   .nav-links a:last-child{ border-bottom:0; }
   .nav-links a.active::after{ display:none; }
   .nav-links .nav-mobile-only{ display:block; }
@@ -614,10 +539,10 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <body>
 
 <!-- ===================== NAV ===================== -->
-<header class="on-hero">
+<header>
   <div class="wrap nav">
       <a class="brand" href="/" aria-label="Wynko home">
-      <span class="brand-mark"><img src="wynko-mark.png" alt="" width="78" height="60" /></span>
+      <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
       <span class="brand-word"><b>W</b>YNKO</span>
     </a>
     <nav class="nav-links" onclick="if(event.target.closest('a')){const h=this.closest('header');h.classList.remove('nav-open');h.querySelector('.nav-toggle').setAttribute('aria-expanded','false');}">
@@ -631,7 +556,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     </nav>
     <div class="nav-right">
       <a class="login" href="/login">Log in</a>
-      <a class="hero-btn hero-btn-primary nav-dl" href="downloads/"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="9.2" height="9.2" rx=".6"/><rect x="10.8" y="0" width="9.2" height="9.2" rx=".6"/><rect x="0" y="10.8" width="9.2" height="9.2" rx=".6"/><rect x="10.8" y="10.8" width="9.2" height="9.2" rx=".6"/></svg><span class="lbl-long">Download Desktop App</span><span class="lbl-short">Download</span></a>
+      <a class="btn btn-primary btn-sm" href="downloads/"><span class="lbl-long">Download Desktop App</span><span class="lbl-short">Download</span></a>
       <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.closest('header').classList.toggle('nav-open'))">&#9776;</button>
     </div>
   </div>
@@ -642,20 +567,31 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <!-- ===================== HERO ===================== -->
 <section class="hero" id="product">
   <div class="wrap hero-grid">
-    <div class="hero-copy">
-      <span class="hero-eyebrow"><i></i><span>Wynko &nbsp;&mdash;&nbsp; Focus without distractions</span></span>
-      <h1><span class="ln">The world&rsquo;s first</span> <span class="ln os">Study OS</span> <span class="ln">designed to help</span> <span class="ln">you focus, learn,</span> <span class="ln">and grow.</span></h1>
-      <p class="hero-lead">
-        Give Wynko your timetable &mdash; or let it build one for you &mdash; and it auto-schedules revision on a forgetting curve,
-        drops in study rooms, and keeps you on track.
+    <div>
+      <span class="kicker-chip"><span class="nav-dot"></span> Wynko &middot; <b>Focus without distractions</b></span>
+      <h1 class="h-xl" style="margin-top:22px;">
+        The world's first <span class="grad-text">Study OS</span> designed to help you focus, learn, and grow.
+      </h1>
+      <p class="lead">
+        Give Wynko your timetable — or let it build one for you — and it auto-schedules revision on a forgetting curve,
+        drops in breaks on its own, and enforces them: no snoozing, no early exit. Then it puts you in live study rooms
+        with people actually studying right now.
       </p>
       <div class="hero-cta">
-        <a class="hero-btn hero-btn-primary" href="/waitlist">Sign Up / Login</a>
-        <a class="hero-btn hero-btn-ghost" href="downloads/">Download Desktop App</a>
+        <a class="btn btn-primary btn-lg" href="/waitlist">Sign Up / Login</a>
+        <a class="btn btn-ghost btn-lg" href="downloads/">Download Desktop App</a>
+      </div>
+      <div class="hero-meta">
+        <span class="item"><b id="emLive">0</b> sessions running now</span>
+        <span class="item"><b>184</b> topics decay / hr</span>
+        <span class="item">Mobile app &mdash; coming soon</span>
+      </div>
+      <div style="margin-top:14px;font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;color:#9C968C;">
+        Built for India's aspirants &middot; #MakeInIndia
       </div>
     </div>
 
-    <div class="hero-visual">
+    <div class="hero-visual" id="emulator">
       <picture>
         <source media="(max-width:760px)" srcset="assets/hero/wynko-hero-devices-720.webp" />
         <img src="assets/hero/wynko-hero-devices.webp" width="1174" height="840" fetchpriority="high"
@@ -985,13 +921,15 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 </footer>
 
 <script>
-/* ================= header: transparent over the hero, frosted once scrolled ================= */
+/* ================= home dashboard ================= */
 (function(){
-  const header = document.querySelector('header.on-hero');
-  if(!header) return;
-  const sync = ()=> header.classList.toggle('scrolled', window.scrollY > 12);
-  sync();
-  window.addEventListener('scroll', sync, { passive:true });
+  /* live session counter in hero */
+  const emLive = document.getElementById('emLive');
+  if(emLive){
+    let n = 3847;
+    setInterval(()=>{ n += Math.floor(Math.random()*7)-2; emLive.textContent = n.toLocaleString('en-IN'); }, 1800);
+    emLive.textContent = n.toLocaleString('en-IN');
+  }
 })();
 
 /* ================= marquee duplicate ================= */
