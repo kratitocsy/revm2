@@ -12,7 +12,9 @@
 //              same day. The student's own requests rank above everything.
 //
 // Google sometimes answers 429/5xx when a model is busy: each call is
-// retried once, then tried on GEMINI_FALLBACK_MODEL.
+// retried once, then tried on GEMINI_FALLBACK_MODEL, then — if GROQ_API_KEY
+// is set — on Groq's free API (a different provider entirely) as a last
+// resort when every Gemini attempt has failed.
 //
 // The generated schedule is returned as JSON for the client to preview in
 // the normal schedule builder — the user always reviews before saving.
@@ -105,7 +107,10 @@ class GeminiError extends Error {
 }
 
 /** Calls Gemini, retrying once on a busy/overloaded answer, then trying
- *  the fallback model (if one is set and different). */
+ *  the fallback model (if one is set and different), then — only if
+ *  GROQ_API_KEY is set — a different provider entirely, for the rare
+ *  case where Google itself is having a bad moment and every Gemini
+ *  model fails together. */
 async function generate(
   userPrompt: string,
   apiKey: string,
@@ -126,7 +131,49 @@ async function generate(
       if (i === 0) await new Promise((r) => setTimeout(r, 1200));
     }
   }
+  const groqKey = Deno.env.get("GROQ_API_KEY");
+  if (groqKey) {
+    try {
+      console.warn("ai-generate-schedule: all Gemini attempts failed, trying Groq");
+      return await callGroq(userPrompt, groqKey, systemPrompt);
+    } catch (e) {
+      console.warn(`ai-generate-schedule: Groq fallback also failed (${e instanceof Error ? e.message.slice(0, 120) : e})`);
+      lastErr = e;
+    }
+  }
   throw lastErr instanceof Error ? lastErr : new Error("Gemini failed");
+}
+
+/** Last-resort fallback on a different provider (OpenAI-compatible chat API),
+ *  used only when every Gemini attempt above has already failed and
+ *  GROQ_API_KEY is set. Free tier at console.groq.com. */
+async function callGroq(
+  userPrompt: string,
+  apiKey: string,
+  systemPrompt: string,
+): Promise<string> {
+  const model = Deno.env.get("GROQ_MODEL") || "llama-3.3-70b-versatile";
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 8192,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Groq API ${res.status}: ${errText.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
+  if (!text) throw new Error("Empty response from Groq");
+  return text;
 }
 
 async function callGemini(
@@ -481,7 +528,8 @@ Create a balanced, realistic schedule that addresses these goals.`;
     console.error("ai-generate-schedule error:", msg);
     // Gemini's own error body (raw JSON, sometimes long) must never reach
     // the student directly — only a plain sentence they can act on.
-    const friendly = e instanceof GeminiError && RETRYABLE.has(e.status)
+    const bothProvidersDown = e instanceof Error && /^(Groq API|Empty response from Groq)/.test(e.message);
+    const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown
       ? "Gemini is busy right now. Please try again in a moment."
       : e instanceof GeminiError
       ? "The AI couldn't answer that request."
