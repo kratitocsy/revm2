@@ -41,7 +41,7 @@ import {
 import wynkyVideo from './imports/wynky-dance.mp4';
 import wynkyHelloVideo from './imports/wynky-hello.mp4';
 import wynkyHelloEnVideo from './imports/wynky-hello-en.mp4';
-import wynkyHiiImage from './imports/wynky-hii.webp';
+import wynkyHiiVideo from './imports/wynky-hii.mp4';
 import wynkoLogo from '../desktop-dashboard/imports/wynko-logo.png';
 
 /*
@@ -129,17 +129,34 @@ function optionLabel(lang: Lang, q: QuizQuestion, value: string, fallback: strin
   return OPTION_LABELS_HI[`${q.id}:${value}`] ?? fallback;
 }
 
+// Flowing ribbon waves (from the ribbon-W logo), same backdrop as Focus
+// Lock - warm orange -> amber -> cream, kept very low-contrast. Pure
+// decoration - sits behind everything (pointer-events disabled) so it
+// never competes with Wynky or the quiz card in front of it.
+const WAVE_LINES: [string, number, number][] = [
+  ['M-40,360 C180,300 360,420 600,350 C840,280 1000,380 1240,320', 0.16, 1.4],
+  ['M-40,392 C200,330 380,450 620,382 C860,314 1020,410 1240,356', 0.12, 1.2],
+  ['M-40,424 C220,362 400,478 640,414 C880,350 1040,440 1240,392', 0.09, 1],
+  ['M-40,300 C220,250 420,350 660,300 C900,250 1040,320 1240,280', 0.07, 1],
+  ['M-40,456 C240,396 420,500 660,446 C900,392 1060,468 1240,428', 0.06, 1],
+];
 function MountainBackdrop() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden="true">
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 65% 45% at 50% 28%, rgba(56,189,248,0.05), rgba(56,189,248,0) 70%)' }} />
-      <svg viewBox="0 0 1200 520" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" style={{ height: '58%' }}>
-        <polygon opacity="0.55" fill="#0E1B36"
-          points="0,330 90,260 190,300 300,225 400,280 500,205 600,270 700,215 800,275 900,220 1000,285 1100,235 1200,290 1200,520 0,520" />
-        <polygon opacity="0.78" fill="#0A1428"
-          points="0,390 110,320 230,365 340,290 460,350 580,275 700,345 820,290 940,355 1060,300 1200,350 1200,520 0,520" />
-        <polygon opacity="0.96" fill="#050C1A"
-          points="0,450 140,385 270,425 410,355 540,420 660,360 800,425 930,365 1060,420 1200,395 1200,520 0,520" />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 40% at 50% 100%, rgba(255,138,61,0.05), rgba(255,138,61,0) 70%)' }} />
+      <svg viewBox="0 0 1200 520" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" style={{ height: '62%' }}>
+        <defs>
+          <linearGradient id="wqWaveStroke" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#FF8A3D" /><stop offset="55%" stopColor="#FFA94D" /><stop offset="100%" stopColor="#FFF7E6" /></linearGradient>
+          <linearGradient id="wqWaveFill" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#FF8A3D" stopOpacity="0.06" /><stop offset="100%" stopColor="#FF8A3D" stopOpacity="0" /></linearGradient>
+          <linearGradient id="wqWaveFade" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#fff" stopOpacity="0" /><stop offset="15%" stopColor="#fff" stopOpacity="1" /><stop offset="85%" stopColor="#fff" stopOpacity="1" /><stop offset="100%" stopColor="#fff" stopOpacity="0" /></linearGradient>
+          <mask id="wqWaveMask"><rect x="0" y="0" width="1200" height="520" fill="url(#wqWaveFade)" /></mask>
+          <filter id="wqWaveBlur" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="2.5" /></filter>
+        </defs>
+        <g mask="url(#wqWaveMask)">
+          <path d="M-40,372 C190,312 370,432 610,364 C850,296 1010,394 1240,336 L1240,520 L-40,520 Z" fill="url(#wqWaveFill)" />
+          <path d={WAVE_LINES[0][0]} fill="none" stroke="url(#wqWaveStroke)" strokeOpacity="0.10" strokeWidth="10" filter="url(#wqWaveBlur)" />
+          {WAVE_LINES.map(([d, o, w], i) => <path key={i} d={d} fill="none" stroke="url(#wqWaveStroke)" strokeOpacity={o} strokeWidth={w} strokeLinecap="round" />)}
+        </g>
       </svg>
     </div>
   );
@@ -168,10 +185,10 @@ function OptionChip({ label, on, onClick, dimmed }: { label: string; on: boolean
       style={{
         textAlign: 'left', padding: '14px 16px', borderRadius: 14, cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
         fontSize: 14, fontWeight: 500, transition: 'all 150ms', transform: on ? 'scale(1.01)' : 'none',
-        background: on ? 'linear-gradient(135deg, rgba(124,77,255,0.28), rgba(41,98,255,0.16))' : 'rgba(14,21,40,0.55)',
-        color: on ? '#fff' : '#CBD5E1',
-        border: `1px solid ${on ? '#6B44EE' : hover ? 'rgba(56,132,255,0.35)' : 'rgba(26,40,69,0.6)'}`,
-        boxShadow: on ? '0 0 22px rgba(124,77,255,0.35)' : 'none',
+        background: on ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'rgba(22,22,24,0.55)',
+        color: on ? '#fff' : '#CFC8BB',
+        border: `1px solid ${on ? '#E9772E' : hover ? 'rgba(255,138,61,0.35)' : 'rgba(38,38,42,0.6)'}`,
+        boxShadow: on ? '0 0 22px rgba(255,138,61,0.35)' : 'none',
         opacity: dimmed ? 0.45 : 1,
       }}
     >
@@ -180,19 +197,19 @@ function OptionChip({ label, on, onClick, dimmed }: { label: string; on: boolean
   );
 }
 
-const eyebrow: CSSProperties = { fontFamily: MONO, fontSize: 10, letterSpacing: '0.2em', color: '#A78BFA' };
+const eyebrow: CSSProperties = { fontFamily: MONO, fontSize: 10, letterSpacing: '0.2em', color: '#FFA94D' };
 
 const panel: CSSProperties = {
-  maxWidth: 460, padding: 28, borderRadius: 20, background: 'linear-gradient(160deg, #0F1240 0%, #0A0E28 100%)',
-  border: '1px solid rgba(124,77,255,0.4)', boxShadow: '0 0 60px rgba(124,77,255,0.2)',
+  maxWidth: 460, padding: 28, borderRadius: 20, background: 'linear-gradient(160deg, #161618 0%, #0B0B0D 100%)',
+  border: '1px solid rgba(255,138,61,0.4)', boxShadow: '0 0 60px rgba(255,138,61,0.2)',
 };
 
 const inputStyle: CSSProperties = {
   width: '100%', height: 46, padding: '0 16px', borderRadius: 14, fontFamily: 'Poppins, sans-serif', fontSize: 14,
-  color: '#F1F5F9', background: 'rgba(14,21,40,0.75)', border: '1px solid #1A2845', outline: 'none', boxSizing: 'border-box',
+  color: '#FFF7E6', background: 'rgba(22,22,24,0.75)', border: '1px solid #26262A', outline: 'none', boxSizing: 'border-box',
 };
 
-const fieldLabel: CSSProperties = { display: 'block', fontSize: 12, fontWeight: 500, color: '#94A3B8', margin: '16px 0 6px' };
+const fieldLabel: CSSProperties = { display: 'block', fontSize: 12, fontWeight: 500, color: '#9C968C', margin: '16px 0 6px' };
 
 function PrimaryButton({ children, onClick, disabled, background, color = '#fff', glow, style }: {
   children: ReactNode; onClick: () => void; disabled?: boolean; background: string; color?: string; glow: string; style?: CSSProperties;
@@ -221,7 +238,7 @@ function CoinBar({ answers, current, label, coins }: {
   const skipped = new Set(answers.skipped ?? []);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, fontSize: 11, color: '#8B9AC7' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, fontSize: 11, color: '#9C968C' }}>
         <span>{label}</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, color: '#FBBF24', fontWeight: 600 }}>
           <CoinIcon size={13} /> {coins} / {MAX_QUIZ_COINS}
@@ -237,10 +254,10 @@ function CoinBar({ answers, current, label, coins }: {
               style={{
                 flex: 1, height: 22, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: MONO, fontSize: 10, fontWeight: 600, transition: 'all 300ms',
-                background: isDone ? 'linear-gradient(135deg,#F59E0B,#FBBF24)' : 'rgba(14,21,40,0.7)',
-                color: isDone ? '#3B2203' : wasSkipped ? '#3A4668' : isCurrent ? '#C4AAFF' : '#4E5E84',
-                border: `1px solid ${isDone ? '#FBBF24' : isCurrent ? '#7C4DFF' : '#1A2845'}`,
-                boxShadow: isDone ? '0 0 10px rgba(245,158,11,0.35)' : isCurrent ? '0 0 10px rgba(124,77,255,0.35)' : 'none',
+                background: isDone ? 'linear-gradient(135deg,#F59E0B,#FBBF24)' : 'rgba(22,22,24,0.7)',
+                color: isDone ? '#3B2203' : wasSkipped ? '#4A453D' : isCurrent ? '#FFCB94' : '#7A756D',
+                border: `1px solid ${isDone ? '#FBBF24' : isCurrent ? '#FF8A3D' : '#26262A'}`,
+                boxShadow: isDone ? '0 0 10px rgba(245,158,11,0.35)' : isCurrent ? '0 0 10px rgba(255,138,61,0.35)' : 'none',
                 textDecoration: wasSkipped ? 'line-through' : 'none',
               }}>
               +{COINS_PER_ANSWER}
@@ -586,8 +603,8 @@ export default function OnboardingQuiz() {
       onClick={onClick}
       style={{
         padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins, sans-serif',
-        background: on ? 'linear-gradient(135deg,#7C4DFF,#6B44EE)' : 'transparent', color: on ? '#fff' : '#8B9AC7', border: 0,
-        boxShadow: on ? '0 0 14px rgba(124,77,255,0.45)' : 'none',
+        background: on ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'transparent', color: on ? '#fff' : '#9C968C', border: 0,
+        boxShadow: on ? '0 0 14px rgba(255,138,61,0.45)' : 'none',
       }}
     >
       {label}
@@ -595,17 +612,17 @@ export default function OnboardingQuiz() {
   );
 
   if (phase === 'loading') {
-    return <div style={{ minHeight: '100%', background: '#020615' }} />;
+    return <div style={{ minHeight: '100%', background: '#0B0B0D' }} />;
   }
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%', overflowX: 'hidden', background: '#020615', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'relative', minHeight: '100%', overflowX: 'hidden', background: '#0B0B0D', display: 'flex', flexDirection: 'column' }}>
       <MountainBackdrop />
       <div
         aria-hidden="true"
         style={{
           position: 'absolute', left: -120, top: -120, width: 520, height: 520, pointerEvents: 'none',
-          background: 'radial-gradient(circle, rgba(124,77,255,0.16) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(255,138,61,0.12) 0%, transparent 70%)',
         }}
       />
 
@@ -614,14 +631,14 @@ export default function OnboardingQuiz() {
           <img
             src={wynkoLogo}
             alt="Wynko"
-            style={{ width: 32, height: 32, objectFit: 'contain', mixBlendMode: 'screen', filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.8)) brightness(1.1)' }}
+            style={{ width: 32, height: 32, objectFit: 'contain', mixBlendMode: 'screen', filter: 'drop-shadow(0 0 8px rgba(255,138,61,0.7)) brightness(1.1)' }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="wq-header-eyebrow" style={{ fontSize: 10, letterSpacing: '0.18em', color: '#68728A' }}>WELCOME TO WYNKO</div>
-            <div className="wq-header-title" style={{ fontSize: 14, fontWeight: 600, color: '#F3F4F6' }}>{phase === 'profile' ? (profileMode === 'dna' ? 'Your Study DNA' : 'Your profile') : 'Play with Wynky'}</div>
+            <div className="wq-header-eyebrow" style={{ fontSize: 10, letterSpacing: '0.18em', color: '#7A756D' }}>WELCOME TO WYNKO</div>
+            <div className="wq-header-title" style={{ fontSize: 14, fontWeight: 600, color: '#FFF7E6' }}>{phase === 'profile' ? (profileMode === 'dna' ? 'Your Study DNA' : 'Your profile') : 'Play with Wynky'}</div>
           </div>
           {phase !== 'lang' && (
-            <div role="group" aria-label="Language" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#0B1530', border: '1px solid #1A2845' }}>
+            <div role="group" aria-label="Language" style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#161618', border: '1px solid #26262A' }}>
               {segBtn(hi, 'Hinglish', () => changeLang('hi'))}
               {segBtn(!hi, 'English', () => changeLang('en'))}
             </div>
@@ -631,7 +648,7 @@ export default function OnboardingQuiz() {
             onClick={toggleMute}
             aria-label={muted ? 'Unmute Wynky' : 'Mute Wynky'}
             title={muted ? 'Unmute' : 'Mute'}
-            style={{ width: 38, height: 38, borderRadius: 999, background: '#0B1530', border: '1px solid #1A2845', color: muted ? '#4E5E84' : '#C4AAFF', cursor: 'pointer', fontSize: 16 }}
+            style={{ width: 38, height: 38, borderRadius: 999, background: '#161618', border: '1px solid #26262A', color: muted ? '#7A756D' : '#FFCB94', cursor: 'pointer', fontSize: 16 }}
           >
             {muted ? '🔇' : '🔊'}
           </button>
@@ -668,11 +685,12 @@ export default function OnboardingQuiz() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isQPhase ? 14 : 28, transition: 'gap 220ms ease' }}>
             {phase !== 'lang' && <SpeechBubble text={bubble[lang].text} lang={lang} compact={isQPhase || phase === 'profile'} />}
             {phase === 'lang' || phase === 'intro' ? (
-              // The language screen shows the waving "Hii!" Wynky picture (no
-              // circle) with the Hindi clip loading hidden; the English clip
-              // takes over only for the English hello.
+              // The language screen shows the looping "Hii!" wave clip inside
+              // the same circular frame as the hello clips; the Hindi/English
+              // hello clips keep loading hidden underneath so they're ready
+              // the instant "Let's go" swaps the language screen for intro.
               <WynkyHero
-                still={phase === 'lang' ? wynkyHiiImage : undefined}
+                idle={phase === 'lang' ? { src: wynkyHiiVideo, muted } : undefined}
                 clips={[
                   { src: wynkyHelloVideo, clip: HELLO_CLIP_HI, videoRef: heroHiRef, show: phase === 'lang' || lang === 'hi', preload: 'auto' },
                   {
@@ -691,7 +709,7 @@ export default function OnboardingQuiz() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440 }}>
                 <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 1 · LANGUAGE</div>
                 <h1 className="wq-h1" style={{ margin: 0, fontSize: 36, fontWeight: 700, lineHeight: 1.15, color: '#fff' }}>Select Your Language</h1>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: '#94A3B8' }}>
+                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: '#9C968C' }}>
                   Apni bhasha chuno — Wynky usi mein baat karegi.
                   <br />
                   Choose the language Wynky talks to you in.
@@ -703,8 +721,8 @@ export default function OnboardingQuiz() {
                 <PrimaryButton
                   onClick={submitLangPick}
                   disabled={!langPick}
-                  background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
-                  glow="0 0 22px rgba(124,77,255,0.6), 0 0 44px rgba(41,98,255,0.3)"
+                  background="linear-gradient(135deg, #FF8A3D 0%, #E9772E 100%)"
+                  glow="0 0 22px rgba(255,138,61,0.6), 0 0 44px rgba(255,176,87,0.3)"
                   style={{ marginTop: 6, height: 48, fontSize: 15 }}
                 >
                   Let's go →
@@ -717,26 +735,26 @@ export default function OnboardingQuiz() {
                 <div style={{ ...eyebrow, letterSpacing: '0.22em' }}>STEP 2 · MEET WYNKY</div>
                 <h1 className="wq-h1" style={{ margin: 0, fontSize: 40, fontWeight: 700, lineHeight: 1.15, color: '#fff' }}>
                   {t.meetTitle}{' '}
-                  <span style={{ background: 'linear-gradient(90deg,#7C4DFF,#A855F7)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  <span style={{ background: 'linear-gradient(90deg,#FF8A3D,#FFB057)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     Wynky
                   </span>
                   {t.meetTitleEnd}
                 </h1>
-                <p style={{ margin: '0 0 10px', fontSize: 14, lineHeight: 1.6, color: '#94A3B8' }}>{t.meetSub}</p>
-                <PrimaryButton onClick={play} background="linear-gradient(135deg,#19D3A2,#22D3EE)" color="#04140F" glow="0 0 26px rgba(25,211,162,0.45)" style={{ fontWeight: 700, height: 52, fontSize: 16 }}>
+                <p style={{ margin: '0 0 10px', fontSize: 14, lineHeight: 1.6, color: '#9C968C' }}>{t.meetSub}</p>
+                <PrimaryButton onClick={play} background="linear-gradient(135deg,#34D399,#10B981)" color="#04140F" glow="0 0 26px rgba(52,211,153,0.45)" style={{ fontWeight: 700, height: 52, fontSize: 16 }}>
                   🧬 Find Your Study DNA
                 </PrimaryButton>
                 <button
                   type="button"
                   onClick={skipForNow}
-                  style={{ height: 48, borderRadius: 16, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600, background: 'rgba(14,21,40,0.55)', color: '#CBD5E1', border: '1px solid #1A2845' }}
+                  style={{ height: 48, borderRadius: 16, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600, background: 'rgba(22,22,24,0.55)', color: '#CFC8BB', border: '1px solid #26262A' }}
                 >
                   Skip for Now
                 </button>
                 <button
                   type="button"
                   onClick={() => say(INTRO, speech.current?.after)}
-                  style={{ alignSelf: 'center', marginTop: 2, background: 'none', border: 0, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 13, color: '#8B9AC7' }}
+                  style={{ alignSelf: 'center', marginTop: 2, background: 'none', border: 0, cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: 13, color: '#9C968C' }}
                 >
                   {t.hearAgain}
                 </button>
@@ -757,14 +775,14 @@ export default function OnboardingQuiz() {
                     aria-label="Skip this question"
                     style={{
                       padding: '6px 14px', borderRadius: 999, cursor: reacting ? 'default' : 'pointer', fontFamily: 'Poppins, sans-serif',
-                      fontSize: 12, fontWeight: 600, background: 'rgba(14,21,40,0.7)', color: '#8B9AC7', border: '1px solid #1A2845',
+                      fontSize: 12, fontWeight: 600, background: 'rgba(22,22,24,0.7)', color: '#9C968C', border: '1px solid #26262A',
                       opacity: reacting ? 0.5 : 1,
                     }}
                   >
                     {t.skip} ⏭
                   </button>
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#F1F5F9', lineHeight: 1.3 }}>{QUESTION_COPY[question.id].ask[lang].text}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#FFF7E6', lineHeight: 1.3 }}>{QUESTION_COPY[question.id].ask[lang].text}</div>
                 <div className="wq-options" style={{ display: 'grid', gridTemplateColumns: question.options.length > 4 ? '1fr 1fr' : '1fr', gap: 10 }}>
                   {question.options.map((o) => (
                     <OptionChip
@@ -788,9 +806,9 @@ export default function OnboardingQuiz() {
                       }}
                       placeholder={t.typeAnswer}
                       aria-label="Your own answer"
-                      style={{ ...inputStyle, border: '1px solid #6B44EE', boxShadow: '0 0 18px rgba(124,77,255,0.25)' }}
+                      style={{ ...inputStyle, border: '1px solid #E9772E', boxShadow: '0 0 18px rgba(255,138,61,0.25)' }}
                     />
-                    <div style={{ alignSelf: 'flex-end', fontFamily: MONO, fontSize: 10, color: '#64748B' }}>
+                    <div style={{ alignSelf: 'flex-end', fontFamily: MONO, fontSize: 10, color: '#7A756D' }}>
                       {customText.trim().length}/{CUSTOM_ANSWER_MAX_LENGTH}
                     </div>
                   </div>
@@ -798,8 +816,8 @@ export default function OnboardingQuiz() {
                 <PrimaryButton
                   onClick={submit}
                   disabled={!canSubmit}
-                  background="linear-gradient(135deg, #2979FF 0%, #22D3EE 100%)"
-                  glow="0 0 24px rgba(41,98,255,0.5)"
+                  background="linear-gradient(135deg, #FF8A3D 0%, #E9772E 100%)"
+                  glow="0 0 24px rgba(255,138,61,0.5)"
                   style={{ marginTop: 6, height: 46, fontSize: 14 }}
                 >
                   {t.next}{' '}
@@ -811,19 +829,19 @@ export default function OnboardingQuiz() {
             {phase === 'saving' && (
               <div style={{ ...panel, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={eyebrow}>{t.yourDna}</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#CBD5E1' }}>{t.working}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#CFC8BB' }}>{t.working}</div>
               </div>
             )}
 
             {phase === 'error' && error && (
               <div style={{ ...panel, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={eyebrow}>{t.couldntSave}</div>
-                <div style={{ fontSize: 15, lineHeight: 1.55, color: '#CBD5E1' }}>{error.message}</div>
+                <div style={{ fontSize: 15, lineHeight: 1.55, color: '#CFC8BB' }}>{error.message}</div>
                 {error.signedOut ? (
                   <PrimaryButton
                     onClick={() => { window.location.href = '/login.html'; }}
-                    background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
-                    glow="0 0 22px rgba(124,77,255,0.6)"
+                    background="linear-gradient(135deg, #FF8A3D 0%, #E9772E 100%)"
+                    glow="0 0 22px rgba(255,138,61,0.6)"
                     style={{ height: 46, fontSize: 14 }}
                   >
                     {t.logIn}
@@ -831,8 +849,8 @@ export default function OnboardingQuiz() {
                 ) : (
                   <PrimaryButton
                     onClick={() => void finish(answers)}
-                    background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
-                    glow="0 0 22px rgba(124,77,255,0.6)"
+                    background="linear-gradient(135deg, #FF8A3D 0%, #E9772E 100%)"
+                    glow="0 0 22px rgba(255,138,61,0.6)"
                     style={{ height: 46, fontSize: 14 }}
                   >
                     {t.tryAgain}
@@ -846,24 +864,24 @@ export default function OnboardingQuiz() {
                 {profileMode === 'dna' && dna ? (
                   <>
                     <div style={eyebrow}>{t.yourDna}</div>
-                    <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', marginTop: 6, textShadow: '0 0 40px #563FA0', lineHeight: 1.1 }}>🧬 {dna.archetype}</div>
+                    <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', marginTop: 6, textShadow: '0 0 40px #C2660E', lineHeight: 1.1 }}>🧬 {dna.archetype}</div>
                     <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                       <div style={{ flex: 1, minWidth: 0, padding: 12, borderRadius: 14, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>{t.earned}</div>
+                        <div style={{ fontSize: 10, color: '#9C968C' }}>{t.earned}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 18, fontWeight: 700, color: '#FBBF24', marginTop: 4 }}>
                           <CoinIcon /> +{dna.coinsAwarded}
                         </div>
-                        {!dna.isFirstTime && <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>{t.alreadyClaimed}</div>}
+                        {!dna.isFirstTime && <div style={{ fontSize: 10, color: '#7A756D', marginTop: 2 }}>{t.alreadyClaimed}</div>}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0, padding: 12, borderRadius: 14, background: 'rgba(14,21,40,0.55)', border: '1px solid rgba(26,40,69,0.6)' }}>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>{t.balance}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 18, fontWeight: 700, color: '#F1F5F9', marginTop: 4 }}>
+                      <div style={{ flex: 1, minWidth: 0, padding: 12, borderRadius: 14, background: 'rgba(22,22,24,0.55)', border: '1px solid rgba(38,38,42,0.6)' }}>
+                        <div style={{ fontSize: 10, color: '#9C968C' }}>{t.balance}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 18, fontWeight: 700, color: '#FFF7E6', marginTop: 4 }}>
                           <CoinIcon /> {balance ?? dna.coinsAwarded}
                         </div>
                       </div>
                     </div>
-                    <div style={{ height: 1, background: 'rgba(124,77,255,0.25)', margin: '20px 0 4px' }} />
-                    <div style={{ fontSize: 15, fontWeight: 600, color: '#E2E8F0', marginTop: 12 }}>{t.formTitle}</div>
+                    <div style={{ height: 1, background: 'rgba(255,138,61,0.25)', margin: '20px 0 4px' }} />
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#FFF7E6', marginTop: 12 }}>{t.formTitle}</div>
                   </>
                 ) : (
                   <>
@@ -880,7 +898,7 @@ export default function OnboardingQuiz() {
 
                 <label style={fieldLabel} htmlFor="wq-username">{t.username}</label>
                 <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#7C4DFF', fontWeight: 600, fontSize: 14 }}>@</span>
+                  <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#FF8A3D', fontWeight: 600, fontSize: 14 }}>@</span>
                   <input
                     id="wq-username"
                     value={username}
@@ -890,11 +908,11 @@ export default function OnboardingQuiz() {
                     spellCheck={false}
                     style={{
                       ...inputStyle, paddingLeft: 34, fontFamily: MONO,
-                      border: `1px solid ${uname.state === 'ok' ? 'rgba(25,211,162,0.6)' : uname.state === 'bad' ? 'rgba(248,113,113,0.6)' : '#1A2845'}`,
+                      border: `1px solid ${uname.state === 'ok' ? 'rgba(52,211,153,0.6)' : uname.state === 'bad' ? 'rgba(248,113,113,0.6)' : '#26262A'}`,
                     }}
                   />
                 </div>
-                <div style={{ minHeight: 18, marginTop: 6, fontSize: 12, color: uname.state === 'ok' ? '#19D3A2' : uname.state === 'bad' ? '#F87171' : '#64748B' }}>
+                <div style={{ minHeight: 18, marginTop: 6, fontSize: 12, color: uname.state === 'ok' ? '#34D399' : uname.state === 'bad' ? '#F87171' : '#7A756D' }}>
                   {uname.state === 'checking' ? t.checking : uname.state === 'ok' ? t.available : uname.state === 'bad' ? (uname.message === 'That username is already taken.' ? t.taken : uname.message) : ''}
                 </div>
 
@@ -903,8 +921,8 @@ export default function OnboardingQuiz() {
                 <PrimaryButton
                   onClick={() => void letsGo()}
                   disabled={!canFinish}
-                  background="linear-gradient(135deg, #7C4DFF 0%, #2979FF 100%)"
-                  glow="0 0 22px rgba(124,77,255,0.6)"
+                  background="linear-gradient(135deg, #FF8A3D 0%, #E9772E 100%)"
+                  glow="0 0 22px rgba(255,138,61,0.6)"
                   style={{ marginTop: 14, width: '100%', height: 50, fontSize: 15 }}
                 >
                   {submitting ? t.saving : t.letsGo}

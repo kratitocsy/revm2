@@ -115,6 +115,11 @@ const IP: Record<string, string[]> = {
   send: ['M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5'],
   copy: ['M8 7h8a2 2 0 012 2v10a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2z', 'M16 7V5a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2h2'],
   trash: ['M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0l-.8 12a2 2 0 01-2 2H9.8a2 2 0 01-2-2L7 7M10 11v6M14 11v6'],
+  user: ['M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'],
+  shield: ['M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.75h-.152c-3.196 0-6.1-1.248-8.25-3.286z'],
+  info: ['M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z'],
+  logout: ['M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75'],
+  doc: ['M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z'],
 }
 
 function Ico({ n, cls = 'w-4 h-4', style }: { n: keyof typeof IP; cls?: string; style?: React.CSSProperties }) {
@@ -232,10 +237,11 @@ function RetentionRing({ pct, size = 38 }: { pct: number; size?: number }) {
 
 // ─── Timer Circle SVG ─────────────────────────────────────────────────────────
 // Single shared design used by both the normal Focus Lock layout and the
-// fullscreen overlay. Deliberately minimal: a track, a glowing blue→cyan
-// progress arc with a small tip dot, and the countdown itself. Nothing
-// else lives inside the ring — no logo, no label, no subject name — so the
-// time reads clearly at a glance in either mode.
+// fullscreen overlay. Deliberately minimal: no passive outer ring/track -
+// just the filled circle, the glowing progress ribbon that grows as the
+// timer runs, and the countdown itself. Nothing else lives inside the
+// circle — no logo, no label, no subject name — so the time reads clearly
+// at a glance in either mode.
 function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
   remaining: number; total: number; timeStr: string; running: boolean; size?: number
 }) {
@@ -271,10 +277,6 @@ function TimerCircle({ remaining, total, timeStr, running, size = 320 }: {
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      {/* Outer ambient halo — restrained, not neon */}
-      <circle cx={CX} cy={CY} r={R + sw + 5} fill="none" stroke="rgba(207,200,187,0.06)" strokeWidth={sw * 1.6} />
-      {/* Track */}
-      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
       {/* Inner dark fill */}
       <circle cx={CX} cy={CY} r={R - sw / 2 - 1} fill={`url(#ig${gid})`} />
       {/* Progress arc */}
@@ -381,6 +383,10 @@ const NAV = [
   { id: 'settings', label: 'Settings', icon: 'cog' as const, group: 'OTHER' },
 ]
 
+// Phone tab bar (below md): four main tabs, the rest behind "More".
+const PHONE_TABS = NAV.filter(n => ['home', 'focus', 'schedules', 'studyrooms'].includes(n.id))
+const PHONE_MORE = NAV.filter(n => !PHONE_TABS.includes(n))
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 // profile is optional - the 10 other call sites below (Schedules,
 // Study Rooms, Battleground, etc.) haven't had their own real-data
@@ -389,55 +395,104 @@ const NAV = [
 function Sidebar({ active, setActive, profile }: { active: string; setActive: (id: string) => void; profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
+  const [moreOpen, setMoreOpen] = useState(false)
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full bg-[#0B0B0D] border-[rgba(38,38,42,0.55)]">
-      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(38,38,42,0.55)]">
-        <div className="w-8 h-8 relative flex-shrink-0">
-          <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: ' brightness(1.1)' }} />
-          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#0B0B0D]" />
+    <>
+      {/* Desktop rail - every page renders this as a flex-row sibling next to
+          its own content, so hiding it below md (phones) just leaves that content
+          the full viewport width; nothing else needs to change per page. */}
+      <aside className="hidden md:flex w-56 flex-shrink-0 flex-col border-r h-full bg-[#0B0B0D] border-[rgba(38,38,42,0.55)]">
+        <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(38,38,42,0.55)]">
+          <div className="w-8 h-8 relative flex-shrink-0">
+            <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: ' brightness(1.1)' }} />
+            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#0B0B0D]" />
+          </div>
+          <div>
+            <div className="text-white font-semibold text-base leading-none">Wynko</div>
+            <div className="text-[10px] text-emerald-400 mt-0.5">● online</div>
+          </div>
         </div>
-        <div>
-          <div className="text-white font-semibold text-base leading-none">Wynko</div>
-          <div className="text-[10px] text-emerald-400 mt-0.5">● online</div>
+        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+          {['HOME', 'STUDY', 'OTHER'].map(group => (
+            <div key={group} className="mb-5">
+              <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#7A756D]">{group}</div>
+              {NAV.filter(n => n.group === group).map(item => {
+                const isActive = active === item.id
+                return (
+                  <button key={item.id} onClick={() => setActive(item.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative border`}
+                    style={{
+                      background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'transparent',
+                      borderColor: isActive ? '#E9772E' : 'transparent',
+                      color: isActive ? '#FFF7E6' : '#9C968C',
+                    }}
+                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#F5EFE3' }}
+                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9C968C' }}>
+                    {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#FF8A3D', boxShadow: 'none' }} />}
+                    <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#FFA94D' : undefined }} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="border-t p-4 border-[rgba(38,38,42,0.55)]">
+          <div className="flex items-center gap-2.5">
+            <UserAvatar size={32} />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-wk-ink-200 font-medium truncate">{name}</div>
+              <div className="text-[10px] text-wk-ink-500">{exam}</div>
+            </div>
+            <button type="button" onClick={() => setActive('settings')} aria-label="Settings" title="Settings"
+              className="p-1.5 -m-1.5 rounded-md text-wk-ink-600 hover:text-wk-ink-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
+          </div>
         </div>
-      </div>
-      <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        {['HOME', 'STUDY', 'OTHER'].map(group => (
-          <div key={group} className="mb-5">
-            <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#7A756D]">{group}</div>
-            {NAV.filter(n => n.group === group).map(item => {
+      </aside>
+
+      {/* Phone nav - below md (768px) only, so the Tauri desktop window
+          (opens at 800px) keeps the rail. An app-style bottom tab bar: the
+          four main sections plus "More", which opens a sheet with the rest
+          (Battleground, WYNKOINS, Earn, Settings) so every page stays one
+          tap away. Pages' <main> gets bottom padding for this bar in
+          desktop-dashboard.css. */}
+      {moreOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMoreOpen(false)}>
+          <div className="absolute left-3 right-3 rounded-2xl border p-2 grid grid-cols-2 gap-2"
+            style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))', background: '#161618', borderColor: '#26262A' }}
+            onClick={e => e.stopPropagation()}>
+            {PHONE_MORE.map(item => {
               const isActive = active === item.id
               return (
-                <button key={item.id} onClick={() => setActive(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative`}
+                <button key={item.id} onClick={() => { setMoreOpen(false); setActive(item.id) }}
+                  className="flex items-center gap-2.5 px-3 py-3 rounded-xl border text-left"
                   style={{
-                    background: isActive ? 'rgba(28,28,31,0.85)' : 'transparent',
-                    color: isActive ? '#FFF7E6' : '#9C968C',
-                    boxShadow: isActive ? 'inset 0 0 0 1px rgba(255,138,61,0.3)' : 'none',
-                  }}
-                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#F5EFE3' }}
-                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9C968C' }}>
-                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#FF8A3D', boxShadow: 'none' }} />}
-                  <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#FFA94D' : undefined }} />
-                  <span className="text-sm font-medium">{item.label}</span>
+                    background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : '#1C1C1F',
+                    borderColor: isActive ? '#E9772E' : '#26262A',
+                  }}>
+                  <Ico n={item.icon} cls="w-[18px] h-[18px] flex-shrink-0" style={{ color: isActive ? '#FFA94D' : '#CFC8BB' }} />
+                  <span className="text-[13px] font-medium" style={{ color: isActive ? '#FFF7E6' : '#E8E2D6' }}>{item.label}</span>
                 </button>
               )
             })}
           </div>
-        ))}
-      </nav>
-      <div className="border-t p-4 border-[rgba(38,38,42,0.55)]">
-        <div className="flex items-center gap-2.5">
-          <UserAvatar size={32} />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm text-wk-ink-200 font-medium truncate">{name}</div>
-            <div className="text-[10px] text-wk-ink-500">{exam}</div>
-          </div>
-          <button type="button" onClick={() => setActive('settings')} aria-label="Settings" title="Settings"
-            className="p-1.5 -m-1.5 rounded-md text-wk-ink-600 hover:text-wk-ink-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
         </div>
-      </div>
-    </aside>
+      )}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 gap-1 px-2 pt-1.5 border-t"
+        style={{ background: 'rgba(11,11,13,0.97)', borderColor: 'rgba(38,38,42,0.55)', backdropFilter: 'blur(10px)', height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'calc(6px + env(safe-area-inset-bottom))' }}>
+        {[...PHONE_TABS, { id: 'more', label: 'More', icon: 'dots' as const }].map(item => {
+          const isActive = item.id === 'more' ? (moreOpen || PHONE_MORE.some(m => m.id === active)) : active === item.id
+          return (
+            <button key={item.id} onClick={() => item.id === 'more' ? setMoreOpen(o => !o) : (setMoreOpen(false), setActive(item.id))}
+              className="flex flex-col items-center justify-center gap-1 rounded-xl min-w-0"
+              style={{ background: isActive ? 'rgba(255,138,61,0.14)' : 'transparent' }}>
+              <Ico n={item.icon} cls="w-5 h-5 flex-shrink-0" style={{ color: isActive ? '#FFA94D' : '#9C968C' }} />
+              <span className="text-[10px] font-medium whitespace-nowrap truncate max-w-full" style={{ color: isActive ? '#FFF7E6' : '#9C968C' }}>{item.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    </>
   )
 }
 
@@ -637,10 +692,12 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
   const viewW = W + padLeft
   const hourTicks = buildHourTicks(maxMinutes, padTop, H - padTop - padBottom)
 
-  const stats: { icon: keyof typeof IP; value: string; label: string }[] = [
-    { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied' },
-    { icon: 'progress', value: formatStudyDuration(avgMinutes), label: 'Daily Average' },
-    { icon: 'fire', value: `${streakDays} day${streakDays === 1 ? '' : 's'}`, label: 'Current Streak' },
+  // Each stat gets its own accent instead of the old flat gray-on-gray badge,
+  // so the three read as distinct at a glance instead of blending together.
+  const stats: { icon: keyof typeof IP; value: string; label: string; color: string }[] = [
+    { icon: 'clock', value: formatStudyDuration(totalMinutes), label: 'Total Studied', color: '#38BDF8' },
+    { icon: 'progress', value: formatStudyDuration(avgMinutes), label: 'Daily Average', color: '#A78BFA' },
+    { icon: 'fire', value: `${streakDays} day${streakDays === 1 ? '' : 's'}`, label: 'Current Streak', color: '#FB923C' },
   ]
 
   return (
@@ -656,8 +713,8 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
       <div className="relative flex items-start justify-between mb-5 flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(207,200,187,0.20))', border: '1px solid rgba(156,150,140,0.45)', boxShadow: 'none' }}>
-            <Ico n="progress" cls="w-4 h-4 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.28), rgba(139,92,246,0.16))', border: '1px solid rgba(167,139,250,0.5)', boxShadow: '0 0 16px rgba(167,139,250,0.25)' }}>
+            <Ico n="progress" cls="w-4 h-4 text-[#C4B5FD]" />
           </div>
           <div>
             <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Your Study Progress</div>
@@ -669,8 +726,8 @@ function StudyProgress({ weeklyStudy, totalMinutes, avgMinutes, streakDays }: {
           {stats.map(s => (
             <div key={s.label} className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(156,150,140,0.14)', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
-                <Ico n={s.icon} cls="w-3.5 h-3.5 text-wk-ink-200" />
+                style={{ background: `linear-gradient(135deg, ${s.color}38, ${s.color}18)`, border: `1px solid ${s.color}70`, boxShadow: `0 0 14px ${s.color}30` }}>
+                <Ico n={s.icon} cls="w-3.5 h-3.5" style={{ color: s.color }} />
               </div>
               <div>
                 <div className="text-sm font-bold text-wk-ink-100 leading-tight">{s.value}</div>
@@ -1009,8 +1066,8 @@ function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
-            <Ico n="clock" cls="w-4 h-4 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.35), rgba(255,176,87,0.18))', border: '1px solid rgba(255,138,61,0.55)', boxShadow: '0 0 16px rgba(255,138,61,0.28)' }}>
+            <Ico n="clock" cls="w-4 h-4 text-[#FFB057]" />
           </div>
           <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Today's Study Plan</div>
         </div>
@@ -1279,8 +1336,8 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
         className="flex items-center justify-between mb-4 w-full text-left group">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(156,150,140,0.18)', border: '1px solid rgba(156,150,140,0.35)' }}>
-            <Ico n="clock" cls="w-3.5 h-3.5 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(45,212,191,0.30), rgba(20,184,166,0.16))', border: '1px solid rgba(45,212,191,0.5)', boxShadow: '0 0 14px rgba(45,212,191,0.25)' }}>
+            <Ico n="clock" cls="w-3.5 h-3.5 text-[#2DD4BF]" />
           </div>
           <div className="text-sm font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Quick Timer</div>
         </div>
@@ -1289,7 +1346,7 @@ function HomeQuickTimerCard({ onOpenQuickTimer }: { onOpenQuickTimer: () => void
 
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <div className="text-[30px] font-bold text-white tabular-nums" style={{ fontFamily: 'Sora, sans-serif' }}>
-          {formatClock(elapsed, true)}
+          {formatClock(elapsed)}
         </div>
         <button onClick={() => setRunning(r => !r)}
           className="flex items-center justify-center gap-2 px-6 h-10 rounded-2xl text-wk-black-950 font-semibold text-[13px] transition-all hover:opacity-90 active:scale-[0.98]"
@@ -1330,8 +1387,8 @@ function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(156,150,140,0.25), rgba(255,138,61,0.20))', border: '1px solid rgba(156,150,140,0.4)', boxShadow: 'none' }}>
-            <Ico n="rooms" cls="w-4 h-4 text-wk-ink-200" />
+            style={{ background: 'linear-gradient(135deg, rgba(52,211,153,0.30), rgba(16,185,129,0.16))', border: '1px solid rgba(52,211,153,0.5)', boxShadow: '0 0 16px rgba(52,211,153,0.28)' }}>
+            <Ico n="rooms" cls="w-4 h-4 text-[#34D399]" />
           </div>
           <div className="text-base font-bold text-wk-ink-100" style={{ fontFamily: 'Sora, sans-serif' }}>Live Study Rooms</div>
         </div>
@@ -1673,10 +1730,11 @@ function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], t
 }
 
 // ─── Timer mode selector (segmented control) ──────────────────────────────────
-function ModeTab({ active, onClick, icon, title, sub }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string }) {
+function ModeTab({ active, onClick, icon, title, sub, disabled }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; disabled?: boolean }) {
   return (
-    <button onClick={onClick}
-      className="flex items-center gap-3 px-5 py-3 rounded-2xl border transition-all w-full sm:w-64"
+    <button onClick={onClick} disabled={disabled}
+      title={disabled ? 'Pause the timer to switch modes' : undefined}
+      className="flex items-center gap-3 px-5 py-3 rounded-2xl border transition-all w-full sm:w-64 disabled:cursor-not-allowed disabled:opacity-50"
       style={{
         background: active ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : '#161618',
         borderColor: active ? '#E9772E' : '#26262A',
@@ -2237,6 +2295,17 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 
   const activeTask = tasks.find(t => t.id === activeTaskId) || null
 
+  // My Study Plan display order only (the underlying `tasks` array/its
+  // indices are untouched, since handleAddTask etc. rely on that order):
+  // the task actually running floats to the top so it's never scrolled out
+  // of view, finished tasks sink to the bottom, everything else keeps its
+  // original order in between.
+  const completedCount = tasks.filter(t => t.completed).length
+  const displayTasks = [...tasks].sort((a, b) => {
+    const rank = (t: StudyTask) => (t.id === activeTaskId && running ? 0 : t.completed ? 2 : 1)
+    return rank(a) - rank(b)
+  })
+
   async function handleStartTask(taskId: string) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
@@ -2264,6 +2333,18 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     await stopRemoteSession()
   }
 
+  // "End Session" replaces "Start" once a task is actually running: unlike
+  // Pause (which just parks the clock to resume later), this is a deliberate
+  // "I'm done" action - it stops the live session AND marks the task
+  // complete, instead of leaving it sitting there half-finished.
+  async function handleEndSession() {
+    if (!activeTask || !running) return
+    const taskId = activeTask.id
+    setRunning(false)
+    await stopRemoteSession()
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true } : t))
+  }
+
   // Gate in front of handlePauseTask: every "Pause" control opens the reflection
   // modal instead of pausing immediately. The timer keeps running underneath -
   // handlePauseTask only actually fires once the user unlocks it (150+ words) and
@@ -2287,6 +2368,23 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   // to check off mid-session keeps counting exactly as before.
   function handleToggleComplete(taskId: string) {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t))
+  }
+
+  // Tapping a mode block picks the default for the *next* task added/started
+  // (setTimerMode), and - so the click always has a visible effect on the ring
+  // in front of the user, not just on some future task - also switches
+  // whatever task is currently shown in the ring to that mode right away.
+  function handleSelectMode(mode: TimerMode) {
+    // Switching mode mid-session would silently reset the running task's
+    // progress (pomodoroFields/regularElapsed below) - only allowed before
+    // Start, same as the Pomodoro settings gear right next to it.
+    if (running) return
+    setTimerMode(mode)
+    if (activeTask && activeTask.mode !== mode) {
+      setTasks(prev => prev.map(t => t.id !== activeTask.id ? t : (
+        mode === 'pomodoro' ? { ...t, mode, ...pomodoroFields(pomo) } : { ...t, mode, regularElapsed: 0 }
+      )))
+    }
   }
 
   // The main Start button under the ring: no task selected yet -> resume/
@@ -2347,7 +2445,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       const withinHour = activeTask.regularElapsed % 3600
       circleTotal = 3600
       circleRemaining = 3600 - withinHour
-      circleTimeStr = formatClock(activeTask.regularElapsed, true)
+      circleTimeStr = formatClock(activeTask.regularElapsed)
     }
   } else if (selectedMode === 'pomodoro') {
     circleRemaining = focusSecsOf(pomo)
@@ -2423,7 +2521,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
         {/* Header */}
         <header className="relative z-10 h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
           <button onClick={() => onNavigate('home')}
-            className="flex items-center gap-1.5 text-sm transition-colors text-[#CFC8BB] hover:text-[#FFF7E6] mr-2">
+            className="max-md:hidden flex items-center gap-1.5 text-sm transition-colors text-[#CFC8BB] hover:text-[#FFF7E6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1 min-w-0">
@@ -2451,15 +2549,17 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button onClick={() => setShowPomodoroSettings(true)}
-                      title="Customize Pomodoro" aria-label="Customize Pomodoro settings"
-                      className="w-11 h-11 rounded-2xl border flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90 active:scale-95"
+                      disabled={isLiveRunning}
+                      title={isLiveRunning ? 'Pause the timer to change Pomodoro settings' : 'Customize Pomodoro'}
+                      aria-label="Customize Pomodoro settings"
+                      className="w-11 h-11 rounded-2xl border flex items-center justify-center flex-shrink-0 transition-all hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
                       style={{ background: '#161618', borderColor: '#26262A', color: '#9C968C' }}>
                       <Ico n="cog" cls="w-4 h-4" />
                     </button>
-                    <ModeTab active={selectedMode === 'pomodoro'} onClick={() => setTimerMode('pomodoro')}
+                    <ModeTab active={selectedMode === 'pomodoro'} onClick={() => handleSelectMode('pomodoro')} disabled={isLiveRunning}
                       icon={<TimerModeIcon mode="pomodoro" />} title="Pomodoro Timer" sub={pomodoroSummaryLabel(pomo)} />
                   </div>
-                  <ModeTab active={selectedMode === 'regular'} onClick={() => setTimerMode('regular')}
+                  <ModeTab active={selectedMode === 'regular'} onClick={() => handleSelectMode('regular')} disabled={isLiveRunning}
                     icon={<TimerModeIcon mode="regular" />} title="Regular Timer" sub="Count Up • No Limit" />
                 </div>
 
@@ -2474,12 +2574,22 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                   </div>
                   <div className="text-xs text-wk-ink-500">{circleCaption}</div>
                   <div className="flex items-center gap-3 mt-2">
-                    <button onClick={handleMainStart} disabled={isLiveRunning}
-                      className="h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8 disabled:opacity-40"
-                      style={{ background: '#34D399', color: '#04140F', boxShadow: isLiveRunning ? 'none' : 'none' }}>
-                      <Ico n="play" cls="w-4 h-4 flex-shrink-0" />
-                      {waitingToStartBreak ? 'Start Break' : 'Start'}
-                    </button>
+                    {isLiveRunning ? (
+                      <button onClick={() => void handleEndSession()}
+                        title="Stop the timer and mark this task complete"
+                        className="h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8"
+                        style={{ background: '#F87171', color: '#2A0B0B' }}>
+                        <Ico n="check" cls="w-4 h-4 flex-shrink-0" />
+                        End Session
+                      </button>
+                    ) : (
+                      <button onClick={handleMainStart}
+                        className="h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8 disabled:opacity-40"
+                        style={{ background: '#34D399', color: '#04140F' }}>
+                        <Ico n="play" cls="w-4 h-4 flex-shrink-0" />
+                        {waitingToStartBreak ? 'Start Break' : 'Start'}
+                      </button>
+                    )}
                     <button onClick={() => activeTask && requestPause(activeTask.id)} disabled={!isLiveRunning}
                       className="h-11 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] px-8 disabled:opacity-40"
                       style={{ background: '#26262A', color: '#E8E2D6' }}>
@@ -2495,30 +2605,43 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                 <div className="rounded-2xl border flex flex-col"
                   style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
                   <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <Ico n="progress" cls="w-4 h-4 text-wk-orange-300" />
-                      <span className="text-sm font-semibold text-wk-ink-100">My Study Plan</span>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.35), rgba(255,176,87,0.18))', border: '1px solid rgba(255,138,61,0.55)', boxShadow: '0 0 16px rgba(255,138,61,0.28)' }}>
+                        <Ico n="progress" cls="w-4 h-4 text-[#FFB057]" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-wk-ink-100 leading-tight">My Study Plan</div>
+                        {tasks.length > 0 && (
+                          <div className="text-[11px] text-wk-ink-500 leading-tight mt-0.5">{completedCount} of {tasks.length} tasks completed</div>
+                        )}
+                      </div>
                     </div>
                     <button onClick={() => setShowAddTask(true)}
-                      className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-all hover:border-wk-orange-300/40"
+                      className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-all hover:border-wk-orange-300/40 flex-shrink-0"
                       style={{ background: 'rgba(255,138,61,0.10)', borderColor: 'rgba(255,138,61,0.3)', color: '#FFA94D' }}>
                       + Add Task
                     </button>
                   </div>
-                  <div className="px-4 pb-4 space-y-2">
-                    {tasks.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-14 text-center">
-                        <div className="text-2xl mb-2">📋</div>
-                        <div className="text-xs text-wk-ink-500">No study tasks yet.<br />Add your first subject + topic to start a timer.</div>
-                      </div>
-                    ) : tasks.map(task => (
-                      <StudyPlanRow key={task.id} task={task} isActive={task.id === activeTaskId} running={running}
-                        onStart={() => handleStartTask(task.id)}
-                        onPause={() => requestPause(task.id)}
-                        onRemove={() => handleRemoveTask(task.id)}
-                        onToggleComplete={() => handleToggleComplete(task.id)} />
-                    ))}
-                  </div>
+                  {/* Fixed-height, internally-scrolling list - a growing task count scrolls
+                      here instead of stretching this card (and the page) taller, and rows
+                      keep their normal size instead of shrinking to force a fit. */}
+                  {tasks.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-14 text-center px-4">
+                      <div className="text-2xl mb-2">📋</div>
+                      <div className="text-xs text-wk-ink-500">No study tasks yet.<br />Add your first subject + topic to start a timer.</div>
+                    </div>
+                  ) : (
+                    <div className="px-4 pb-4 space-y-2 overflow-y-auto" style={{ maxHeight: 392 }}>
+                      {displayTasks.map(task => (
+                        <StudyPlanRow key={task.id} task={task} isActive={task.id === activeTaskId} running={running}
+                          onStart={() => handleStartTask(task.id)}
+                          onPause={() => requestPause(task.id)}
+                          onRemove={() => handleRemoveTask(task.id)}
+                          onToggleComplete={() => handleToggleComplete(task.id)} />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <QuickNotesPanel />
@@ -3088,7 +3211,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -3127,7 +3250,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           ) : (
           <>
           {/* Hero */}
-          <div className="flex items-start justify-between mb-6 gap-6">
+          <div className="flex items-start justify-between mb-6 gap-6 max-md:flex-col max-md:items-stretch max-md:gap-4">
             <div>
               <div className="text-[10px] font-mono tracking-[0.22em] text-wk-ink-500 mb-2">STUDY TOGETHER · GROW TOGETHER</div>
               <h1 className="text-4xl font-bold leading-tight mb-2 text-white">
@@ -6021,7 +6144,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
   const elapsed = selectedTask ? selectedTask.regularElapsed : 0
   const finished = !!selectedTask && isPomo && remaining <= 0
   const hasProgress = isPomo ? remaining < total : elapsed > 0
-  const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed, true)
+  const timeStr = isPomo ? formatClock(remaining) : formatClock(elapsed)
 
   const statusLabel = finished ? 'Completed' : running ? (onBreak ? 'Break' : isPomo ? 'Focus' : 'Studying') : hasProgress ? 'Paused' : (onBreak ? 'Break' : isPomo ? 'Focus' : 'Count up')
   const statusColor = finished ? '#34D399' : running ? (onBreak ? '#34D399' : '#CFC8BB') : hasProgress ? '#FBBF24' : (onBreak ? '#34D399' : '#CFC8BB')
@@ -6120,7 +6243,7 @@ function RoomFocusBar({ tasks, selectedTask, running, focusSecs, onSelectTask, o
                   const tBreak = t.mode === 'pomodoro' && pomoPhase(t) === 'break'
                   const tTime = t.mode === 'pomodoro'
                     ? (tDone ? 'Completed' : tBreak ? `Break ${formatClock(t.pomodoroRemaining)}` : `${formatClock(t.pomodoroRemaining)} left`)
-                    : formatClock(t.regularElapsed, true)
+                    : formatClock(t.regularElapsed)
                   return (
                     <button key={t.id} role="option" aria-selected={isSel}
                       onClick={() => { setPickerOpen(false); onSelectTask(t.id) }}
@@ -7016,18 +7139,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             style={{ background: 'linear-gradient(135deg,#1C1C1F,#1C1C1F)', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at right,#FF8A3D,transparent)' }} />
-            <div className="flex items-center gap-5 relative">
-              <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+            <div className="flex items-center gap-5 relative max-md:flex-wrap max-md:gap-x-4 max-md:gap-y-4">
+              <div className="flex-shrink-0 w-20 h-20 max-md:w-16 max-md:h-16 flex items-center justify-center">
                 <img src={wynkoMascot} alt="Wynko mascot" className="h-full w-auto object-contain"
                   style={{ filter: '' }} />
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 max-md:basis-[calc(100%-5rem)]">
                 <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
                 <div className="text-lg font-bold text-white mb-0.5">Create Your Study Schedule</div>
                 <div className="text-sm text-wk-ink-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
               </div>
               <button onClick={() => setShowAI(true)}
-                className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm transition-all hover:opacity-90 active:scale-95"
+                className="flex-shrink-0 max-md:w-full max-md:justify-center flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm transition-all hover:opacity-90 active:scale-95"
                 style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 ✦ Generate with AI
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
@@ -7131,8 +7254,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
             style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-4">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between max-md:gap-3 px-5 pt-5 pb-4 max-md:px-4">
+              <div className="flex items-center gap-3 max-md:min-w-0">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.18),rgba(220,38,38,0.1))', border: '1px solid rgba(239,68,68,0.3)' }}>
                   🚫
@@ -7143,7 +7266,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
               </div>
               <button onClick={() => setShowMoreApps(true)}
-                className="flex items-center gap-1 text-[11px] text-wk-orange-300 hover:text-wk-orange-300 transition-colors">
+                className="max-md:flex-shrink-0 max-md:whitespace-nowrap flex items-center gap-1 text-[11px] text-wk-orange-300 hover:text-wk-orange-300 transition-colors">
                 All apps <Ico n="arrow" cls="w-3 h-3" />
               </button>
             </div>
@@ -7151,7 +7274,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             {/* App grid */}
             <div className="px-5 mb-1">
               <div className="text-[10px] text-wk-ink-500 font-mono mb-2">APPS</div>
-              <div className="grid grid-cols-6 gap-3 mb-4">
+              <div className="grid grid-cols-6 gap-3 max-md:grid-cols-3 max-md:gap-2 mb-4">
                 {APP_LIST.slice(0, 5).map(app => {
                   const blocked = blockedApps.has(app.name)
                   return (
@@ -7186,7 +7309,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               <div className="text-[10px] text-wk-ink-500 font-mono mb-3">WEBSITES</div>
               <div className="flex gap-2 mb-3">
                 <input value={websiteInput} onChange={e => setWebsiteInput(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
+                  className="flex-1 max-md:min-w-0 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                    placeholder="e.g. youtube.com, reddit.com..."
                   onKeyDown={e => e.key === 'Enter' && addBlockedWebsite()} />
                 <button onClick={addBlockedWebsite}
@@ -7213,7 +7336,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           {/* ── Create Focus Routine ── */}
           <div className="rounded-2xl border overflow-hidden"
             style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-            <div className="flex items-center justify-between px-5 py-5">
+            <div className="flex items-center justify-between px-5 py-5 max-md:flex-wrap max-md:gap-3 max-md:px-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #3A3A3A' }}>⏰</div>
                 <div>
@@ -7222,7 +7345,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
               </div>
               <button onClick={() => setShowCreateRoutine(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
+                className="max-md:w-full max-md:justify-center flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
                 style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                 New Routine
@@ -7539,7 +7662,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -8076,7 +8199,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               <Ico n="chevL" cls="w-4 h-4" /> Battleground
             </button>
           ) : (
-            <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+            <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Home
             </button>
           )}
@@ -8620,13 +8743,17 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
     if (blocked) { notify(blocked, false); setBusy(null) }
   }
 
-  const TABS: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'account', label: 'Account', icon: '🔐' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'privacy', label: 'Privacy', icon: '🛡️' },
-    { id: 'study', label: 'Study Prefs', icon: '📚' },
-    { id: 'about', label: 'About', icon: 'ℹ️' },
+  // Was a plain emoji glyph per row (👤🔐🔔🛡️📚ℹ️) sitting flat against the
+  // list - no badge, no color, all identical weight. Each tab now gets the
+  // app's own vector icon in a small colored glass badge instead, so the
+  // nav reads as a designed system rather than default OS emoji.
+  const TABS: { id: SettingsTab; label: string; icon: keyof typeof IP; color: string }[] = [
+    { id: 'profile', label: 'Profile', icon: 'user', color: '#38BDF8' },
+    { id: 'account', label: 'Account', icon: 'lock', color: '#FBBF24' },
+    { id: 'notifications', label: 'Notifications', icon: 'bell', color: '#FB7185' },
+    { id: 'privacy', label: 'Privacy', icon: 'shield', color: '#34D399' },
+    { id: 'study', label: 'Study Prefs', icon: 'library', color: '#A78BFA' },
+    { id: 'about', label: 'About', icon: 'info', color: '#94A3B8' },
   ]
 
   const selectedPreset = prefs.avatar_preset ?? 0
@@ -8903,13 +9030,16 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         </div>
         <StSection title="LEGAL & INFO">
           {[
-            { label: 'Terms of Service', icon: '📄', href: '/terms' },
-            { label: 'Privacy Policy', icon: '🔒', href: '/privacy' },
+            { label: 'Terms of Service', icon: 'doc' as const, color: '#38BDF8', href: '/terms' },
+            { label: 'Privacy Policy', icon: 'shield' as const, color: '#34D399', href: '/privacy' },
           ].map(item => (
             <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer"
               className="w-full flex items-center justify-between py-3.5 border-b last:border-0 text-left group border-[rgba(38,38,42,0.55)]">
               <div className="flex items-center gap-3">
-                <span className="text-base">{item.icon}</span>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${item.color}30, ${item.color}14)`, border: `1px solid ${item.color}55` }}>
+                  <Ico n={item.icon} cls="w-4 h-4" style={{ color: item.color }} />
+                </span>
                 <span className="text-sm font-medium text-wk-ink-200 group-hover:text-white transition-colors">{item.label}</span>
               </div>
               <Ico n="chevR" cls="w-4 h-4 text-wk-ink-600" />
@@ -8925,7 +9055,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -8943,29 +9073,43 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
           <UserAvatar size={32} />
         </header>
 
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(38,38,42,0.55)] bg-[rgba(11,11,13,0.5)]">
-            {TABS.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
-                style={{
-                  background: activeTab === tab.id ? 'rgba(38,38,42,0.55)' : 'transparent',
-                  color: activeTab === tab.id ? '#FFA94D' : '#7A756D',
-                  border: `1px solid ${activeTab === tab.id ? '#3A3A3A' : 'transparent'}`,
-                }}>
-                <span className="text-base">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-            <div className="pt-4 mt-4 border-t px-1 border-[rgba(38,38,42,0.55)]">
+        <div className="flex flex-1 overflow-hidden max-md:flex-col">
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(38,38,42,0.55)] bg-[rgba(11,11,13,0.5)] max-md:w-full max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:border-r-0 max-md:border-b max-md:py-2.5 max-md:px-4">
+            {TABS.map(tab => {
+              const active = activeTab === tab.id
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className="w-full max-md:w-auto max-md:flex-shrink-0 max-md:whitespace-nowrap flex items-center gap-3 max-md:gap-2 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left"
+                  style={{
+                    background: active ? 'rgba(38,38,42,0.55)' : 'transparent',
+                    color: active ? '#FFF7E6' : '#9C968C',
+                    border: `1px solid ${active ? '#3A3A3A' : 'transparent'}`,
+                  }}>
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
+                    style={{
+                      background: `linear-gradient(135deg, ${tab.color}${active ? '40' : '22'}, ${tab.color}${active ? '22' : '10'})`,
+                      border: `1px solid ${tab.color}${active ? '80' : '3A'}`,
+                      boxShadow: active ? `0 0 12px ${tab.color}40` : 'none',
+                    }}>
+                    <Ico n={tab.icon} cls="w-3.5 h-3.5" style={{ color: tab.color }} />
+                  </span>
+                  {tab.label}
+                </button>
+              )
+            })}
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(38,38,42,0.55)] max-md:flex-shrink-0 max-md:p-0 max-md:m-0 max-md:border-t-0">
               <button onClick={() => void handleLogout()} disabled={busy === 'logout'}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
-                <span className="text-base">🚪</span> {busy === 'logout' ? 'Signing out…' : 'Log Out'}
+                className="w-full max-md:w-auto max-md:whitespace-nowrap flex items-center gap-3 max-md:gap-2 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, rgba(248,113,113,0.28), rgba(220,38,38,0.14))', border: '1px solid rgba(248,113,113,0.5)' }}>
+                  <Ico n="logout" cls="w-3.5 h-3.5 text-red-400" />
+                </span>
+                {busy === 'logout' ? 'Signing out…' : 'Log Out'}
               </button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 max-md:px-4 max-md:pb-24">
             {content}
             <div className="h-6" />
           </div>
@@ -9058,7 +9202,10 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
 
   const PACK_STYLES = [
     { color: '#FF8A3D', glow: '#3A3A3A', grad: 'linear-gradient(135deg,#FF8A3D,#E9772E)' },
-    { color: '#CFC8BB', glow: 'rgba(207,200,187,0.40)', grad: 'linear-gradient(135deg,#9C968C,#9C968C)' },
+    // Was a flat tan-on-tan button (white text on #9C968C — barely readable). Swapped
+    // for a deep slate "steel" gradient with a light silver accent color, so it reads
+    // clearly against both the dark card and its own white button text.
+    { color: '#CBD5E1', glow: 'rgba(100,116,139,0.45)', grad: 'linear-gradient(135deg,#64748B,#334155)' },
     { color: '#F59E0B', glow: 'rgba(245,158,11,0.40)', grad: 'linear-gradient(135deg,#F59E0B,#D97706)' },
   ]
   const PACKS = packagesQ.data.map((p, i) => {
@@ -9080,7 +9227,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         {/* Header */}
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -9088,11 +9235,11 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <div className="text-sm font-semibold text-wk-ink-200">Buy coins. Unlock perks.</div>
           </div>
           {/* Balance pill */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
+          <div className="max-md:flex-shrink-0 flex items-center gap-2 px-4 max-md:px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
             >
             <img src="/wynkoin.png" alt="Wynkoin" className="w-5 h-5 object-contain flex-shrink-0" />
             <span className="text-base font-black text-amber-400" >{balance}</span>
-            <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
+            <span className="max-md:hidden text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
         </header>
@@ -9113,22 +9260,22 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         <main className="flex-1 overflow-y-auto">
 
           {/* Hero */}
-          <div className="relative overflow-hidden px-8 py-8 border-b"
+          <div className="relative overflow-hidden px-8 py-8 max-md:px-4 max-md:py-6 border-b"
             style={{ background: 'linear-gradient(130deg,#0B0B0D,#161618 60%,#0B0B0D)', borderColor: 'rgba(245,158,11,0.15)' }}>
             <div className="absolute inset-0 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at 60% 50%,rgba(245,158,11,0.1),transparent 65%)' }} />
-            <div className="relative z-10 flex items-center gap-10">
+            <div className="relative z-10 flex items-center gap-10 max-md:gap-4">
               {/* Giant coin */}
-              <div className="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center"
+              <div className="flex-shrink-0 w-24 h-24 max-md:w-16 max-md:h-16 rounded-full flex items-center justify-center"
                 style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', boxShadow: 'none' }}>
-                <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 object-contain" />
+                <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 max-md:w-11 max-md:h-11 object-contain" />
               </div>
-              <div>
+              <div className="max-md:min-w-0">
                 <div className="text-[10px] font-mono tracking-[0.28em] text-amber-500 mb-2">WYNKO VIRTUAL CURRENCY</div>
                 <h1 className="text-3xl font-black text-white mb-1">WYNKOINS</h1>
                 <p className="text-wk-ink-400 text-sm max-w-lg leading-relaxed">Buy WYNKOINS to unlock exclusive perks inside Wynko — remove ads, unlock features, and more coming soon.</p>
               </div>
-              <div className="ml-auto flex-shrink-0 text-right">
+              <div className="max-md:hidden ml-auto flex-shrink-0 text-right">
                 <div className="text-[10px] text-wk-ink-500 font-mono mb-1">YOUR BALANCE</div>
                 <div className="text-5xl font-black text-amber-400" >{balance}</div>
                 <div className="text-[11px] text-amber-600 mt-0.5">WYNKOINS</div>
@@ -9136,7 +9283,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             </div>
           </div>
 
-          <div className="flex gap-5 px-6 py-5 items-start">
+          <div className="flex gap-5 px-6 py-5 items-start max-md:flex-col max-md:items-stretch max-md:px-4">
 
             {/* Left column */}
             <div className="flex-1 min-w-0 space-y-5">
@@ -9146,7 +9293,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">BUY WYNKOINS</div>
                 {packagesQ.status === 'loading' && PACKS.length === 0 && <div className="text-[12px] text-wk-ink-500">Loading coin packs…</div>}
                 {packagesQ.status === 'error' && PACKS.length === 0 && <div className="text-[12px] text-amber-300">{packagesQ.error}</div>}
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 max-md:grid-cols-1 max-md:gap-3">
                   {PACKS.map(pack => (
                     <div key={pack.id} className="relative rounded-2xl border overflow-hidden"
                       style={{ borderColor: pack.popular ? pack.color + '60' : '#26262A', background: '#161618', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
@@ -9157,7 +9304,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest"
                           style={{ background: pack.grad, color: '#fff' }}>{pack.badge}</div>
                       )}
-                      <div className="p-6">
+                      <div className="p-6 max-md:p-4">
                         {/* Coin visual */}
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
@@ -9174,11 +9321,14 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         <button
                           onClick={() => handleBuy(pack)}
                           disabled={!!buying}
-                          className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+                          className="w-full min-h-[52px] py-2.5 rounded-xl text-white font-bold text-sm text-center leading-snug transition-all hover:opacity-90 active:scale-[0.98] flex flex-col items-center justify-center gap-0.5"
                           style={{ background: pack.grad, boxShadow: `0 0 20px ${pack.glow}`, opacity: buying === pack.id ? 0.7 : 1 }}>
                           {buying === pack.id
-                            ? <><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> Processing...</>
-                            : <>Buy {pack.coins} WYNKOINS for {pack.price}</>}
+                            ? <span className="flex items-center gap-2"><span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> Processing...</span>
+                            : <>
+                                <span>Buy {pack.coins} WYNKOINS</span>
+                                <span className="font-black">for {pack.price}</span>
+                              </>}
                         </button>
                       </div>
                     </div>
@@ -9191,7 +9341,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">SPEND WYNKOINS</div>
                 <div className="rounded-2xl border overflow-hidden" style={{ background: '#161618', borderColor: adsFree ? 'rgba(52,211,153,0.40)' : '#26262A' }}>
                   {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#34D399,#10B981)' }} />}
-                  <div className="p-6 flex items-center gap-5">
+                  <div className="p-6 flex items-center gap-5 max-md:p-4 max-md:gap-4 max-md:flex-wrap">
                     {/* Icon */}
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
                       style={{ background: adsFree ? 'rgba(52,211,153,0.12)' : 'rgba(38,38,42,0.55)', border: `1.5px solid ${adsFree ? 'rgba(52,211,153,0.40)' : '#3A3A3A'}` }}>
@@ -9218,7 +9368,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                       <button
                         onClick={handleUnlockAdFree}
                         disabled={spending || !adFreeItem || balance < adFreeCost}
-                        className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+                        className="flex-shrink-0 max-md:w-full px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                         style={{
                           background: balance >= adFreeCost ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'rgba(28,28,31,0.8)',
                           color: balance >= adFreeCost ? '#fff' : '#7A756D',
@@ -9253,7 +9403,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             </div>
 
             {/* Right sidebar */}
-            <div className="w-72 flex-shrink-0 space-y-4">
+            <div className="w-72 max-md:w-full flex-shrink-0 space-y-4">
 
               {/* Balance card */}
               <div className="rounded-2xl border p-5 bg-[#161618] border-[rgba(245,158,11,0.35)]" >
@@ -9477,7 +9627,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
                     </button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 max-md:flex-wrap">
                     {SHARE_ICONS.map(s => (
                       <button key={s.label} title={s.label}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all hover:scale-105"
@@ -9631,7 +9781,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate("home")} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate("home")} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -9640,21 +9790,21 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
           </div>
           {isWynkoHead && communityCreated && (
             <button onClick={() => onNavigate("studyrooms")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]">
+              className="max-md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]">
               👑 Visit your community
             </button>
           )}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
+          <div className="max-md:flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
             <span className="text-base">🪙</span>
             <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
-            <span className="text-[10px] text-amber-500">WYNKOINS</span>
+            <span className="max-md:hidden text-[10px] text-amber-500">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto">
           {/* Hero — no revenue split visual */}
-          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#0B0B0D 0%,#161618 55%,#0B0B0D 100%)", borderBottom: "1px solid #26262A" }}>
+          <div className="relative overflow-hidden px-8 py-8 max-md:px-4 max-md:py-6" style={{ background: "linear-gradient(130deg,#0B0B0D 0%,#161618 55%,#0B0B0D 100%)", borderBottom: "1px solid #26262A" }}>
             <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,#26262A,transparent 65%)" }} />
             <div className="relative z-10">
               <div className="text-[10px] font-mono tracking-[0.28em] text-wk-orange-300 mb-3">EARN WITH WYNKO</div>
@@ -9679,7 +9829,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
           </div>
 
           {/* Tab switcher */}
-          <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(38,38,42,0.55)]" >
+          <div className="flex items-center gap-1 px-6 py-3 max-md:px-4 border-b border-[rgba(38,38,42,0.55)]" >
             {([
               { id: "wynkohead" as EarnTab, icon: "👑", label: "WynkoHead Program" },
               { id: "invite" as EarnTab, icon: "🎁", label: "Invite a Friend" },
@@ -9696,7 +9846,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
             ))}
           </div>
 
-          <div className="px-6 py-5 max-w-4xl">
+          <div className="px-6 py-5 max-md:px-4 max-w-4xl">
 
             {/* ── WYNKOHEAD TAB ── */}
             {tab === "wynkohead" && (
@@ -9704,7 +9854,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 {/* How it works */}
                 <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">HOW WYNKOHEAD WORKS</div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-md:gap-3">
                     {[
                       { n: "1", icon: "📣", title: "Invite Students", desc: "Share your WynkoHead link. Students who join Wynko via your link become part of your community." },
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
@@ -9736,7 +9886,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 ) : !isWynkoHead ? (
                   <div className="rounded-2xl border overflow-hidden bg-[#161618] border-[#3A3A3A]" >
                     {!registering ? (
-                      <div className="p-6 flex items-center justify-between gap-6">
+                      <div className="p-6 flex items-center justify-between gap-6 max-md:flex-col max-md:items-stretch max-md:gap-4 max-md:p-4">
                         <div>
                           <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-1">READY TO START?</div>
                           <div className="text-lg font-black text-white mb-1">Register as a WynkoHead</div>
@@ -9832,7 +9982,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 {/* How it works */}
                 <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">HOW FRIEND INVITES WORK</div>
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 max-md:grid max-md:grid-cols-2 max-md:gap-3">
                     {[
                       { icon: "🔗", title: "Share Your Link", desc: "Copy your unique invite link and send it to a friend." },
                       { icon: "🎓", title: "Friend Joins", desc: "Your friend signs up on Wynko using your link." },
@@ -9860,13 +10010,13 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                   <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">YOUR INVITE LINK</div>
                   <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#161618] border-[#26262A]" >
                     <span className="text-wk-orange-300">🔗</span>
-                    <span className="text-sm text-wk-ink-200 flex-1 font-bold" >{linkLabel(friendLink)}</span>
+                    <span className="text-sm text-wk-ink-200 flex-1 max-md:min-w-0 max-md:truncate font-bold" >{linkLabel(friendLink)}</span>
                     <button onClick={copyFriend} className="text-wk-ink-500 hover:text-wk-orange-300 transition-colors p-1">
                       {friendCopied ? <span className="text-[10px] text-emerald-400">✓ Copied!</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
                     </button>
                   </div>
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex gap-2 mb-4 max-md:flex-wrap">
                     {SHARE_ICONS.map(s => (
                       <button key={s.label} title={s.label}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all hover:scale-105"

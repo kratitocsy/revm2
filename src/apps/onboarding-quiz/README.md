@@ -25,8 +25,8 @@ Same build model as `src/apps/mobile-home` and `src/apps/desktop-dashboard`
   `../_shared/quizEngine.ts`.
 - `imports/wynky-hello.mp4` / `imports/wynky-hello-en.mp4` — the Hindi and
   English hello clips (see Voice below).
-- `imports/wynky-dance.mp4` — the mascot clip, cut into expression segments
-  by timestamp in `wynky.tsx` (`WYNKY_CLIPS`).
+- `imports/wynky-dance.mp4` — the mascot's idle/talking loop, played and
+  looped in full (muted) by `WynkyStage`.
 - `main.tsx` / `onboarding-quiz.html` / `onboarding-quiz.css` — same shape
   as `mobile-home`'s.
 
@@ -56,15 +56,15 @@ npm run build:onboarding-quiz   # builds Tailwind CSS, then the bundle —
 per language, each with Wynky's hello baked into its own soundtrack,
 lip-synced:
 
-- Hindi: `imports/wynky-hello.mp4` (`/audio/wynky/hi/intro.mp3` is that
-  same recording, cut from 1.05s into the clip). Plays from 0.7s and holds
-  at 9.5s, just before its fade to black.
-- English: `imports/wynky-hello-en.mp4`. Plays from 0s (its music starts
-  there) and holds at 9.95s; it has no fade.
+- Hindi: `imports/wynky-hello.mp4` (black background). Plays from 0s and
+  holds at 9.55s, right after she finishes talking.
+- English: `imports/wynky-hello-en.mp4` (white background). Plays from 0s
+  and holds at 9.8s, same idea.
 
-The language screen shows a picture of Wynky waving with a "Hii!" bubble
-(`imports/wynky-hii.webp`, no circle frame) while the Hindi clip loads
-hidden behind it. Tapping "Let's go"
+The language screen shows a looping "Hii!" wave clip (`imports/wynky-hii.mp4`,
+inside the same circular frame as the hello clips - it starts muted, as
+browsers require, and unmutes itself on the visitor's first tap/keypress)
+while the Hindi clip loads hidden behind it. Tapping "Let's go"
 plays the chosen language's clip once (`playHero()` in `wynky.tsx`) **with
 its own sound**, so voice and lips come from one media element and can't
 drift apart (even if it's still buffering, both wait together). Both clips

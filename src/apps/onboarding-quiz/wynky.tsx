@@ -16,36 +16,21 @@ export const line = (id: string, en: string, hi: string, hiSay?: string): Line =
   hi: { text: hi, say: hiSay ?? hi },
 });
 
-// [start, end] seconds into wynky-dance.mp4 for each looping expression.
-const WYNKY_CLIPS: Record<Expression, [number, number]> = {
-  idle: [1.5, 3.0],
-  wink: [0.2, 1.3],
-  talk: [3.0, 4.6],
-  curious: [6.2, 7.4],
-  happy: [8.1, 8.9],
-  wave: [8.9, 10.0],
-};
-
 export type StageSize = 'large' | 'small';
 
+// wynky-dance.mp4 is now one continuous idle/talk loop (not six separate
+// expression clips cut into one file, like the old video was) - so there's
+// nothing left to seek between. `expression`/`speaking` still pick the
+// label under the circle (large size only); the video itself just runs.
 export function WynkyStage({ src, expression, speaking, size = 'large' }: { src: string; expression: Expression; speaking: boolean; size?: StageSize }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
-  const [start, end] = WYNKY_CLIPS[speaking ? 'talk' : expression];
 
   useEffect(() => {
     const v = ref.current;
     if (!v || !ready) return;
-    v.currentTime = start;
     v.play().catch(() => {});
-    let raf = 0;
-    const loop = () => {
-      if (v.currentTime >= end - 0.05 || v.currentTime < start - 0.3) v.currentTime = start;
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [start, end, ready]);
+  }, [ready]);
 
   const label = speaking ? 'TALKING' : expression.toUpperCase();
   const small = size === 'small';
@@ -59,38 +44,39 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
       <div
         style={{
           position: 'absolute', inset: glowInset, borderRadius: 999, filter: 'blur(6px)',
-          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(255,138,61,0.35) 0%, rgba(255,176,87,0.12) 45%, transparent 70%)',
           animation: speaking ? 'wkGlow 1.2s ease-in-out infinite' : 'none',
         }}
       />
       <div
         style={{
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
-          border: `${small ? 1.5 : 2}px solid rgba(148,197,255,0.55)`, background: '#A9CCE8',
+          border: `${small ? 1.5 : 2}px solid rgba(255,176,87,0.55)`, background: '#E8C9A9',
           boxShadow: small
-            ? '0 0 18px rgba(124,77,255,0.45), 0 0 36px rgba(41,98,255,0.25), inset 0 0 18px rgba(124,77,255,0.15)'
-            : '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
+            ? '0 0 18px rgba(255,138,61,0.45), 0 0 36px rgba(255,176,87,0.25), inset 0 0 18px rgba(255,138,61,0.15)'
+            : '0 0 40px rgba(255,138,61,0.45), 0 0 90px rgba(255,176,87,0.25), inset 0 0 40px rgba(255,138,61,0.15)',
         }}
       >
         <video
           ref={ref}
           src={src}
           muted
+          loop
           playsInline
           autoPlay
           preload="auto"
           aria-hidden="true"
           onLoadedMetadata={() => setReady(true)}
-          style={{ position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', height: '100%', maxWidth: 'none', transform: 'translate(-50%,-50%)' }}
         />
       </div>
       {!small && (
         <div
           style={{
             position: 'absolute', left: '50%', bottom: -14, transform: 'translateX(-50%)', padding: '4px 12px',
-            borderRadius: 999, background: '#0B1530', border: '1px solid rgba(124,77,255,0.45)',
-            boxShadow: '0 0 14px rgba(124,77,255,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            letterSpacing: '0.2em', color: '#C4AAFF', whiteSpace: 'nowrap',
+            borderRadius: 999, background: '#161618', border: '1px solid rgba(255,138,61,0.45)',
+            boxShadow: '0 0 14px rgba(255,138,61,0.35)', fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            letterSpacing: '0.2em', color: '#FFCB94', whiteSpace: 'nowrap',
           }}
         >
           WYNKY · {label}
@@ -107,12 +93,10 @@ export function WynkyStage({ src, expression, speaking, size = 'large' }: { src:
  * recording as /audio/wynky/hi/intro.mp3, which starts 1.05s into the
  * clip), wynky-hello-en.mp4 in English. So a clip doesn't autoplay or loop
  * on its own: it holds a still until playHero() plays it, and stops at its
- * `end` (before the Hindi clip's closing fade to black).
+ * `end` (see HELLO_CLIP_HI/EN above for where each one actually finishes
+ * talking).
  * Same circular framing/glow/crop transform as WynkyStage's large size, so
- * the two read as the same character. That crop also happens to push the
- * Hindi clip's bottom-right generator watermark entirely outside the
- * visible circle — checked frame-by-frame against the actual clip, not
- * assumed.
+ * the two read as the same character.
  */
 export interface HelloClip {
   /** Seconds into the clip where playback starts (and the still is held). */
@@ -121,42 +105,101 @@ export interface HelloClip {
   end: number;
 }
 
-// wynky-hello.mp4 (Hindi): `start` is already mid-wave (her voice comes in
-// ~0.35s later); by `end` she has finished talking and the clip is about to
-// fade to black (~9.55s), so it's held there.
-export const HELLO_CLIP_HI: HelloClip = { start: 0.7, end: 9.5 };
-// wynky-hello-en.mp4 (English): no fade, and its music starts at 0s, so it
-// plays from the top and runs to just before its last frame (10.0s).
-export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.95 };
+// wynky-hello.mp4 (Hindi, black background): she's already waving from the
+// first frame and her voice starts almost immediately (~0.3s in, measured
+// via silencedetect), so `start` is 0; she finishes talking at ~9.55s
+// (a wink, no fade this time), so it's held there.
+export const HELLO_CLIP_HI: HelloClip = { start: 0, end: 9.55 };
+// wynky-hello-en.mp4 (English, white background): talks continuously from
+// 0s and finishes at ~9.8s on a closed-eyes smile/wave (measured the same
+// way), so it's held there instead of running into the trailing silence.
+export const HELLO_CLIP_EN: HelloClip = { start: 0, end: 9.8 };
 
 /**
  * `clips` are stacked in one circle, one per language; only the one with
- * `show` is visible. Both stay mounted so the right one is already loaded
- * when "Let's go" plays it (`preload` lets the unused one load lazily).
- * `still`, when given, replaces the circle with a free-standing image (the
- * language screen's waving "Hii!" Wynky, transparent background, which
- * pops in and hops a few times via .wq-hii-pop); the
- * clips stay mounted, hidden, so they keep loading underneath it.
+ * `show` is visible (and only when `idle` isn't set - see below). Both stay
+ * mounted so the right one is already loaded when "Let's go" plays it
+ * (`preload` lets the unused one load lazily).
  */
-export function WynkyHero({ clips, still }: {
+
+/**
+ * The language screen's looping "hii, wave" clip - always mounted inside the
+ * same clipped circle as the hello clips (never a free-floating image), so
+ * it can never spill outside the round frame on desktop or mobile: the
+ * parent circle is `overflow: hidden`, and this video is centered and
+ * cropped to fill it exactly like every other clip here.
+ *
+ * Autoplaying WITH sound before any tap is blocked by every major browser's
+ * autoplay policy, so this starts muted (which autoplay always allows) and
+ * unmutes itself the instant the visitor's first interaction with the page
+ * happens - a click, tap or key press anywhere - rather than waiting for a
+ * specific button. `muted` (Wynky's own mute toggle) still wins even after
+ * that: toggling it mid-loop takes effect immediately.
+ */
+function IdleLoopVideo({ src, muted }: { src: string; muted: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const unlockedRef = useRef(false);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    unlockedRef.current = false;
+    v.muted = true;
+    v.currentTime = 0;
+    v.play().catch(() => {});
+
+    const unlock = () => {
+      if (unlockedRef.current) return;
+      unlockedRef.current = true;
+      if (ref.current) {
+        ref.current.muted = muted;
+        ref.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, [src]);
+
+  useEffect(() => {
+    if (unlockedRef.current && ref.current) ref.current.muted = muted;
+  }, [muted]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      loop
+      muted
+      playsInline
+      preload="auto"
+      aria-hidden="true"
+      style={{ position: 'absolute', left: '50%', top: '50%', height: '100%', maxWidth: 'none', transform: 'translate(-50%,-50%)' }}
+    />
+  );
+}
+
+export function WynkyHero({ clips, idle }: {
   clips: { src: string; clip: HelloClip; videoRef: RefObject<HTMLVideoElement | null>; show: boolean; preload: 'auto' | 'metadata' }[];
-  still?: string;
+  /** The language screen's looping clip, shown (and sized/clipped) in place of the hello clips. */
+  idle?: { src: string; muted: boolean };
 }) {
   return (
     <div className="wq-stage-large" style={{ position: 'relative', width: 'var(--wq-stage)', height: 'var(--wq-stage)', flexShrink: 0 }}>
       <div
         style={{
           position: 'absolute', inset: -28, borderRadius: 999, filter: 'blur(6px)',
-          background: 'radial-gradient(circle, rgba(124,77,255,0.35) 0%, rgba(41,98,255,0.12) 45%, transparent 70%)',
-          visibility: still ? 'hidden' : 'visible',
+          background: 'radial-gradient(circle, rgba(255,138,61,0.35) 0%, rgba(255,176,87,0.12) 45%, transparent 70%)',
         }}
       />
       <div
         style={{
           position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 999,
-          border: '2px solid rgba(148,197,255,0.55)', background: '#A9CCE8',
-          boxShadow: '0 0 40px rgba(124,77,255,0.45), 0 0 90px rgba(41,98,255,0.25), inset 0 0 40px rgba(124,77,255,0.15)',
-          visibility: still ? 'hidden' : 'visible',
+          border: '2px solid rgba(255,176,87,0.55)', background: '#E8C9A9',
+          boxShadow: '0 0 40px rgba(255,138,61,0.45), 0 0 90px rgba(255,176,87,0.25), inset 0 0 40px rgba(255,138,61,0.15)',
         }}
       >
         {clips.map(({ src, clip, videoRef, show, preload }) => (
@@ -170,21 +213,13 @@ export function WynkyHero({ clips, still }: {
             aria-hidden="true"
             onLoadedMetadata={(e) => { if (e.currentTarget.paused) e.currentTarget.currentTime = clip.start; }}
             style={{
-              position: 'absolute', left: '50%', top: '50%', height: '118%', maxWidth: 'none', transform: 'translate(-50%,-47%)',
-              visibility: show ? 'visible' : 'hidden',
+              position: 'absolute', left: '50%', top: '50%', height: '100%', maxWidth: 'none', transform: 'translate(-50%,-50%)',
+              visibility: show && !idle ? 'visible' : 'hidden',
             }}
           />
         ))}
+        {idle && <IdleLoopVideo key={idle.src} src={idle.src} muted={idle.muted} />}
       </div>
-      {still && (
-        <img
-          src={still}
-          alt=""
-          aria-hidden="true"
-          className="wq-hii-pop"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
-        />
-      )}
     </div>
   );
 }
@@ -285,27 +320,27 @@ export function SpeechBubble({ text, lang, compact = false }: { text: string; la
       style={{
         position: 'relative', maxWidth: compact ? 320 : 420, width: '100%', boxSizing: 'border-box',
         padding: compact ? '10px 14px' : '16px 20px', borderRadius: compact ? 16 : 20,
-        background: 'linear-gradient(160deg,#131A45 0%,#0B1530 100%)', border: '1px solid rgba(124,77,255,0.45)',
-        boxShadow: compact ? '0 0 16px rgba(124,77,255,0.2)' : '0 0 30px rgba(124,77,255,0.25)',
+        background: 'linear-gradient(160deg,#1C1C1F 0%,#161618 100%)', border: '1px solid rgba(255,138,61,0.45)',
+        boxShadow: compact ? '0 0 16px rgba(255,138,61,0.2)' : '0 0 30px rgba(255,138,61,0.25)',
         transition: 'max-width 220ms ease, padding 220ms ease',
       }}
     >
       {!compact && (
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#A78BFA', marginBottom: 6 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: '#FFA94D', marginBottom: 6 }}>
           WYNKY · {lang === 'hi' ? 'HINGLISH' : 'ENGLISH'}
         </div>
       )}
-      <div style={{ fontSize: compact ? 13 : 15, lineHeight: 1.5, color: '#EEF2FF', minHeight: compact ? 20 : 46 }}>
+      <div style={{ fontSize: compact ? 13 : 15, lineHeight: 1.5, color: '#FFF7E6', minHeight: compact ? 20 : 46 }}>
         <span className="sr-only">{text}</span>
         <span aria-hidden="true">
           {text.slice(0, n)}
-          <span style={{ opacity: n < text.length ? 1 : 0, color: '#A78BFA' }}>▍</span>
+          <span style={{ opacity: n < text.length ? 1 : 0, color: '#FFA94D' }}>▍</span>
         </span>
       </div>
       <div
         style={{
           position: 'absolute', left: '50%', bottom: -9, width: 16, height: 16, transform: 'translateX(-50%) rotate(45deg)',
-          background: '#0B1530', borderRight: '1px solid rgba(124,77,255,0.45)', borderBottom: '1px solid rgba(124,77,255,0.45)',
+          background: '#161618', borderRight: '1px solid rgba(255,138,61,0.45)', borderBottom: '1px solid rgba(255,138,61,0.45)',
         }}
       />
     </div>
