@@ -510,14 +510,48 @@ export async function recordOutcome(sb: SupaLike, args: {
    answers. */
 
 export async function loadEvents(sb: SupaLike, userId: string): Promise<WynkyEvent[]> {
-  const { data } = await sb.from('wynky_events')
-    .select('field, value, multi, action, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(400);
-  return (Array.isArray(data) ? data : []).map((r: any) => ({
+  const [{ data }, { data: learned }] = await Promise.all([
+    sb.from('wynky_events')
+      .select('field, value, multi, action, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(400),
+    // The running summary (migration 0098). Older events are archived to R2
+    // and removed from wynky_events, so this is what keeps them counting.
+    sb.from('wynky_learned')
+      .select('field, value, multi, accepted_n, changed_n, requested_n, last_action, last_at')
+      .eq('user_id', userId)
+      .limit(1000),
+  ]);
+  const events: WynkyEvent[] = (Array.isArray(data) ? data : []).map((r: any) => ({
     field: r.field, value: r.value, multi: !!r.multi, action: r.action as WynkyAction, at: r.created_at,
   }));
+  return [...events, ...eventsFromSummary(Array.isArray(learned) ? learned : [], events)];
+}
+
+export interface LearnedRow {
+  field: string; value: string; multi: boolean;
+  accepted_n: number; changed_n: number; requested_n: number;
+  last_action: string; last_at: string;
+}
+
+/** Stand-in events for answers whose own events are no longer loaded
+ *  (archived, or past the 400 most recent): the last thing the student did
+ *  with it, at the time they did it, plus one more "kept" when they kept it
+ *  more than once. Recency weighting then treats them like the originals. */
+export function eventsFromSummary(rows: LearnedRow[], recent: WynkyEvent[]): WynkyEvent[] {
+  const seen = new Set(recent.map(e => `${e.field}\u0000${e.value}`));
+  const out: WynkyEvent[] = [];
+  for (const r of rows) {
+    if (!r?.field || !r?.value || !r.last_at || seen.has(`${r.field}\u0000${r.value}`)) continue;
+    const action = (['accepted', 'changed', 'requested', 'removed'].includes(r.last_action) ? r.last_action : 'accepted') as WynkyAction;
+    out.push({ field: r.field, value: r.value, multi: !!r.multi, action, at: r.last_at });
+    const kept = (r.accepted_n || 0) + (r.changed_n || 0) + (r.requested_n || 0);
+    if (action !== 'removed' && kept >= 2) {
+      out.push({ field: r.field, value: r.value, multi: !!r.multi, action: 'accepted', at: new Date(Date.parse(r.last_at) - 1000).toISOString() });
+    }
+  }
+  return out;
 }
 
 export interface NewEvent { field: string; value: string; multi?: boolean; action: WynkyAction }
