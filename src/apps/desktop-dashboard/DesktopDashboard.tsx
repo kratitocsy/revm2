@@ -383,6 +383,10 @@ const NAV = [
   { id: 'settings', label: 'Settings', icon: 'cog' as const, group: 'OTHER' },
 ]
 
+// Phone tab bar (below md): four main tabs, the rest behind "More".
+const PHONE_TABS = NAV.filter(n => ['home', 'focus', 'schedules', 'studyrooms'].includes(n.id))
+const PHONE_MORE = NAV.filter(n => !PHONE_TABS.includes(n))
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 // profile is optional - the 10 other call sites below (Schedules,
 // Study Rooms, Battleground, etc.) haven't had their own real-data
@@ -391,6 +395,7 @@ const NAV = [
 function Sidebar({ active, setActive, profile }: { active: string; setActive: (id: string) => void; profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
+  const [moreOpen, setMoreOpen] = useState(false)
   return (
     <>
       {/* Desktop rail - every page renders this as a flex-row sibling next to
@@ -446,24 +451,43 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
       </aside>
 
       {/* Phone nav - below md (768px) only, so the Tauri desktop window
-          (opens at 800px) keeps the rail. A fixed bottom bar instead of the
-          rail, so it never competes with whatever a page's own header is showing. Every
-          item (not just a top-5 subset) so nothing is only reachable from
-          desktop; it scrolls horizontally if it doesn't all fit. Pages'
-          <main> gets bottom padding for this in desktop-dashboard.css. */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch gap-1 px-2 overflow-x-auto border-t"
-        style={{ background: 'rgba(11,11,13,0.97)', borderColor: 'rgba(38,38,42,0.55)', backdropFilter: 'blur(10px)', height: 64 }}>
-        {NAV.map(item => {
-          const isActive = active === item.id
+          (opens at 800px) keeps the rail. An app-style bottom tab bar: the
+          four main sections plus "More", which opens a sheet with the rest
+          (Battleground, WYNKOINS, Earn, Settings) so every page stays one
+          tap away. Pages' <main> gets bottom padding for this bar in
+          desktop-dashboard.css. */}
+      {moreOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMoreOpen(false)}>
+          <div className="absolute left-3 right-3 rounded-2xl border p-2 grid grid-cols-2 gap-2"
+            style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))', background: '#161618', borderColor: '#26262A' }}
+            onClick={e => e.stopPropagation()}>
+            {PHONE_MORE.map(item => {
+              const isActive = active === item.id
+              return (
+                <button key={item.id} onClick={() => { setMoreOpen(false); setActive(item.id) }}
+                  className="flex items-center gap-2.5 px-3 py-3 rounded-xl border text-left"
+                  style={{
+                    background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : '#1C1C1F',
+                    borderColor: isActive ? '#E9772E' : '#26262A',
+                  }}>
+                  <Ico n={item.icon} cls="w-[18px] h-[18px] flex-shrink-0" style={{ color: isActive ? '#FFA94D' : '#CFC8BB' }} />
+                  <span className="text-[13px] font-medium" style={{ color: isActive ? '#FFF7E6' : '#E8E2D6' }}>{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 gap-1 px-2 pt-1.5 border-t"
+        style={{ background: 'rgba(11,11,13,0.97)', borderColor: 'rgba(38,38,42,0.55)', backdropFilter: 'blur(10px)', height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'calc(6px + env(safe-area-inset-bottom))' }}>
+        {[...PHONE_TABS, { id: 'more', label: 'More', icon: 'dots' as const }].map(item => {
+          const isActive = item.id === 'more' ? (moreOpen || PHONE_MORE.some(m => m.id === active)) : active === item.id
           return (
-            <button key={item.id} onClick={() => setActive(item.id)}
-              className="flex flex-col items-center justify-center gap-0.5 px-3 rounded-xl flex-shrink-0 min-w-[62px] border"
-              style={{
-                background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'transparent',
-                borderColor: isActive ? '#E9772E' : 'transparent',
-              }}>
-              <Ico n={item.icon} cls="w-[18px] h-[18px] flex-shrink-0" style={{ color: isActive ? '#FFA94D' : '#9C968C' }} />
-              <span className="text-[9px] font-medium whitespace-nowrap" style={{ color: isActive ? '#FFF7E6' : '#9C968C' }}>{item.label}</span>
+            <button key={item.id} onClick={() => item.id === 'more' ? setMoreOpen(o => !o) : (setMoreOpen(false), setActive(item.id))}
+              className="flex flex-col items-center justify-center gap-1 rounded-xl min-w-0"
+              style={{ background: isActive ? 'rgba(255,138,61,0.14)' : 'transparent' }}>
+              <Ico n={item.icon} cls="w-5 h-5 flex-shrink-0" style={{ color: isActive ? '#FFA94D' : '#9C968C' }} />
+              <span className="text-[10px] font-medium whitespace-nowrap truncate max-w-full" style={{ color: isActive ? '#FFF7E6' : '#9C968C' }}>{item.label}</span>
             </button>
           )
         })}
@@ -2497,7 +2521,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
         {/* Header */}
         <header className="relative z-10 h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
           <button onClick={() => onNavigate('home')}
-            className="flex items-center gap-1.5 text-sm transition-colors text-[#CFC8BB] hover:text-[#FFF7E6] mr-2">
+            className="max-md:hidden flex items-center gap-1.5 text-sm transition-colors text-[#CFC8BB] hover:text-[#FFF7E6] mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1 min-w-0">
@@ -3187,7 +3211,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -3226,7 +3250,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           ) : (
           <>
           {/* Hero */}
-          <div className="flex items-start justify-between mb-6 gap-6">
+          <div className="flex items-start justify-between mb-6 gap-6 max-md:flex-col max-md:items-stretch max-md:gap-4">
             <div>
               <div className="text-[10px] font-mono tracking-[0.22em] text-wk-ink-500 mb-2">STUDY TOGETHER · GROW TOGETHER</div>
               <h1 className="text-4xl font-bold leading-tight mb-2 text-white">
@@ -7115,18 +7139,18 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             style={{ background: 'linear-gradient(135deg,#1C1C1F,#1C1C1F)', borderColor: '#3A3A3A', boxShadow: 'none' }}>
             <div className="absolute right-0 top-0 bottom-0 w-40 opacity-15 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at right,#FF8A3D,transparent)' }} />
-            <div className="flex items-center gap-5 relative">
-              <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+            <div className="flex items-center gap-5 relative max-md:flex-wrap max-md:gap-x-4 max-md:gap-y-4">
+              <div className="flex-shrink-0 w-20 h-20 max-md:w-16 max-md:h-16 flex items-center justify-center">
                 <img src={wynkoMascot} alt="Wynko mascot" className="h-full w-auto object-contain"
                   style={{ filter: '' }} />
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 max-md:basis-[calc(100%-5rem)]">
                 <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
                 <div className="text-lg font-bold text-white mb-0.5">Create Your Study Schedule</div>
                 <div className="text-sm text-wk-ink-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
               </div>
               <button onClick={() => setShowAI(true)}
-                className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm transition-all hover:opacity-90 active:scale-95"
+                className="flex-shrink-0 max-md:w-full max-md:justify-center flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-wk-black-950 text-sm transition-all hover:opacity-90 active:scale-95"
                 style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 ✦ Generate with AI
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
@@ -7230,8 +7254,8 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           {/* ── Block Distracting Apps & Websites ── */}
           <div className="rounded-2xl border overflow-hidden"
             style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-4">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between max-md:gap-3 px-5 pt-5 pb-4 max-md:px-4">
+              <div className="flex items-center gap-3 max-md:min-w-0">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.18),rgba(220,38,38,0.1))', border: '1px solid rgba(239,68,68,0.3)' }}>
                   🚫
@@ -7242,7 +7266,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
               </div>
               <button onClick={() => setShowMoreApps(true)}
-                className="flex items-center gap-1 text-[11px] text-wk-orange-300 hover:text-wk-orange-300 transition-colors">
+                className="max-md:flex-shrink-0 max-md:whitespace-nowrap flex items-center gap-1 text-[11px] text-wk-orange-300 hover:text-wk-orange-300 transition-colors">
                 All apps <Ico n="arrow" cls="w-3 h-3" />
               </button>
             </div>
@@ -7250,7 +7274,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
             {/* App grid */}
             <div className="px-5 mb-1">
               <div className="text-[10px] text-wk-ink-500 font-mono mb-2">APPS</div>
-              <div className="grid grid-cols-6 gap-3 mb-4">
+              <div className="grid grid-cols-6 gap-3 max-md:grid-cols-3 max-md:gap-2 mb-4">
                 {APP_LIST.slice(0, 5).map(app => {
                   const blocked = blockedApps.has(app.name)
                   return (
@@ -7285,7 +7309,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               <div className="text-[10px] text-wk-ink-500 font-mono mb-3">WEBSITES</div>
               <div className="flex gap-2 mb-3">
                 <input value={websiteInput} onChange={e => setWebsiteInput(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
+                  className="flex-1 max-md:min-w-0 px-3 py-2.5 rounded-xl border bg-transparent text-sm text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50 transition-colors border-[#26262A]"
                    placeholder="e.g. youtube.com, reddit.com..."
                   onKeyDown={e => e.key === 'Enter' && addBlockedWebsite()} />
                 <button onClick={addBlockedWebsite}
@@ -7312,7 +7336,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           {/* ── Create Focus Routine ── */}
           <div className="rounded-2xl border overflow-hidden"
             style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-            <div className="flex items-center justify-between px-5 py-5">
+            <div className="flex items-center justify-between px-5 py-5 max-md:flex-wrap max-md:gap-3 max-md:px-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: 'rgba(38,38,42,0.55)', border: '1px solid #3A3A3A' }}>⏰</div>
                 <div>
@@ -7321,7 +7345,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 </div>
               </div>
               <button onClick={() => setShowCreateRoutine(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
+                className="max-md:w-full max-md:justify-center flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-wk-black-950 transition-all hover:opacity-90"
                 style={{ background: '#FF8A3D', boxShadow: 'none' }}>
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                 New Routine
@@ -7638,7 +7662,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -8175,7 +8199,7 @@ function BattlegroundPage({ onNavigate, profile }: { onNavigate: (id: string) =>
               <Ico n="chevL" cls="w-4 h-4" /> Battleground
             </button>
           ) : (
-            <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+            <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
               <Ico n="chevL" cls="w-4 h-4" /> Home
             </button>
           )}
@@ -9031,7 +9055,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
       <Sidebar active="settings" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]">
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -9049,13 +9073,13 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
           <UserAvatar size={32} />
         </header>
 
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(38,38,42,0.55)] bg-[rgba(11,11,13,0.5)]">
+        <div className="flex flex-1 overflow-hidden max-md:flex-col">
+          <div className="w-52 flex-shrink-0 border-r py-4 space-y-1 overflow-y-auto px-3 border-[rgba(38,38,42,0.55)] bg-[rgba(11,11,13,0.5)] max-md:w-full max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:border-r-0 max-md:border-b max-md:py-2.5 max-md:px-4">
             {TABS.map(tab => {
               const active = activeTab === tab.id
               return (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left"
+                  className="w-full max-md:w-auto max-md:flex-shrink-0 max-md:whitespace-nowrap flex items-center gap-3 max-md:gap-2 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left"
                   style={{
                     background: active ? 'rgba(38,38,42,0.55)' : 'transparent',
                     color: active ? '#FFF7E6' : '#9C968C',
@@ -9073,9 +9097,9 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 </button>
               )
             })}
-            <div className="pt-4 mt-4 border-t px-1 border-[rgba(38,38,42,0.55)]">
+            <div className="pt-4 mt-4 border-t px-1 border-[rgba(38,38,42,0.55)] max-md:flex-shrink-0 max-md:p-0 max-md:m-0 max-md:border-t-0">
               <button onClick={() => void handleLogout()} disabled={busy === 'logout'}
-                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                className="w-full max-md:w-auto max-md:whitespace-nowrap flex items-center gap-3 max-md:gap-2 px-2.5 py-2 rounded-xl text-sm font-medium transition-all text-left text-red-400 hover:bg-red-500/10 disabled:opacity-50">
                 <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg, rgba(248,113,113,0.28), rgba(220,38,38,0.14))', border: '1px solid rgba(248,113,113,0.5)' }}>
                   <Ico n="logout" cls="w-3.5 h-3.5 text-red-400" />
@@ -9085,7 +9109,7 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 max-md:px-4 max-md:pb-24">
             {content}
             <div className="h-6" />
           </div>
@@ -9203,7 +9227,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         {/* Header */}
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate('home')} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate('home')} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -9211,11 +9235,11 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <div className="text-sm font-semibold text-wk-ink-200">Buy coins. Unlock perks.</div>
           </div>
           {/* Balance pill */}
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
+          <div className="max-md:flex-shrink-0 flex items-center gap-2 px-4 max-md:px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.35)]"
             >
             <img src="/wynkoin.png" alt="Wynkoin" className="w-5 h-5 object-contain flex-shrink-0" />
             <span className="text-base font-black text-amber-400" >{balance}</span>
-            <span className="text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
+            <span className="max-md:hidden text-[10px] text-amber-600 font-semibold">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
         </header>
@@ -9236,22 +9260,22 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
         <main className="flex-1 overflow-y-auto">
 
           {/* Hero */}
-          <div className="relative overflow-hidden px-8 py-8 border-b"
+          <div className="relative overflow-hidden px-8 py-8 max-md:px-4 max-md:py-6 border-b"
             style={{ background: 'linear-gradient(130deg,#0B0B0D,#161618 60%,#0B0B0D)', borderColor: 'rgba(245,158,11,0.15)' }}>
             <div className="absolute inset-0 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at 60% 50%,rgba(245,158,11,0.1),transparent 65%)' }} />
-            <div className="relative z-10 flex items-center gap-10">
+            <div className="relative z-10 flex items-center gap-10 max-md:gap-4">
               {/* Giant coin */}
-              <div className="flex-shrink-0 w-24 h-24 rounded-full flex items-center justify-center"
+              <div className="flex-shrink-0 w-24 h-24 max-md:w-16 max-md:h-16 rounded-full flex items-center justify-center"
                 style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', boxShadow: 'none' }}>
-                <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 object-contain" />
+                <img src="/wynkoin.png" alt="Wynkoin" className="w-16 h-16 max-md:w-11 max-md:h-11 object-contain" />
               </div>
-              <div>
+              <div className="max-md:min-w-0">
                 <div className="text-[10px] font-mono tracking-[0.28em] text-amber-500 mb-2">WYNKO VIRTUAL CURRENCY</div>
                 <h1 className="text-3xl font-black text-white mb-1">WYNKOINS</h1>
                 <p className="text-wk-ink-400 text-sm max-w-lg leading-relaxed">Buy WYNKOINS to unlock exclusive perks inside Wynko — remove ads, unlock features, and more coming soon.</p>
               </div>
-              <div className="ml-auto flex-shrink-0 text-right">
+              <div className="max-md:hidden ml-auto flex-shrink-0 text-right">
                 <div className="text-[10px] text-wk-ink-500 font-mono mb-1">YOUR BALANCE</div>
                 <div className="text-5xl font-black text-amber-400" >{balance}</div>
                 <div className="text-[11px] text-amber-600 mt-0.5">WYNKOINS</div>
@@ -9259,7 +9283,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             </div>
           </div>
 
-          <div className="flex gap-5 px-6 py-5 items-start">
+          <div className="flex gap-5 px-6 py-5 items-start max-md:flex-col max-md:items-stretch max-md:px-4">
 
             {/* Left column */}
             <div className="flex-1 min-w-0 space-y-5">
@@ -9269,7 +9293,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="text-[10px] font-mono tracking-[0.2em] text-amber-500 mb-3">BUY WYNKOINS</div>
                 {packagesQ.status === 'loading' && PACKS.length === 0 && <div className="text-[12px] text-wk-ink-500">Loading coin packs…</div>}
                 {packagesQ.status === 'error' && PACKS.length === 0 && <div className="text-[12px] text-amber-300">{packagesQ.error}</div>}
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 max-md:grid-cols-1 max-md:gap-3">
                   {PACKS.map(pack => (
                     <div key={pack.id} className="relative rounded-2xl border overflow-hidden"
                       style={{ borderColor: pack.popular ? pack.color + '60' : '#26262A', background: '#161618', boxShadow: pack.popular ? `0 0 32px ${pack.glow}` : 'none' }}>
@@ -9280,7 +9304,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                         <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest"
                           style={{ background: pack.grad, color: '#fff' }}>{pack.badge}</div>
                       )}
-                      <div className="p-6">
+                      <div className="p-6 max-md:p-4">
                         {/* Coin visual */}
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
@@ -9317,7 +9341,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                 <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">SPEND WYNKOINS</div>
                 <div className="rounded-2xl border overflow-hidden" style={{ background: '#161618', borderColor: adsFree ? 'rgba(52,211,153,0.40)' : '#26262A' }}>
                   {adsFree && <div className="h-0.5" style={{ background: 'linear-gradient(90deg,#34D399,#10B981)' }} />}
-                  <div className="p-6 flex items-center gap-5">
+                  <div className="p-6 flex items-center gap-5 max-md:p-4 max-md:gap-4 max-md:flex-wrap">
                     {/* Icon */}
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
                       style={{ background: adsFree ? 'rgba(52,211,153,0.12)' : 'rgba(38,38,42,0.55)', border: `1.5px solid ${adsFree ? 'rgba(52,211,153,0.40)' : '#3A3A3A'}` }}>
@@ -9344,7 +9368,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
                       <button
                         onClick={handleUnlockAdFree}
                         disabled={spending || !adFreeItem || balance < adFreeCost}
-                        className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+                        className="flex-shrink-0 max-md:w-full px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                         style={{
                           background: balance >= adFreeCost ? 'linear-gradient(135deg,#FF8A3D,#E9772E)' : 'rgba(28,28,31,0.8)',
                           color: balance >= adFreeCost ? '#fff' : '#7A756D',
@@ -9379,7 +9403,7 @@ function WynkoinsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             </div>
 
             {/* Right sidebar */}
-            <div className="w-72 flex-shrink-0 space-y-4">
+            <div className="w-72 max-md:w-full flex-shrink-0 space-y-4">
 
               {/* Balance card */}
               <div className="rounded-2xl border p-5 bg-[#161618] border-[rgba(245,158,11,0.35)]" >
@@ -9603,7 +9627,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
                     </button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 max-md:flex-wrap">
                     {SHARE_ICONS.map(s => (
                       <button key={s.label} title={s.label}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all hover:scale-105"
@@ -9757,7 +9781,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 flex items-center px-6 gap-4 border-b flex-shrink-0 bg-[rgba(11,11,13,0.97)] border-[rgba(38,38,42,0.55)]"
           >
-          <button onClick={() => onNavigate("home")} className="flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
+          <button onClick={() => onNavigate("home")} className="max-md:hidden flex items-center gap-1.5 text-wk-ink-400 hover:text-wk-ink-200 transition-colors text-sm mr-2">
             <Ico n="chevL" cls="w-4 h-4" /> Home
           </button>
           <div className="flex-1">
@@ -9766,21 +9790,21 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
           </div>
           {isWynkoHead && communityCreated && (
             <button onClick={() => onNavigate("studyrooms")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]">
+              className="max-md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-semibold text-wk-orange-300 hover:bg-wk-orange-500/10 transition-all border-[#3A3A3A]">
               👑 Visit your community
             </button>
           )}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
+          <div className="max-md:flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-[rgba(245,158,11,0.1)] border-[rgba(245,158,11,0.3)]" >
             <span className="text-base">🪙</span>
             <span className="text-sm font-bold text-amber-400" >{wynkoins}</span>
-            <span className="text-[10px] text-amber-500">WYNKOINS</span>
+            <span className="max-md:hidden text-[10px] text-amber-500">WYNKOINS</span>
           </div>
           <UserAvatar size={32} />
         </header>
 
         <main className="flex-1 overflow-y-auto">
           {/* Hero — no revenue split visual */}
-          <div className="relative overflow-hidden px-8 py-8" style={{ background: "linear-gradient(130deg,#0B0B0D 0%,#161618 55%,#0B0B0D 100%)", borderBottom: "1px solid #26262A" }}>
+          <div className="relative overflow-hidden px-8 py-8 max-md:px-4 max-md:py-6" style={{ background: "linear-gradient(130deg,#0B0B0D 0%,#161618 55%,#0B0B0D 100%)", borderBottom: "1px solid #26262A" }}>
             <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 60% 50%,#26262A,transparent 65%)" }} />
             <div className="relative z-10">
               <div className="text-[10px] font-mono tracking-[0.28em] text-wk-orange-300 mb-3">EARN WITH WYNKO</div>
@@ -9805,7 +9829,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
           </div>
 
           {/* Tab switcher */}
-          <div className="flex items-center gap-1 px-6 py-3 border-b border-[rgba(38,38,42,0.55)]" >
+          <div className="flex items-center gap-1 px-6 py-3 max-md:px-4 border-b border-[rgba(38,38,42,0.55)]" >
             {([
               { id: "wynkohead" as EarnTab, icon: "👑", label: "WynkoHead Program" },
               { id: "invite" as EarnTab, icon: "🎁", label: "Invite a Friend" },
@@ -9822,7 +9846,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
             ))}
           </div>
 
-          <div className="px-6 py-5 max-w-4xl">
+          <div className="px-6 py-5 max-md:px-4 max-w-4xl">
 
             {/* ── WYNKOHEAD TAB ── */}
             {tab === "wynkohead" && (
@@ -9830,7 +9854,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 {/* How it works */}
                 <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">HOW WYNKOHEAD WORKS</div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-md:gap-3">
                     {[
                       { n: "1", icon: "📣", title: "Invite Students", desc: "Share your WynkoHead link. Students who join Wynko via your link become part of your community." },
                       { n: "2", icon: "🛒", title: "They Purchase", desc: "Any time a community student buys a plan, pack, or merch — you automatically get 50% of the revenue." },
@@ -9862,7 +9886,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 ) : !isWynkoHead ? (
                   <div className="rounded-2xl border overflow-hidden bg-[#161618] border-[#3A3A3A]" >
                     {!registering ? (
-                      <div className="p-6 flex items-center justify-between gap-6">
+                      <div className="p-6 flex items-center justify-between gap-6 max-md:flex-col max-md:items-stretch max-md:gap-4 max-md:p-4">
                         <div>
                           <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-1">READY TO START?</div>
                           <div className="text-lg font-black text-white mb-1">Register as a WynkoHead</div>
@@ -9958,7 +9982,7 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                 {/* How it works */}
                 <div className="rounded-2xl border p-5 bg-[#161618] border-[#26262A]" >
                   <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-4">HOW FRIEND INVITES WORK</div>
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 max-md:grid max-md:grid-cols-2 max-md:gap-3">
                     {[
                       { icon: "🔗", title: "Share Your Link", desc: "Copy your unique invite link and send it to a friend." },
                       { icon: "🎓", title: "Friend Joins", desc: "Your friend signs up on Wynko using your link." },
@@ -9986,13 +10010,13 @@ function EarnPage({ onNavigate, profile, headStatus, hasCommunity, onApply, onCr
                   <div className="text-[10px] font-mono tracking-[0.2em] text-wk-orange-300 mb-3">YOUR INVITE LINK</div>
                   <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border mb-3 bg-[#161618] border-[#26262A]" >
                     <span className="text-wk-orange-300">🔗</span>
-                    <span className="text-sm text-wk-ink-200 flex-1 font-bold" >{linkLabel(friendLink)}</span>
+                    <span className="text-sm text-wk-ink-200 flex-1 max-md:min-w-0 max-md:truncate font-bold" >{linkLabel(friendLink)}</span>
                     <button onClick={copyFriend} className="text-wk-ink-500 hover:text-wk-orange-300 transition-colors p-1">
                       {friendCopied ? <span className="text-[10px] text-emerald-400">✓ Copied!</span>
                         : <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>}
                     </button>
                   </div>
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex gap-2 mb-4 max-md:flex-wrap">
                     {SHARE_ICONS.map(s => (
                       <button key={s.label} title={s.label}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all hover:scale-105"
