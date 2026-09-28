@@ -392,54 +392,83 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col border-r h-full bg-[#0B0B0D] border-[rgba(38,38,42,0.55)]">
-      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(38,38,42,0.55)]">
-        <div className="w-8 h-8 relative flex-shrink-0">
-          <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: ' brightness(1.1)' }} />
-          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#0B0B0D]" />
-        </div>
-        <div>
-          <div className="text-white font-semibold text-base leading-none">Wynko</div>
-          <div className="text-[10px] text-emerald-400 mt-0.5">● online</div>
-        </div>
-      </div>
-      <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        {['HOME', 'STUDY', 'OTHER'].map(group => (
-          <div key={group} className="mb-5">
-            <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#7A756D]">{group}</div>
-            {NAV.filter(n => n.group === group).map(item => {
-              const isActive = active === item.id
-              return (
-                <button key={item.id} onClick={() => setActive(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative border`}
-                  style={{
-                    background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'transparent',
-                    borderColor: isActive ? '#E9772E' : 'transparent',
-                    color: isActive ? '#FFF7E6' : '#9C968C',
-                  }}
-                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#F5EFE3' }}
-                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9C968C' }}>
-                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#FF8A3D', boxShadow: 'none' }} />}
-                  <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#FFA94D' : undefined }} />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </button>
-              )
-            })}
+    <>
+      {/* Desktop rail - every page renders this as a flex-row sibling next to
+          its own content, so hiding it below md (phones) just leaves that content
+          the full viewport width; nothing else needs to change per page. */}
+      <aside className="hidden md:flex w-56 flex-shrink-0 flex-col border-r h-full bg-[#0B0B0D] border-[rgba(38,38,42,0.55)]">
+        <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[rgba(38,38,42,0.55)]">
+          <div className="w-8 h-8 relative flex-shrink-0">
+            <img src={wynkoLogo} alt="Wynko" className="w-full h-full object-contain" style={{ mixBlendMode: 'screen', filter: ' brightness(1.1)' }} />
+            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#0B0B0D]" />
           </div>
-        ))}
+          <div>
+            <div className="text-white font-semibold text-base leading-none">Wynko</div>
+            <div className="text-[10px] text-emerald-400 mt-0.5">● online</div>
+          </div>
+        </div>
+        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+          {['HOME', 'STUDY', 'OTHER'].map(group => (
+            <div key={group} className="mb-5">
+              <div className="text-[9px] font-semibold tracking-[0.15em] px-2 mb-1.5 text-[#7A756D]">{group}</div>
+              {NAV.filter(n => n.group === group).map(item => {
+                const isActive = active === item.id
+                return (
+                  <button key={item.id} onClick={() => setActive(item.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 group relative border`}
+                    style={{
+                      background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'transparent',
+                      borderColor: isActive ? '#E9772E' : 'transparent',
+                      color: isActive ? '#FFF7E6' : '#9C968C',
+                    }}
+                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#F5EFE3' }}
+                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9C968C' }}>
+                    {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: '#FF8A3D', boxShadow: 'none' }} />}
+                    <Ico n={item.icon} cls={`w-4 h-4 flex-shrink-0`} style={{ color: isActive ? '#FFA94D' : undefined }} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="border-t p-4 border-[rgba(38,38,42,0.55)]">
+          <div className="flex items-center gap-2.5">
+            <UserAvatar size={32} />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-wk-ink-200 font-medium truncate">{name}</div>
+              <div className="text-[10px] text-wk-ink-500">{exam}</div>
+            </div>
+            <button type="button" onClick={() => setActive('settings')} aria-label="Settings" title="Settings"
+              className="p-1.5 -m-1.5 rounded-md text-wk-ink-600 hover:text-wk-ink-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Phone nav - below md (768px) only, so the Tauri desktop window
+          (opens at 800px) keeps the rail. A fixed bottom bar instead of the
+          rail, so it never competes with whatever a page's own header is showing. Every
+          item (not just a top-5 subset) so nothing is only reachable from
+          desktop; it scrolls horizontally if it doesn't all fit. Pages'
+          <main> gets bottom padding for this in desktop-dashboard.css. */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch gap-1 px-2 overflow-x-auto border-t"
+        style={{ background: 'rgba(11,11,13,0.97)', borderColor: 'rgba(38,38,42,0.55)', backdropFilter: 'blur(10px)', height: 64 }}>
+        {NAV.map(item => {
+          const isActive = active === item.id
+          return (
+            <button key={item.id} onClick={() => setActive(item.id)}
+              className="flex flex-col items-center justify-center gap-0.5 px-3 rounded-xl flex-shrink-0 min-w-[62px] border"
+              style={{
+                background: isActive ? 'linear-gradient(135deg, rgba(255,138,61,0.28), rgba(207,200,187,0.14))' : 'transparent',
+                borderColor: isActive ? '#E9772E' : 'transparent',
+              }}>
+              <Ico n={item.icon} cls="w-[18px] h-[18px] flex-shrink-0" style={{ color: isActive ? '#FFA94D' : '#9C968C' }} />
+              <span className="text-[9px] font-medium whitespace-nowrap" style={{ color: isActive ? '#FFF7E6' : '#9C968C' }}>{item.label}</span>
+            </button>
+          )
+        })}
       </nav>
-      <div className="border-t p-4 border-[rgba(38,38,42,0.55)]">
-        <div className="flex items-center gap-2.5">
-          <UserAvatar size={32} />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm text-wk-ink-200 font-medium truncate">{name}</div>
-            <div className="text-[10px] text-wk-ink-500">{exam}</div>
-          </div>
-          <button type="button" onClick={() => setActive('settings')} aria-label="Settings" title="Settings"
-            className="p-1.5 -m-1.5 rounded-md text-wk-ink-600 hover:text-wk-ink-300 hover:bg-white/5 transition-colors"><Ico n="cog" cls="w-3.5 h-3.5" /></button>
-        </div>
-      </div>
-    </aside>
+    </>
   )
 }
 

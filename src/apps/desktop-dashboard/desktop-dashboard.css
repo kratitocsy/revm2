@@ -25,3 +25,12 @@ html, body, #root {
 *::-webkit-scrollbar {
   display: none;
 }
+
+/* Below md (768px), Sidebar renders a fixed bottom tab bar instead of the desktop
+   aside (see DesktopDashboard.tsx) - every page's scrollable <main> needs
+   room at the bottom so its last row isn't hidden underneath that bar. */
+@media (max-width: 767px) {
+  main {
+    padding-bottom: 76px;
+  }
+}
