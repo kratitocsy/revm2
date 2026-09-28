@@ -9,22 +9,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0714;
-    --bg-alt:#0e0a1c;
-    --surface:#161027;
-    --surface-2:#1c1533;
+    --bg:#0f0e0c;
+    --bg-alt:#151311;
+    --surface:#1f1c18;
+    --surface-2:#282420;
     --border:rgba(255,255,255,0.09);
     --border-strong:rgba(255,255,255,0.16);
-    --text:#f3f0fa;
-    --muted:#9c93b8;
-    --muted-2:#6f6790;
-    --purple:#b845e8;
-    --violet:#8b5cf6;
-    --blue:#4a8cf7;
-    --cyan:#2fd4ff;
-    --accent:#3fd0ff;
+    --text:#faf4f0;
+    --muted:#b4a797;
+    --muted-2:#8c7e6b;
+    --purple:#e88e45;
+    --violet:#f6a15c;
+    --blue:#f7894a;
+    --cyan:#ffba2f;
+    --accent:#ffbf3f;
     --grad: linear-gradient(90deg, var(--purple) 0%, var(--violet) 35%, var(--blue) 65%, var(--cyan) 100%);
-    --grad-soft: linear-gradient(135deg, rgba(184,69,232,0.16), rgba(47,212,255,0.10));
+    --grad-soft: linear-gradient(135deg, rgba(232,142,69,0.16), rgba(255,186,47,0.10));
     --radius: 18px;
     --maxw: 1180px;
   }
@@ -72,7 +72,7 @@
     content:'';
     width:7px; height:7px; border-radius:50%;
     background:var(--accent);
-    box-shadow:0 0 10px 2px rgba(63,208,255,0.55);
+    box-shadow:0 0 10px 2px rgba(255,191,63,0.55);
     flex-shrink:0;
   }
 
@@ -90,9 +90,9 @@
   .btn:hover{ transform:translateY(-1px); }
   .btn-grad{
     background:var(--grad);
-    color:#0a0714;
+    color:#0f0e0c;
   }
-  .btn-grad:hover{ box-shadow:0 8px 26px -8px rgba(139,92,246,0.55); }
+  .btn-grad:hover{ box-shadow:0 8px 26px -8px rgba(246,161,92,0.55); }
   .btn-ghost{
     background:transparent;
     border-color:var(--border-strong);
@@ -109,7 +109,7 @@
     border-bottom:1px solid transparent;
   }
   header.scrolled{
-    background:rgba(10,7,20,0.82);
+    background:rgba(15,14,12,0.82);
     backdrop-filter:blur(14px);
     -webkit-backdrop-filter:blur(14px);
     border-bottom-color:var(--border);
@@ -155,9 +155,9 @@
     min-height:560px;
     overflow:hidden;
     background:
-      radial-gradient(ellipse 90% 70% at 75% 15%, rgba(184,69,232,0.35), transparent 60%),
-      radial-gradient(ellipse 80% 60% at 15% 90%, rgba(47,212,255,0.30), transparent 60%),
-      linear-gradient(160deg, #180f2e 0%, #0c0818 70%);
+      radial-gradient(ellipse 90% 70% at 75% 15%, rgba(232,142,69,0.35), transparent 60%),
+      radial-gradient(ellipse 80% 60% at 15% 90%, rgba(255,186,47,0.30), transparent 60%),
+      linear-gradient(160deg, #221e1b 0%, #12100e 70%);
     border:1px solid var(--border-strong);
     display:flex; flex-direction:column; justify-content:flex-end;
     padding:44px;
@@ -180,7 +180,7 @@
   }
   .presence-dot.live{
     background:var(--cyan);
-    box-shadow:0 0 8px 2px rgba(47,212,255,0.7);
+    box-shadow:0 0 8px 2px rgba(255,186,47,0.7);
   }
   @keyframes pulse-dot{
     0%,100%{ opacity:.35; transform:scale(1); }
@@ -224,7 +224,7 @@
 
   .float-card{
     position:absolute;
-    background:rgba(16,11,31,0.85);
+    background:rgba(24,21,18,0.85);
     border:1px solid var(--border-strong);
     border-radius:14px;
     padding:13px 15px;
@@ -262,9 +262,9 @@
     padding:16px;
     overflow:hidden;
   }
-  .mock-1{ top:0; left:20px; transform:rotate(-7deg); background:linear-gradient(155deg, #241a3f, #150f27); z-index:2; }
-  .mock-2{ top:60px; left:190px; transform:rotate(5deg); background:linear-gradient(155deg,#1c2c44,#10131f); z-index:1; }
-  .mock-3{ top:170px; left:70px; transform:rotate(-3deg); background:linear-gradient(155deg,#2a1830,#140c1e); z-index:3; }
+  .mock-1{ top:0; left:20px; transform:rotate(-7deg); background:linear-gradient(155deg, #322c27, #1e1b18); z-index:2; }
+  .mock-2{ top:60px; left:190px; transform:rotate(5deg); background:linear-gradient(155deg,#36302a,#1a1815); z-index:1; }
+  .mock-3{ top:170px; left:70px; transform:rotate(-3deg); background:linear-gradient(155deg,#282420,#181512); z-index:3; }
   .mock-dot-row{ display:flex; gap:5px; margin-bottom:12px; }
   .mock-dot{ width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.18); }
   .mock-line{ height:7px; border-radius:4px; background:rgba(255,255,255,0.12); margin-bottom:7px; }
@@ -300,7 +300,7 @@
   .feat-tab:hover{ color:var(--text); }
 
   .feat-panel{ position:relative; padding:52px; display:flex; flex-direction:column; justify-content:center; min-height:380px;
-    background:radial-gradient(ellipse 70% 60% at 85% 20%, rgba(184,69,232,0.14), transparent 60%);
+    background:radial-gradient(ellipse 70% 60% at 85% 20%, rgba(232,142,69,0.14), transparent 60%);
   }
   .feat-panel h3{ font-size:clamp(30px,3.4vw,42px); margin-bottom:18px; }
   .feat-panel p{ font-size:16px; line-height:1.7; color:var(--muted); max-width:460px; margin-bottom:26px; }
@@ -332,9 +332,9 @@
     height:380px;
     border:1px solid var(--border-strong);
     background:
-      radial-gradient(ellipse 80% 70% at 20% 20%, rgba(47,212,255,0.22), transparent 55%),
-      radial-gradient(ellipse 80% 70% at 85% 85%, rgba(184,69,232,0.28), transparent 55%),
-      linear-gradient(160deg, #150e28, #0b0716);
+      radial-gradient(ellipse 80% 70% at 20% 20%, rgba(255,186,47,0.22), transparent 55%),
+      radial-gradient(ellipse 80% 70% at 85% 85%, rgba(232,142,69,0.28), transparent 55%),
+      linear-gradient(160deg, #1e1b18, #100e0d);
     display:flex; align-items:center; justify-content:center;
   }
   .spotlight-grid-dots{
@@ -342,11 +342,11 @@
     width:80%; height:75%; gap:0;
   }
   .sg-dot{ width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.16); margin:auto; }
-  .sg-dot.on{ background:var(--cyan); box-shadow:0 0 9px 2px rgba(47,212,255,0.6); }
+  .sg-dot.on{ background:var(--cyan); box-shadow:0 0 9px 2px rgba(255,186,47,0.6); }
   .enter-btn{
     position:absolute; z-index:2;
     width:118px; height:118px; border-radius:50%;
-    background:rgba(10,7,20,0.72);
+    background:rgba(15,14,12,0.72);
     border:1px solid var(--border-strong);
     backdrop-filter:blur(8px);
     display:flex; align-items:center; justify-content:center; text-align:center;
@@ -372,7 +372,7 @@
   }
   .testi-card p{ font-size:18px; line-height:1.55; font-family:'Bricolage Grotesque',sans-serif; font-weight:500; }
   .testi-who{ display:flex; align-items:center; gap:12px; margin-top:20px; }
-  .testi-avatar{ width:42px; height:42px; border-radius:50%; background:var(--grad); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:15px; color:#0a0714; }
+  .testi-avatar{ width:42px; height:42px; border-radius:50%; background:var(--grad); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:15px; color:#0f0e0c; }
   .testi-name{ font-size:14px; font-weight:700; }
   .testi-role{ font-size:12.5px; color:var(--muted-2); font-family:'JetBrains Mono',monospace; }
   .testi-nav{ display:flex; gap:10px; justify-content:center; margin-top:26px; }
@@ -404,8 +404,8 @@
     padding:80px 48px;
     text-align:center;
     background:
-      radial-gradient(ellipse 70% 80% at 50% 0%, rgba(139,92,246,0.22), transparent 60%),
-      linear-gradient(180deg, #140d26, #0a0714);
+      radial-gradient(ellipse 70% 80% at 50% 0%, rgba(246,161,92,0.22), transparent 60%),
+      linear-gradient(180deg, #1d1a16, #0f0e0c);
     position:relative; overflow:hidden;
   }
   .final-cta h2{ font-size:clamp(32px,5vw,56px); max-width:720px; margin:0 auto 16px; }
@@ -461,9 +461,9 @@
         <svg viewBox="0 0 140 100" fill="none">
           <defs>
             <linearGradient id="navGrad" x1="0" y1="0" x2="140" y2="0">
-              <stop offset="0%" stop-color="#b845e8"/>
-              <stop offset="50%" stop-color="#4a8cf7"/>
-              <stop offset="100%" stop-color="#2fd4ff"/>
+              <stop offset="0%" stop-color="#e88e45"/>
+              <stop offset="50%" stop-color="#f7894a"/>
+              <stop offset="100%" stop-color="#ffba2f"/>
             </linearGradient>
           </defs>
           <path d="M10 15 L38 88 L68 30 L98 88 L126 15" stroke="url(#navGrad)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
@@ -568,7 +568,7 @@
         <div class="feat-tabs" id="featTabs">
           <button class="feat-tab active" data-feat="0"><span class="ft-num">01</span>Focus Lock</button>
           <button class="feat-tab" data-feat="1"><span class="ft-num">02</span>Study Rooms</button>
-          <button class="feat-tab" data-feat="2"><span class="ft-num">03</span>3D Library <span style="margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(124,92,252,.18);color:#b9a6ff;border:1px solid rgba(124,92,252,.35)">Soon</span></button>
+          <button class="feat-tab" data-feat="2"><span class="ft-num">03</span>3D Library <span style="margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(252,164,92,.18);color:#ffcea6;border:1px solid rgba(252,164,92,.35)">Soon</span></button>
           <button class="feat-tab" data-feat="3"><span class="ft-num">04</span>Partner Matching</button>
         </div>
         <div class="feat-panel" id="featPanel">
@@ -587,7 +587,7 @@
             <source srcset="assets/wynko-study-library-v2.webp" type="image/webp">
             <img src="assets/wynko-study-library-v2.jpg" alt="Preview of the Wynko 3D Library — quiet zone, study table, solo pods, discussion corner and break zone" loading="lazy" style="height:100%;width:auto;max-width:100%;object-fit:contain;display:block;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.5)">
           </picture>
-          <span style="position:absolute;top:14px;left:14px;z-index:2;padding:6px 12px;border-radius:999px;font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,#7c5cfc,#2fd4ff);box-shadow:0 6px 20px rgba(124,92,252,.45)">Coming soon</span>
+          <span style="position:absolute;top:14px;left:14px;z-index:2;padding:6px 12px;border-radius:999px;font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,#fca45c,#ffba2f);box-shadow:0 6px 20px rgba(252,164,92,.45)">Coming soon</span>
         </div>
         <div class="spotlight-side">
           <div class="eyebrow">Coming soon · 3D Library</div>
