@@ -31,6 +31,26 @@ html, body, #root {
    room at the bottom so its last row isn't hidden underneath that bar. */
 @media (max-width: 767px) {
   main {
-    padding-bottom: 76px;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  main[class*=" px-"] {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Page headers: the tab bar replaces the "< Home" link, so each header is
+     just the page title (one line, truncated) plus the bell and avatar. */
+  header.h-14 {
+    padding-left: 16px;
+    padding-right: 16px;
+    gap: 10px;
+  }
+  header.h-14 > .flex-1 {
+    min-width: 0;
+  }
+  header.h-14 > .flex-1 > div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
