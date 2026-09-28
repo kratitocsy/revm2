@@ -150,7 +150,9 @@ async function callGroq(
   apiKey: string,
   systemPrompt: string,
 ): Promise<string> {
-  const model = Deno.env.get("GROQ_MODEL") || "llama-3.3-70b-versatile";
+  // llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16;
+  // openai/gpt-oss-120b is Groq's own recommended free-tier replacement.
+  const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
