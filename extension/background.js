@@ -34,6 +34,9 @@ const SYNC_ALARM = "revm2-sync";
 const END_ALARM = "revm2-session-end";
 const HEARTBEAT_ALARM = "revm2-heartbeat";
 const RELOCK_ALARM = "revm2-emergency-relock";
+const WARN_ALARM = "revm2-session-warn";
+// How long before a timed session ends to show the "almost done" notification.
+const WARN_MINUTES = 5;
 // Both "Pause for a Cause" routes (the 150-char code and the paid Rs.90
 // route) grant the same 20-minute pause, not a full session end - the
 // block clears for this long, then re-applies itself automatically.
@@ -425,6 +428,85 @@ async function clearBlockRules() {
   }
 }
 
+// ---------- Blocked-attempt counter ----------
+//
+// Counts how many times this session's rules sent someone to the blocked
+// page, per site, for the popup's "Blocked N times" line. Chrome blocks via
+// declarativeNetRequest without telling us, so we ask it afterwards with
+// getMatchedRules (the declarativeNetRequestFeedback permission). Stays in
+// local storage only - never sent to the backend.
+//
+// getMatchedRules only remembers the last 5 minutes and allows 20 calls per
+// 10 minutes, so calls are spaced at least ATTEMPTS_MIN_GAP_MS apart (the
+// sync alarm and the open popup both ask) and each call only adds matches
+// newer than the last one counted.
+const ATTEMPTS_KEY = "revm2BlockedAttempts";
+const ATTEMPTS_MIN_GAP_MS = 35_000;
+
+async function getBlockedAttempts({ refresh = true } = {}) {
+  const session = await getSession();
+  if (!session?.active) return null;
+
+  const stored = (await chrome.storage.local.get(ATTEMPTS_KEY))[ATTEMPTS_KEY];
+  // A different startedAt means a new session - start counting from zero.
+  let attempts =
+    stored && stored.sessionStartedAt === session.startedAt
+      ? stored
+      : { sessionStartedAt: session.startedAt, total: 0, bySite: {}, countedUntil: 0, lastCheckedAt: 0 };
+
+  if (refresh && Date.now() - attempts.lastCheckedAt >= ATTEMPTS_MIN_GAP_MS) {
+    attempts.lastCheckedAt = Date.now();
+    try {
+      const since = Math.max(attempts.countedUntil + 1, new Date(session.startedAt).getTime());
+      const [{ rulesMatchedInfo }, rules] = await Promise.all([
+        chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: since }),
+        chrome.declarativeNetRequest.getDynamicRules(),
+      ]);
+      const siteByRuleId = new Map(
+        rules
+          .filter((r) => r.id >= BLACKLIST_RULE_ID_BASE && r.id < WHITELIST_CATCHALL_ID)
+          .map((r) => [r.id, r.condition.requestDomains?.[0]]),
+      );
+      for (const match of rulesMatchedInfo) {
+        const { ruleId, rulesetId } = match.rule;
+        if (rulesetId !== chrome.declarativeNetRequest.DYNAMIC_RULESET_ID) continue;
+        // Whitelist mode blocks everything through one catch-all rule, so
+        // there's no single site to name.
+        const site = ruleId === WHITELIST_CATCHALL_ID ? "other sites" : siteByRuleId.get(ruleId);
+        if (!site) continue; // always-allow rules and anything outside this session's block rules
+        attempts.total += 1;
+        attempts.bySite[site] = (attempts.bySite[site] || 0) + 1;
+        attempts.countedUntil = Math.max(attempts.countedUntil, match.timeStamp);
+      }
+    } catch (err) {
+      // Quota hit or API unavailable - keep the last count, try again next time.
+      console.warn("Wynko: couldn't read blocked attempts", err);
+    }
+    await chrome.storage.local.set({ [ATTEMPTS_KEY]: attempts });
+  }
+
+  return { total: attempts.total, bySite: attempts.bySite };
+}
+
+// ---------- Session notifications ----------
+
+// Best-effort: a notification that fails to show (Chrome notifications
+// turned off, OS focus assist) must never get in the way of ending or
+// running a session.
+function showSessionNotification(title, message) {
+  try {
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title,
+      message,
+      priority: 1,
+    }, () => void chrome.runtime.lastError);
+  } catch (err) {
+    console.warn("Wynko: couldn't show notification", err);
+  }
+}
+
 // ---------- Session lifecycle ----------
 
 async function startSession({ blockName, sites, durationMinutes, mode, youtubeRules, noEarlyUnlock, unlimited: explicitUnlimited }) {
@@ -489,9 +571,19 @@ async function startSession({ blockName, sites, durationMinutes, mode, youtubeRu
   redirectAlreadyOpenTabs(sites, resolvedMode, resolvedYoutubeRules); // don't block on this - it's a cleanup pass
 
   if (endsAt) {
-    await chrome.alarms.create(END_ALARM, { when: new Date(endsAt).getTime() });
+    const endMs = new Date(endsAt).getTime();
+    await chrome.alarms.create(END_ALARM, { when: endMs });
+    // Skip the warning for sessions shorter than WARN_MINUTES - it would
+    // fire straight away and read like a mistake.
+    const warnMs = endMs - WARN_MINUTES * 60_000;
+    if (warnMs > Date.now()) {
+      await chrome.alarms.create(WARN_ALARM, { when: warnMs });
+    } else {
+      await chrome.alarms.clear(WARN_ALARM);
+    }
   } else {
     await chrome.alarms.clear(END_ALARM);
+    await chrome.alarms.clear(WARN_ALARM);
   }
 
   // Best-effort sync so the website / Live Grid can show the session
@@ -554,6 +646,17 @@ async function endSession(reason) {
 
   await releaseEnforcement();
   await chrome.alarms.clear(END_ALARM);
+  await chrome.alarms.clear(WARN_ALARM);
+
+  // Only a session that ran its full time gets the "done" notification -
+  // ending it early or from the website is something the person just did
+  // themselves, so telling them about it would be noise.
+  if (reason === "completed") {
+    showSessionNotification(
+      "Focus session complete",
+      session.blockName ? `"${session.blockName}" is done. Your sites are unblocked.` : "Nice work. Your sites are unblocked.",
+    );
+  }
 
   const verified = session.verified && reason === "completed";
 
@@ -1059,12 +1162,24 @@ ensureOffscreenDocument();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === SYNC_ALARM) {
     await syncWithBackend();
+    // Keeps the count going while the popup is closed - Chrome forgets
+    // matches after 5 minutes.
+    await getBlockedAttempts();
   }
   if (alarm.name === HEARTBEAT_ALARM) {
     sendHeartbeat();
   }
   if (alarm.name === END_ALARM) {
     await endSession("completed");
+  }
+  if (alarm.name === WARN_ALARM) {
+    const session = await getSession();
+    if (session?.active) {
+      showSessionNotification(
+        `${WARN_MINUTES} minutes left`,
+        session.blockName ? `"${session.blockName}" ends in ${WARN_MINUTES} minutes. Keep going!` : `Your focus session ends in ${WARN_MINUTES} minutes. Keep going!`,
+      );
+    }
   }
   if (alarm.name === RELOCK_ALARM) {
     const session = await getSession();
@@ -1125,6 +1240,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case "GET_STATUS": {
         const session = await getSession();
         sendResponse({ ok: true, session });
+        break;
+      }
+      case "GET_BLOCKED_ATTEMPTS": {
+        sendResponse({ ok: true, attempts: await getBlockedAttempts() });
         break;
       }
       case "ADD_CURRENT_SITE": {

@@ -76,3 +76,16 @@ If you ever regenerate the extension's private key, the extension ID changes too
 - All the popup/blocked-page/options UI work that shipped alongside the YouTube fix (scrollable 150-char unlock code with a slider + live per-character highlighting and a 60s fix-it grace window instead of an instant reset; "Block this channel" row in the popup; block-creation moved to the website with the popup now just a hand-off).
 
 These two feature sets had diverged into separate builds before this merge (0.2.6 → heartbeat, 0.3.3 → YouTube fix) and are now combined into one.
+
+## Building the zips
+
+`python3 extension/build-zips.py` writes both downloads:
+
+- `downloads/wynko-extension.zip` for "Load unpacked" installs (keeps the pinned `key`, so the ID stays `knofmgookchmjekaefloaljcamjlbnmp`).
+- `downloads/wynko-extension-store.zip` for uploading to the Chrome Web Store. It drops `key` (the Store rejects it and assigns its own ID) and the localhost dev-server addresses. The desktop bridge on `127.0.0.1:47552` stays.
+
+Once the Store listing exists, its extension ID has to be added wherever the website and desktop app look for this extension by ID.
+
+## Blocked-attempt counter
+
+The popup shows "Blocked N times this session" with the top sites. The background worker reads Chrome's `declarativeNetRequest.getMatchedRules` (needs `declarativeNetRequestFeedback`) on the sync alarm and when the popup asks, at most once every 35 seconds because Chrome allows 20 calls per 10 minutes and only keeps 5 minutes of matches. The count lives in `chrome.storage.local` (`revm2BlockedAttempts`) and is never sent to the backend.
