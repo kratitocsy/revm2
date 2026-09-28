@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { confirmAiPlan, confirmPlan, ensurePresets, NoEnforceableBlocksError, type SupaLike } from './wynkyPlanner';
+import { confirmAiPlan, confirmPlan, ensurePresets, eventsFromSummary, NoEnforceableBlocksError, type LearnedRow, type SupaLike } from './wynkyPlanner';
 
 // Minimal stand-in for the Supabase query builder: every lookup finds
 // nothing, every insert gets a fresh id, and all writes are recorded.
@@ -105,5 +105,28 @@ describe('ensurePresets apps mode', () => {
     const { sb, writes } = fakeSb();
     await ensurePresets(sb, 'u1', { subjectAllowlists: { Physics: { sites: ['khanacademy.org'], apps: [], appsMode: 'whitelist' } }, freeTimeSites: [], freeTimeApps: [] });
     expect(presetRow(writes).apps_mode).toBe('blacklist');
+  });
+});
+
+describe('eventsFromSummary', () => {
+  const row = (over: Partial<LearnedRow>): LearnedRow => ({
+    field: 'wake', value: '06:00', multi: false, accepted_n: 3, changed_n: 0, requested_n: 0,
+    last_action: 'accepted', last_at: '2026-01-10T00:00:00Z', ...over,
+  });
+
+  it('brings back archived answers as their last action, with a second "kept" when kept more than once', () => {
+    const out = eventsFromSummary([row({})], []);
+    expect(out.map(e => e.action)).toEqual(['accepted', 'accepted']);
+    expect(out[0].at).toBe('2026-01-10T00:00:00Z');
+  });
+
+  it('skips answers whose own events are still loaded', () => {
+    const recent = [{ field: 'wake', value: '06:00', multi: false, action: 'accepted' as const, at: '2026-09-01T00:00:00Z' }];
+    expect(eventsFromSummary([row({})], recent)).toEqual([]);
+  });
+
+  it('keeps a removal as a single removal and a typed request as a request', () => {
+    expect(eventsFromSummary([row({ field: 'sites:physics', value: 'youtube.com', multi: true, last_action: 'removed' })], []).map(e => e.action)).toEqual(['removed']);
+    expect(eventsFromSummary([row({ requested_n: 1, accepted_n: 0, last_action: 'requested' })], [])[0].action).toBe('requested');
   });
 });

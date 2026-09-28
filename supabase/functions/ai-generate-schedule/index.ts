@@ -479,6 +479,13 @@ Create a balanced, realistic schedule that addresses these goals.`;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     console.error("ai-generate-schedule error:", msg);
-    return json({ error: msg }, 500);
+    // Gemini's own error body (raw JSON, sometimes long) must never reach
+    // the student directly — only a plain sentence they can act on.
+    const friendly = e instanceof GeminiError && RETRYABLE.has(e.status)
+      ? "Gemini is busy right now. Please try again in a moment."
+      : e instanceof GeminiError
+      ? "The AI couldn't answer that request."
+      : msg;
+    return json({ error: friendly }, 500);
   }
 });
