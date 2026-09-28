@@ -36,6 +36,9 @@
 .login-view{display:none;}
 .login-view.active{display:flex;flex-direction:column;align-items:center;}
 .status-msg{margin-top:0.9rem;font-size:0.68rem;color:var(--violet-bright);letter-spacing:0.08em;text-transform:uppercase;min-height:1em;max-width:280px;}
+.login-legal{max-width:280px;margin:0.9rem 0 0;font-size:0.68rem;line-height:1.6;color:var(--muted);}
+.login-legal a{white-space:nowrap;color:#FF8A3D;font-weight:600;text-decoration:underline;text-decoration-color:rgba(255,138,61,0.45);text-underline-offset:3px;}
+.login-legal a:hover{color:#FFA94D;text-decoration-color:#FFA94D;}
 .status-msg.err{color:var(--danger);}
 .status-msg.ok{color:#4ade80;}
 .login-note{margin-top:1.6rem;font-size:0.65rem;color:var(--muted);line-height:1.65;max-width:270px;}
