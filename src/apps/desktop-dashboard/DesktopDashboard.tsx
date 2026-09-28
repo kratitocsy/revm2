@@ -7027,23 +7027,28 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
   // Mirrors a confirmed Wynky plan into this page's week grid so the student
   // sees it right away. days_of_week is 0=Sun..6=Sat; the grid is Mon-first.
-  function applyWynkyPlan(plan: { days_of_week: number[]; slots: AiSlot[] }) {
-    const studySlots = (plan.slots || []).filter(s => !s.is_sleep)
+  // A plan with several day types sends one entry per day type.
+  function applyWynkyPlan(plans: { days_of_week: number[]; slots: AiSlot[] }[]) {
     const stamp = Date.now()
     const next: ScheduleItem[][] = Array.from({ length: 7 }, () => [])
-    for (const d of plan.days_of_week || []) {
-      const gridIdx = d === 0 ? 6 : d - 1
-      next[gridIdx] = studySlots.map((s, i) => {
-        const sub = s.subject || 'Study'
-        return {
-          id: `wynky_${gridIdx}_${i}_${stamp}`, subject: sub, topic: 'Study session',
-          startTime: fmtTime(s.start_time), endTime: fmtTime(s.end_time),
-          color: subjectColor(sub), iconEmoji: subjectEmoji(sub),
-        }
-      })
+    const allStudy: AiSlot[] = []
+    for (const plan of plans) {
+      const studySlots = (plan.slots || []).filter(s => !s.is_sleep)
+      allStudy.push(...studySlots)
+      for (const d of plan.days_of_week || []) {
+        const gridIdx = d === 0 ? 6 : d - 1
+        next[gridIdx] = studySlots.map((s, i) => {
+          const sub = s.subject || 'Study'
+          return {
+            id: `wynky_${gridIdx}_${i}_${stamp}`, subject: sub, topic: 'Study session',
+            startTime: fmtTime(s.start_time), endTime: fmtTime(s.end_time),
+            color: subjectColor(sub), iconEmoji: subjectEmoji(sub),
+          }
+        })
+      }
     }
     setSchedule(next)
-    const newSubjects = [...new Set(studySlots.map(s => s.subject || 'Study'))]
+    const newSubjects = [...new Set(allStudy.map(s => s.subject || 'Study'))]
       .filter(sub => !sharedUnits.find(u => u.subject.toLowerCase() === sub.toLowerCase()))
     if (newSubjects.length) setSharedUnits(prev => [...prev, ...newSubjects.map(sub => ({ subject: sub, exam: '', topics: ['Study session'] }))])
   }
