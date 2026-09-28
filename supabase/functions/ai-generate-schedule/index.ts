@@ -11,10 +11,9 @@
 //              requests) and the AI returns an improved version of the
 //              same day. The student's own requests rank above everything.
 //
-// Google sometimes answers 429/5xx when a model is busy: each call is
-// retried once, then tried on GEMINI_FALLBACK_MODEL, then — if GROQ_API_KEY
-// is set — on Groq's free API (a different provider entirely) as a last
-// resort when every Gemini attempt has failed.
+// Google sometimes answers 429/5xx when a model is busy: each call falls
+// back first to GEMINI_FALLBACK_MODEL, then — if GROQ_API_KEY is set — to
+// Groq's free API (a different provider entirely) as the second fallback.
 //
 // The generated schedule is returned as JSON for the client to preview in
 // the normal schedule builder — the user always reviews before saving.
@@ -106,11 +105,10 @@ class GeminiError extends Error {
   }
 }
 
-/** Calls Gemini, retrying once on a busy/overloaded answer, then trying
- *  the fallback model (if one is set and different), then — only if
- *  GROQ_API_KEY is set — a different provider entirely, for the rare
- *  case where Google itself is having a bad moment and every Gemini
- *  model fails together. */
+/** Calls Gemini, then on a busy/overloaded answer tries, in order: the
+ *  fallback Gemini model (1st fallback), then — only if GROQ_API_KEY is
+ *  set — Groq, a different provider entirely (2nd fallback), for the
+ *  rare case where Google itself is having a bad moment. */
 async function generate(
   userPrompt: string,
   apiKey: string,
@@ -118,7 +116,7 @@ async function generate(
   systemPrompt = SYSTEM_PROMPT,
 ): Promise<string> {
   const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
-  const attempts = [model, model, ...(fallback && fallback !== model ? [fallback] : [])];
+  const attempts = [model, ...(fallback && fallback !== model ? [fallback] : [])];
   let lastErr: unknown = null;
   for (let i = 0; i < attempts.length; i++) {
     try {
