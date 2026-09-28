@@ -154,6 +154,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const sb = window.supabase.createClient(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON);
+// Keep in step with consent.html and desktop-dashboard/lib/consent.ts.
+const CONSENT_VERSION = '2026-09-28';
 
 // Prefill the sign-in email if it was passed in via ?email= (e.g. redirected
 // here from the landing page's waitlist form for an allowlisted account).
@@ -488,8 +490,17 @@ async function redirect(user){
   // Now" -> name / exam / username) is shown until it's finished once
   // (onboarding_completed_at, migration 0088); after that, always Home.
   const {data:profile}=await sb.from('user_profiles').select('onboarding_completed_at').eq('id',user.id).single();
-  if(!profile||!profile.onboarding_completed_at) window.location.href='onboarding-quiz.html';
-  else window.location.href='home.html';
+  const needsOnboarding=!profile||!profile.onboarding_completed_at;
+
+  // The one-time optional choices screen (consent.html: age, emails,
+  // analytics, personalised ads) comes first when it hasn't been answered
+  // for the current policy version. A failed check never blocks sign-in.
+  const {data:consent,error:consentErr}=await sb.from('user_consent').select('policy_version').eq('user_id',user.id).maybeSingle();
+  if(!consentErr&&(!consent||consent.policy_version!==CONSENT_VERSION)){
+    window.location.href='consent.html?next='+(needsOnboarding?'onboarding':'home');
+    return;
+  }
+  window.location.href=needsOnboarding?'onboarding-quiz.html':'home.html';
 }
 
 initStarfield();

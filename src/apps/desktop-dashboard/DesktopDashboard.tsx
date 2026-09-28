@@ -61,6 +61,7 @@ import {
   linkProvider, unlinkProvider, exportMyData, deleteMyAccount, signOut, DEFAULT_PREFERENCES,
   type SettingsProfile, type SettingsPreferences, type LinkedIdentity, type LinkableProvider, type ProfilePatch,
 } from './lib/settings'
+import { fetchMyConsent, saveMyConsent, type ConsentChoices } from './lib/consent'
 
 // ─── Avatar picker ──────────────────────────────────────────────────────────────
 // Everyone's picture is one of these 6 illustrated presets, picked in
@@ -8454,6 +8455,36 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
 
+  // Optional data uses (emails, analytics, personalised ads) from the
+  // one-time consent screen. undefined = still loading, null = never
+  // answered, 'error' = couldn't load.
+  const [consent, setConsent] = useState<ConsentChoices | null | undefined | 'error'>(undefined)
+  const settingsUserId = s?.userId
+  useEffect(() => {
+    if (!settingsUserId) return
+    let live = true
+    fetchMyConsent(settingsUserId)
+      .then(c => { if (live) setConsent(c) })
+      .catch(() => { if (live) setConsent('error') })
+    return () => { live = false }
+  }, [settingsUserId])
+
+  async function updateConsent(patch: Partial<ConsentChoices>) {
+    if (!consent || consent === 'error') return
+    const prev = consent
+    const next = { ...prev, ...patch }
+    if (next.ageGroup !== 'adult') next.personalisedAds = false
+    setConsent(next)
+    try {
+      const saved = await saveMyConsent(next)
+      setConsent(saved)
+      if (saved.ageGroup !== next.ageGroup) notify('Your date of birth on file says you’re under 18, so personalised ads stay off.', false)
+    } catch (e) {
+      setConsent(prev)
+      notify((e as Error).message || 'Could not save your privacy choices', false)
+    }
+  }
+
   useEffect(() => {
     if (!s) return
     setDisplayName(s.displayName); setUsername(s.username); setBio(s.bio)
@@ -8826,6 +8857,41 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
             <StToggle val={allowBattleInvites} onChange={v => void updateColumn(setAllowBattleInvites, allowBattleInvites, v, { allow_battle_invites: v })} />
           </StRow>
           <StRow label="Allow Room Invites" sub="Let others invite you to study rooms"><StToggle val={prefs.privacy_allow_room_invites} onChange={v => void updatePrefs({ privacy_allow_room_invites: v })} /></StRow>
+        </StSection>
+        <StSection title="OPTIONAL DATA USES">
+          {consent === undefined ? (
+            <div className="py-3.5 text-sm text-wk-ink-500">Loading your choices…</div>
+          ) : consent === 'error' ? (
+            <div className="py-3.5 text-sm text-wk-ink-500">Couldn’t load your choices. Check your connection and reopen Settings.</div>
+          ) : consent === null ? (
+            <StRow label="Your choices" sub="You haven’t set these yet">
+              <a href="/consent.html?next=home" className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-wk-orange-300 hover:border-wk-orange-500/50 transition-all border-[#3A3A3A]">Set now</a>
+            </StRow>
+          ) : (
+            <>
+              <StRow label="Age" sub="Personalised ads are only offered to people 18 and over">
+                <div className="flex gap-1.5">
+                  {([['under_18', 'Under 18'], ['adult', '18+']] as const).map(([g, label]) => (
+                    <button key={g} onClick={() => { if (consent.ageGroup !== g) void updateConsent({ ageGroup: g }) }}
+                      className="px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition-all"
+                      style={{ background: consent.ageGroup === g ? '#26262A' : '#161618', color: consent.ageGroup === g ? '#FFA94D' : '#7A756D', borderColor: consent.ageGroup === g ? '#3A3A3A' : 'rgba(38,38,42,0.55)' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </StRow>
+              <StRow label="Product Emails & Notifications" sub="News about new features, study tips and offers">
+                <StToggle val={consent.marketing} onChange={v => void updateConsent({ marketing: v })} />
+              </StRow>
+              <StRow label="Usage Analytics" sub="Anonymous stats on which features get used">
+                <StToggle val={consent.analytics} onChange={v => void updateConsent({ analytics: v })} />
+              </StRow>
+              <StRow label="Personalised Ads"
+                sub={consent.ageGroup === 'adult' ? 'Ads picked using your Wynko activity. Off means general ads.' : 'Under 18: you only see general ads'}>
+                <StToggle val={consent.personalisedAds} disabled={consent.ageGroup !== 'adult'} onChange={v => void updateConsent({ personalisedAds: v })} />
+              </StRow>
+            </>
+          )}
         </StSection>
         <StSection title="DATA & PRIVACY">
           <StRow label="Download My Data" sub="Your profile, study sessions, plan and battle history as JSON">

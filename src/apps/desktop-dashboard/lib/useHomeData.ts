@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { sb } from '../../_shared/supabaseClient';
 import { normalizePreferences } from './settings';
+import { redirectIfConsentNeeded } from './consent';
 import { STUDY_LOGGED_EVENT } from '../../_shared/studyTimeLog';
 import {
   applyAddTopic,
@@ -228,6 +229,7 @@ export function useHomeData() {
       if (uid === userIdRef.current) return;
       userIdRef.current = uid;
       setAuthState('ready');
+      void redirectIfConsentNeeded(uid);
       void loadForSession(uid, true);
     });
     return () => sub.subscription.unsubscribe();
