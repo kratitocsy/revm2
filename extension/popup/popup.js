@@ -147,6 +147,25 @@ async function renderChannelRow(domain, session) {
   }
 }
 
+async function renderBlockedAttempts() {
+  const el = document.getElementById("blocked-attempts");
+  if (!el) return;
+  const result = await sendMessage("GET_BLOCKED_ATTEMPTS");
+  const attempts = result?.attempts;
+  if (!attempts || !attempts.total) {
+    el.classList.add("hidden");
+    return;
+  }
+  const top = Object.entries(attempts.bySite)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([site, n]) => `${site} ${n}`)
+    .join(" \u00b7 ");
+  const times = attempts.total === 1 ? "time" : "times";
+  el.textContent = `Blocked ${attempts.total} ${times} this session: ${top}`;
+  el.classList.remove("hidden");
+}
+
 function renderStartView() {
   document.getElementById("active-view").classList.add("hidden");
   document.getElementById("start-view").classList.remove("hidden");
@@ -156,6 +175,8 @@ async function init() {
   const status = await sendMessage("GET_STATUS");
   if (status.ok && status.session?.active) {
     await renderActiveView(status.session);
+    renderBlockedAttempts();
+    setInterval(renderBlockedAttempts, 30_000);
   } else {
     renderStartView();
   }

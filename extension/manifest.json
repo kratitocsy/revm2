@@ -73,6 +73,7 @@
     "storage",
     "alarms",
     "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
     "notifications",
     "tabs",
     "offscreen"

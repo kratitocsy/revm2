@@ -428,6 +428,66 @@ async function clearBlockRules() {
   }
 }
 
+// ---------- Blocked-attempt counter ----------
+//
+// Counts how many times this session's rules sent someone to the blocked
+// page, per site, for the popup's "Blocked N times" line. Chrome blocks via
+// declarativeNetRequest without telling us, so we ask it afterwards with
+// getMatchedRules (the declarativeNetRequestFeedback permission). Stays in
+// local storage only - never sent to the backend.
+//
+// getMatchedRules only remembers the last 5 minutes and allows 20 calls per
+// 10 minutes, so calls are spaced at least ATTEMPTS_MIN_GAP_MS apart (the
+// sync alarm and the open popup both ask) and each call only adds matches
+// newer than the last one counted.
+const ATTEMPTS_KEY = "revm2BlockedAttempts";
+const ATTEMPTS_MIN_GAP_MS = 35_000;
+
+async function getBlockedAttempts({ refresh = true } = {}) {
+  const session = await getSession();
+  if (!session?.active) return null;
+
+  const stored = (await chrome.storage.local.get(ATTEMPTS_KEY))[ATTEMPTS_KEY];
+  // A different startedAt means a new session - start counting from zero.
+  let attempts =
+    stored && stored.sessionStartedAt === session.startedAt
+      ? stored
+      : { sessionStartedAt: session.startedAt, total: 0, bySite: {}, countedUntil: 0, lastCheckedAt: 0 };
+
+  if (refresh && Date.now() - attempts.lastCheckedAt >= ATTEMPTS_MIN_GAP_MS) {
+    attempts.lastCheckedAt = Date.now();
+    try {
+      const since = Math.max(attempts.countedUntil + 1, new Date(session.startedAt).getTime());
+      const [{ rulesMatchedInfo }, rules] = await Promise.all([
+        chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: since }),
+        chrome.declarativeNetRequest.getDynamicRules(),
+      ]);
+      const siteByRuleId = new Map(
+        rules
+          .filter((r) => r.id >= BLACKLIST_RULE_ID_BASE && r.id < WHITELIST_CATCHALL_ID)
+          .map((r) => [r.id, r.condition.requestDomains?.[0]]),
+      );
+      for (const match of rulesMatchedInfo) {
+        const { ruleId, rulesetId } = match.rule;
+        if (rulesetId !== chrome.declarativeNetRequest.DYNAMIC_RULESET_ID) continue;
+        // Whitelist mode blocks everything through one catch-all rule, so
+        // there's no single site to name.
+        const site = ruleId === WHITELIST_CATCHALL_ID ? "other sites" : siteByRuleId.get(ruleId);
+        if (!site) continue; // always-allow rules and anything outside this session's block rules
+        attempts.total += 1;
+        attempts.bySite[site] = (attempts.bySite[site] || 0) + 1;
+        attempts.countedUntil = Math.max(attempts.countedUntil, match.timeStamp);
+      }
+    } catch (err) {
+      // Quota hit or API unavailable - keep the last count, try again next time.
+      console.warn("Wynko: couldn't read blocked attempts", err);
+    }
+    await chrome.storage.local.set({ [ATTEMPTS_KEY]: attempts });
+  }
+
+  return { total: attempts.total, bySite: attempts.bySite };
+}
+
 // ---------- Session notifications ----------
 
 // Best-effort: a notification that fails to show (Chrome notifications
@@ -1102,6 +1162,9 @@ ensureOffscreenDocument();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === SYNC_ALARM) {
     await syncWithBackend();
+    // Keeps the count going while the popup is closed - Chrome forgets
+    // matches after 5 minutes.
+    await getBlockedAttempts();
   }
   if (alarm.name === HEARTBEAT_ALARM) {
     sendHeartbeat();
@@ -1177,6 +1240,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case "GET_STATUS": {
         const session = await getSession();
         sendResponse({ ok: true, session });
+        break;
+      }
+      case "GET_BLOCKED_ATTEMPTS": {
+        sendResponse({ ok: true, attempts: await getBlockedAttempts() });
         break;
       }
       case "ADD_CURRENT_SITE": {
