@@ -185,7 +185,8 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .float-badge-b{ bottom:12%; right:-6%; }
 
 /* ---------- hero ---------- */
-.hero{ padding-top:70px; padding-bottom:80px; background:#060505 url('assets/hero/wynko-hero-bg.webp') center bottom / cover no-repeat; }
+.hero{ padding-top:70px; padding-bottom:80px; background:#050c1a url('assets/hero/wynko-hero-bg.webp') center bottom / cover no-repeat; }
+@media (max-width:760px){ .hero{ background-image:url('assets/hero/wynko-hero-bg-960.webp'); } }
 .hero-grid{ display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; }
 .hero-cta{ display:flex; gap:14px; flex-wrap:wrap; margin-top:32px; }
 .hero-meta{ display:flex; align-items:center; gap:22px; margin-top:26px; flex-wrap:wrap; }
@@ -594,8 +595,8 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     <div class="hero-visual" id="emulator">
       <picture>
         <source media="(max-width:760px)" srcset="assets/hero/wynko-hero-devices-720.webp" />
-        <img src="assets/hero/wynko-hero-devices.webp" width="1393" height="772" fetchpriority="high"
-             alt="Wynko dashboard on a laptop, the Wynko mobile app, and Wynky the mascot studying on a laptop" />
+        <img src="assets/hero/wynko-hero-devices.webp" width="1272" height="768" fetchpriority="high"
+             alt="The Wynko dashboard on a laptop next to the Wynko mobile app" />
       </picture>
     </div>
   </div>
