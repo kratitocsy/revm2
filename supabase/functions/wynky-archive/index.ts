@@ -6,6 +6,7 @@
 //   - on the 1st of the month, or
 //   - when wynky_events is over WYNKY_ARCHIVE_MAX_MB (default 100), or
 //   - when called with {"force": true}.
+// {"check": true} only tests that the R2 keys can reach the bucket.
 // Each run copies events older than 120 days (the window Wynky's learning
 // and the same-exam counts read) to R2 in batches, as gzipped NDJSON files,
 // checks each file arrived with the right size, and only then deletes that
@@ -67,13 +68,25 @@ Deno.serve(async (req: Request) => {
   const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
   const bucket = Deno.env.get("R2_BUCKET");
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
-    return json({ skipped: "R2 secrets not set yet; nothing archived or deleted" });
+    const missing = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].filter((n) => !Deno.env.get(n));
+    return json({ skipped: "R2 secrets not set yet; nothing archived or deleted", missing });
   }
 
   let force = false;
+  let check = false;
   try {
-    force = !!(await req.json())?.force;
+    const body = await req.json();
+    force = !!body?.force;
+    check = !!body?.check;
   } catch { /* empty body */ }
+  const r2 = new AwsClient({ accessKeyId, secretAccessKey, service: "s3", region: "auto" });
+  const base = `https://${accountId}.r2.cloudflarestorage.com/${bucket}`;
+
+  if (check) {
+    const res = await r2.fetch(`${base}?list-type=2&max-keys=1`);
+    return json({ check: res.ok ? "R2 reachable" : `R2 said ${res.status}: ${(await res.text()).slice(0, 300)}` }, res.ok ? 200 : 502);
+  }
+
   const { data: bytes } = await supabase.rpc("wynky_events_bytes");
   const maxBytes = (Number(Deno.env.get("WYNKY_ARCHIVE_MAX_MB")) || 100) * 1024 * 1024;
   const firstOfMonth = new Date().getUTCDate() === 1;
@@ -81,8 +94,6 @@ Deno.serve(async (req: Request) => {
     return json({ skipped: "nothing due", bytes });
   }
 
-  const r2 = new AwsClient({ accessKeyId, secretAccessKey, service: "s3", region: "auto" });
-  const base = `https://${accountId}.r2.cloudflarestorage.com/${bucket}`;
   const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString();
   const hashCache = new Map<string, string>();
   const files: string[] = [];
