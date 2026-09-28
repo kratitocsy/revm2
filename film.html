@@ -19,19 +19,19 @@
  
 <style>
 :root{
-  --ink:#1a1a2e;
-  --ink-2:#1c1c33;
-  --ink-card:#20203a;
-  --ink-raised:#232340;
+  --ink:#272421;
+  --ink-2:#2b2824;
+  --ink-card:#312d29;
+  --ink-raised:#36322d;
   --border:rgba(255,255,255,.08);
   --border-strong:rgba(255,255,255,.16);
-  --text:#f5f5f8;
-  --text-dim:#9c9cad;
-  --text-faint:#6b6b7a;
-  --violet:#6c43ff;
-  --violet-soft:#9b7dff;
-  --blue:#4a6bff;
-  --cyan:#00d4ff;
+  --text:#f8f7f5;
+  --text-dim:#aba59e;
+  --text-faint:#79736c;
+  --violet:#ff9843;
+  --violet-soft:#ffb87d;
+  --blue:#ff8c4a;
+  --cyan:#ffaa00;
   --amber:#f5a623;
   --mint:#34d399;
   --coral:#fb7185;
@@ -45,7 +45,7 @@
 html{ scroll-behavior:smooth; }
 body{
   margin:0;
-  background:#0d0d18;
+  background:#141211;
   color:var(--text);
   font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -69,7 +69,7 @@ a{ color:inherit; text-decoration:none; }
  
 header{
   position:fixed; top:0; left:0; right:0; z-index:50;
-  background:rgba(10,10,20,.55);
+  background:rgba(16,15,13,.55);
   backdrop-filter:blur(14px) saturate(140%);
   -webkit-backdrop-filter:blur(14px) saturate(140%);
   border-bottom:1px solid var(--border);
@@ -81,13 +81,13 @@ header{
 .brand{ display:flex; align-items:center; gap:13px; cursor:pointer; }
 .logo-tile{
   position:relative; width:42px; height:42px; border-radius:12px; flex:none;
-  background:linear-gradient(160deg,#0c0c15,#07070c);
+  background:linear-gradient(160deg,#12100f,#0a0a09);
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 0 0 1px rgba(255,255,255,.05) inset,0 12px 30px -12px rgba(108,67,255,.6),0 0 38px rgba(34,211,238,.13);
+  box-shadow:0 0 0 1px rgba(255,255,255,.05) inset,0 12px 30px -12px rgba(255,152,67,.6),0 0 38px rgba(238,170,34,.13);
 }
 .logo-tile::before{
   content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
-  background:linear-gradient(135deg,rgba(155,125,255,.7),rgba(34,211,238,.55) 55%,transparent 85%);
+  background:linear-gradient(135deg,rgba(255,184,125,.7),rgba(238,170,34,.55) 55%,transparent 85%);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
   -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
 }
@@ -112,10 +112,10 @@ header{
 }
 #heroCanvas{ position:absolute; inset:0; width:100%; height:100%; z-index:0; }
 .hero-scrim{ position:absolute; inset:0; z-index:1; pointer-events:none;
-  background:radial-gradient(1100px 600px at 50% 8%,rgba(108,67,255,.16),transparent 60%),
-             radial-gradient(900px 520px at 82% 92%,rgba(34,211,238,.10),transparent 55%),
+  background:radial-gradient(1100px 600px at 50% 8%,rgba(255,152,67,.16),transparent 60%),
+             radial-gradient(900px 520px at 82% 92%,rgba(238,170,34,.10),transparent 55%),
              radial-gradient(700px 400px at 12% 90%,rgba(251,113,133,.07),transparent 60%),
-             linear-gradient(180deg,rgba(13,13,24,.55),rgba(13,13,24,.2) 40%,rgba(13,13,24,.9));
+             linear-gradient(180deg,rgba(20,18,17,.55),rgba(20,18,17,.2) 40%,rgba(20,18,17,.9));
 }
 .hero-inner{ position:relative; z-index:2; text-align:center; max-width:880px; margin:0 auto; }
 .eyebrow{
@@ -126,9 +126,9 @@ header{
 .hero-title{
   margin:0; font-weight:800; letter-spacing:-.02em; line-height:.98;
   font-size:clamp(46px,11vw,128px);
-  background:linear-gradient(180deg,#fff,#fff 42%,rgba(155,125,255,.55));
+  background:linear-gradient(180deg,#fff,#fff 42%,rgba(255,184,125,.55));
   -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter:drop-shadow(0 10px 60px rgba(108,67,255,.35));
+  filter:drop-shadow(0 10px 60px rgba(255,152,67,.35));
 }
 .hero-title .amp{ background:linear-gradient(120deg,var(--violet-soft),var(--blue) 55%,var(--cyan));
   -webkit-background-clip:text; background-clip:text; }
@@ -149,7 +149,7 @@ header{
   border-radius:999px; padding:13px 26px; background:rgba(255,255,255,.04);
   backdrop-filter:blur(8px); transition:all .25s var(--ease);
 }
-.hero-cue:hover .pill{ background:rgba(34,211,238,.1); border-color:rgba(34,211,238,.5); box-shadow:0 0 40px rgba(34,211,238,.25); }
+.hero-cue:hover .pill{ background:rgba(238,170,34,.1); border-color:rgba(238,170,34,.5); box-shadow:0 0 40px rgba(238,170,34,.25); }
 .hero-cue .play{ width:22px; height:22px; border-radius:50%; border:1px solid currentColor; display:grid; place-items:center; font-size:8px; }
 .hero-cue .scroll-chev svg{ animation:hsc-bob 1.9s ease-in-out infinite; }
 @keyframes hsc-bob{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(6px);} }
@@ -158,11 +158,11 @@ header{
 .film-track{ position:relative; height:1300vh; }
 .film-pin{
   position:sticky; top:0; height:100vh; overflow:hidden;
-  background:#05050c;
+  background:#0a0807;
 }
 #filmCanvas{ position:absolute; inset:0; width:100%; height:100%; z-index:1; }
 .film-scrim{ position:absolute; inset:0; z-index:2; pointer-events:none;
-  background:radial-gradient(120% 90% at 50% 50%,transparent 40%,rgba(5,5,12,.55) 100%);
+  background:radial-gradient(120% 90% at 50% 50%,transparent 40%,rgba(10,8,7,.55) 100%);
 }
 .grain{
   position:absolute; inset:-80px; z-index:4; pointer-events:none; opacity:.5;
@@ -180,15 +180,15 @@ header{
   position:absolute; top:14px; left:0; right:0; z-index:6; pointer-events:none;
   display:flex; justify-content:space-between; align-items:flex-start; padding:0 22px;
   font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase;
-  color:rgba(245,245,248,.55);
+  color:rgba(248,247,245,.55);
 }
 .film-hud .rec{ display:inline-flex; align-items:center; gap:8px; }
 .film-hud .rec-dot{ width:8px; height:8px; border-radius:50%; background:var(--coral); box-shadow:0 0 10px var(--coral); animation:pulse 1.6s ease-in-out infinite; }
-.film-hud .tc{ color:rgba(245,245,248,.4); }
+.film-hud .tc{ color:rgba(248,247,245,.4); }
 @keyframes pulse{ 0%,100%{ opacity:1;} 50%{ opacity:.3;} }
  
 .film-progress{ position:absolute; top:0; left:0; right:0; z-index:7; height:2px; pointer-events:none; }
-.film-progress i{ display:block; height:100%; width:0%; background:var(--grad); box-shadow:0 0 14px rgba(34,211,238,.7); }
+.film-progress i{ display:block; height:100%; width:0%; background:var(--grad); box-shadow:0 0 14px rgba(238,170,34,.7); }
  
 .ov{ position:absolute; z-index:3; left:0; right:0; text-align:center; pointer-events:none;
   opacity:0; will-change:opacity,transform; }
@@ -204,7 +204,7 @@ header{
 .dump-hud{ bottom:14vh; padding:0 22px; }
 .dump-hud .row{ display:inline-flex; align-items:center; gap:22px; flex-wrap:wrap; justify-content:center;
   font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:.08em; color:var(--text-dim);
-  border:1px solid var(--border); background:rgba(13,13,24,.55); backdrop-filter:blur(8px);
+  border:1px solid var(--border); background:rgba(20,18,17,.55); backdrop-filter:blur(8px);
   border-radius:999px; padding:12px 24px; }
 .dump-hud .row span b{ font-size:17px; font-weight:700; }
 .dump-hud .r-coral{ color:var(--coral); } .dump-hud .r-cyan{ color:var(--cyan); }
@@ -220,7 +220,7 @@ header{
 .student-card{
   flex:0 1 300px; text-align:left; position:relative;
   border-radius:18px; padding:26px 24px 22px;
-  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015)),rgba(32,32,58,.75);
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015)),rgba(49,45,41,.75);
   border:1px solid var(--border-strong);
   backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
   box-shadow:0 30px 80px -30px rgba(0,0,0,.8);
@@ -259,7 +259,7 @@ header{
   font-size:clamp(48px,11vw,120px); letter-spacing:.02em;
   background:linear-gradient(120deg,var(--violet-soft),var(--blue) 50%,var(--cyan));
   -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter:drop-shadow(0 14px 70px rgba(108,67,255,.5));
+  filter:drop-shadow(0 14px 70px rgba(255,152,67,.5));
 }
 .truth .tl-sub{ font-size:clamp(14px,1.9vw,19px); font-weight:300; color:var(--text-dim); max-width:620px; line-height:1.6; }
 .truth .tl-sub b{ color:var(--cyan); font-weight:600; }
@@ -281,8 +281,8 @@ header{
 .end-slate .v{ font-size:clamp(14px,1.8vw,18px); color:var(--text-dim); font-weight:300; max-width:560px; }
 .end-slate .cta{ pointer-events:auto; cursor:pointer; margin-top:18px; display:inline-flex; align-items:center; gap:10px;
   border:none; border-radius:999px; padding:15px 30px; font-family:'Poppins',sans-serif; font-weight:600; font-size:14.5px;
-  color:#06252b; background:var(--cyan); box-shadow:0 14px 40px -14px rgba(34,211,238,.6); transition:transform .15s,box-shadow .15s; }
-.end-slate .cta:hover{ transform:translateY(-2px); box-shadow:0 18px 46px -12px rgba(34,211,238,.7); }
+  color:#1b1816; background:var(--cyan); box-shadow:0 14px 40px -14px rgba(238,170,34,.6); transition:transform .15s,box-shadow .15s; }
+.end-slate .cta:hover{ transform:translateY(-2px); box-shadow:0 18px 46px -12px rgba(238,170,34,.7); }
  
 .rail{
   position:absolute; top:50%; right:16px; transform:translateY(-50%); z-index:8;
@@ -294,24 +294,24 @@ header{
   position:relative; z-index:1; appearance:none; border:none; cursor:pointer; background:none;
   display:flex; align-items:center; gap:10px; padding:7px 0 7px 18px; text-align:right;
   font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.22em; text-transform:uppercase;
-  color:rgba(245,245,248,.4); transition:color .2s; white-space:nowrap;
+  color:rgba(248,247,245,.4); transition:color .2s; white-space:nowrap;
 }
 .rail button::before{ content:''; position:absolute; right:4px; top:50%; width:7px; height:7px; border-radius:50%;
   transform:translateY(-50%); background:rgba(255,255,255,.18); transition:all .2s; }
-.rail button .num{ color:rgba(245,245,248,.25); font-size:8.5px; }
-.rail button:hover{ color:rgba(245,245,248,.9); }
+.rail button .num{ color:rgba(248,247,245,.25); font-size:8.5px; }
+.rail button:hover{ color:rgba(248,247,245,.9); }
 .rail button.on{ color:#fff; font-weight:600; }
 .rail button.on::before{ background:var(--cyan); box-shadow:0 0 14px var(--cyan); }
 .rail button.dim{ opacity:.4; cursor:default; }
-.rail button.dim:hover{ color:rgba(245,245,248,.4); }
+.rail button.dim:hover{ color:rgba(248,247,245,.4); }
  
 .join{
   position:relative; padding:130px 0 90px; overflow:hidden;
   background:
-    radial-gradient(900px 500px at 10% 0%,rgba(108,67,255,.14),transparent 55%),
-    radial-gradient(800px 460px at 95% 30%,rgba(34,211,238,.1),transparent 55%),
+    radial-gradient(900px 500px at 10% 0%,rgba(255,152,67,.14),transparent 55%),
+    radial-gradient(800px 460px at 95% 30%,rgba(238,170,34,.1),transparent 55%),
     radial-gradient(700px 400px at 50% 110%,rgba(251,113,133,.08),transparent 55%),
-    #0d0d18;
+    #141211;
 }
 .join-grid{ display:grid; grid-template-columns:1.05fr .95fr; gap:54px; align-items:start; }
 .join-copy h2{ margin:0 0 18px; font-size:clamp(30px,4.4vw,48px); font-weight:800; letter-spacing:-.02em; line-height:1.08; }
@@ -322,7 +322,7 @@ header{
 .j-list li{ display:flex; gap:14px; align-items:flex-start; font-size:14.5px; color:var(--text-dim); }
 .j-list li .ic{ flex:none; width:40px; height:40px; border-radius:11px; display:grid; place-items:center; font-size:16px;
   background:rgba(245,166,35,.12); border:1px solid rgba(245,166,35,.3); color:var(--amber); }
-.j-list li:nth-child(2) .ic{ background:rgba(34,211,238,.1); border-color:rgba(34,211,238,.3); color:var(--cyan); }
+.j-list li:nth-child(2) .ic{ background:rgba(238,170,34,.1); border-color:rgba(238,170,34,.3); color:var(--cyan); }
 .j-list li:nth-child(3) .ic{ background:rgba(52,211,153,.1); border-color:rgba(52,211,153,.3); color:var(--mint); }
 .j-list li b{ color:#fff; font-weight:600; }
 .j-list li span{ line-height:1.5; }
@@ -337,7 +337,7 @@ header{
 .join-panel .sub{ margin:0 0 24px; font-size:13.5px; color:var(--text-dim); }
 .notify-row{ display:flex; gap:8px; align-items:center; background:var(--ink-2); border:1px solid var(--border);
   border-radius:12px; padding:5px; transition:border-color .15s,box-shadow .15s; }
-.notify-row:focus-within{ border-color:var(--cyan); box-shadow:0 0 0 3px rgba(34,211,238,.13); }
+.notify-row:focus-within{ border-color:var(--cyan); box-shadow:0 0 0 3px rgba(238,170,34,.13); }
 .notify-row input{ flex:1; min-width:0; background:transparent; border:none; outline:none; color:var(--text);
   font-family:'Poppins',sans-serif; font-size:14px; padding:10px 12px; }
 .notify-row input::placeholder{ color:var(--text-faint); font-family:'IBM Plex Mono',monospace; font-size:12px; }
@@ -347,8 +347,8 @@ header{
   transition:transform .12s,box-shadow .15s,opacity .12s; white-space:nowrap; }
 .btn:active{ transform:scale(.98); }
 .btn:disabled{ opacity:.6; cursor:default; }
-.btn-cyan{ background:var(--cyan); color:#06252b; box-shadow:0 10px 30px -12px rgba(34,211,238,.5); }
-.btn-cyan:hover:not(:disabled){ box-shadow:0 14px 36px -10px rgba(34,211,238,.65); }
+.btn-cyan{ background:var(--cyan); color:#1b1816; box-shadow:0 10px 30px -12px rgba(238,170,34,.5); }
+.btn-cyan:hover:not(:disabled){ box-shadow:0 14px 36px -10px rgba(238,170,34,.65); }
 .fineprint{ font-size:12px; color:var(--text-faint); margin-top:14px; text-align:center; }
 .error-msg{ color:var(--coral); font-size:13px; margin-top:8px; min-height:0; }
 .f200-meter{ margin-top:26px; padding-top:24px; border-top:1px solid var(--border); }
@@ -370,7 +370,7 @@ header{
 .reward-banner b{ color:var(--amber); }
 .confirm-btn{ width:100%; margin-top:22px; }
  
-footer{ border-top:1px solid var(--border); padding:30px 0 40px; background:#0a0a14; }
+footer{ border-top:1px solid var(--border); padding:30px 0 40px; background:#100f0d; }
 .foot-row{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; }
 .foot-brand{ display:flex; align-items:center; gap:10px; color:var(--text-faint); font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
 .foot-brand img{ height:18px; width:auto; opacity:.85; }
@@ -501,7 +501,7 @@ footer{ border-top:1px solid var(--border); padding:30px 0 40px; background:#0a0
       </div>
  
       <div class="cards-row">
-        <article class="ov student-card" id="card1" style="--ac:#00d4ff;" data-a="0.36" data-b="0.48" data-fi="0.03" data-fo="0.03" data-par="26">
+        <article class="ov student-card" id="card1" style="--ac:#ffaa00;" data-a="0.36" data-b="0.48" data-fi="0.03" data-fo="0.03" data-par="26">
           <div class="mono-ava">A</div>
           <span class="pill">NEET</span>
           <h4>Aarav</h4>
@@ -509,7 +509,7 @@ footer{ border-top:1px solid var(--border); padding:30px 0 40px; background:#0a0
           <p class="detail">Same brain as the topper. Same syllabus. Same 24 hours. The only difference is what's <b>winning his attention</b>.</p>
           <span class="time-chip"><span class="spark">&#9679;</span> 2:00 AM · host cell biology</span>
         </article>
-        <article class="ov student-card" id="card2" style="--ac:#9b7dff;" data-a="0.40" data-b="0.48" data-fi="0.03" data-fo="0.03" data-par="44">
+        <article class="ov student-card" id="card2" style="--ac:#ffb87d;" data-a="0.40" data-b="0.48" data-fi="0.03" data-fo="0.03" data-par="44">
           <div class="mono-ava">M</div>
           <span class="pill">UPSC</span>
           <h4>Meera</h4>
@@ -682,7 +682,7 @@ for (var i = 0; i < 26; i++){
     hue: Math.floor(heroR() * 3)
   });
 }
-var heroCols = ['#00d4ff', '#9b7dff', '#fb7185', '#f5a623'];
+var heroCols = ['#ffaa00', '#ffb87d', '#fb7185', '#f5a623'];
  
 function sizeCanvas(cv){
   var r = cv.getBoundingClientRect();
@@ -728,9 +728,9 @@ buildCity(7);
  
 function drawSky(ctx, t){
   var g = ctx.createLinearGradient(0, 0, 0, 470);
-  g.addColorStop(0, '#05050e');
-  g.addColorStop(0.6, '#0b0d1f');
-  g.addColorStop(1, '#10142c');
+  g.addColorStop(0, '#0b0a08');
+  g.addColorStop(0.6, '#181512');
+  g.addColorStop(1, '#221e1a');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, VW, 470);
 }
@@ -740,7 +740,7 @@ function drawStarsMoon(ctx, t){
     var st = stars[i];
     var tw = 0.5 + 0.5 * Math.sin(t * st.sp + st.ph);
     ctx.globalAlpha = 0.25 + 0.55 * tw;
-    ctx.fillStyle = '#cfe3ff';
+    ctx.fillStyle = '#ffe1cf';
     ctx.beginPath();
     ctx.arc(st.x, st.y, st.r, 0, 6.2832);
     ctx.fill();
@@ -748,22 +748,22 @@ function drawStarsMoon(ctx, t){
   ctx.globalAlpha = 1;
   var mx = 320, my = 190, mr = 34;
   var glow = ctx.createRadialGradient(mx, my, mr * .2, mx, my, mr * 5);
-  glow.addColorStop(0, 'rgba(220,236,255,.35)');
-  glow.addColorStop(1, 'rgba(220,236,255,0)');
+  glow.addColorStop(0, 'rgba(255,233,220,.35)');
+  glow.addColorStop(1, 'rgba(255,233,220,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(mx - mr * 5, my - mr * 5, mr * 10, mr * 10);
-  ctx.fillStyle = '#e8f1ff';
+  ctx.fillStyle = '#fff0e8';
   ctx.beginPath();
   ctx.arc(mx, my, mr, 0, 6.2832);
   ctx.fill();
-  ctx.fillStyle = 'rgba(200,216,240,.5)';
+  ctx.fillStyle = 'rgba(247,213,193,.5)';
   ctx.beginPath(); ctx.arc(mx - 10, my - 6, 6, 0, 6.2832); ctx.fill();
   ctx.beginPath(); ctx.arc(mx + 9, my + 9, 4.5, 0, 6.2832); ctx.fill();
   ctx.beginPath(); ctx.arc(mx + 2, my - 14, 3, 0, 6.2832); ctx.fill();
 }
  
 function drawSkyline(ctx, t){
-  ctx.fillStyle = '#080a16';
+  ctx.fillStyle = '#110f0d';
   for (var i = 0; i < skyline.length; i++){
     var b = skyline[i];
     ctx.fillRect(b.x, 470 - b.h, b.w, b.h);
@@ -772,7 +772,7 @@ function drawSkyline(ctx, t){
     var l = cityLights[j];
     var gl = 0.35 + 0.3 * Math.sin(t * 1.5 + l.x);
     ctx.globalAlpha = clamp(gl, 0, 1);
-    ctx.fillStyle = l.c > 0.5 ? '#ffd9a0' : '#a9d8ff';
+    ctx.fillStyle = l.c > 0.5 ? '#ffd9a0' : '#ffc9a9';
     ctx.fillRect(l.x, l.y, 2.5, 3.5);
   }
   ctx.globalAlpha = 1;
@@ -780,19 +780,19 @@ function drawSkyline(ctx, t){
  
 function drawWindow(ctx){
   var wx = 150, wy = 96, ww = 300, wh = 320, bar = 9;
-  ctx.fillStyle = 'rgba(6,6,16,.9)';
+  ctx.fillStyle = 'rgba(12,11,10,.9)';
   ctx.fillRect(wx - bar, wy - bar, ww + bar * 2, wh + bar * 2);
-  ctx.fillStyle = '#0a0c18';
+  ctx.fillStyle = '#13110f';
   ctx.fillRect(wx, wy, ww, wh);
-  ctx.fillStyle = 'rgba(4,4,12,.95)';
+  ctx.fillStyle = 'rgba(9,8,7,.95)';
   ctx.fillRect(wx + ww / 2 - bar / 2, wy, bar, wh);
   ctx.fillRect(wx, wy + wh / 2 - bar / 2, ww, bar);
 }
  
 function drawWall(ctx){
   var g = ctx.createLinearGradient(0, 360, 0, 620);
-  g.addColorStop(0, '#0d0f1d');
-  g.addColorStop(1, '#0a0b15');
+  g.addColorStop(0, '#171513');
+  g.addColorStop(1, '#11100e');
   ctx.fillStyle = g;
   ctx.fillRect(0, 360, VW, 260);
   ctx.fillStyle = 'rgba(255,255,255,.02)';
@@ -803,7 +803,7 @@ function drawWall(ctx){
  
 function drawClock(ctx, t){
   var cx = 1010, cy = 150, r = 34;
-  ctx.fillStyle = '#0b0b18';
+  ctx.fillStyle = '#131210';
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.16)';
   ctx.lineWidth = 2;
@@ -821,7 +821,7 @@ function drawClock(ctx, t){
   var min = (t * 0.05) % 60;
   var hha = (10 + min / 12) / 12 * 6.2832;
   var mha = min / 60 * 6.2832;
-  ctx.strokeStyle = 'rgba(245,245,248,.85)';
+  ctx.strokeStyle = 'rgba(248,247,245,.85)';
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(hha) * (r * .5), cy - Math.cos(hha) * (r * .5)); ctx.stroke();
   ctx.lineWidth = 2;
@@ -832,8 +832,8 @@ function drawClock(ctx, t){
  
 function drawDesk(ctx){
   var g = ctx.createLinearGradient(0, 560, 0, 720);
-  g.addColorStop(0, '#12101f');
-  g.addColorStop(1, '#080810');
+  g.addColorStop(0, '#1a1815');
+  g.addColorStop(1, '#0d0c0b');
   ctx.fillStyle = g;
   ctx.fillRect(0, 560, VW, 160);
   ctx.fillStyle = 'rgba(255,255,255,.05)';
@@ -845,8 +845,8 @@ function drawDesk(ctx){
 function drawBooks(ctx){
   var xs = 210, base = 560;
   var stack = [
-    { w: 96, h: 26, c: '#3a2f78', top: base - 24 },
-    { w: 104, h: 22, c: '#14405a', top: base - 24 - 22 },
+    { w: 96, h: 26, c: '#954d12', top: base - 24 },
+    { w: 104, h: 22, c: '#3e3730', top: base - 24 - 22 },
     { w: 90, h: 28, c: '#5a3a14', top: base - 24 - 22 - 28 }
   ];
   for (var i = 0; i < stack.length; i++){
@@ -864,7 +864,7 @@ function drawBooks(ctx){
  
 function drawLamp(ctx, t){
   var bx = 1030, by = 560;
-  ctx.fillStyle = '#0b0b16';
+  ctx.fillStyle = '#12100f';
   ctx.beginPath();
   ctx.ellipse(bx, by, 34, 9, 0, 0, 6.2832);
   ctx.fill();
@@ -913,11 +913,11 @@ function drawPhoneBase(ctx, x, y, s, glow, feed){
   if (glow > 0.01){
     var pg = ctx.createRadialGradient(0, 0, 10, 0, 0, 150);
     pg.addColorStop(0, 'rgba(0,212,255,' + (0.5 * glow) + ')');
-    pg.addColorStop(1, 'rgba(0,212,255,0)');
+    pg.addColorStop(1, 'rgba(255,170,0,0)');
     ctx.fillStyle = pg;
     ctx.fillRect(-160, -160, 320, 320);
   }
-  ctx.fillStyle = '#05050c';
+  ctx.fillStyle = '#0a0807';
   roundRect(ctx, -w / 2, -h / 2, w, h, r);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.1)';
@@ -928,14 +928,14 @@ function drawPhoneBase(ctx, x, y, s, glow, feed){
   roundRect(ctx, -sw / 2, -sh / 2, sw, sh, 10);
   ctx.clip();
   var g = ctx.createLinearGradient(0, -sh / 2, 0, sh / 2);
-  g.addColorStop(0, '#0c1730');
-  g.addColorStop(1, '#08080f');
+  g.addColorStop(0, '#221e1a');
+  g.addColorStop(1, '#0d0c0a');
   ctx.fillStyle = g;
   ctx.fillRect(-sw / 2, -sh / 2, sw, sh);
   ctx.fillStyle = 'rgba(255,255,255,.14)';
   ctx.fillRect(-sw / 2 + 8, -sh / 2 + 9, 40, 5);
   ctx.fillRect(-sw / 2 + 8, -sh / 2 + 9, 14, 5);
-  ctx.fillStyle = 'rgba(34,211,238,.8)';
+  ctx.fillStyle = 'rgba(238,170,34,.8)';
   ctx.beginPath();
   ctx.arc(sw / 2 - 12, -sh / 2 + 11, 2.5, 0, 6.2832);
   ctx.fill();
@@ -965,7 +965,7 @@ function drawPhoneBase(ctx, x, y, s, glow, feed){
  
 function drawStudent(ctx, t, sink){
   var hx = 830, hy = 366, hr = 36;
-  var bodyC = '#07070e';
+  var bodyC = '#0c0a09';
   ctx.fillStyle = bodyC;
   ctx.beginPath();
   ctx.arc(hx, hy, hr, 0, 6.2832);
@@ -1004,7 +1004,7 @@ function drawStudent(ctx, t, sink){
   ctx.quadraticCurveTo(786, 512, 752, 500);
   ctx.stroke();
   ctx.lineWidth = 14;
-  ctx.strokeStyle = '#0a0a13';
+  ctx.strokeStyle = '#100e0d';
   ctx.beginPath();
   ctx.moveTo(armX, armY + 6);
   ctx.quadraticCurveTo(786, 512, 750, 498);
@@ -1025,7 +1025,7 @@ function drawMotes(ctx, t){
     var x = m.x + Math.sin(t * 0.7 + m.ph) * 14;
     var nearLamp = Math.abs(x - 1030) < 90 && y > 430 && y < 566;
     ctx.globalAlpha = nearLamp ? 0.5 : 0.22;
-    ctx.fillStyle = nearLamp ? '#ffd9a8' : '#9db4ff';
+    ctx.fillStyle = nearLamp ? '#ffd9a8' : '#ffc19d';
     ctx.beginPath();
     ctx.arc(x, y, m.r, 0, 6.2832);
     ctx.fill();
@@ -1068,7 +1068,7 @@ function drawRoomScene(ctx, t, p){
 var notifs = [];
 var notifR = mulberry32(99);
 var glyphs = ['\u2665', '\u25B6', '\u221E', '\u20B9', '#', '@', '\u2605'];
-var notifCols = ['#fb7185', '#00d4ff', '#9b7dff', '#f5a623', '#34d399', '#f5a623', '#fb7185'];
+var notifCols = ['#fb7185', '#ffaa00', '#ffb87d', '#f5a623', '#34d399', '#f5a623', '#fb7185'];
 for (var ni = 0; ni < 30; ni++){
   notifs.push({
     x: 0.12 + notifR() * 0.76,
@@ -1097,7 +1097,7 @@ function drawNotif(ctx, n, p, w, t){
   ctx.rotate(n.r);
   ctx.globalAlpha = Math.min(inA, outA) * 0.92;
   var cw = 132 * n.s, ch = 40 * n.s;
-  ctx.fillStyle = 'rgba(16,16,30,.92)';
+  ctx.fillStyle = 'rgba(25,23,21,.92)';
   roundRect(ctx, -cw / 2, -ch / 2, cw, ch, 10 * n.s);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.16)';
@@ -1108,7 +1108,7 @@ function drawNotif(ctx, n, p, w, t){
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(glyphs[n.g], -cw / 2 + 12 * n.s, 1);
-  ctx.fillStyle = 'rgba(245,245,248,.8)';
+  ctx.fillStyle = 'rgba(248,247,245,.8)';
   ctx.font = (9.5 * n.s) + 'px "Poppins",sans-serif';
   ctx.fillText('someone liked this', -cw / 2 + 34 * n.s, 0);
   ctx.fillStyle = '#fb7185';
@@ -1122,9 +1122,9 @@ function drawDumpScene(ctx, t, p){
   ctx.save();
   drawRoomScene(ctx, t, 0.05);
   var dark = ctx.createLinearGradient(0, 0, 0, VH);
-  dark.addColorStop(0, 'rgba(5,5,14,.86)');
-  dark.addColorStop(0.5, 'rgba(5,5,14,.7)');
-  dark.addColorStop(1, 'rgba(5,5,14,.92)');
+  dark.addColorStop(0, 'rgba(11,10,8,.86)');
+  dark.addColorStop(0.5, 'rgba(11,10,8,.7)');
+  dark.addColorStop(1, 'rgba(11,10,8,.92)');
   ctx.fillStyle = dark;
   ctx.fillRect(0, 0, VW, VH);
   var heat = ctx.createRadialGradient(VW / 2, VH * 0.42, 60, VW / 2, VH * 0.42, VH * .6);
@@ -1147,7 +1147,7 @@ function drawDumpScene(ctx, t, p){
     var q = smooth(clamp((p - start) / 0.05, 0, 1));
     var sx = lerp(830, VW / 2, q) + Math.sin(j * 7 + q * 8) * 20;
     var sy = lerp(380, VH * 0.42, q) + Math.cos(j * 5 + q * 8) * 16;
-    var col = j % 3 === 0 ? '#00d4ff' : j % 3 === 1 ? '#fb7185' : '#f5a623';
+    var col = j % 3 === 0 ? '#ffaa00' : j % 3 === 1 ? '#fb7185' : '#f5a623';
     ctx.globalAlpha = (1 - q) * 0.8;
     ctx.fillStyle = col;
     ctx.shadowColor = col;
@@ -1209,14 +1209,14 @@ for (var vi = 0; vi < 60; vi++){
 function drawVoid(ctx, t, p, tint, curve){
   var g = ctx.createRadialGradient(VW / 2, VH * 0.5, 80, VW / 2, VH * 0.5, VH * .75);
   g.addColorStop(0, tint);
-  g.addColorStop(1, '#04040a');
+  g.addColorStop(1, '#080706');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, VW, VH);
   for (var i = 0; i < voidParticles.length; i++){
     var vp = voidParticles[i];
     var y = (vp.y - t * vp.sp % VH + VH) % VH;
     ctx.globalAlpha = 0.12 + 0.12 * Math.sin(t * 1.2 + vp.ph);
-    ctx.fillStyle = '#9db4ff';
+    ctx.fillStyle = '#ffc19d';
     ctx.beginPath();
     ctx.arc(vp.x + Math.sin(t * 0.5 + vp.ph) * 12, y, vp.r, 0, 6.2832);
     ctx.fill();
@@ -1230,17 +1230,17 @@ function drawVoid(ctx, t, p, tint, curve){
  
 function drawCharsScene(ctx, t, p){
   var g = ctx.createRadialGradient(VW / 2, VH * 0.48, 60, VW / 2, VH * 0.48, VH * .8);
-  g.addColorStop(0, 'rgba(108,67,255,.20)');
-  g.addColorStop(0.5, 'rgba(32,32,58,.4)');
-  g.addColorStop(1, '#04040a');
+  g.addColorStop(0, 'rgba(255,152,67,.20)');
+  g.addColorStop(0.5, 'rgba(49,45,41,.4)');
+  g.addColorStop(1, '#080706');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, VW, VH);
-  drawCurve(ctx, VW * 0.85, VH * 0.6, '#00d4ff', 0.32, t, 0.8 + 0.2 * Math.sin(t));
+  drawCurve(ctx, VW * 0.85, VH * 0.6, '#ffaa00', 0.32, t, 0.8 + 0.2 * Math.sin(t));
   for (var i = 0; i < voidParticles.length; i++){
     var vp = voidParticles[i];
     var y = (vp.y - t * vp.sp % VH + VH) % VH;
     ctx.globalAlpha = 0.1 + 0.1 * Math.sin(t * 1.2 + vp.ph);
-    ctx.fillStyle = '#9db4ff';
+    ctx.fillStyle = '#ffc19d';
     ctx.beginPath();
     ctx.arc(vp.x, y, vp.r, 0, 6.2832);
     ctx.fill();
@@ -1252,13 +1252,13 @@ function drawCharsScene(ctx, t, p){
 var theftChips = [];
 var theftR = mulberry32(555);
 var theftGlyphs = ['\u20B9', '$', '\u221E', '\u2665', '\u25B6'];
-var theftCols = ['#f5a623', '#34d399', '#00d4ff', '#fb7185', '#9b7dff'];
+var theftCols = ['#f5a623', '#34d399', '#ffaa00', '#fb7185', '#ffb87d'];
 for (var ti = 0; ti < 40; ti++){
   theftChips.push({ x: 0.1 + theftR() * 0.8, b: theftR() * 0.9, v: 0.2 + theftR() * 0.3, s: 0.7 + theftR() * 0.8, g: Math.floor(theftR() * theftGlyphs.length) });
 }
  
 function drawTheftScene(ctx, t, p){
-  ctx.fillStyle = '#020208';
+  ctx.fillStyle = '#060504';
   ctx.fillRect(0, 0, VW, VH);
   var glow = ctx.createRadialGradient(VW / 2, 150, 20, VW / 2, 150, 420);
   glow.addColorStop(0, 'rgba(251,113,133,.16)');
@@ -1266,7 +1266,7 @@ function drawTheftScene(ctx, t, p){
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, VW, 500);
   var topW = 640, botW = 190, yTop = 120, yBot = 330;
-  ctx.fillStyle = 'rgba(20,16,30,.92)';
+  ctx.fillStyle = 'rgba(25,23,21,.92)';
   ctx.beginPath();
   ctx.moveTo(VW / 2 - topW / 2, yTop);
   ctx.lineTo(VW / 2 + topW / 2, yTop);
@@ -1277,14 +1277,14 @@ function drawTheftScene(ctx, t, p){
   ctx.strokeStyle = 'rgba(251,113,133,.4)';
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.fillStyle = 'rgba(8,8,16,.95)';
+  ctx.fillStyle = 'rgba(13,12,11,.95)';
   ctx.fillRect(VW / 2 - botW / 2 - 20, yBot, botW + 40, 30);
   ctx.fillStyle = 'rgba(251,113,133,.8)';
   ctx.font = '600 15px "IBM Plex Mono",monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('YOUR ATTENTION', VW / 2, yTop - 26);
-  ctx.fillStyle = 'rgba(245,245,248,.35)';
+  ctx.fillStyle = 'rgba(248,247,245,.35)';
   ctx.fillText('they pour it in —', VW / 2, yTop + 6);
   for (var i = 0; i < theftChips.length; i++){
     var c = theftChips[i];
@@ -1318,10 +1318,10 @@ function drawTheftScene(ctx, t, p){
 function drawEndVoid(ctx, t, p){
   var g = ctx.createRadialGradient(VW / 2, VH * 0.5, 40, VW / 2, VH * 0.5, VH * .7);
   g.addColorStop(0, 'rgba(34,211,238,' + (0.05 + 0.04 * Math.sin(t * 1.2)) + ')');
-  g.addColorStop(1, '#04040a');
+  g.addColorStop(1, '#080706');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, VW, VH);
-  drawCurve(ctx, VW * 0.72, VH * 0.5, '#00d4ff', 0.2 + 0.1 * Math.sin(t), t, 1);
+  drawCurve(ctx, VW * 0.72, VH * 0.5, '#ffaa00', 0.2 + 0.1 * Math.sin(t), t, 1);
   drawVignette(ctx, 1.3);
 }
  
@@ -1329,7 +1329,7 @@ var SCENES = [
   { a: 0.00, b: 0.16, f: function(ctx, t, p){ drawRoomScene(ctx, t, p); } },
   { a: 0.16, b: 0.32, f: function(ctx, t, p){ drawDumpScene(ctx, t, p); } },
   { a: 0.32, b: 0.48, f: function(ctx, t, p){ drawCharsScene(ctx, t, p); } },
-  { a: 0.48, b: 0.64, f: function(ctx, t, p){ drawVoid(ctx, t, p, 'rgba(108,67,255,.22)', null); } },
+  { a: 0.48, b: 0.64, f: function(ctx, t, p){ drawVoid(ctx, t, p, 'rgba(255,152,67,.22)', null); } },
   { a: 0.64, b: 0.78, f: function(ctx, t, p){ drawTheftScene(ctx, t, p); } },
   { a: 0.78, b: 1.00, f: function(ctx, t, p){ drawEndVoid(ctx, t, p); } }
 ];
@@ -1451,7 +1451,7 @@ function drawFilm(){
     }
   }
   if (!drawn){
-    fctx.fillStyle = '#04040a';
+    fctx.fillStyle = '#080706';
     fctx.fillRect(0, 0, VW, VH);
   }
   if (!REDUCED) checkFlash(P);
@@ -1461,7 +1461,7 @@ function drawHero(){
   var d = sizeCanvas(heroCanvas);
   fitContext(hctx, d.w, d.h);
   var t = performance.now() / 1000;
-  hctx.fillStyle = '#0a0a16';
+  hctx.fillStyle = '#12100e';
   hctx.fillRect(0, 0, VW, VH);
   for (var i = 0; i < heroGlyphs.length; i++){
     var g = heroGlyphs[i];

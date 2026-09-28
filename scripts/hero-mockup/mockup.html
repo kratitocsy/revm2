@@ -1,0 +1,240 @@
+<!doctype html>
+<!--
+  Source for assets/hero/wynko-hero-devices*.webp (the laptop + phone on the product hero).
+  Re-render with:  node scripts/hero-mockup/render.cjs   (needs Playwright + Chromium)
+  The canvas is 1140x700 CSS px on a transparent background and is captured at 2x.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wynko hero mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=block" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B0B0D; --ink-2:#0F0F11; --card:#141518; --card-2:#191A1E; --line:#23242A;
+  --cream:#FFF7E6; --txt:#F3EFE8; --txt-2:#A9A59E; --txt-3:#6F6C67;
+  --orange:#FF8A3D; --amber:#FFA94D; --green:#22C38E; --blue:#3E6FD8; --teal:#2FC7B4; --violet:#B77CF2;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ background:transparent; }
+body{ width:1140px; height:700px; position:relative; font-family:'Sora',system-ui,sans-serif; color:var(--txt); -webkit-font-smoothing:antialiased; overflow:hidden; }
+svg{ display:block; }
+
+/* ================= LAPTOP ================= */
+.laptop{ position:absolute; left:240px; top:22px; width:860px; }
+.lid{
+  position:relative; height:560px; border-radius:26px 26px 12px 12px; padding:2px;
+  background:linear-gradient(160deg,#9aa0ab 0%,#4b4f57 22%,#2a2c31 55%,#5d626c 100%);
+  box-shadow:0 40px 70px -30px rgba(0,0,0,.85);
+}
+.bezel{ position:relative; height:100%; border-radius:24px 24px 10px 10px; background:#050506; padding:18px 14px 22px; }
+.cam{ position:absolute; top:7px; left:50%; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:#1b1d24; box-shadow:0 0 0 1px #0d0e12; }
+.screen{ position:relative; height:100%; border-radius:6px; overflow:hidden; background:radial-gradient(120% 90% at 70% 0%,#15171c 0%,#0d0e11 60%); display:flex; }
+.base{
+  position:relative; width:920px; margin-left:-30px; height:20px;
+  border-radius:2px 2px 16px 16px;
+  background:linear-gradient(180deg,#c3c8d0 0%,#8c919a 18%,#5a5e66 55%,#2c2e33 100%);
+  box-shadow:0 26px 40px -18px rgba(0,0,0,.9);
+}
+.base::before{ content:''; position:absolute; left:50%; top:0; width:140px; height:7px; margin-left:-70px; border-radius:0 0 10px 10px; background:linear-gradient(180deg,#5b5f67,#80858e); }
+
+/* sidebar */
+.side{ width:178px; flex-shrink:0; background:#0E0F12; border-right:1px solid #1B1C21; padding:20px 12px; display:flex; flex-direction:column; gap:4px; }
+.brand{ display:flex; align-items:center; gap:8px; padding:0 8px 18px; }
+.brand img{ width:30px; height:30px; object-fit:contain; }
+.brand span{ font-weight:800; font-size:17px; letter-spacing:.02em; color:#fff; }
+.brand span b{ font-weight:800; color:var(--orange); }
+.nav{ display:flex; align-items:center; gap:11px; height:36px; padding:0 10px; border-radius:9px; font-size:12.5px; font-weight:500; color:#CFCAC1; }
+.nav svg{ width:17px; height:17px; stroke:#CFCAC1; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+.nav.on{ background:linear-gradient(90deg,#2B241C,#221D18); color:#fff; font-weight:600; }
+.nav.on svg{ stroke:none; fill:var(--amber); }
+.nav.pill{ margin-top:8px; border:1px solid #23252B; background:#121317; border-radius:12px; justify-content:center; }
+
+/* main */
+.main{ flex:1; padding:16px 20px 18px; display:flex; flex-direction:column; min-width:0; }
+.top{ display:flex; align-items:center; gap:14px; }
+.search{ flex:1; max-width:400px; height:32px; border-radius:10px; background:#17181C; border:1px solid #202127; display:flex; align-items:center; gap:9px; padding:0 12px; font-size:11.5px; color:#77736C; }
+.search svg{ width:14px; height:14px; stroke:#9B968E; fill:none; stroke-width:2; }
+.bell{ margin-left:auto; width:22px; height:22px; stroke:#E8E3DA; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.avatar{ width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:700; font-size:13px; color:#1a0d05; background:linear-gradient(145deg,#FFD39A,#FF8A3D); box-shadow:0 0 0 2px #0d0e11, 0 0 0 3px #3a2a1c; }
+.hello{ margin:16px 0 12px; font-size:19px; line-height:1.25; font-weight:600; letter-spacing:-.01em; color:#fff; }
+.row{ display:flex; gap:14px; }
+.card{ background:linear-gradient(180deg,#16171B,#131417); border:1px solid #1F2025; border-radius:14px; }
+
+/* focus timer */
+.timer{ width:250px; height:226px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.ring{ position:relative; width:168px; height:168px; }
+.ring > svg{ width:100%; height:100%; transform:rotate(-90deg); }
+.ring-c{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.ring-c small{ font-size:11px; color:#D8D3CA; font-weight:500; }
+.ring-c strong{ font-size:34px; font-weight:700; letter-spacing:-1px; color:#fff; line-height:1.15; font-variant-numeric:tabular-nums; }
+.play{ width:28px; height:28px; border-radius:50%; background:#fff; display:grid; place-items:center; margin-top:4px; }
+.play svg{ width:11px; height:11px; margin-left:2px; fill:#0B0B0D; }
+.pomo{ display:flex; align-items:center; gap:6px; margin-top:8px; font-size:11.5px; color:#E3DED5; }
+.pomo svg{ width:13px; height:13px; stroke:#E3DED5; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+/* plan */
+.plan{ flex:1; padding:16px 16px 12px; }
+.plan-h{ display:flex; align-items:flex-end; justify-content:space-between; }
+.plan h3{ font-size:17px; font-weight:600; color:#fff; }
+.plan p{ font-size:11.5px; color:#CFCAC1; margin-top:4px; }
+.plan-h svg{ width:16px; height:16px; stroke:#E8E3DA; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.task{ display:flex; align-items:center; gap:11px; padding:9px 8px; margin-top:6px; border-radius:10px; }
+.task.hl{ background:#1A1C21; }
+.chk{ width:28px; height:28px; border-radius:50%; display:grid; place-items:center; flex-shrink:0; }
+.chk.done{ background:var(--green); box-shadow:0 0 0 4px rgba(34,195,142,.14); }
+.chk.done svg{ width:14px; height:14px; stroke:#fff; fill:none; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+.chk.todo{ background:#1C2130; }
+.chk.todo i{ width:13px; height:13px; border:1.8px solid #DDE3F2; border-radius:3px; }
+.task div b{ display:block; font-size:12px; font-weight:600; color:#fff; }
+.task div span{ display:block; font-size:10.5px; color:#A9A59E; margin-top:1px; }
+.st{ margin-left:auto; width:19px; height:19px; border-radius:50%; flex-shrink:0; }
+.st.ok{ border:1.8px solid var(--green); display:grid; place-items:center; }
+.st.ok svg{ width:10px; height:10px; stroke:var(--green); fill:none; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+.st.open{ border:1.8px solid #3F63B8; }
+
+/* quick actions */
+.qa{ margin-top:14px; width:462px; padding:13px 16px 12px; }
+.qa h4{ font-size:13px; font-weight:500; color:#fff; margin-bottom:10px; }
+.qa-row{ display:flex; justify-content:space-between; padding:0 6px; }
+.qa-i{ display:flex; flex-direction:column; align-items:center; gap:7px; font-size:11px; color:#E8E3DA; width:92px; }
+.qa-i i{ width:44px; height:44px; border-radius:50%; display:grid; place-items:center; }
+.qa-i svg{ width:21px; height:21px; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+/* ================= PHONE ================= */
+.phone{
+  position:absolute; left:6px; top:182px; width:262px; height:514px; border-radius:46px; padding:3px;
+  background:linear-gradient(150deg,#b9bec7 0%,#5e636c 18%,#2b2d32 50%,#6d727b 82%,#aeb3bc 100%);
+  box-shadow:0 40px 60px -26px rgba(0,0,0,.9);
+}
+.phone::before{ content:''; position:absolute; left:-3px; top:120px; width:3px; height:58px; border-radius:2px 0 0 2px; background:#4a4e56; box-shadow:0 74px 0 #4a4e56; }
+.p-bezel{ height:100%; border-radius:43px; background:#030304; padding:9px; }
+.p-screen{ position:relative; height:100%; border-radius:35px; overflow:hidden; background:linear-gradient(180deg,#0c0c0e 0%,#0a0a0b 55%,#0b0b0d 100%); }
+.island{ position:absolute; top:10px; left:50%; width:84px; height:24px; margin-left:-42px; border-radius:14px; background:#000; }
+.sbar{ position:absolute; top:13px; left:24px; right:22px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; color:#fff; }
+.sbar .ic{ display:flex; gap:4px; align-items:center; }
+.splash{ position:absolute; top:122px; left:0; right:0; display:flex; flex-direction:column; align-items:center; }
+.splash img{ width:104px; height:104px; object-fit:contain; }
+.splash .word{ margin-top:6px; font-size:37px; font-weight:800; letter-spacing:.01em; color:#fff; line-height:1; }
+.splash .word b{ font-weight:800; background:linear-gradient(180deg,#FFB067,#F07A2E); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.splash .tag{ margin-top:10px; font-size:8.5px; font-weight:600; letter-spacing:.2em; color:#E8E3DA; }
+.waves{ position:absolute; left:0; right:0; bottom:0; height:170px; }
+.homebar{ position:absolute; bottom:8px; left:50%; width:96px; height:4px; margin-left:-48px; border-radius:3px; background:rgba(255,255,255,.75); }
+</style>
+</head>
+<body>
+
+<div class="laptop">
+  <div class="lid"><div class="bezel"><span class="cam"></span>
+    <div class="screen">
+      <aside class="side">
+        <div class="brand"><img src="../../wynko-mark.png" alt=""><span><b>W</b>YNKO</span></div>
+        <div class="nav on"><svg viewBox="0 0 24 24"><path d="M3 10.6 12 3l9 7.6V20a1 1 0 0 1-1 1h-5.5v-6h-5v6H4a1 1 0 0 1-1-1z"/></svg>Home</div>
+        <div class="nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.8M9.5 2.5h5M19 6l1.5-1.5"/></svg>Focus Lock</div>
+        <div class="nav"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M12 14h2M8 17h2"/></svg>Schedule</div>
+        <div class="nav"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>Study Room</div>
+        <div class="nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.2"/><circle cx="6.5" cy="16.5" r="3.2"/><circle cx="17.5" cy="16.5" r="3.2"/></svg>Battleground</div>
+        <div class="nav"><svg viewBox="0 0 24 24"><path d="M3 5.5c3-1.2 6-1.2 9 .8 3-2 6-2 9-.8V19c-3-1.2-6-1.2-9 .8-3-2-6-2-9-.8z"/><path d="M12 6.3v13.5"/></svg>Library</div>
+        <div class="nav pill"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14c2.4 0 4 1.5 4.5 4"/></svg>Community</div>
+      </aside>
+
+      <section class="main">
+        <div class="top">
+          <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>Search...</div>
+          <svg class="bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>
+          <div class="avatar">A</div>
+        </div>
+
+        <h2 class="hello">Good morning,<br>Keep going!</h2>
+
+        <div class="row">
+          <div class="card timer">
+            <div class="ring">
+              <svg viewBox="0 0 168 168">
+                <defs>
+                  <linearGradient id="arc" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#FFB14F"/><stop offset=".45" stop-color="#FF7A2E"/><stop offset="1" stop-color="#2C4F9E"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="84" cy="84" r="74" fill="none" stroke="#1E2230" stroke-width="9"/>
+                <circle cx="84" cy="84" r="74" fill="none" stroke="url(#arc)" stroke-width="9" stroke-linecap="round" stroke-dasharray="465" stroke-dashoffset="62"/>
+              </svg>
+              <div class="ring-c">
+                <small>Focus Timer</small>
+                <strong>25:00</strong>
+                <span class="play"><svg viewBox="0 0 10 12"><path d="M0 0l10 6-10 6z"/></svg></span>
+              </div>
+            </div>
+            <div class="pomo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.4M12 17h.01"/></svg>Pomodoro<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+          </div>
+
+          <div class="card plan">
+            <div class="plan-h">
+              <div><h3>Today&rsquo;s Plan</h3><p>3/7 tasks done</p></div>
+              <svg viewBox="0 0 24 24"><path d="m6 6 6 6-6 6M13 6l6 6-6 6"/></svg>
+            </div>
+            <div class="task hl">
+              <span class="chk done"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+              <div><b>Organic Chemistry</b><span>2h 30m</span></div>
+              <span class="st ok"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+            </div>
+            <div class="task">
+              <span class="chk done"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+              <div><b>Physics Revision</b><span>1h 15m</span></div>
+              <span class="st open"></span>
+            </div>
+            <div class="task">
+              <span class="chk todo"><i></i></span>
+              <div><b>Mock Test</b><span>45m</span></div>
+              <span class="st open"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card qa">
+          <h4>Quick Actions</h4>
+          <div class="qa-row">
+            <div class="qa-i"><i style="background:#2A2116"><svg viewBox="0 0 24 24" stroke="#F4B53F"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 12 19 5M16 4.5h3.5V8"/></svg></i>Focus</div>
+            <div class="qa-i"><i style="background:#13282A"><svg viewBox="0 0 24 24" stroke="#2FC7B4"><path d="M3.5 11 12 4l8.5 7M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg></i>Study Room</div>
+            <div class="qa-i"><i style="background:#14232C"><svg viewBox="0 0 24 24" stroke="#35C6D6"><path d="M3 5.5c3-1.2 6-1.2 9 .8 3-2 6-2 9-.8V19c-3-1.2-6-1.2-9 .8-3-2-6-2-9-.8z"/><path d="M12 6.3v13.5"/></svg></i>Library</div>
+            <div class="qa-i"><i style="background:#221A2E"><svg viewBox="0 0 24 24" stroke="#C084FC"><path d="M4 4l10 10M20 4 10 14M14 14l3 3M10 14l-3 3M5 19l3-3M19 19l-3-3"/></svg></i>Battleground</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div></div>
+  <div class="base"></div>
+</div>
+
+<div class="phone"><div class="p-bezel"><div class="p-screen">
+  <span class="island"></span>
+  <div class="sbar"><span>9:41</span><span class="ic">
+    <svg width="16" height="10" viewBox="0 0 16 10"><rect x="0" y="7" width="3" height="3" rx=".6" fill="#fff"/><rect x="4.3" y="5" width="3" height="5" rx=".6" fill="#fff"/><rect x="8.6" y="2.6" width="3" height="7.4" rx=".6" fill="#fff"/><rect x="12.9" y="0" width="3" height="10" rx=".6" fill="#fff"/></svg>
+    <svg width="14" height="10" viewBox="0 0 14 10"><path d="M7 9.2 9 7a2.8 2.8 0 0 0-4 0z" fill="#fff"/><path d="M2.6 4.6a6.3 6.3 0 0 1 8.8 0M.6 2.5a9.2 9.2 0 0 1 12.8 0" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+    <svg width="24" height="11" viewBox="0 0 24 11"><rect x=".6" y=".6" width="20" height="9.8" rx="3" stroke="#fff" stroke-opacity=".5" fill="none"/><rect x="2.2" y="2.2" width="16.8" height="6.6" rx="1.8" fill="#fff"/><rect x="21.6" y="3.6" width="1.8" height="3.8" rx=".9" fill="#fff" fill-opacity=".5"/></svg>
+  </span></div>
+
+  <div class="splash">
+    <img src="../../wynko-mark.png" alt="">
+    <div class="word"><b>W</b>YNKO</div>
+    <div class="tag">FOCUS &nbsp;&middot;&nbsp; STUDY &nbsp;&middot;&nbsp; TOGETHER</div>
+  </div>
+
+  <svg class="waves" viewBox="0 0 254 170" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="w1" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a3d44"/><stop offset="1" stop-color="#1b1c20"/></linearGradient>
+      <linearGradient id="w2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FF7A1F"/><stop offset=".55" stop-color="#FFB347"/><stop offset="1" stop-color="#FF8A3D"/></linearGradient>
+      <linearGradient id="w3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15161a"/><stop offset="1" stop-color="#6c717a"/></linearGradient>
+    </defs>
+    <path d="M0 64C40 60 70 88 118 74 160 62 200 30 254 12V170H0z" fill="url(#w1)"/>
+    <path d="M0 110C44 92 78 112 122 92 168 70 204 46 254 40V170H0z" fill="url(#w2)"/>
+    <path d="M0 128C46 112 84 130 128 112 172 94 210 80 254 78V170H0z" fill="#101114"/>
+    <path d="M110 170C150 140 196 112 254 104V170z" fill="url(#w3)"/>
+  </svg>
+  <span class="homebar"></span>
+</div></div></div>
+
+</body>
+</html>

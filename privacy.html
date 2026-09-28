@@ -20,30 +20,30 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#0a0a12;
-  --ink-2:#0e0e18;
+  --ink:#0f0e0d;
+  --ink-2:#141311;
   --surface:rgba(255,255,255,.025);
   --surface-2:rgba(255,255,255,.045);
   --surface-3:rgba(255,255,255,.07);
   --border:rgba(255,255,255,.08);
   --border-2:rgba(255,255,255,.14);
-  --text:#f4f4f8;
-  --text-2:#b6b6c6;
-  --text-3:#7a7a90;
-  --text-4:#4c4c62;
+  --text:#f8f5f4;
+  --text-2:#c4bfb8;
+  --text-3:#8e867c;
+  --text-4:#60584e;
 
-  --violet:#7c4dff;
-  --violet-2:#a78bfa;
-  --blue:#4a6bff;
-  --cyan:#22d3ee;
+  --violet:#ff9d4d;
+  --violet-2:#fabd8b;
+  --blue:#ff8c4a;
+  --cyan:#eeaa22;
   --mint:#34d399;
   --amber:#fbbf24;
   --coral:#fb7185;
 
-  --grad:linear-gradient(118deg,#a78bfa 0%,#6c8cff 46%,#22d3ee 100%);
-  --grad-soft:linear-gradient(120deg,rgba(124,77,255,.16),rgba(34,211,238,.12));
-  --glow-v:rgba(124,77,255,.32);
-  --glow-c:rgba(34,211,238,.28);
+  --grad:linear-gradient(118deg,#fabd8b 0%,#ffa26c 46%,#eeaa22 100%);
+  --grad-soft:linear-gradient(120deg,rgba(255,157,77,.16),rgba(238,170,34,.12));
+  --glow-v:rgba(255,157,77,.32);
+  --glow-c:rgba(238,170,34,.28);
 
   --font:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
@@ -68,9 +68,9 @@ body::before{
   content:'';
   position:fixed; inset:0; z-index:0; pointer-events:none;
   background-image:
-    radial-gradient(1100px 560px at 8% -12%, rgba(124,77,255,.16), transparent 62%),
-    radial-gradient(900px 520px at 96% 2%, rgba(34,211,238,.10), transparent 58%),
-    radial-gradient(1200px 700px at 50% 118%, rgba(74,107,255,.10), transparent 60%);
+    radial-gradient(1100px 560px at 8% -12%, rgba(255,157,77,.16), transparent 62%),
+    radial-gradient(900px 520px at 96% 2%, rgba(238,170,34,.10), transparent 58%),
+    radial-gradient(1200px 700px at 50% 118%, rgba(255,140,74,.10), transparent 60%);
 }
 body::after{
   content:'';
@@ -98,17 +98,17 @@ img{ max-width:100%; display:block; }
   white-space:nowrap;
 }
 .btn:active{ transform:scale(.97); }
-.btn-primary{ background:var(--grad); color:#080810; box-shadow:0 10px 34px -12px var(--glow-v); }
+.btn-primary{ background:var(--grad); color:#0d0c0b; box-shadow:0 10px 34px -12px var(--glow-v); }
 .btn-primary:hover{ box-shadow:0 14px 44px -10px var(--glow-v), 0 0 0 1px rgba(255,255,255,.12) inset; transform:translateY(-1px); }
 .btn-ghost{ background:rgba(255,255,255,.03); border-color:var(--border-2); color:var(--text); }
-.btn-ghost:hover{ border-color:var(--violet-2); color:#fff; background:rgba(124,77,255,.1); }
+.btn-ghost:hover{ border-color:var(--violet-2); color:#fff; background:rgba(255,157,77,.1); }
 .btn-sm{ padding:8px 16px; font-size:.82rem; }
 .btn-lg{ padding:15px 30px; font-size:1rem; }
 
 /* ---------- nav ---------- */
 header{
   position:sticky; top:0; z-index:50;
-  background:rgba(10,10,18,.72);
+  background:rgba(15,14,13,.72);
   backdrop-filter:blur(16px) saturate(140%);
   border-bottom:1px solid var(--border);
 }
@@ -164,14 +164,14 @@ header{
 .legal-doc li{ color:var(--text-2); font-size:.94rem; line-height:1.75; margin-bottom:8px; }
 .legal-doc li strong{ color:var(--text); font-weight:600; }
 .legal-doc blockquote{
-  margin:22px 0; padding:14px 18px; background:rgba(124,77,255,.07);
+  margin:22px 0; padding:14px 18px; background:rgba(255,157,77,.07);
   border-left:3px solid var(--violet-2); border-radius:0 12px 12px 0;
   color:var(--text-3); font-size:.9rem;
 }
 .legal-doc table{ width:100%; border-collapse:collapse; margin:18px 0 22px; font-size:.86rem; display:block; overflow-x:auto; }
 .legal-doc th,
 .legal-doc td{ border:1px solid var(--border); padding:10px 13px; text-align:left; vertical-align:top; }
-.legal-doc th{ background:rgba(124,77,255,.08); color:var(--text); font-weight:600; white-space:nowrap; }
+.legal-doc th{ background:rgba(255,157,77,.08); color:var(--text); font-weight:600; white-space:nowrap; }
 .legal-doc td{ color:var(--text-2); }
 .legal-doc code{ background:var(--surface-3); padding:2px 6px; border-radius:5px; font-family:var(--mono); font-size:.86em; color:var(--cyan); }
 
@@ -209,7 +209,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   .nav-links{
     display:none; position:absolute; top:100%; left:0; right:0; margin:0;
     flex-direction:column; align-items:stretch; gap:0; padding:6px 28px 14px;
-    background:rgba(10,10,18,.97); border-bottom:1px solid var(--border);
+    background:rgba(15,14,13,.97); border-bottom:1px solid var(--border);
   }
   header.nav-open .nav-links{ display:flex; }
   .nav-links a{ padding:13px 0; font-size:1rem; border-bottom:1px solid var(--border); }

@@ -502,7 +502,8 @@ var RevM2Shared = function(exports) {
       y: Math.random(),
       r: Math.random() * 1.1 + 0.15,
       a: Math.random() * 0.65 + 0.1,
-      s: Math.random() * 3e-4 + 8e-5
+      s: Math.random() * 3e-4 + 8e-5,
+      amber: Math.random() < 0.22
     }));
     let t = 0;
     (function draw() {
@@ -512,7 +513,7 @@ var RevM2Shared = function(exports) {
         const alpha = Math.max(0, s.a + Math.sin(t * s.s * 60 + s.x * 100) * 0.18);
         ctx.beginPath();
         ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillStyle = s.amber ? `rgba(255,186,120,${alpha})` : `rgba(255,244,226,${alpha})`;
         ctx.fill();
       }
       requestAnimationFrame(draw);
