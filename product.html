@@ -185,8 +185,17 @@ h1,h2,h3,h4{ margin:0; font-weight:700; letter-spacing:-.02em; line-height:1.1; 
 .float-badge-b{ bottom:12%; right:-6%; }
 
 /* ---------- hero ---------- */
-.hero{ padding-top:70px; padding-bottom:80px; background:#050c1a url('assets/hero/wynko-hero-bg.webp') center bottom / cover no-repeat; }
-@media (max-width:760px){ .hero{ background-image:url('assets/hero/wynko-hero-bg-mobile.webp'); } }
+.hero{
+  padding-top:70px; padding-bottom:80px; position:relative; overflow:hidden;
+  /* warm black with soft brand glows: orange behind the devices, cream at the top-left */
+  background:
+    radial-gradient(760px 520px at 76% 44%, rgba(255,138,61,.13), transparent 64%),
+    radial-gradient(620px 420px at 6% -4%, rgba(255,214,150,.06), transparent 62%),
+    radial-gradient(1100px 380px at 50% 112%, rgba(255,110,40,.07), transparent 62%),
+    #0B0B0D;
+}
+.hero-stars{ position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+.hero > .wrap{ position:relative; z-index:1; }
 .hero-grid{ display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; }
 .hero-cta{ display:flex; gap:14px; flex-wrap:wrap; margin-top:32px; }
 .hero-meta{ display:flex; align-items:center; gap:22px; margin-top:26px; flex-wrap:wrap; }
@@ -567,6 +576,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 
 <!-- ===================== HERO ===================== -->
 <section class="hero" id="product">
+  <canvas class="hero-stars" id="heroStars" aria-hidden="true"></canvas>
   <div class="wrap hero-grid">
     <div>
       <span class="kicker-chip"><span class="nav-dot"></span> Wynko &middot; <b>Focus without distractions</b></span>
@@ -922,6 +932,47 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 </footer>
 
 <script>
+/* ================= hero starfield: faint cream + amber stars, gentle twinkle ================= */
+(function(){
+  const canvas = document.getElementById('heroStars');
+  if(!canvas) return;
+  const hero = canvas.parentElement, ctx = canvas.getContext('2d');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let w = 0, h = 0, stars = [], visible = true, raf = 0, t = 0;
+
+  function build(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = hero.clientWidth; h = hero.clientHeight;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const count = Math.min(260, Math.round(w * h / 5200));
+    stars = Array.from({ length:count }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      r: Math.random() < .08 ? Math.random() * .7 + 1.1 : Math.random() * .8 + .3,
+      a: Math.random() * .5 + .12,
+      amber: Math.random() < .22,
+      sp: Math.random() * .018 + .006, ph: Math.random() * Math.PI * 2
+    }));
+  }
+  function draw(){
+    ctx.clearRect(0, 0, w, h);
+    for(const s of stars){
+      const a = still ? s.a : Math.max(0, s.a + Math.sin(t * s.sp + s.ph) * .16);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = s.amber ? `rgba(255,186,120,${a})` : `rgba(255,244,226,${a})`;
+      ctx.fill();
+    }
+  }
+  function loop(){ t++; draw(); raf = visible ? requestAnimationFrame(loop) : 0; }
+
+  build(); draw();
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { build(); draw(); }, 150); });
+  if(still) return;
+  /* only animate while the hero is on screen */
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; if(visible && !raf) raf = requestAnimationFrame(loop); }).observe(hero);
+})();
+
 /* ================= home dashboard ================= */
 (function(){
   /* live session counter in hero */
