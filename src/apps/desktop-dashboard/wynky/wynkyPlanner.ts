@@ -361,6 +361,14 @@ export async function writeSchedule(sb: SupaLike, userId: string, args: {
   return { scheduleId };
 }
 
+/** Deletes the student's other Wynky schedules (any "Wynky Plan…" name not
+ *  in keep), so a new set of day types never runs on top of an older one. */
+export async function removeStaleWynkyPlans(sb: SupaLike, userId: string, keep: string[], isWynkyName: (name: string) => boolean): Promise<void> {
+  const { data } = await sb.from('focus_lock_schedules').select('id, name').eq('user_id', userId);
+  const stale = ((data || []) as { id: string; name: string }[]).filter(s => isWynkyName(s.name) && !keep.includes(s.name)).map(s => s.id);
+  if (stale.length) await sb.from('focus_lock_schedules').delete().in('id', stale);
+}
+
 export interface ConfirmPlanArgs {
   userId: string;
   planName: string;

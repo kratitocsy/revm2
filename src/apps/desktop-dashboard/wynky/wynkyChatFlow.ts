@@ -208,10 +208,24 @@ export function fmtBusy(value: string): string {
   return a && b ? `${fmtClock(a)}–${fmtClock(b)}` : value;
 }
 
+const planLines = (result: GeneratorResult, withSleep = true) => result.blocks
+  .filter(b => b.kind !== 'break' && (withSleep || b.kind !== 'sleep'))
+  .map(b => `${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : (b.subjectName || 'Study')}`);
+
 export function formatRecommendedPlan(result: GeneratorResult): string {
-  const lines = result.blocks
-    .filter(b => b.kind !== 'break')
-    .map(b => `${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : (b.subjectName || 'Study')}`);
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
-  return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+  return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${planLines(result).join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+}
+
+/** A week with several day types: each one's study blocks under its days,
+ *  and the sleep lock once at the end (it is the same on every day). */
+export function formatWeekPlan(days: { label: string; result: GeneratorResult }[], rest = ''): string {
+  if (days.length === 1 && !rest) return formatRecommendedPlan(days[0].result);
+  const parts = days.map(({ label, result }) =>
+    `${label} · ${fmtHours(result.placedStudyMinutes)}${result.wasCut ? ' (trimmed to fit)' : ''}\n${planLines(result, false).join('\n')}`);
+  if (rest) parts.push(`${rest} · rest day, no schedule`);
+  const sleep = days[0].result.blocks.find(b => b.kind === 'sleep');
+  const tail = sleep ? `\n\n${sleep.startTime}–${sleep.endTime}  😴 Sleep${rest ? ' on study days' : ', every day'}` : '';
+  const count = days.length === 1 ? '' : `, in ${days.length} day types`;
+  return `Here's your week${count}:\n\n${parts.join('\n\n')}${tail}\n\nTap Confirm to make it live, or tell me what to change.`;
 }
