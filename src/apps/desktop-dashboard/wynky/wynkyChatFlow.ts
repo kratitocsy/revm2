@@ -39,6 +39,11 @@ export function uniqueCaseless(names: string[]): string[] {
   return out;
 }
 
+/** Common subjects for the student's exam, used when onboarding saved none. */
+export function examSubjects(exam: string | null): string[] {
+  return EXAM_SUBJECTS[examFamilyKey(exam)] || EXAM_SUBJECTS.general;
+}
+
 /** Subjects to offer: the ones Wynky already has for this student
  *  (saved set-up, then onboarding), then common ones for their exam. */
 export function subjectChoices(known: WynkyKnownProfile, remembered: WynkyRemembered): string[] {
@@ -72,9 +77,9 @@ const HOUR_BUCKETS: { minutes: number; label: string }[] = [
 
 /** Option ids are "m<minutes>". The student's usual amount (nudged by what
  *  they kept confirming before) comes first and says so. */
-export function hoursOptions(known: WynkyKnownProfile, remembered: WynkyRemembered): ChatOption[] {
-  const usual = defaultDailyMinutes(known, remembered);
-  const why = remembered.lastDailyMinutes != null ? 'your usual' : (known.dailyHoursBucket ? 'from your quiz' : null);
+export function hoursOptions(known: WynkyKnownProfile, remembered: WynkyRemembered, recommended?: { minutes: number; why: string | null }): ChatOption[] {
+  const usual = recommended?.minutes ?? defaultDailyMinutes(known, remembered);
+  const why = recommended ? recommended.why : remembered.lastDailyMinutes != null ? 'your usual' : (known.dailyHoursBucket ? 'from your quiz' : null);
   const opts: ChatOption[] = [];
   if (why && !HOUR_BUCKETS.some(b => b.minutes === usual)) opts.push({ id: `m${usual}`, label: `About ${fmtHours(usual)} (${why})` });
   for (const b of HOUR_BUCKETS) {
@@ -131,10 +136,10 @@ const WAKE_TIMES = ['05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00
 const SLEEP_TIMES = ['21:30', '22:00', '22:30', '23:00', '23:30', '00:00', '00:30'];
 
 /** Option ids are the "HH:MM" time itself; a remembered time comes first. */
-export function clockOptions(kind: 'wake' | 'sleep', rememberedTime: string | null): ChatOption[] {
+export function clockOptions(kind: 'wake' | 'sleep', rememberedTime: string | null, note: string | null = 'usual'): ChatOption[] {
   const times = kind === 'wake' ? WAKE_TIMES : SLEEP_TIMES;
   const opts: ChatOption[] = [];
-  if (rememberedTime) opts.push({ id: rememberedTime, label: `${fmtClock(rememberedTime)} (usual)` });
+  if (rememberedTime) opts.push({ id: rememberedTime, label: note ? `${fmtClock(rememberedTime)} (${note})` : fmtClock(rememberedTime) });
   for (const t of times) if (t !== rememberedTime) opts.push({ id: t, label: fmtClock(t) });
   return opts;
 }
@@ -144,7 +149,7 @@ export function clockOptions(kind: 'wake' | 'sleep', rememberedTime: string | nu
 export function siteFromText(text: string): string | null {
   const host = text.trim().toLowerCase()
     .replace(/^[a-z]+:\/\//, '').replace(/^www\./, '').split(/[/?#\s]/)[0];
-  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(host) ? host : null;
 }
 
 export function filterOptions<T extends ChatOption>(opts: T[], query: string): T[] {
@@ -163,10 +168,50 @@ export function clearMatch<T extends ChatOption>(opts: T[], query: string): T | 
   return partial.length === 1 ? partial[0] : null;
 }
 
+const BLOCK_CHOICES = [45, 60, 90, 120];
+
+/** Option ids are "b<minutes>"; the recommended length comes first. */
+export function blockOptions(recommended: number, why: string | null): ChatOption[] {
+  const opts: ChatOption[] = [{ id: `b${recommended}`, label: `${recommended} minutes${why ? ` (${why})` : ''}` }];
+  for (const m of BLOCK_CHOICES) if (m !== recommended) opts.push({ id: `b${m}`, label: `${m} minutes` });
+  return opts;
+}
+
+/** "4-7 pm", "16:00-19:00", "8 to 2", "5-8" -> "HH:MM-HH:MM", or null.
+ *  Without am/pm, an end hour earlier than the start is read as afternoon
+ *  ("8 to 2"), and a window starting before 6 as evening ("5-8"). */
+export function parseBusyText(text: string): string | null {
+  const m = /^(\d{1,2}(?:[:.]\d{2})?)\s*([ap]\.?m\.?)?\s*(?:-|to|–)\s*(\d{1,2}(?:[:.]\d{2})?)\s*([ap]\.?m\.?)?$/i.exec(text.trim().toLowerCase());
+  if (!m) return null;
+  const endAp = m[4] ? m[4][0] : null;
+  const startAp = m[2] ? m[2][0] : endAp;
+  const clock = (t: string, ap: string | null) => parseClock(ap ? `${t} ${ap}m` : t, 'wake');
+  let end = clock(m[3], endAp);
+  let start = clock(m[1], startAp);
+  // "11-2 pm": the pm belongs to the end only.
+  if (!m[2] && start && end && start >= end) start = clock(m[1], null);
+  // "2-5" or "5-8" with no am/pm: nobody means the middle of the night.
+  if (!startAp && start && end && start < '06:00' && end <= '12:00') {
+    const plus12 = (t: string) => `${String(Number(t.slice(0, 2)) + 12).padStart(2, '0')}${t.slice(2)}`;
+    start = plus12(start); end = plus12(end);
+  }
+  if (!start || !end) return null;
+  if (end <= start && !endAp) {
+    const [eh, em] = end.split(':').map(Number);
+    if (eh + 12 < 24) end = `${String(eh + 12).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+  }
+  return end > start ? `${start}-${end}` : null;
+}
+
+export function fmtBusy(value: string): string {
+  const [a, b] = value.split('-');
+  return a && b ? `${fmtClock(a)}–${fmtClock(b)}` : value;
+}
+
 export function formatRecommendedPlan(result: GeneratorResult): string {
   const lines = result.blocks
     .filter(b => b.kind !== 'break')
     .map(b => `${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : (b.subjectName || 'Study')}`);
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
-  return `Here's your day: ${fmtHours(result.scheduledStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+  return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
 }

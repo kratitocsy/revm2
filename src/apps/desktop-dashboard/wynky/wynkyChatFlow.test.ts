@@ -6,7 +6,8 @@ import {
 import { recommend, type WynkyKnownProfile, type WynkyRemembered } from './wynkyPlanner';
 
 const known = (over: Partial<WynkyKnownProfile> = {}): WynkyKnownProfile => ({
-  subjects: [], exam: null, dailyHoursBucket: null, customDailyHoursText: null, distractionTags: [], customDistractionText: null, ...over,
+  subjects: [], exam: null, dailyHoursBucket: null, customDailyHoursText: null, distractionTags: [], customDistractionText: null,
+  dna: { dayType: null, studyStyle: [], challenges: [], archetype: null }, ...over,
 });
 const remembered = (over: Partial<WynkyRemembered> = {}): WynkyRemembered => ({
   wakeTime: null, sleepTime: null, subjectAllowlists: {}, lastDailyMinutes: null, acceptedCount: 0, adjustedCount: 0, ...over,
@@ -82,6 +83,7 @@ describe('siteFromText', () => {
     expect(siteFromText('https://www.Allen.ac.in/courses')).toBe('allen.ac.in');
     expect(siteFromText('allen')).toBeNull();
     expect(siteFromText('physics wallah')).toBeNull();
+    expect(siteFromText('4.5')).toBeNull();
   });
 });
 

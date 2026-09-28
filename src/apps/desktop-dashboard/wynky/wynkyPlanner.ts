@@ -26,7 +26,8 @@
    modest on purpose, per the same "never invent data" rule above.
 */
 
-import { generateSchedule, type GeneratorResult, type SubjectInput } from '../../_shared/scheduleGenerator';
+import { generateSchedule, type FixedCommitment, type GeneratorResult, type SubjectInput } from '../../_shared/scheduleGenerator';
+import type { PeerStats, StudyDna, WynkyAction, WynkyEvent } from './wynkyRecommender';
 
 export interface SupaLike {
   from(table: string): any;
@@ -89,6 +90,8 @@ export interface WynkyKnownProfile {
   customDailyHoursText: string | null;
   distractionTags: string[];
   customDistractionText: string | null;
+  /** The rest of the Study DNA quiz, used to pre-fill and skip questions. */
+  dna: StudyDna;
 }
 
 export interface WynkyRemembered {
@@ -103,10 +106,11 @@ export interface WynkyRemembered {
 /** Reads what Wynky already knows from the quiz/onboarding — never re-asked. */
 export async function loadKnownProfile(sb: SupaLike, userId: string): Promise<WynkyKnownProfile> {
   const { data } = await sb.from('user_profiles')
-    .select('subjects, exam, quiz_answers')
+    .select('subjects, exam, quiz_answers, archetype')
     .eq('id', userId).maybeSingle();
   const qa = (data?.quiz_answers ?? {}) as Record<string, unknown>;
   const dh = qa.daily_hours as string | undefined;
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
   return {
     subjects: Array.isArray(data?.subjects) ? data!.subjects.filter(Boolean) : [],
     exam: data?.exam ?? null,
@@ -114,6 +118,12 @@ export async function loadKnownProfile(sb: SupaLike, userId: string): Promise<Wy
     customDailyHoursText: (qa.custom_daily_hours as string) ?? null,
     distractionTags: Array.isArray(qa.distractions) ? (qa.distractions as string[]) : [],
     customDistractionText: (qa.custom_distraction as string) ?? null,
+    dna: {
+      dayType: typeof qa.day_type === 'string' ? qa.day_type : null,
+      studyStyle: strings(qa.study_style),
+      challenges: strings(qa.challenges),
+      archetype: typeof data?.archetype === 'string' ? data.archetype : null,
+    },
   };
 }
 
@@ -160,17 +170,52 @@ export function distractionApps(tags: string[]): string[] {
   return [...out];
 }
 
+/** Study minutes per subject over the last 30 days (study_sessions), so
+ *  Wynky can give more time to what the student has been neglecting. */
+export async function loadStudyMinutes(sb: SupaLike, userId: string): Promise<{ bySubject: Record<string, number>; sessions: number }> {
+  const { data } = await sb.from('study_sessions')
+    .select('subject, total_seconds')
+    .eq('user_id', userId)
+    .gte('started_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .limit(500);
+  const bySubject: Record<string, number> = {};
+  const rows = Array.isArray(data) ? data : [];
+  for (const r of rows as { subject: string | null; total_seconds: number | null }[]) {
+    if (!r.subject) continue;
+    const key = subjectKey(r.subject);
+    bySubject[key] = (bySubject[key] || 0) + Math.max(0, r.total_seconds || 0) / 60;
+  }
+  return { bySubject, sessions: rows.length };
+}
+
+/** Subjects that get 1.5x time: the ones studied well below the average
+ *  share over the last 30 days (never studied counts), at most half of
+ *  them. Needs 3+ logged sessions; with less history nobody is weak. */
+export function weakSubjects(subjects: string[], study: { bySubject: Record<string, number>; sessions: number }): string[] {
+  if (subjects.length < 2 || study.sessions < 3) return [];
+  const mins = subjects.map(s => ({ s, m: study.bySubject[subjectKey(s)] || 0 }));
+  const total = mins.reduce((a, b) => a + b.m, 0);
+  if (total <= 0) return [];
+  const avg = total / subjects.length;
+  return mins.filter(x => x.m < 0.6 * avg).sort((a, b) => a.m - b.m)
+    .slice(0, Math.floor(subjects.length / 2)).map(x => x.s);
+}
+
 export interface RecommendInput {
   wakeTime: string;
   sleepTime: string;
   dailyMinutes: number;
   subjects: string[];
+  /** Subjects to give 1.5x time (see weakSubjects). */
+  weak?: string[];
   blockLengthMinutes: number;
+  /** School, coaching or work hours to plan around. */
+  fixedCommitments?: FixedCommitment[];
 }
 
 export function recommend(input: RecommendInput): GeneratorResult {
   const subjectInputs: SubjectInput[] = input.subjects.length
-    ? input.subjects.map((name, i) => ({ id: `s${i}`, name, isWeak: false }))
+    ? input.subjects.map((name, i) => ({ id: `s${i}`, name, isWeak: !!input.weak?.includes(name) }))
     : [{ id: 's0', name: 'Study', isWeak: false }];
   return generateSchedule({
     wakeTime: input.wakeTime,
@@ -178,6 +223,7 @@ export function recommend(input: RecommendInput): GeneratorResult {
     dailyHoursRequested: input.dailyMinutes / 60,
     subjects: subjectInputs,
     blockLengthMinutes: input.blockLengthMinutes,
+    fixedCommitments: input.fixedCommitments,
   });
 }
 
@@ -455,6 +501,56 @@ export async function recordOutcome(sb: SupaLike, args: {
     p_confirmed_minutes: args.confirmedMinutes,
     p_outcome: args.outcome,
   });
+}
+
+/* ── Learning (migration 0097) ───────────────────────────────────────
+   Every answer the student keeps, changes, asks for or removes is logged
+   to wynky_events; wynkyRecommender.ts turns that history, the same-exam
+   counts below and the Study DNA into the next set of pre-selected
+   answers. */
+
+export async function loadEvents(sb: SupaLike, userId: string): Promise<WynkyEvent[]> {
+  const { data } = await sb.from('wynky_events')
+    .select('field, value, multi, action, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(400);
+  return (Array.isArray(data) ? data : []).map((r: any) => ({
+    field: r.field, value: r.value, multi: !!r.multi, action: r.action as WynkyAction, at: r.created_at,
+  }));
+}
+
+export interface NewEvent { field: string; value: string; multi?: boolean; action: WynkyAction }
+
+export async function recordEvents(sb: SupaLike, userId: string, cohort: { examKey: string; dayType: string | null }, events: NewEvent[]): Promise<void> {
+  if (!events.length) return;
+  const { error } = await sb.from('wynky_events').insert(events.map(e => ({
+    user_id: userId, exam_key: cohort.examKey, day_type: cohort.dayType,
+    field: e.field.slice(0, 60), value: e.value.slice(0, 300), multi: !!e.multi, action: e.action,
+  })));
+  if (error) throw new Error(error.message);
+}
+
+/** Same-exam counts per field. The server narrows to the student's own
+ *  Study DNA day type itself when that group is big enough. */
+export async function fetchPeerStats(sb: SupaLike, examKey: string, fields: string[]): Promise<PeerStats> {
+  const { data } = await sb.rpc('rpc_wynky_peer_stats', { p_exam_key: examKey, p_fields: fields });
+  const out: PeerStats = {};
+  for (const r of (Array.isArray(data) ? data : []) as { field: string; value: string; users: number; cohort_users: number; cohort: 'exam_daytype' | 'exam' }[]) {
+    const f = out[r.field] || (out[r.field] = { cohort: r.cohort, cohortUsers: Number(r.cohort_users), counts: [] });
+    f.counts.push({ value: r.value, users: Number(r.users) });
+  }
+  return out;
+}
+
+export interface ChannelSignal { channelId: string; label: string; sameExam: number; otherExams: number; alsoPicked: number }
+
+export async function fetchChannelSignals(sb: SupaLike, examKey: string, subjKey: string, picked: string[]): Promise<ChannelSignal[]> {
+  const { data } = await sb.rpc('rpc_wynky_channel_signals', { p_exam_key: examKey, p_subject_key: subjKey, p_picked: picked });
+  return ((Array.isArray(data) ? data : []) as any[]).map(r => ({
+    channelId: r.channel_id, label: r.channel_label,
+    sameExam: Number(r.same_exam_users) || 0, otherExams: Number(r.other_exam_users) || 0, alsoPicked: Number(r.also_picked_users) || 0,
+  }));
 }
 
 /* ── YouTube channel suggestions ──────────────────────────────────────

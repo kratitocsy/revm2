@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSchedule } from './scheduleGenerator';
+import { generateSchedule, splitBlocks } from './scheduleGenerator';
 
 describe('generateSchedule', () => {
   it('dropper: full self-study, no fixed commitments, 10+ hours requested — gets cut to the usable window', () => {
@@ -93,13 +93,14 @@ describe('generateSchedule', () => {
     expect(studyBlocks.every((b) => b.subjectName === 'Biology')).toBe(true);
   });
 
-  it('inserts a long break after 3 hours of cumulative study', () => {
+  it('inserts a long break after 3 hours of study in one sitting', () => {
     const result = generateSchedule({
       wakeTime: '06:00',
       sleepTime: '23:00',
-      dailyHoursRequested: 5,
+      dailyHoursRequested: 4,
       subjects: [{ id: 's1', name: 'Solo Subject' }],
-      fixedCommitments: [],
+      // Only 17:00-22:00 is free, so all four blocks run in one evening sitting.
+      fixedCommitments: [{ start: '07:00', end: '17:00' }],
       blockLengthMinutes: 60,
       breakAfterBlockMinutes: 10,
       longBreakEveryMinutes: 180,
@@ -125,5 +126,68 @@ describe('generateSchedule', () => {
     for (const b of result.blocks.filter((b) => b.kind !== 'sleep')) {
       expect(b.startMinutes >= sleepBlock.startMinutes && b.endMinutes <= sleepBlock.endMinutes).toBe(false);
     }
+  });
+
+  const study = (r: ReturnType<typeof generateSchedule>) => r.blocks.filter((b) => b.kind === 'study');
+
+  it('never returns an empty plan because each subject rounded down to zero blocks', () => {
+    const result = generateSchedule({
+      wakeTime: '06:00', sleepTime: '23:00', dailyHoursRequested: 1.5, blockLengthMinutes: 60,
+      subjects: ['Physics', 'Chemistry', 'Maths', 'Biology'].map((name, i) => ({ id: `s${i}`, name })),
+    });
+    // 90 minutes can't give 4 subjects a 25+ minute block each, so the weakest-first
+    // round-robin fills what fits: at least one real block, never over the time asked.
+    expect(study(result).length).toBeGreaterThan(0);
+    expect(result.placedStudyMinutes).toBe(90);
+  });
+
+  it('shortens blocks so every subject gets a turn when there is enough time', () => {
+    const result = generateSchedule({
+      wakeTime: '06:00', sleepTime: '23:00', dailyHoursRequested: 2, blockLengthMinutes: 60,
+      subjects: ['Physics', 'Chemistry', 'Maths', 'Biology'].map((name, i) => ({ id: `s${i}`, name })),
+    });
+    expect(new Set(study(result).map((b) => b.subjectName)).size).toBe(4);
+    expect(result.blockLengthMinutes).toBe(30);
+  });
+
+  it('matches the hours asked instead of rounding every subject up', () => {
+    const result = generateSchedule({
+      wakeTime: '06:00', sleepTime: '23:00', dailyHoursRequested: 5, blockLengthMinutes: 60,
+      subjects: ['Physics', 'Chemistry', 'Maths'].map((name, i) => ({ id: `s${i}`, name })),
+    });
+    expect(result.placedStudyMinutes).toBe(300);
+  });
+
+  it('spreads a free day over morning and evening instead of one long run from 7 AM', () => {
+    const result = generateSchedule({
+      wakeTime: '06:00', sleepTime: '23:00', dailyHoursRequested: 5, blockLengthMinutes: 60,
+      subjects: ['Physics', 'Chemistry', 'Maths'].map((name, i) => ({ id: `s${i}`, name })),
+    });
+    const starts = study(result).map((b) => b.startMinutes);
+    expect(starts.some((m) => m < 13 * 60)).toBe(true);
+    expect(starts.some((m) => m >= 17 * 60)).toBe(true);
+  });
+
+  it('uses the gaps around school and coaching', () => {
+    const result = generateSchedule({
+      wakeTime: '06:00', sleepTime: '23:00', dailyHoursRequested: 4, blockLengthMinutes: 60,
+      subjects: ['Physics', 'Chemistry', 'Maths'].map((name, i) => ({ id: `s${i}`, name })),
+      fixedCommitments: [{ start: '08:00', end: '14:00' }, { start: '16:00', end: '19:00' }],
+    });
+    for (const b of study(result)) {
+      expect(b.startMinutes < 14 * 60 && b.endMinutes > 8 * 60).toBe(false);
+      expect(b.startMinutes < 19 * 60 && b.endMinutes > 16 * 60).toBe(false);
+    }
+    expect(result.placedStudyMinutes).toBe(240);
+  });
+});
+
+describe('splitBlocks', () => {
+  it('always adds up to the total and gives weak subjects more', () => {
+    expect(splitBlocks(5, [1, 1, 1]).reduce((a, b) => a + b, 0)).toBe(5);
+    const [weak, a, b] = splitBlocks(7, [1.5, 1, 1]);
+    expect(weak).toBeGreaterThanOrEqual(a);
+    expect(weak).toBeGreaterThanOrEqual(b);
+    expect(splitBlocks(2, [1, 1.5, 1, 1])).toEqual([1, 1, 0, 0]);
   });
 });

@@ -61,7 +61,7 @@ describe('confirmPlan', () => {
       { kind: 'study' as const, startMinutes: 420, endMinutes: 480, startTime: '07:00', endTime: '08:00', subjectName: 'Physics' },
       { kind: 'sleep' as const, startMinutes: 1380, endMinutes: 1830, startTime: '23:00', endTime: '06:30' },
     ],
-    requestedMinutes: 60, usableWindowMinutes: 900, scheduledStudyMinutes: 60, wasCut: false,
+    requestedMinutes: 60, usableWindowMinutes: 900, scheduledStudyMinutes: 60, placedStudyMinutes: 60, blockLengthMinutes: 60, wasCut: false,
   };
   const base = { userId: 'u1', planName: 'Wynky Plan', result, daysOfWeek: [1], freeTimeApps: [] };
 
