@@ -213,5 +213,5 @@ export function formatRecommendedPlan(result: GeneratorResult): string {
     .filter(b => b.kind !== 'break')
     .map(b => `${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : (b.subjectName || 'Study')}`);
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
-  return `Here's your day: ${fmtHours(result.scheduledStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+  return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
 }

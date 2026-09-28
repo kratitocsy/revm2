@@ -15,7 +15,10 @@
       time. Divide total time proportionally.
    4. Block length comes from the quiz's duration-bucket answer
       (20-30 / 45-60 / 90 / 120+ min) — passed in as
-      blockLengthMinutes, a single representative number per user.
+      blockLengthMinutes. The day gets round(time / length) blocks,
+      split between subjects by weight so the total matches the time
+      asked. With more subjects than blocks, blocks shrink (not under
+      25 min) so more subjects get a turn.
    5. Order: alternate between weak and non-weak subjects rather
       than bunching one subject's blocks together (spec: "Order:
       hardest or weakest subject first (highest energy). Alternate
@@ -23,8 +26,10 @@
       from the quiz (no per-subject difficulty scale), "alternate
       heavy and light" is implemented as round-robin between the
       weak group and the rest, weak group going first each round.
-   6. 10-15 min break after each block; 30 min break after 3 hours
-      of cumulative study.
+   6. Blocks are spread over morning / afternoon / evening sessions
+      of the free time rather than packed from the first free
+      minute. 10-15 min break after each block; 30 min break after
+      3 hours of study in one sitting.
    7. Sleep block blocks everything except alarm/calls (caller
       applies the actual block-list; this just marks the block).
 */
@@ -80,6 +85,10 @@ export interface GeneratorResult {
   requestedMinutes: number;
   usableWindowMinutes: number;
   scheduledStudyMinutes: number;
+  /** Study minutes actually placed in the day (whole blocks that fit). */
+  placedStudyMinutes: number;
+  /** Block length used; shorter than asked when that lets every subject in. */
+  blockLengthMinutes: number;
   wasCut: boolean;
 }
 
@@ -126,12 +135,62 @@ function intervalMinutes(intervals: Interval[]): number {
   return intervals.reduce((sum, i) => sum + (i.end - i.start), 0);
 }
 
+/** Splits `total` blocks between subjects in proportion to `weights`:
+ *  every subject gets at least one when there are enough blocks, and the
+ *  rest go by largest remainder, so the counts always add up to `total`. */
+export function splitBlocks(total: number, weights: number[]): number[] {
+  const n = weights.length;
+  const counts = new Array(n).fill(0);
+  if (!n || total <= 0) return counts;
+  let left = total;
+  if (total >= n) {
+    counts.fill(1);
+    left -= n;
+  }
+  const sum = weights.reduce((a, b) => a + b, 0) || 1;
+  const quotas = weights.map((w) => (left * w) / sum);
+  const floors = quotas.map(Math.floor);
+  for (let i = 0; i < n; i++) counts[i] += floors[i];
+  let rest = left - floors.reduce((a, b) => a + b, 0);
+  const byRemainder = quotas
+    .map((q, i) => ({ i, r: q - floors[i], w: weights[i] }))
+    .sort((a, b) => b.r - a.r || b.w - a.w || a.i - b.i);
+  for (let k = 0; rest > 0; k++, rest--) counts[byRemainder[k % n].i] += 1;
+  return counts;
+}
+
+// Session boundaries (minutes from midnight): lunch at 13:00, evening from 17:00.
+const SESSION_CUTS = [13 * 60, 17 * 60];
+
+function splitSessions(free: Interval[]): Interval[] {
+  const out: Interval[] = [];
+  for (const f of free) {
+    let start = f.start;
+    for (const cut of SESSION_CUTS) {
+      if (cut > start && cut < f.end) {
+        out.push({ start, end: cut });
+        start = cut;
+      }
+    }
+    out.push({ start, end: f.end });
+  }
+  return out.filter((i) => i.end > i.start);
+}
+
+function sessionWeight(start: number): number {
+  const m = start % 1440;
+  return m >= SESSION_CUTS[0] && m < SESSION_CUTS[1] ? 0.8 : 1.2;
+}
+
+/** Shortest block the generator will shrink to so every subject fits. */
+const MIN_BLOCK = 25;
+
 // ── generator ─────────────────────────────────────────────────
 export function generateSchedule(input: GeneratorInput): GeneratorResult {
   const breakAfterBlockMinutes = input.breakAfterBlockMinutes ?? 10;
   const longBreakEveryMinutes = input.longBreakEveryMinutes ?? 180;
   const longBreakMinutes = input.longBreakMinutes ?? 30;
-  const blockLength = Math.max(5, input.blockLengthMinutes);
+  const blockLengthBase = Math.max(5, input.blockLengthMinutes);
 
   const wakeMin = timeToMinutes(input.wakeTime) + 60; // Step 1: wake +1h
   let sleepMin = timeToMinutes(input.sleepTime) - 60; // Step 1: sleep -1h
@@ -155,13 +214,22 @@ export function generateSchedule(input: GeneratorInput): GeneratorResult {
   // Step 3: weight subjects — weak = 1.5x.
   const subjects = input.subjects.length > 0 ? input.subjects : [];
   const weights = subjects.map((s) => (s.isWeak ? 1.5 : 1));
-  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
 
-  // Step 4: convert each subject's proportional minutes into a block count.
-  const blockCounts = subjects.map((s, i) => {
-    const subjectMinutes = subjects.length > 0 ? (scheduledStudyMinutes * weights[i]) / totalWeight : 0;
-    return Math.max(0, Math.round(subjectMinutes / blockLength));
-  });
+  // Step 4: how many blocks fit the requested time. When there are more
+  // subjects than blocks, shorter blocks (never under MIN_BLOCK) give as
+  // many subjects as possible a turn; the rest wait, weakest going first.
+  let blockLength = blockLengthBase;
+  let totalBlocks = subjects.length ? Math.round(scheduledStudyMinutes / blockLength) : 0;
+  if (subjects.length && totalBlocks < subjects.length && scheduledStudyMinutes >= 2 * MIN_BLOCK) {
+    const k = Math.min(subjects.length, Math.floor(scheduledStudyMinutes / MIN_BLOCK));
+    blockLength = Math.min(blockLength, Math.max(MIN_BLOCK, Math.floor(scheduledStudyMinutes / k / 5) * 5));
+    totalBlocks = Math.floor(scheduledStudyMinutes / blockLength);
+  }
+  if (subjects.length && totalBlocks === 0 && scheduledStudyMinutes >= MIN_BLOCK) {
+    blockLength = Math.min(blockLength, scheduledStudyMinutes);
+    totalBlocks = 1;
+  }
+  const blockCounts = splitBlocks(totalBlocks, weights);
 
   // Step 5: round-robin ordering, weak subjects' turn comes first each round.
   const order = subjects
@@ -182,64 +250,73 @@ export function generateSchedule(input: GeneratorInput): GeneratorResult {
     }
   }
 
-  // Step 6/7: walk free intervals, placing study blocks + breaks.
-  const blocks: GeneratedBlock[] = [];
-  let intervalIdx = 0;
-  let cursor = freeIntervals[0]?.start ?? wakeMin;
-  let sinceLongBreak = 0;
-
-  const advanceToNextInterval = (): boolean => {
-    intervalIdx += 1;
-    if (intervalIdx >= freeIntervals.length) return false;
-    cursor = freeIntervals[intervalIdx].start;
-    return true;
-  };
-
-  for (let qi = 0; qi < blockQueue.length; qi++) {
-    const subject = blockQueue[qi];
-    // Skip forward past any interval we've exhausted.
-    while (
-      intervalIdx < freeIntervals.length &&
-      cursor + blockLength > freeIntervals[intervalIdx].end
-    ) {
-      if (!advanceToNextInterval()) break;
+  // Step 6: spread the blocks over the day instead of packing them from
+  // the first free minute. Free time is cut into morning / afternoon /
+  // evening sessions and each block goes to the session with the most room
+  // per block already given (morning and evening count a bit more than the
+  // post-lunch dip), so a free day becomes e.g. 2 morning + 1 afternoon +
+  // 2 evening blocks.
+  const sessions = splitSessions(freeIntervals).map((iv) => ({
+    ...iv,
+    weight: (iv.end - iv.start) * sessionWeight(iv.start),
+    capacity: Math.floor((iv.end - iv.start + breakAfterBlockMinutes) / (blockLength + breakAfterBlockMinutes)),
+    assigned: 0,
+  }));
+  for (let n = 0; n < blockQueue.length; n++) {
+    let bestIdx = -1;
+    for (let i = 0; i < sessions.length; i++) {
+      const s = sessions[i];
+      if (s.assigned >= s.capacity) continue;
+      if (bestIdx < 0 || s.weight / (s.assigned + 1) > sessions[bestIdx].weight / (sessions[bestIdx].assigned + 1)) bestIdx = i;
     }
-    if (intervalIdx >= freeIntervals.length) break; // ran out of usable window
+    if (bestIdx < 0) break; // ran out of usable window
+    sessions[bestIdx].assigned += 1;
+  }
 
-    const start = cursor;
-    const end = start + blockLength;
-    blocks.push({
-      kind: 'study',
-      startMinutes: start,
-      endMinutes: end,
-      startTime: minutesToTime(start),
-      endTime: minutesToTime(end),
-      subjectId: subject.id,
-      subjectName: subject.name,
-    });
-    cursor = end;
-    sinceLongBreak += blockLength;
-
-    const isLastBlock = qi === blockQueue.length - 1;
-    if (!isLastBlock) {
+  // Step 7: place each session's blocks back to back with breaks; a long
+  // break after 3 hours of study without a real gap. Blocks that don't fit
+  // (long breaks take room) move on to the next session.
+  const blocks: GeneratedBlock[] = [];
+  let qi = 0;
+  let carry = 0;
+  let sinceLongBreak = 0;
+  let lastEnd = -Infinity;
+  for (const s of sessions) {
+    let want = s.assigned + carry;
+    let cursor = s.start;
+    while (want > 0 && qi < blockQueue.length && cursor + blockLength <= s.end) {
+      if (cursor > lastEnd + longBreakMinutes - 1) sinceLongBreak = 0; // a real gap is a rest too
+      const subject = blockQueue[qi++];
+      blocks.push({
+        kind: 'study',
+        startMinutes: cursor,
+        endMinutes: cursor + blockLength,
+        startTime: minutesToTime(cursor),
+        endTime: minutesToTime(cursor + blockLength),
+        subjectId: subject.id,
+        subjectName: subject.name,
+      });
+      cursor += blockLength;
+      lastEnd = cursor;
+      sinceLongBreak += blockLength;
+      want -= 1;
+      if (want === 0 || qi >= blockQueue.length) break;
       const takeLongBreak = sinceLongBreak >= longBreakEveryMinutes;
       const breakLen = takeLongBreak ? longBreakMinutes : breakAfterBlockMinutes;
+      if (cursor + breakLen + blockLength > s.end) break;
       if (takeLongBreak) sinceLongBreak = 0;
-
-      // Only insert the break if it still fits in the current interval;
-      // otherwise just let the next block roll into the next interval.
-      if (cursor + breakLen <= (freeIntervals[intervalIdx]?.end ?? cursor)) {
-        blocks.push({
-          kind: 'break',
-          startMinutes: cursor,
-          endMinutes: cursor + breakLen,
-          startTime: minutesToTime(cursor),
-          endTime: minutesToTime(cursor + breakLen),
-        });
-        cursor += breakLen;
-      }
+      blocks.push({
+        kind: 'break',
+        startMinutes: cursor,
+        endMinutes: cursor + breakLen,
+        startTime: minutesToTime(cursor),
+        endTime: minutesToTime(cursor + breakLen),
+      });
+      cursor += breakLen;
     }
+    carry = want;
   }
+  const placedStudyMinutes = blocks.filter((b) => b.kind === 'study').length * blockLength;
 
   // Sleep block: original sleep time -> original wake time (next day).
   const sleepStart = timeToMinutes(input.sleepTime);
@@ -258,6 +335,8 @@ export function generateSchedule(input: GeneratorInput): GeneratorResult {
     requestedMinutes,
     usableWindowMinutes,
     scheduledStudyMinutes,
+    placedStudyMinutes,
+    blockLengthMinutes: blockLength,
     wasCut,
   };
 }

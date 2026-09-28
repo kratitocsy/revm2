@@ -170,11 +170,44 @@ export function distractionApps(tags: string[]): string[] {
   return [...out];
 }
 
+/** Study minutes per subject over the last 30 days (study_sessions), so
+ *  Wynky can give more time to what the student has been neglecting. */
+export async function loadStudyMinutes(sb: SupaLike, userId: string): Promise<{ bySubject: Record<string, number>; sessions: number }> {
+  const { data } = await sb.from('study_sessions')
+    .select('subject, total_seconds')
+    .eq('user_id', userId)
+    .gte('started_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .limit(500);
+  const bySubject: Record<string, number> = {};
+  const rows = Array.isArray(data) ? data : [];
+  for (const r of rows as { subject: string | null; total_seconds: number | null }[]) {
+    if (!r.subject) continue;
+    const key = subjectKey(r.subject);
+    bySubject[key] = (bySubject[key] || 0) + Math.max(0, r.total_seconds || 0) / 60;
+  }
+  return { bySubject, sessions: rows.length };
+}
+
+/** Subjects that get 1.5x time: the ones studied well below the average
+ *  share over the last 30 days (never studied counts), at most half of
+ *  them. Needs 3+ logged sessions; with less history nobody is weak. */
+export function weakSubjects(subjects: string[], study: { bySubject: Record<string, number>; sessions: number }): string[] {
+  if (subjects.length < 2 || study.sessions < 3) return [];
+  const mins = subjects.map(s => ({ s, m: study.bySubject[subjectKey(s)] || 0 }));
+  const total = mins.reduce((a, b) => a + b.m, 0);
+  if (total <= 0) return [];
+  const avg = total / subjects.length;
+  return mins.filter(x => x.m < 0.6 * avg).sort((a, b) => a.m - b.m)
+    .slice(0, Math.floor(subjects.length / 2)).map(x => x.s);
+}
+
 export interface RecommendInput {
   wakeTime: string;
   sleepTime: string;
   dailyMinutes: number;
   subjects: string[];
+  /** Subjects to give 1.5x time (see weakSubjects). */
+  weak?: string[];
   blockLengthMinutes: number;
   /** School, coaching or work hours to plan around. */
   fixedCommitments?: FixedCommitment[];
@@ -182,7 +215,7 @@ export interface RecommendInput {
 
 export function recommend(input: RecommendInput): GeneratorResult {
   const subjectInputs: SubjectInput[] = input.subjects.length
-    ? input.subjects.map((name, i) => ({ id: `s${i}`, name, isWeak: false }))
+    ? input.subjects.map((name, i) => ({ id: `s${i}`, name, isWeak: !!input.weak?.includes(name) }))
     : [{ id: 's0', name: 'Study', isWeak: false }];
   return generateSchedule({
     wakeTime: input.wakeTime,

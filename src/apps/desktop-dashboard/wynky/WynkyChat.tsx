@@ -5,7 +5,7 @@ import { REVM2_CONFIG } from '../../../lib/supabase.js'
 import {
   loadKnownProfile, loadRemembered, loadEvents, recordEvents, fetchPeerStats, fetchChannelSignals,
   defaultDailyMinutes, bucketMinutes, distractionSites, distractionApps,
-  recommend, confirmPlan, confirmAiPlan, ensurePresets, rememberAnswers, rememberAllowlists, recordOutcome,
+  recommend, confirmPlan, rememberAnswers, rememberAllowlists, recordOutcome, loadStudyMinutes, weakSubjects,
   NoEnforceableBlocksError, STUDY_MODE_OPTIONS, examFamilyKey, subjectKey, seedQueriesFor,
   resolveChannelSeed, fetchPopularChannels, setChannelPick, channelPickId, appPickerAvailable, listPickableApps,
   type WynkyKnownProfile, type WynkyRemembered, type SubjectAllowlist, type AiSlot, type ChannelPick,
@@ -21,6 +21,7 @@ import {
   parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
+import { draftSlots, standingRequests, checkRefined, toResult } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 /* ============================================================
@@ -37,16 +38,20 @@ import type { GeneratorResult } from '../../_shared/scheduleGenerator'
    Everything the student keeps, changes or asks for is logged to
    wynky_events so the next plan needs even fewer taps.
 
+   Every plan is built by the rule-based generator and then improved by
+   Gemini (ai-generate-schedule "refine" mode, see wynkyRefine.ts); if
+   Gemini is busy or its answer fails the checks, the rule plan is shown.
    Typed requests Wynky understands ("5 hours", "I wake at 6",
    "pw.live for Physics") are applied and remembered straight away;
-   anything else goes to Gemini Flash (ai-generate-schedule) in the same
-   chat. The full set-up (subjects, sites, channels, apps) is still one
-   tap away under "Change my set-up". Nothing is saved until the student
+   anything else goes to Gemini as the top-priority instruction for the
+   same plan, and is remembered so every later plan follows it too.
+   The full set-up (subjects, sites, channels, apps) is still one tap
+   away under "Change my set-up". Nothing is saved until the student
    taps Confirm.
    ============================================================ */
 
 type Step = 'loading' | 'signed_out' | 'subjects' | 'sites' | 'channels' | 'apps' | 'apps_mode'
-  | 'busy' | 'hours' | 'block' | 'wake' | 'sleep' | 'preview' | 'ai_preview' | 'done'
+  | 'busy' | 'hours' | 'block' | 'wake' | 'sleep' | 'preview' | 'done'
 
 type Gap = 'subjects' | 'busy' | 'wake' | 'sleep' | 'hours'
 
@@ -61,6 +66,8 @@ interface Profile {
   remembered: WynkyRemembered
   events: WynkyEvent[]
   peers: PeerStats
+  /** Minutes per subject over the last 30 days, for weak subjects. */
+  study: { bySubject: Record<string, number>; sessions: number }
 }
 interface Draft {
   subjects: string[]
@@ -82,13 +89,14 @@ interface Recs {
   sites: Record<string, string[]>
 }
 interface ChannelSuggestion extends ChannelPick { pickCount: number; note?: string; score: number }
-interface AiSchedule { name: string; days_of_week: number[]; slots: AiSlot[] }
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
 // One name for every plan the chat saves, so confirming a new one replaces
 // the last one instead of stacking a second active schedule on top.
 const PLAN_NAME = 'Wynky Plan'
 const MAX_SHOWN_OPTIONS = 40
+// Longest Wynky waits for Gemini before showing the rule-based plan.
+const REFINE_TIMEOUT_MS = 20_000
 const TIME_RE = /^\d{2}:\d{2}$/
 
 const EMPTY_KNOWN: WynkyKnownProfile = {
@@ -127,22 +135,10 @@ function toAiSlots(slots: PlanSlotInput[]): AiSlot[] {
   return slots.map(s => ({ start_time: s.startTime, end_time: s.endTime, preset_name: '', subject: s.subject ?? undefined, is_sleep: s.isSleep }))
 }
 
-function studyMinutes(slots: AiSlot[]): number {
-  return slots.filter(s => !s.is_sleep).reduce((sum, s) => {
-    const [sh, sm] = s.start_time.split(':').map(Number); const [eh, em] = s.end_time.split(':').map(Number)
-    return sum + ((eh * 60 + em) - (sh * 60 + sm))
-  }, 0)
-}
-
 // fetch() rejects with a bare TypeError ("Failed to fetch") when offline.
 function chatErrorText(e: unknown, fallback: string): string {
   if (e instanceof TypeError && /fetch|network/i.test(e.message)) return "I couldn't reach the server. Check your connection and try again."
   return e instanceof Error ? e.message : fallback
-}
-
-function formatAiSchedule(schedule: AiSchedule): string {
-  const lines = (schedule.slots || []).map(s => `${s.start_time}–${s.end_time}  ${s.is_sleep ? '😴 Sleep' : (s.subject || 'Study')}`)
-  return `Here's "${schedule.name}":\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what else to change.`
 }
 
 const busyWindows = (busy: string[]) => busy.map(parseBusy).filter((b): b is { start: string; end: string } => !!b)
@@ -151,18 +147,16 @@ const busyList = (value: string | undefined) => (!value || value === NOTHING_FIX
 const busyLabel = (value: string) => BUSY_OPTIONS.find(o => o.value === value)?.label ?? fmtBusy(value)
 const siteLabel = (site: string) => (STUDY_MODE_OPTIONS.find(o => o.site === site)?.label ?? site).replace(/\s*\(.*\)$/, '')
 
-/** What the AI should assume unless the student's own words say otherwise. */
-function aiGoalText(d: Draft, text: string, known: WynkyKnownProfile, notes: string[]): string {
+/** What Gemini should know about the student besides the plan itself. */
+function studentFacts(known: WynkyKnownProfile): string[] {
   const facts: string[] = []
-  if (d.wakeTime && d.sleepTime) facts.push(`I usually wake at ${fmtClock(d.wakeTime)} and sleep at ${fmtClock(d.sleepTime)}`)
-  facts.push(`I'd like about ${fmtHours(d.dailyMinutes)} of study, in blocks of about ${d.blockMinutes} minutes`)
-  const busy = busyWindows(d.busy)
-  if (busy.length) facts.push(`I'm busy (school/coaching/work) ${busy.map(b => `${b.start}–${b.end}`).join(' and ')}`)
-  if (known.exam) facts.push(`I'm preparing for ${known.exam}`)
-  if (known.dna.studyStyle.length) facts.push(`I learn best with ${known.dna.studyStyle.join(' and ')}`)
-  if (known.dna.challenges.length) facts.push(`I struggle with ${known.dna.challenges.join(' and ')}`)
-  const earlier = notes.length ? `\nEarlier I asked you: ${notes.map(n => `"${n}"`).join('; ')}.` : ''
-  return `${text}\n\n(Unless I said otherwise above: ${facts.join('; ')}.)${earlier}`
+  if (known.exam) facts.push(`preparing for ${known.exam}`)
+  if (known.dna.dayType) facts.push(`day type: ${known.dna.dayType.replace(/_/g, ' ')}`)
+  if (known.dna.archetype) facts.push(`Study DNA archetype: ${known.dna.archetype}`)
+  if (known.dna.studyStyle.length) facts.push(`learns best with ${known.dna.studyStyle.join(' and ')}`)
+  if (known.dna.challenges.length) facts.push(`struggles with ${known.dna.challenges.join(' and ')}`)
+  if (known.distractionTags.length) facts.push(`distracted by ${known.distractionTags.join(', ')}`)
+  return facts
 }
 
 // The Wynko mascot as a round avatar (header, every bot message, typing indicator).
@@ -287,7 +281,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   const [deviceApps, setDeviceApps] = useState<PickableApp[] | null>(null)
   const [appsLoading, setAppsLoading] = useState(false)
   const [ruleResult, setRuleResult] = useState<GeneratorResult | null>(null)
-  const [aiSchedule, setAiSchedule] = useState<AiSchedule | null>(null)
+  // The plan before Gemini's changes, while the shown plan is Gemini's.
+  const [plainResult, setPlainResult] = useState<GeneratorResult | null>(null)
   const profileRef = useRef<Profile | null>(null)
   const recsRef = useRef<Recs | null>(null)
   const gapsRef = useRef<Gap[]>([])
@@ -299,6 +294,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   // What this chat already saved, so confirming again doesn't count twice.
   const loggedRef = useRef<Set<string>>(new Set())
   const subjectsGapRef = useRef(false)
+  // Only the latest plan request may show its answer.
+  const refineSeq = useRef(0)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(1)
@@ -397,6 +394,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         // Start from scratch rather than fail: every answer can be picked again.
       }
       try { events = await loadEvents(sb as any, uid) } catch { /* no history yet */ }
+      let study: Profile['study'] = { bySubject: {}, sessions: 0 }
+      try { study = await loadStudyMinutes(sb as any, uid) } catch { /* no weak subjects then */ }
       const now = Date.now()
       events = withRememberedEvents(events, remembered, now)
       const subjectsForPeers = Object.keys(remembered.subjectAllowlists || {}).length
@@ -407,7 +406,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           ['wake', 'sleep', 'daily_minutes', 'block_minutes', 'busy', ...uniq(subjectsForPeers.map(sitesField))])
       } catch { /* Study DNA and defaults still work */ }
       if (cancelled) return
-      const p: Profile = { uid, known, remembered, events, peers }
+      const p: Profile = { uid, known, remembered, events, peers, study }
       profileRef.current = p
       setProfile(p)
       const { draft: d, recs, gaps } = recommendDraft(p, now)
@@ -585,7 +584,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     ask('sleep', 'And when do you usually go to sleep?')
   }
 
-  function buildPreview(d: Draft) {
+  function buildPreview(d: Draft, requestNow: string | null = null) {
     setDraft(d)
     if (!d.wakeTime) { enterWake(d); return }
     if (!d.sleepTime) { enterSleep(d); return }
@@ -600,21 +599,73 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     // free-time blocklist can cover them; otherwise those blocks would be
     // dropped on save, so leave the subject out of the plan.
     const subjects = freeSites.length || freeApps.length ? d.subjects : enforceable
+    const p = profileRef.current
+    const weak = p ? weakSubjects(subjects, p.study) : []
     const result = recommend({
-      wakeTime: d.wakeTime, sleepTime: d.sleepTime, dailyMinutes: d.dailyMinutes, subjects,
+      wakeTime: d.wakeTime, sleepTime: d.sleepTime, dailyMinutes: d.dailyMinutes, subjects, weak,
       blockLengthMinutes: d.blockMinutes, fixedCommitments: busyWindows(d.busy),
     })
     if (!result.blocks.some(b => b.kind === 'study')) {
-      const p = profileRef.current
       const askBusy = !!p && needsBusyQuestion(p.known.dna) && busyWindows(d.busy).length > 0
       say(`Those times don't leave any room for study. Let's go over your ${askBusy ? 'busy times and ' : ''}wake and sleep times again.`)
       gapsRef.current = ['wake', 'sleep']
       if (askBusy) enterBusy(d); else nextGap(d)
       return
     }
-    setRuleResult(result)
-    setAiSchedule(null)
-    ask('preview', formatRecommendedPlan(result))
+    void refineAndShow(d, result, subjects, weak, requestNow)
+  }
+
+  /** Lets Gemini improve the rule-based plan, then shows whichever passed
+   *  the checks. The student's request (if any) is Gemini's top priority. */
+  async function refineAndShow(d: Draft, result: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null) {
+    const p = profileRef.current
+    const seq = ++refineSeq.current
+    const standing = p ? standingRequests(p.events.filter(e => !requestNow || e.value !== requestNow.slice(0, 300))) : []
+    let shown = result
+    let note = ''
+    let failed = ''
+    setTyping(true)
+    try {
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) throw new Error('Not signed in.')
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), REFINE_TIMEOUT_MS)
+      try {
+        const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({
+            mode: 'refine', subjects, weak, draft: draftSlots(result),
+            wake: d.wakeTime, sleep: d.sleepTime, busy: busyWindows(d.busy),
+            target_minutes: result.placedStudyMinutes, block_minutes: result.blockLengthMinutes,
+            facts: p ? studentFacts(p.known) : [], request_now: requestNow, standing_requests: standing,
+          }),
+        })
+        const data = await res.json()
+        // An older deployed function ignores "refine" and answers in another shape.
+        if (!res.ok || !data.success || data.mode !== 'refine') throw new Error(data.error || 'Gemini is not available right now.')
+        const check = checkRefined(data.slots, result, {
+          subjects, wakeTime: d.wakeTime!, sleepTime: d.sleepTime!, busy: busyWindows(d.busy),
+          requestNow: !!requestNow, standingRequests: standing,
+        })
+        if (!check.ok) throw new Error(`Gemini's plan didn't fit (${check.reason}).`)
+        shown = toResult(check.slots, result)
+        note = typeof data.note === 'string' ? data.note.trim() : ''
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch (e) {
+      failed = e instanceof DOMException && e.name === 'AbortError' ? 'Gemini took too long.' : chatErrorText(e, 'Gemini is not available right now.')
+    }
+    if (seq !== refineSeq.current) return
+    setTyping(false)
+    setRuleResult(shown)
+    setPlainResult(shown === result ? null : result)
+    const head = requestNow && failed
+      ? `I couldn't apply that just now (${failed.replace(/\.$/, '')}). Here's your plan without it; try asking again in a moment.\n\n`
+      : note ? `✨ ${note}\n\n` : ''
+    ask('preview', head + formatRecommendedPlan(shown))
   }
 
   // ── Options for the current question ──────────────────────────────────
@@ -681,12 +732,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       ...(profile && needsBusyQuestion(profile.known.dna) ? [{ id: 'busy', label: 'Change busy times' }] : []),
       { id: 'times', label: 'Change wake/sleep times' }, { id: 'block', label: 'Change block length' },
       { id: 'setup', label: 'Change subjects & sites' },
-    ]
-  } else if (step === 'ai_preview') {
-    options = [
-      { id: 'confirm', label: 'Confirm this plan' },
-      ...(draft.wakeTime && draft.sleepTime ? [{ id: 'rule', label: 'Back to my recommended day' }] : []),
-      { id: 'setup', label: 'Change subjects & sites' },
+      ...(plainResult ? [{ id: 'plain', label: 'Use the plan without AI changes' }] : []),
     ]
   } else if (step === 'done') {
     options = [{ id: 'again', label: 'Plan again' }, { id: 'setup', label: 'Change subjects & sites' }]
@@ -790,7 +836,6 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     if (busy) return
     const d = draft
     if (step === 'preview' && opt.id === 'confirm') { void confirmRecommended(d); return }
-    if (step === 'ai_preview' && opt.id === 'confirm') { void confirmAi(d); return }
     echo(opt.label)
     if (step === 'apps_mode') {
       afterSubject(withAllow(d, subject, { appsMode: opt.id === 'whitelist' ? 'whitelist' : 'blacklist' }), subjIdx)
@@ -809,9 +854,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       else if (opt.id === 'busy') enterBusy(d)
       else if (opt.id === 'times') { gapsRef.current = ['sleep']; enterWake(d) }
       else if (opt.id === 'block') enterBlock(d)
+      else if (opt.id === 'plain' && plainResult) {
+        setRuleResult(plainResult)
+        setPlainResult(null)
+        ask('preview', formatRecommendedPlan(plainResult))
+      }
       else enterSubjects(d)
-    } else if (step === 'ai_preview') {
-      if (opt.id === 'rule') buildPreview(d); else enterSubjects(d)
     } else if (step === 'done') {
       if (opt.id === 'again') buildPreview(d); else enterSubjects(d)
     }
@@ -934,53 +982,24 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       else if (step === 'wake') afterWake({ ...draft, wakeTime: t })
       else nextGap({ ...draft, sleepTime: t })
     } else {
-      // preview / ai_preview / done: simple requests are handled here and
+      // preview / done: simple requests are handled here and
       // remembered; anything else goes to the AI.
       const exact = options.find(o => o.label.toLowerCase() === text.toLowerCase())
       if (exact) { pickSingle(exact); return }
       echo(text)
       const updated = applyLocalRequest(text, draft)
       if (updated) { if (updated !== draft) buildPreview(updated); return }
-      await askAi(draft, text)
+      askAi(draft, text)
     }
   }
 
-  async function askAi(d: Draft, text: string) {
-    const p = profileRef.current
-    if (!p) return
-    const notes = p.events.filter(e => e.field === 'note').slice(0, 3).map(e => e.value)
+  /** A request Wynky can't apply by itself: Gemini rebuilds the plan with
+   *  it as the top priority, and it is remembered (with the confirmed plan)
+   *  so every later plan follows it too. */
+  function askAi(d: Draft, text: string) {
     learn([{ field: 'note', value: text.slice(0, 300), action: 'requested' }])
-    setTyping(true)
-    try {
-      const { freeSites, freeApps } = freeTimeLists()
-      const { presetNames } = await ensurePresets(sb as any, p.uid, { subjectAllowlists: allowFor(d), freeTimeSites: freeSites, freeTimeApps: freeApps })
-      // With no preset every study block would be dropped on save, so finish the set-up first.
-      if (!presetNames.length) {
-        say('Before I build that, I need at least one site, YouTube channel or app for a subject, so Focus Lock has something to enforce.')
-        if (d.subjects.length) enterSites(d, 0); else enterSubjects(d)
-        return
-      }
-      const { data: { session } } = await sb.auth.getSession()
-      if (!session) throw new Error('Not signed in.')
-      const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ mode: 'text', goal_text: aiGoalText(d, text, p.known, notes), presets: presetNames.map(n => ({ name: n })), subjects: d.subjects }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || "Wynky couldn't build that.")
-      const schedule = data.schedule as AiSchedule
-      if (!(schedule.slots || []).some(s => !s.is_sleep)) {
-        say('That came back without any study blocks. Tell me a bit more about your day and I\'ll try again.')
-        return
-      }
-      setAiSchedule(schedule)
-      ask('ai_preview', formatAiSchedule(schedule))
-    } catch (e) {
-      say(`${chatErrorText(e, 'Something went wrong building that schedule.')} Your recommended plan is still here.`)
-    } finally {
-      setTyping(false)
-    }
+    say("Got it. I'll build your plan around that and remember it for next time.")
+    buildPreview(d, text)
   }
 
   // ── Saving ─────────────────────────────────────────────────────────────
@@ -1041,41 +1060,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       await rememberAnswers(sb as any, p.uid, { wakeTime: d.wakeTime, sleepTime: d.sleepTime, subjectAllowlists: allow }).catch(() => {})
       saveLearning(d, confirmedEvents(d), { planFields: true })
       await recordOutcome(sb as any, {
-        source: 'rule_based', requestedMinutes: d.dailyMinutes, confirmedMinutes: ruleResult.scheduledStudyMinutes,
+        source: plainResult ? 'ai_custom' : 'rule_based', requestedMinutes: d.dailyMinutes, confirmedMinutes: ruleResult.placedStudyMinutes,
         outcome: String(d.dailyMinutes) === recsRef.current?.dailyMinutes?.value ? 'accepted_as_is' : 'accepted_edited',
       }).catch(() => {})
       onPlanConfirmed({ days_of_week: ALL_DAYS, slots })
       finishConfirmed(ruleResult.blocks.filter(b => b.kind === 'study').length - slots.filter(s => !s.is_sleep).length)
-    } catch (e) {
-      saveFailed(e, d)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function confirmAi(d: Draft) {
-    const p = profileRef.current
-    if (!p || !aiSchedule) return
-    echo('Confirm this plan')
-    setSaving(true)
-    try {
-      const { freeSites, freeApps } = freeTimeLists()
-      const allow = allowFor(d)
-      const days = aiSchedule.days_of_week?.length ? aiSchedule.days_of_week : ALL_DAYS
-      const { writtenSlots } = await confirmAiPlan(sb as any, {
-        userId: p.uid, planName: PLAN_NAME, daysOfWeek: days, aiSlots: aiSchedule.slots,
-        subjectAllowlists: allow, freeTimeSites: freeSites, freeTimeApps: freeApps,
-      })
-      const remember = d.wakeTime && d.sleepTime
-        ? rememberAnswers(sb as any, p.uid, { wakeTime: d.wakeTime, sleepTime: d.sleepTime, subjectAllowlists: allow })
-        : rememberAllowlists(sb as any, p.uid, allow)
-      await remember.catch(() => {})
-      // The AI plan's own hours and times may differ from the draft, so only
-      // the subjects' set-up, requests it kept and the timing are learned.
-      saveLearning(d, confirmedEvents(d).filter(e => e.field.startsWith('sites:') || e.field === 'setup_seconds'), { planFields: false })
-      await recordOutcome(sb as any, { source: 'ai_custom', requestedMinutes: null, confirmedMinutes: studyMinutes(writtenSlots), outcome: 'accepted_as_is' }).catch(() => {})
-      onPlanConfirmed({ days_of_week: days, slots: writtenSlots })
-      finishConfirmed(aiSchedule.slots.filter(s => !s.is_sleep).length - writtenSlots.filter(s => !s.is_sleep).length)
     } catch (e) {
       saveFailed(e, d)
     } finally {

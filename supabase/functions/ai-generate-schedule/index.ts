@@ -2,10 +2,17 @@
 // Server-side proxy to Google Gemini for AI-powered schedule generation.
 // Keeps the Gemini API key secret (never exposed to the client).
 //
-// Two modes:
-//   "text"  — user describes goals in natural language → AI builds a schedule
-//   "stats" — AI analyses the user's study_sessions, subjects, exam date
-//             and generates an optimal schedule from their patterns
+// Three modes:
+//   "text"   — user describes goals in natural language → AI builds a schedule
+//   "stats"  — AI analyses the user's study_sessions, subjects, exam date
+//              and generates an optimal schedule from their patterns
+//   "refine" — Wynky sends its rule-based draft day plus what it knows
+//              (Study DNA, busy times, weak subjects, the student's
+//              requests) and the AI returns an improved version of the
+//              same day. The student's own requests rank above everything.
+//
+// Google sometimes answers 429/5xx when a model is busy: each call is
+// retried once, then tried on GEMINI_FALLBACK_MODEL.
 //
 // The generated schedule is returned as JSON for the client to preview in
 // the normal schedule builder — the user always reviews before saving.
@@ -63,10 +70,70 @@ Rules:
 - Distribute harder subjects during likely peak hours, lighter ones otherwise.
 - Return ONLY valid JSON. No markdown fences. No explanation.`;
 
+const REFINE_PROMPT = `You are Wynky, a study planner for Indian exam students (JEE, NEET, boards and others).
+You get a DRAFT plan for one day, built by simple rules, and return an improved plan for the same day.
+
+Priority, highest first — a higher item always wins over a lower one:
+1. STUDENT'S REQUEST NOW (if given).
+2. STANDING REQUESTS the student made in earlier chats.
+3. Hard limits: never study inside BUSY times, never before WAKE + 30 min or after SLEEP - 30 min.
+4. What is known about the student: Study DNA, weak subjects, exam.
+5. The draft.
+
+How to improve the draft:
+- Put WEAK subjects and the hardest ones (Maths, Physics, Chemistry, Organic, Accounts) in fresh, high-energy
+  time: early in a sitting and in the morning when there is free morning time.
+- Don't put the same subject twice in a row; alternate heavy and lighter subjects.
+- Keep blocks close to BLOCK LENGTH (shorter if the Study DNA says the student struggles with consistency).
+- Leave 10-15 minutes between blocks, and 30 minutes after about 3 hours of study in one sitting.
+- Keep total study time close to TARGET STUDY MINUTES unless a request says otherwise.
+- If the draft is already good, return it unchanged.
+
+Return ONLY raw JSON, no markdown:
+{"slots":[{"start_time":"HH:MM","end_time":"HH:MM","subject":"one of SUBJECTS, copied exactly"}],"note":"one short friendly sentence (max 120 chars) saying what you changed and why, or empty"}
+
+Rules for slots: study blocks only (no sleep, no breaks), 24-hour HH:MM, end_time later than start_time
+on the same day, chronological, no overlaps, subject copied exactly from SUBJECTS.`;
+
+// Statuses that mean "busy or briefly broken, try again", not "bad request".
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+class GeminiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+/** Calls Gemini, retrying once on a busy/overloaded answer, then trying
+ *  the fallback model (if one is set and different). */
+async function generate(
+  userPrompt: string,
+  apiKey: string,
+  model: string,
+  systemPrompt = SYSTEM_PROMPT,
+): Promise<string> {
+  const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
+  const attempts = [model, model, ...(fallback && fallback !== model ? [fallback] : [])];
+  let lastErr: unknown = null;
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      return await callGemini(userPrompt, apiKey, attempts[i], systemPrompt);
+    } catch (e) {
+      lastErr = e;
+      const retryable = e instanceof GeminiError ? RETRYABLE.has(e.status) : true;
+      if (!retryable) break;
+      console.warn(`ai-generate-schedule: ${attempts[i]} failed (${e instanceof Error ? e.message.slice(0, 120) : e}), trying again`);
+      if (i === 0) await new Promise((r) => setTimeout(r, 1200));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Gemini failed");
+}
+
 async function callGemini(
   userPrompt: string,
   apiKey: string,
   model: string,
+  systemPrompt: string,
 ): Promise<string> {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -75,7 +142,7 @@ async function callGemini(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{ parts: [{ text: userPrompt }] }],
       generationConfig: {
         // Gemini 3.x models (including gemini-3.5-flash) are tuned for
@@ -114,7 +181,7 @@ async function callGemini(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini API ${res.status}: ${errText}`);
+    throw new GeminiError(res.status, `Gemini API ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
@@ -170,6 +237,28 @@ function validateSchedule(sched: Record<string, unknown>): string | null {
   return null;
 }
 
+const HHMM = /^\d{2}:\d{2}$/;
+
+/** Checks the refine answer's shape; Wynky checks the plan itself
+ *  (busy times, wake/sleep, total) again before showing it. */
+function validateRefined(out: Record<string, unknown>, subjects: string[]): string | null {
+  if (!Array.isArray(out.slots) || !out.slots.length) return "No study blocks";
+  let prevEnd = "00:00";
+  for (const slot of out.slots as Record<string, unknown>[]) {
+    const { start_time, end_time, subject } = slot;
+    if (typeof start_time !== "string" || !HHMM.test(start_time)) return `Bad start_time: ${start_time}`;
+    if (typeof end_time !== "string" || !HHMM.test(end_time)) return `Bad end_time: ${end_time}`;
+    if (end_time <= start_time) return `end_time must be after start_time: ${start_time}-${end_time}`;
+    if (start_time < prevEnd) return `Overlapping or out-of-order block at ${start_time}`;
+    if (typeof subject !== "string" || !subjects.includes(subject)) return `Unknown subject: ${subject}`;
+    prevEnd = end_time;
+  }
+  return null;
+}
+
+const str = (v: unknown, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
+const strList = (v: unknown, max = 10) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, max).map((x) => str(x)) : []);
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });
@@ -180,7 +269,8 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Not authenticated" }, 401);
 
-    const { mode, goal_text, presets, subjects } = await req.json();
+    const body = await req.json();
+    const { mode, goal_text, presets, subjects } = body;
     if (!mode) return json({ error: "mode is required" }, 400);
 
     const supabase = createClient(
@@ -200,6 +290,41 @@ Deno.serve(async (req: Request) => {
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) return json({ error: "AI not configured" }, 500);
     const model = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash";
+
+    if (mode === "refine") {
+      const subjectNames = strList(subjects, 20);
+      if (!subjectNames.length) return json({ error: "subjects are required" }, 400);
+      const draft = (Array.isArray(body.draft) ? body.draft : []).slice(0, 30)
+        .map((b: Record<string, unknown>) => `${str(b.start_time, 5)}-${str(b.end_time, 5)} ${str(b.subject, 60)}`);
+      const busy = (Array.isArray(body.busy) ? body.busy : []).slice(0, 6)
+        .map((b: Record<string, unknown>) => `${str(b.start, 5)}-${str(b.end, 5)}`);
+      const requestNow = str(body.request_now);
+      const standing = strList(body.standing_requests, 5);
+      const prompt = `STUDENT'S REQUEST NOW: ${requestNow || "none"}
+STANDING REQUESTS: ${standing.length ? standing.map((r) => `"${r}"`).join("; ") : "none"}
+
+SUBJECTS: ${subjectNames.join(", ")}
+WEAK SUBJECTS (least studied lately): ${strList(body.weak, 20).join(", ") || "none known"}
+WAKE: ${str(body.wake, 5)}   SLEEP: ${str(body.sleep, 5)}
+BUSY: ${busy.join(", ") || "nothing fixed"}
+TARGET STUDY MINUTES: ${Number(body.target_minutes) || 0}
+BLOCK LENGTH: ${Number(body.block_minutes) || 60} minutes
+ABOUT THE STUDENT: ${strList(body.facts, 12).join("; ") || "nothing more known"}
+
+DRAFT:
+${draft.join("\n")}`;
+      const rawText = await generate(prompt, apiKey, model, REFINE_PROMPT);
+      let out: Record<string, unknown>;
+      try {
+        out = extractJson(rawText) as Record<string, unknown>;
+      } catch {
+        console.error("ai-generate-schedule: refine output not JSON:", rawText.slice(0, 300));
+        return json({ error: "The AI's answer was cut off." }, 500);
+      }
+      const err = validateRefined(out, subjectNames);
+      if (err) return json({ error: `AI returned an invalid plan: ${err}` }, 500);
+      return json({ success: true, mode: "refine", slots: out.slots, note: str(out.note, 160) });
+    }
 
     let userPrompt: string;
     const presetList = (presets || []).map(
@@ -323,7 +448,7 @@ SUBJECTS: ${subjectList.join(", ") || "none specified"}
 Create a balanced, realistic schedule that addresses these goals.`;
     }
 
-    const rawText = await callGemini(userPrompt, apiKey, model);
+    const rawText = await generate(userPrompt, apiKey, model);
 
     let schedule: unknown;
     try {
