@@ -130,9 +130,11 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // WynkyChat.tsx). The main model starts first; if it fails, or hasn't
 // answered within HEDGE_AFTER_MS, the next provider starts alongside it and
 // the first good answer wins. A busy Gemini can take 15s just to answer
-// "503", so waiting for it in turn used to use up the whole wait.
+// "503", so waiting for it in turn used to use up the whole wait. At 6s
+// Groq only started at 12s with 3s left and timed out too, so each
+// provider now gets a 3s head start: main at 0s, fallback 3s, Groq 6s.
 const TOTAL_BUDGET_MS = 15_000;
-const HEDGE_AFTER_MS = 6_000;
+const HEDGE_AFTER_MS = 3_000;
 
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
@@ -222,6 +224,8 @@ async function callGroq(
       ],
       response_format: { type: "json_object" },
       max_tokens: 8192,
+      // gpt-oss reasons at "medium" by default, which is most of its wait.
+      ...(model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}),
     }),
   });
   if (!res.ok) {
