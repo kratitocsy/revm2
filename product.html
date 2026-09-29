@@ -1033,8 +1033,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
   const FOUNDERS = [
     { name:"Aryan Singh Sengar", role:"Founder & CTO", desc:"Leads Wynko\u2019s technology and product development, turning the vision into a focused study platform built for serious students.", photo:"founder-aryan.jpg?v=4", l:["#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd"] },
     { name:"Jatin Sinsinwar", role:"Co-founder & CEO", desc:"Leads Wynko\u2019s vision, growth, and business strategy, working to build a study platform that can scale from India to students globally.", photo:"founder-jatin.jpg?v=3", l:["#73583c","#7f6144","#89694b","#92714f","#9c7854","#a27e59","#a9835e","#ad8760","#b08a63","#b48e67","#b69069","#b89269","#ba946b","#bc966d","#be986f","#bf9a71"], r:["#5d452f","#674d34","#73563b","#7e5f42","#896747","#94704b","#9b764f","#a07a51","#a07a53","#9f7853","#a57e56","#ab835a","#ab855c","#a9835b","#a47f5a","#9c7956"] },
-    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg?v=4", l:["#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd"] },
-    { name:"Ismat Makwana", role:"Cybersecurity Expert", desc:"Helps strengthen Wynko\u2019s security and privacy, focusing on protecting the platform, its users, and the data behind a trusted study experience.", photo:"founder-ismat.jpg?v=3", cover:true, pos:"50% 64%" }
+    { name:"Adarsh Singh", role:"Chief Marketing Officer", desc:"Leads Wynko\u2019s marketing and brand growth, helping connect the product with students and build a strong community around focused learning.", photo:"founder-adarsh.jpg?v=4", l:["#fdfdfd","#fdfdfd"], r:["#fdfdfd","#fdfdfd"] }
   ];
 
   const track = document.getElementById('foundersTrack');
@@ -1080,28 +1079,31 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     track.style.transform = 'none';
   }
 
-  /* ---- Desktop / tablet: 2 cards per slide, exactly 2 slides.
-     Opens on the Founder & CTO + Co-founder & CEO slide and only moves
-     when the visitor uses the arrows, dots or a swipe (no autoplay). ---- */
+  /* ---- Desktop / tablet: 2 cards per slide. With an odd number of
+     founders the last slide stops at the final card instead of leaving an
+     empty half. Opens on the Founder & CTO + Co-founder & CEO slide and only
+     moves when the visitor uses the arrows, dots or a swipe (no autoplay). ---- */
   function setupDesktop(){
     track.innerHTML = FOUNDERS.map(tileHTML).join('');
-    dotsWrap.innerHTML = ['1','2'].map((_,i)=>'<button data-i="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>').join('');
+    const slides = Math.ceil(FOUNDERS.length / 2);
+    dotsWrap.innerHTML = Array.from({length:slides}).map((_,i)=>'<button data-i="'+i+'" aria-label="Go to slide '+(i+1)+'"></button>').join('');
     const dots = Array.from(dotsWrap.children);
 
     let page = 0;
     let viewW = 0;
 
     function computeWidth(){ viewW = viewport.getBoundingClientRect().width; }
+    function offset(p){ return Math.min(p * viewW, (FOUNDERS.length / 2 - 1) * viewW); }
 
     function render(withTransition){
       track.style.transition = withTransition !== false ? 'transform .6s cubic-bezier(.22,.61,.36,1)' : 'none';
-      track.style.transform = 'translateX(' + (-(page * viewW)) + 'px)';
+      track.style.transform = 'translateX(' + (-offset(page)) + 'px)';
       dots.forEach((d,i)=> d.classList.toggle('active', i===page));
       if(prevBtn) prevBtn.disabled = page === 0;
-      if(nextBtn) nextBtn.disabled = page === 1;
+      if(nextBtn) nextBtn.disabled = page === slides - 1;
     }
 
-    function goTo(p){ page = Math.max(0, Math.min(1, p)); render(true); }
+    function goTo(p){ page = Math.max(0, Math.min(slides - 1, p)); render(true); }
 
     computeWidth();
     render(false);
@@ -1116,7 +1118,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 
     let isDown = false, startX = 0, curX = 0;
     const onDown = (e)=>{ isDown = true; startX = (e.touches?e.touches[0].clientX:e.clientX); curX = startX; track.style.transition = 'none'; };
-    const onMove = (e)=>{ if(!isDown) return; curX = (e.touches?e.touches[0].clientX:e.clientX); const delta = curX - startX; track.style.transform = 'translateX(' + (-(page*viewW) + delta) + 'px)'; };
+    const onMove = (e)=>{ if(!isDown) return; curX = (e.touches?e.touches[0].clientX:e.clientX); const delta = curX - startX; track.style.transform = 'translateX(' + (-offset(page) + delta) + 'px)'; };
     const onUp = ()=>{ if(!isDown) return; isDown = false; const delta = curX - startX; const threshold = viewW * 0.15; if(delta > threshold) goTo(page-1); else if(delta < -threshold) goTo(page+1); else render(true); };
 
     addCleanup(viewport, 'touchstart', onDown, {passive:true});
