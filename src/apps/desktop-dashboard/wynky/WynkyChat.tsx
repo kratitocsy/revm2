@@ -349,6 +349,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   // Set once signed in; every message after that is saved to the student's history.
   const uidRef = useRef<string | null>(null)
   const [hasHistory, setHasHistory] = useState(false)
+  // History writes run one after another, so saved order matches chat order.
+  const writeChain = useRef<Promise<unknown>>(Promise.resolve())
 
   const busy = typing || saving || step === 'loading'
   const subject = draft.subjects[subjIdx] ?? ''
@@ -366,8 +368,10 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
    *  chat works the same if it fails. */
   function remember(sender: 'bot' | 'user', text: string) {
     if (!uidRef.current || !text.trim()) return
-    void (sb as any).from('wynky_chat_messages').insert({ sender, body: text.slice(0, 8000) })
-      .then(() => {}, () => {})
+    const row = { sender, body: text.slice(0, 8000) }
+    writeChain.current = writeChain.current
+      .then(() => (sb as any).from('wynky_chat_messages').insert(row))
+      .then((res: { error?: unknown } | undefined) => { if (!res?.error) setHasHistory(true) }, () => {})
   }
   /** Shows the student's earlier chats above this one. */
   async function loadHistory() {
@@ -387,6 +391,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   async function clearHistory() {
     if (!uidRef.current || !window.confirm('Delete your chat history with Wynky? Your saved plans stay as they are.')) return
     try {
+      // Wait for saves still on their way, so none lands after the delete.
+      await writeChain.current
       const { error } = await (sb as any).from('wynky_chat_messages').delete().eq('user_id', uidRef.current)
       if (error) throw error
       setMessages(m => m.filter(msg => !msg.past))
