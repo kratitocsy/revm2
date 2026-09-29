@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   subjectChoices, hasSavedSetup, hoursOptions, minutesFromOptionId, parseStudyMinutes, parseClock,
   fmtClock, clockOptions, siteFromText, clearMatch, filterOptions, wantsWeeklyVariation, formatWeeklyPlan,
+  repeatWeek, formatDayOverrides, mentionsWeek,
 } from './wynkyChatFlow';
 import { recommend, type WynkyKnownProfile, type WynkyRemembered } from './wynkyPlanner';
 import type { GeneratorResult } from '../../_shared/scheduleGenerator';
@@ -131,5 +132,36 @@ describe('formatWeeklyPlan', () => {
     expect(text).toContain('Sun: Biology');
     expect(text).toContain('Mon: Physics');
     expect(text).toContain('Tue: —');
+  });
+});
+
+describe('mentionsWeek', () => {
+  it('spots a request about the week, so Wynky can ask same or different', () => {
+    expect(mentionsWeek('make me a weekly plan')).toBe(true);
+    expect(mentionsWeek('plan for this week')).toBe(true);
+    expect(mentionsWeek('more maths please')).toBe(false);
+    expect(mentionsWeek('weekend free')).toBe(false);
+  });
+});
+
+describe('repeatWeek', () => {
+  it('uses the same day for all seven days', () => {
+    const day = { blocks: [] } as never;
+    const week = repeatWeek(day);
+    expect(Object.keys(week).map(Number).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(week[3]).toBe(day);
+  });
+});
+
+describe('formatDayOverrides', () => {
+  it('lists each day-specific subject set-up, Monday first', () => {
+    const text = formatDayOverrides({
+      0: { Maths: { sites: ['khanacademy.org'], apps: [] } },
+      2: { Physics: { sites: ['eduniti.in', 'youtube.com'], channels: [{ id: 'a', title: 'A' }] as never, apps: ['notes'] } },
+    });
+    expect(text).toBe('Day-specific set-up:\nTue Physics: eduniti.in, youtube.com, 1 channel, 1 app\nSun Maths: khanacademy.org');
+  });
+  it('is empty when nothing is customised', () => {
+    expect(formatDayOverrides({})).toBe('');
   });
 });

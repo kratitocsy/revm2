@@ -417,12 +417,23 @@ async function clearWeekdayVariants(sb: SupaLike, userId: string, planName: stri
   }
 }
 
+/** Day (0 Sun .. 6 Sat) -> subject -> the allow-list to use for that
+ *  subject on that day only, instead of the subject's usual one. */
+export type DayOverrides = Record<number, Record<string, SubjectAllowlist>>;
+
+/** The name a day override's preset is saved under, e.g. "Physics (Tue)". */
+export function dayOverrideKey(subject: string, day: number): string {
+  return `${subject} (${WEEKDAY_NAMES[day]})`;
+}
+
 export interface ConfirmWeekPlanArgs {
   userId: string;
   planName: string;
   /** One rule/AI result per day of week, 0 (Sun) to 6 (Sat). */
   week: Record<number, GeneratorResult>;
   subjectAllowlists: Record<string, SubjectAllowlist>;
+  /** Per-day sites/channels/apps for a subject; days/subjects left out use subjectAllowlists. */
+  dayOverrides?: DayOverrides;
   freeTimeSites: string[];
   freeTimeApps: string[];
 }
@@ -439,6 +450,16 @@ export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): 
     freeTimeApps: args.freeTimeApps,
   });
 
+  // A day override gets its own preset ("Wynky — Physics (Tue)"), built the
+  // same way as a subject's usual one; an empty override falls back to it.
+  const overrideAllow: Record<string, SubjectAllowlist> = {};
+  for (const [dayStr, bySubject] of Object.entries(args.dayOverrides || {})) {
+    for (const [subject, allow] of Object.entries(bySubject)) overrideAllow[dayOverrideKey(subject, Number(dayStr))] = allow;
+  }
+  const overridePresetIds = Object.keys(overrideAllow).length
+    ? (await ensurePresets(sb, args.userId, { subjectAllowlists: overrideAllow, freeTimeSites: [], freeTimeApps: [] })).presetIdBySubject
+    : {};
+
   const { data: single } = await sb.from('focus_lock_schedules').select('id').eq('user_id', args.userId).eq('name', args.planName).maybeSingle();
   if (single?.id) {
     await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', single.id);
@@ -452,7 +473,8 @@ export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): 
     const slots: PlanSlotInput[] = result.blocks
       .filter(b => b.kind !== 'break')
       .map(block => ({
-        presetId: block.kind === 'sleep' ? null : (block.subjectName ? presetIdBySubject[block.subjectName] : null) ?? freeTimePresetId,
+        presetId: block.kind === 'sleep' ? null
+          : (block.subjectName ? overridePresetIds[dayOverrideKey(block.subjectName, day)] ?? presetIdBySubject[block.subjectName] : null) ?? freeTimePresetId,
         subject: block.kind === 'sleep' ? null : (block.subjectName ?? null),
         startTime: block.startTime,
         endTime: block.endTime,
