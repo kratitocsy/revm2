@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   subjectChoices, hasSavedSetup, hoursOptions, minutesFromOptionId, parseStudyMinutes, parseClock,
-  fmtClock, clockOptions, siteFromText, clearMatch, filterOptions, wantsWeeklyVariation, formatWeeklyPlan,
+  fmtClock, clockOptions, siteFromText, clearMatch, filterOptions, wantsWeeklyVariation, formatWeeklyPlan, timetableLines,
   repeatWeek, formatDayOverrides, mentionsWeek, mentionedDays, repeatFromText, wantsDaysOff, mentionsWeekB,
   dayLabel, planDays,
 } from './wynkyChatFlow';
@@ -129,10 +129,39 @@ describe('formatWeeklyPlan', () => {
       requestedMinutes: 60, usableWindowMinutes: 60, scheduledStudyMinutes: 60, placedStudyMinutes: 60,
       blockLengthMinutes: 60, wasCut: false,
     });
-    const text = formatWeeklyPlan({ 0: day('Biology'), 1: day('Physics') });
-    expect(text).toContain('Sun: Biology');
-    expect(text).toContain('Mon: Physics');
-    expect(text).toContain('Tue: off');
+    const text = formatWeeklyPlan({ 0: day('Biology'), 1: day('Physics'), 3: day('Physics') });
+    expect(text).toContain('Sunday · 1 hour of study\n06:00–07:00  📘 Biology');
+    expect(text).toContain('Monday · 1 hour of study\n06:00–07:00  📘 Physics');
+    expect(text).toContain('Tuesday: day off');
+    expect(text).toContain('Wednesday: same as Monday');
+  });
+  it('spells out breaks and free time between blocks', () => {
+    const b = (s: number, e: number, subjectName: string) => ({
+      kind: 'study' as const, startMinutes: s, endMinutes: e, subjectName,
+      startTime: `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`,
+      endTime: `${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`,
+    });
+    const result: GeneratorResult = {
+      blocks: [b(390, 450, 'Chemistry'), b(460, 520, 'Physics'), b(600, 660, 'Maths')],
+      requestedMinutes: 180, usableWindowMinutes: 300, scheduledStudyMinutes: 180, placedStudyMinutes: 180,
+      blockLengthMinutes: 60, wasCut: false,
+    };
+    expect(timetableLines(result)).toEqual([
+      '06:30–07:30  📘 Chemistry',
+      '07:30–07:40  ☕ Break (10 min)',
+      '07:40–08:40  📘 Physics',
+      '08:40–10:00  Free time (1 hour 20 min)',
+      '10:00–11:00  📘 Maths',
+    ]);
+    expect(timetableLines(result, [{ start: '08:45', end: '09:40' }])).toEqual([
+      '06:30–07:30  📘 Chemistry',
+      '07:30–07:40  ☕ Break (10 min)',
+      '07:40–08:40  📘 Physics',
+      '08:40–08:45  ☕ Break (5 min)',
+      '08:45–09:40  🏫 Busy',
+      '09:40–10:00  ☕ Break (20 min)',
+      '10:00–11:00  📘 Maths',
+    ]);
   });
 });
 
@@ -223,9 +252,9 @@ describe('two-week plans', () => {
   it('shows both weeks, days off and the repeat', () => {
     const week = Object.fromEntries(planDays(true).map(d => [d, day(d >= 7 ? 'Chemistry' : 'Physics')]));
     const text = formatWeeklyPlan(week, { activeDays: [1, 2, 3, 4, 5] });
-    expect(text).toContain('Week A (this week):\nMon: Physics 06:00 (1 hour)');
-    expect(text).toContain('Week B (next week):\nMon: Chemistry 06:00 (1 hour)');
-    expect(text).toContain('Sun: off');
+    expect(text).toContain('WEEK A (this week)\n\nMonday · 1 hour of study\n06:00–07:00  📘 Physics\n\nTuesday: same as Monday');
+    expect(text).toContain('WEEK B (next week)\n\nMonday · 1 hour of study\n06:00–07:00  📘 Chemistry');
+    expect(text).toContain('Sunday: day off');
     expect(text).toContain('take turns');
     expect(formatWeeklyPlan(repeatWeek(day('Maths')), { repeat: 'every2' })).toContain('every 2 weeks');
   });

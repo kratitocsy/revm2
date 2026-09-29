@@ -603,18 +603,19 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
    *  (a varied week, days off, repeat every 2 weeks, a day-specific set-up).
    *  Values not passed come from state; pass the ones just changed, since
    *  state set in the same handler isn't visible yet. */
-  function showPlan(v: Partial<{ single: GeneratorResult | null; week: Record<number, GeneratorResult> | null; days: number[]; rep: Repeat; overrides: DayOverrides }> = {}, head = '') {
+  function showPlan(v: Partial<{ single: GeneratorResult | null; week: Record<number, GeneratorResult> | null; days: number[]; rep: Repeat; overrides: DayOverrides; busy: string[] }> = {}, head = '') {
     const single = v.single !== undefined ? v.single : ruleResult
     const week = v.week !== undefined ? v.week : weekResult
     const days = v.days ?? activeDays
     const rep = v.rep ?? repeat
     const overrides = v.overrides ?? dayOverrides
+    const busy = busyWindows(v.busy ?? draft.busy)
     if (!week && !single) return
     const byDay = week || rep !== 'weekly' || days.length < 7 || Object.keys(overrides).length > 0
-    if (!byDay && single) { ask('preview', head + formatRecommendedPlan(single)); return }
+    if (!byDay && single) { ask('preview', head + formatRecommendedPlan(single, busy)); return }
     const shownWeek = week ?? repeatWeek(single!)
     const extra = formatDayOverrides(liveOverrides(overrides, shownWeek))
-    ask('preview', head + formatWeeklyPlan(shownWeek, { activeDays: days, repeat: rep }) + (extra ? `\n\n${extra}` : ''))
+    ask('preview', head + formatWeeklyPlan(shownWeek, { activeDays: days, repeat: rep, busy }) + (extra ? `\n\n${extra}` : ''))
   }
 
   /** The plan as one result per day, for anything that works day by day. */
@@ -861,7 +862,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setRuleResult(shown)
     setWeekResult(week)
     setPlainResult(week || shown === result ? null : result)
-    showPlan({ single: shown, week, days: shape.days, rep: shape.rep }, head)
+    showPlan({ single: shown, week, days: shape.days, rep: shape.rep, busy: d.busy }, head)
   }
 
   /** A typed change to named days only ("move Tuesday Physics to 5 pm",
