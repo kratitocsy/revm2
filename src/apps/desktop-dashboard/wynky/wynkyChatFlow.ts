@@ -318,7 +318,7 @@ export function formatWeeklyPlan(
     const name = DAY_NAMES[day % 7];
     if (!active.has(day % 7)) return `${name}: off`;
     const result = week[day];
-    if (!result) return `${name}: —`;
+    if (!result) return `${name}: off`;
     const study = result.blocks.filter(b => b.kind === 'study');
     const blocks = study.map(b => `${b.subjectName || 'Study'} ${b.startTime}`);
     return `${name}: ${blocks.join(', ') || 'Study'} (${fmtHours(result.placedStudyMinutes)})`;

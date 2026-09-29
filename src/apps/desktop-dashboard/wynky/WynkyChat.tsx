@@ -98,6 +98,8 @@ interface Shape { days: number[]; rep: Repeat }
 interface PendingWeek { text: string | null; vary: boolean; rep: Repeat | null }
 
 const isTwoWeeks = (week: Record<number, GeneratorResult> | null) => !!week && Object.keys(week).some(k => Number(k) >= 7)
+const namesWeekA = (text: string) => /\b(week a|this week)\b/i.test(text)
+const namesOneWeek = (text: string) => namesWeekA(text) || mentionsWeekB(text)
 
 /** Drops block-only set-ups ("Physics@17:00") whose block the plan no longer has. */
 function liveOverrides(overrides: DayOverrides, week: Record<number, GeneratorResult>): DayOverrides {
@@ -862,6 +864,15 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   async function editDays(d: Draft, text: string, days: number[]) {
     if (!ruleResult) return
     const twoWeeks = isTwoWeeks(weekResult)
+    // In a Week A / Week B plan a day means both weeks' unless one is named.
+    const keys = days.flatMap(day => (!twoWeeks ? [day] : mentionsWeekB(text) ? [day + 7] : namesWeekA(text) ? [day] : [day, day + 7]))
+    if (wantsDaysOff(text) && twoWeeks && namesOneWeek(text)) {
+      // Off in one week only: that week's day has no plan, the other week keeps its own.
+      const week = Object.fromEntries(Object.entries(weekResult!).filter(([k]) => !keys.includes(Number(k))))
+      setWeekResult(week)
+      showPlan({ week }, `Done, ${keys.map(k => dayLabel(k, true)).join(', ')} ${keys.length === 1 ? 'is' : 'are'} off now.\n\n`)
+      return
+    }
     if (wantsDaysOff(text)) {
       const nextDays = activeDays.filter(day => !days.includes(day))
       if (!nextDays.length) { say("That would leave no study days at all. Tell me which days to keep."); return }
@@ -870,9 +881,6 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       return
     }
     learn([{ field: 'note', value: text.slice(0, 300), action: 'requested' }])
-    // In a Week A / Week B plan a day means both weeks' unless one is named.
-    const weekA = /\b(week a|this week)\b/i.test(text)
-    const keys = days.flatMap(day => (!twoWeeks ? [day] : mentionsWeekB(text) ? [day + 7] : weekA ? [day] : [day, day + 7]))
     const subjects = planSubjects(d)
     const p = profileRef.current
     const weak = p ? weakSubjects(subjects, p.study) : []
@@ -1322,7 +1330,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       echo(text)
       // A change to named days only ("Tuesday Physics at 5 pm", "Sunday off").
       const named = step === 'preview' && ruleResult ? mentionedDays(text, -1) : []
-      if (named.length && !mentionsWeek(text) && !repeatFromText(text)) { void editDays(draft, text, named); return }
+      // "Week B Tuesday ..." on a two-week plan is still a change to one day.
+      const weekScoped = isTwoWeeks(weekResult) && namesOneWeek(text)
+      if (named.length && (weekScoped || (!mentionsWeek(text) && !repeatFromText(text)))) { void editDays(draft, text, named); return }
       const updated = applyLocalRequest(text, draft)
       if (updated) { if (updated !== draft) buildPreview(updated); return }
       askAi(draft, text)
@@ -1335,7 +1345,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   function askAi(d: Draft, text: string) {
     learn([{ field: 'note', value: text.slice(0, 300), action: 'requested' }])
     const rep = repeatFromText(text)
-    const off = wantsDaysOff(text) ? mentionedDays(text, -1) : []
+    const off = wantsDaysOff(text) && !namesOneWeek(text) ? mentionedDays(text, -1) : []
     const days = off.length && off.length < activeDays.length ? activeDays.filter(day => !off.includes(day)) : activeDays
     if (days !== activeDays) setActiveDays(days)
     if (rep === 'ab') { startWeek(d, { text, vary: true, rep }, { days, rep }); return }

@@ -132,7 +132,7 @@ describe('formatWeeklyPlan', () => {
     const text = formatWeeklyPlan({ 0: day('Biology'), 1: day('Physics') });
     expect(text).toContain('Sun: Biology');
     expect(text).toContain('Mon: Physics');
-    expect(text).toContain('Tue: —');
+    expect(text).toContain('Tue: off');
   });
 });
 
