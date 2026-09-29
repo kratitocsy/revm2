@@ -10,7 +10,7 @@
 
 import {
   DAILY_HOURS_MINUTES, defaultDailyMinutes, examFamilyKey,
-  type SubjectAllowlist, type WynkyKnownProfile, type WynkyRemembered,
+  type SubjectAllowlist, type WynkyKnownProfile, type WynkyRemembered, type DayOverrides,
 } from './wynkyPlanner';
 import type { GeneratorResult } from '../../_shared/scheduleGenerator';
 
@@ -220,18 +220,45 @@ export function formatRecommendedPlan(result: GeneratorResult): string {
  *  rather than one day repeated all week (the default). Deliberately
  *  narrow — a plain "give me a weekly plan" should still repeat the
  *  single-day plan, since that is what most students mean. */
+export function mentionsWeek(text: string): boolean {
+  return /\bweek(ly)?\b/i.test(text);
+}
+
 export function wantsWeeklyVariation(text: string): boolean {
   const t = text.toLowerCase();
   if (!/\bweek(ly)?\b/.test(t)) return false;
   return /(each day|every day|per day|different (subjects|plans?)|day[- ]wise|day of week|vary(ing)? by day|alternat\w* days?)/.test(t);
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Days in the order a student reads a week: Monday first. */
+export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/** The same day plan on all 7 days, for when a repeated plan gets a
+ *  day-specific change and has to be saved day by day. */
+export function repeatWeek(result: GeneratorResult): Record<number, GeneratorResult> {
+  return Object.fromEntries(WEEK_ORDER.map(day => [day, result]));
+}
+
+/** One line per day-specific set-up, e.g. "Tue Physics: eduniti.in, youtube.com (2 channels)". */
+export function formatDayOverrides(overrides: DayOverrides): string {
+  const lines: string[] = [];
+  for (const day of WEEK_ORDER) {
+    for (const [subject, allow] of Object.entries(overrides[day] || {})) {
+      const bits = [...allow.sites];
+      if (allow.channels?.length) bits.push(`${allow.channels.length} channel${allow.channels.length === 1 ? '' : 's'}`);
+      if (allow.apps.length) bits.push(`${allow.apps.length} app${allow.apps.length === 1 ? '' : 's'}`);
+      lines.push(`${DAY_NAMES[day]} ${subject}: ${bits.join(', ') || 'nothing picked, uses the usual'}`);
+    }
+  }
+  return lines.length ? `Day-specific set-up:\n${lines.join('\n')}` : '';
+}
 
 /** One line per day, showing which subjects are on it and the study
  *  total, so a student can scan the whole week before confirming. */
 export function formatWeeklyPlan(week: Record<number, GeneratorResult>): string {
-  const lines = DAY_NAMES.map((name, day) => {
+  const lines = WEEK_ORDER.map(day => {
+    const name = DAY_NAMES[day];
     const result = week[day];
     if (!result) return `${name}: —`;
     const subjects = uniqueCaseless(
