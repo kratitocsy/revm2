@@ -11,8 +11,8 @@
 //              requests) and the AI returns an improved version of the
 //              same day. The student's own requests rank above everything.
 //
-// Google is sometimes busy or slow, so each call races the main model,
-// GEMINI_FALLBACK_MODEL and — if GROQ_API_KEY is set — Groq's free API (a
+// Google is sometimes busy or slow, so each call races the Gemini model
+// against — if GROQ_API_KEY is set — several models on Groq's free API (a
 // different provider entirely); see generate().
 //
 // The generated schedule is returned as JSON for the client to preview in
@@ -132,10 +132,10 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // the first good answer wins. A busy Gemini can take 15s just to answer
 // "503", so waiting for it in turn used to use up the whole wait. With a
 // 6s hedge Groq only started at 12s and timed out too, so providers now
-// start 2s apart, alternating Google and Groq so one company's outage
-// never holds up the next try: main Gemini 0s, Groq 2s, fallback Gemini
-// 4s, then the other Groq models. Each Groq model has its own free-tier
-// limit, so a rate-limited one doesn't block the next.
+// start 2s apart: Gemini 0s, then each Groq model in turn (2s, 4s, 6s).
+// A second Gemini model was dropped: when Google is busy both usually are,
+// and each Groq model has its own free-tier limit, so a rate-limited one
+// doesn't block the next.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
 const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3-32b"];
@@ -148,7 +148,7 @@ class GeminiError extends Error {
 
 type Provider = { name: string; run: (signal: AbortSignal) => Promise<string> };
 
-/** Races both Gemini models and — only if GROQ_API_KEY is set — several
+/** Races the Gemini model and — only if GROQ_API_KEY is set — several
  *  Groq models (GROQ_MODELS, comma-separated, or the defaults above). Each
  *  one starts when the one before it fails or is slow (HEDGE_AFTER_MS); the
  *  first answer that passes `check` wins and the rest are cancelled. An
@@ -161,28 +161,18 @@ async function generate(
   systemPrompt = SYSTEM_PROMPT,
   check: (text: string) => string | null = () => null,
 ): Promise<string> {
-  const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  const gemini: Provider[] = [
-    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
-  ];
-  if (fallback && fallback !== model) {
-    gemini.push({ name: fallback, run: (sig) => callGemini(userPrompt, apiKey, fallback, systemPrompt, sig) });
-  }
   const groqModels = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
-  const groq: Provider[] = groqKey
-    ? (groqModels.length ? groqModels : DEFAULT_GROQ_MODELS).map((m) => ({
-      name: `groq ${m}`,
-      run: (sig: AbortSignal) => callGroq(userPrompt, groqKey, m, systemPrompt, sig),
-    }))
-    : [];
-  // Alternate providers: Gemini, Groq, Gemini, Groq, then any Groq left.
-  const providers: Provider[] = [];
-  for (let i = 0; i < Math.max(gemini.length, groq.length); i++) {
-    if (gemini[i]) providers.push(gemini[i]);
-    if (groq[i]) providers.push(groq[i]);
-  }
+  const providers: Provider[] = [
+    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
+    ...(groqKey
+      ? (groqModels.length ? groqModels : DEFAULT_GROQ_MODELS).map((m) => ({
+        name: `groq ${m}`,
+        run: (sig: AbortSignal) => callGroq(userPrompt, groqKey, m, systemPrompt, sig),
+      }))
+      : []),
+  ];
 
   const stop = new AbortController();
   const budget = AbortSignal.timeout(TOTAL_BUDGET_MS);
