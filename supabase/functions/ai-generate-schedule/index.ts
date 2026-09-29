@@ -141,8 +141,8 @@ const HEDGE_AFTER_MS = 2_000;
 // Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
 // qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
 // can go at short notice. groqModels() swaps a retired one for another
-// live model on its own, and logs RETIRED_TAG so the daily check can tell
-// the Founder which name to update here.
+// live model on its own, logs RETIRED_TAG and puts a red banner in Owner
+// Control saying which name to update here.
 const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
 const RETIRED_TAG = "AI MODEL RETIRED";
 // Groq's /models list also has speech, safety and tool-router models that
@@ -152,6 +152,30 @@ const NOT_CHAT = /whisper|tts|guard|playai|orpheus|distil|compound|allam|vision/
 const FAMILY_ORDER = [/gpt-oss/, /qwen/, /llama/, /kimi/];
 
 let groqLive: { at: number; ids: string[] } | null = null;
+
+/** Adds a red banner to Owner Control (migration 0100). An open alert with
+ *  the same key isn't added twice, so this is safe to call per request. */
+function alertOwner(key: string, title: string, body: string) {
+  const url = Deno.env.get("SUPABASE_URL");
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !service) return;
+  const done = createClient(url, service)
+    .rpc("record_owner_alert", { p_key: key, p_title: title, p_body: body })
+    .then(({ error }: { error: { message: string } | null }) => {
+      if (error) console.warn(`ai-generate-schedule: owner alert failed (${error.message})`);
+    });
+  // Let the write finish even after the response has gone out.
+  (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(done);
+}
+
+function alertRetiredGroq(model: string, standIn?: string) {
+  alertOwner(
+    `ai-retired:groq:${model}`,
+    `Groq retired the AI model ${model}`,
+    `${standIn ? `Wynky switched to ${standIn} on its own, so students aren't affected. ` : ""}` +
+      `Update DEFAULT_GROQ_MODELS in supabase/functions/ai-generate-schedule/index.ts to a current Groq model so this stays fixed.`,
+  );
+}
 
 /** Groq's live model ids, cached for an hour per function instance.
  *  Null if Groq doesn't answer quickly, so the configured list is used. */
@@ -194,6 +218,7 @@ async function groqModels(apiKey: string, wanted: string[]): Promise<string[]> {
   console.warn(
     `ai-generate-schedule: ${RETIRED_TAG}: groq ${retired.join(", ")}; using ${standIns.join(", ") || "nothing"} instead`,
   );
+  retired.forEach((m, i) => alertRetiredGroq(m, standIns[i]));
   return [...kept, ...standIns];
 }
 
@@ -316,6 +341,7 @@ async function callGroq(
     if (res.status === 404 || /model_not_found|decommissioned/.test(errText)) {
       groqLive = null; // re-check Groq's list on the next request
       console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model}`);
+      alertRetiredGroq(model);
     }
     throw new Error(`Groq API ${res.status} (${model}): ${errText.slice(0, 300)}`);
   }
@@ -383,7 +409,14 @@ async function callGemini(
 
   if (!res.ok) {
     const errText = await res.text();
-    if (res.status === 404) console.warn(`ai-generate-schedule: ${RETIRED_TAG}: gemini ${model}`);
+    if (res.status === 404) {
+      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: gemini ${model}`);
+      alertOwner(
+        `ai-retired:gemini:${model}`,
+        `Google retired the Gemini model ${model}`,
+        "Wynky is answering with Groq only until this is fixed. Set the GEMINI_MODEL secret in Supabase (or the default in ai-generate-schedule) to a current Gemini model.",
+      );
+    }
     throw new GeminiError(res.status, `Gemini API ${res.status}: ${errText}`);
   }
 

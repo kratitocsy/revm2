@@ -43,6 +43,7 @@
   </aside>
 
   <main class="ow-main">
+    <div id="owAlerts" class="ow-alerts" role="alert" aria-live="polite"></div>
     <header class="ow-head">
       <div>
         <div class="ow-crumb">Owner Control / <span id="owCrumb"></span></div>
@@ -1302,6 +1303,33 @@ document.getElementById('owView').addEventListener('click', e => {
   else if(act === 'notify-retract') openRetractNotification(id, label);
 });
 
+/* ── Owner alerts (red banner) ─────────────────────────── */
+// Server-raised problems the owner must act on (0100_owner_alerts.sql),
+// e.g. an AI model Wynky uses was retired. Shown above every section
+// until dismissed.
+async function loadAlerts(){
+  const box = document.getElementById('owAlerts');
+  let rows = [];
+  try{ rows = await rpc('owner_list_alerts') || []; }catch(_){ rows = []; }
+  box.innerHTML = rows.map(a => `
+    <div class="ow-alert">
+      <div class="ow-alert-text">
+        <div class="ow-alert-title">${esc(a.title)}</div>
+        ${a.body ? `<div class="ow-alert-body">${esc(a.body)}</div>` : ''}
+        <div class="ow-alert-when">${esc(new Date(a.created_at).toLocaleString())}</div>
+      </div>
+      <button class="ow-btn ow-alert-dismiss" type="button" data-alert="${Number(a.id)}">Dismiss</button>
+    </div>`).join('');
+}
+document.getElementById('owAlerts').addEventListener('click', async e => {
+  const b = e.target.closest('[data-alert]');
+  if(!b) return;
+  b.disabled = true;
+  try{ await rpc('owner_dismiss_alert', { p_id: Number(b.dataset.alert) }); }
+  catch(err){ b.disabled = false; toast(err.message); return; }
+  loadAlerts();
+});
+
 /* ── Boot ──────────────────────────────────────────────── */
 function denied(){
   document.getElementById('owGate').innerHTML = `
@@ -1328,7 +1356,7 @@ async function init(){
   document.getElementById('owMeName').textContent = me.full_name || (me.username ? '@' + me.username : me.email);
   document.getElementById('owRefresh').innerHTML = `${icon('refresh')}<span>Refresh</span>`;
   document.getElementById('owBack').innerHTML = `${icon('home')}<span>Back to app</span>`;
-  document.getElementById('owRefresh').onclick = () => { refreshBadges(); show(current); };
+  document.getElementById('owRefresh').onclick = () => { refreshBadges(); loadAlerts(); show(current); };
 
   buildNav();
   document.getElementById('owGate').classList.add('ow-hidden');
@@ -1336,6 +1364,7 @@ async function init(){
   window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if(v && v !== current) go(v); });
   sb.auth.onAuthStateChange(ev => { if(ev === 'SIGNED_OUT') window.location.href = 'login.html'; });
 
+  loadAlerts();
   const start = location.hash.slice(1) || 'overview';
   if(start !== 'overview') refreshBadges();  // also fills overview (recipient count for notifications)
   go(start);
