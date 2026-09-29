@@ -11,8 +11,8 @@
 //              requests) and the AI returns an improved version of the
 //              same day. The student's own requests rank above everything.
 //
-// Google is sometimes busy or slow, so each call races the main model,
-// GEMINI_FALLBACK_MODEL and — if GROQ_API_KEY is set — Groq's free API (a
+// Google is sometimes busy or slow, so each call races the Gemini model
+// against — if GROQ_API_KEY is set — several models on Groq's free API (a
 // different provider entirely); see generate().
 //
 // The generated schedule is returned as JSON for the client to preview in
@@ -130,9 +130,97 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // WynkyChat.tsx). The main model starts first; if it fails, or hasn't
 // answered within HEDGE_AFTER_MS, the next provider starts alongside it and
 // the first good answer wins. A busy Gemini can take 15s just to answer
-// "503", so waiting for it in turn used to use up the whole wait.
+// "503", so waiting for it in turn used to use up the whole wait. With a
+// 6s hedge Groq only started at 12s and timed out too, so providers now
+// start 2s apart: Gemini 0s, then each Groq model in turn (2s, 4s, 6s).
+// A second Gemini model was dropped: when Google is busy both usually are,
+// and each Groq model has its own free-tier limit, so a rate-limited one
+// doesn't block the next.
 const TOTAL_BUDGET_MS = 15_000;
-const HEDGE_AFTER_MS = 6_000;
+const HEDGE_AFTER_MS = 2_000;
+// Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
+// qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
+// can go at short notice. groqModels() swaps a retired one for another
+// live model on its own, logs RETIRED_TAG and puts a red banner in Owner
+// Control saying which name to update here.
+const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+const RETIRED_TAG = "AI MODEL RETIRED";
+// Groq's /models list also has speech, safety and tool-router models that
+// can't write a plan; never pick those as a stand-in.
+const NOT_CHAT = /whisper|tts|guard|playai|orpheus|distil|compound|allam|vision/i;
+// Stand-ins are picked in this order of family, then Groq's own order.
+const FAMILY_ORDER = [/gpt-oss/, /qwen/, /llama/, /kimi/];
+
+let groqLive: { at: number; ids: string[] } | null = null;
+
+/** Adds a red banner to Owner Control (migration 0100). An open alert with
+ *  the same key isn't added twice, so this is safe to call per request. */
+function alertOwner(key: string, title: string, body: string) {
+  const url = Deno.env.get("SUPABASE_URL");
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !service) return;
+  const done = createClient(url, service)
+    .rpc("record_owner_alert", { p_key: key, p_title: title, p_body: body })
+    .then(({ error }: { error: { message: string } | null }) => {
+      if (error) console.warn(`ai-generate-schedule: owner alert failed (${error.message})`);
+    });
+  // Let the write finish even after the response has gone out.
+  (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(done);
+}
+
+function alertRetiredGroq(model: string, standIn?: string) {
+  alertOwner(
+    `ai-retired:groq:${model}`,
+    `Groq retired the AI model ${model}`,
+    `${standIn ? `Wynky switched to ${standIn} on its own, so students aren't affected. ` : ""}` +
+      `Update DEFAULT_GROQ_MODELS in supabase/functions/ai-generate-schedule/index.ts to a current Groq model so this stays fixed.`,
+  );
+}
+
+/** Groq's live model ids, cached for an hour per function instance.
+ *  Null if Groq doesn't answer quickly, so the configured list is used. */
+async function liveGroqModels(apiKey: string): Promise<string[] | null> {
+  if (groqLive && Date.now() - groqLive.at < 3_600_000) return groqLive.ids;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(HEDGE_AFTER_MS - 200),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const ids = (Array.isArray(data?.data) ? data.data : [])
+      .filter((m: Record<string, unknown>) => m?.active !== false && typeof m?.id === "string")
+      .map((m: Record<string, unknown>) => m.id as string);
+    if (!ids.length) return null;
+    groqLive = { at: Date.now(), ids };
+    return ids;
+  } catch {
+    return null;
+  }
+}
+
+/** The configured Groq models, with any Groq has retired swapped for other
+ *  live chat models so the race keeps the same number of tries. */
+async function groqModels(apiKey: string, wanted: string[]): Promise<string[]> {
+  const live = await liveGroqModels(apiKey);
+  if (!live) return wanted;
+  const kept = wanted.filter((m) => live.includes(m));
+  const retired = wanted.filter((m) => !live.includes(m));
+  if (!retired.length) return wanted;
+  const family = (id: string) => {
+    const i = FAMILY_ORDER.findIndex((re) => re.test(id));
+    return i < 0 ? FAMILY_ORDER.length : i;
+  };
+  const standIns = live
+    .filter((id) => !kept.includes(id) && !NOT_CHAT.test(id))
+    .sort((a, b) => family(a) - family(b))
+    .slice(0, retired.length);
+  console.warn(
+    `ai-generate-schedule: ${RETIRED_TAG}: groq ${retired.join(", ")}; using ${standIns.join(", ") || "nothing"} instead`,
+  );
+  retired.forEach((m, i) => alertRetiredGroq(m, standIns[i]));
+  return [...kept, ...standIns];
+}
 
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
@@ -140,25 +228,40 @@ class GeminiError extends Error {
   }
 }
 
-/** Races the main Gemini model, the fallback Gemini model and — only if
- *  GROQ_API_KEY is set — Groq, a different provider entirely. Each one
- *  starts when the one before it fails or is slow (HEDGE_AFTER_MS); the
- *  first answer wins and the rest are cancelled. */
+type Provider = { name: string; run: (signal: AbortSignal) => Promise<string> };
+
+/** Races the Gemini model and — only if GROQ_API_KEY is set — several
+ *  Groq models (GROQ_MODELS, comma-separated, or the defaults above). Each
+ *  one starts when the one before it fails or is slow (HEDGE_AFTER_MS); the
+ *  first answer that passes `check` wins and the rest are cancelled. An
+ *  answer that fails `check` counts as that model failing, so the race
+ *  goes on instead of the student getting an error. */
 async function generate(
   userPrompt: string,
   apiKey: string,
   model: string,
   systemPrompt = SYSTEM_PROMPT,
+  check: (text: string) => string | null = () => null,
 ): Promise<string> {
-  const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  const providers: { name: string; run: (signal: AbortSignal) => Promise<string> }[] = [
+  const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
+    .split(",").map((m) => m.trim()).filter(Boolean);
+  const wanted = configured.length ? configured : DEFAULT_GROQ_MODELS;
+  // Checked while Gemini runs; the first Groq try starts after the hedge.
+  const groqList = groqKey ? groqModels(groqKey, wanted) : Promise.resolve([]);
+  const providers: Provider[] = [
     { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
+    ...(groqKey
+      ? wanted.map((_, i) => ({
+        name: `groq #${i + 1}`,
+        run: async (sig: AbortSignal) => {
+          const m = (await groqList)[i];
+          if (!m) throw new Error("Groq API: no live model for this slot");
+          return callGroq(userPrompt, groqKey, m, systemPrompt, sig);
+        },
+      }))
+      : []),
   ];
-  if (fallback && fallback !== model) {
-    providers.push({ name: fallback, run: (sig) => callGemini(userPrompt, apiKey, fallback, systemPrompt, sig) });
-  }
-  if (groqKey) providers.push({ name: "groq", run: (sig) => callGroq(userPrompt, groqKey, systemPrompt, sig) });
 
   const stop = new AbortController();
   const budget = AbortSignal.timeout(TOTAL_BUDGET_MS);
@@ -181,7 +284,11 @@ async function generate(
       if (done || budget.aborted || next >= providers.length) return;
       const p = providers[next++];
       running++;
-      p.run(signal).then(
+      p.run(signal).then((text) => {
+        const bad = check(text);
+        if (bad) throw new Error(`unusable answer: ${bad}`);
+        return text;
+      }).then(
         (text) => finish(() => resolve(text)),
         (e) => {
           running--;
@@ -198,18 +305,17 @@ async function generate(
   });
 }
 
-/** Last-resort fallback on a different provider (OpenAI-compatible chat API),
- *  started only when both Gemini models have failed or are slow and
- *  GROQ_API_KEY is set. Free tier at console.groq.com. */
+/** A different provider (OpenAI-compatible chat API), used only when
+ *  GROQ_API_KEY is set. Free tier at console.groq.com. Groq retires models
+ *  now and then (llama-3.3-70b-versatile went on 2026-08-16); see
+ *  groqModels() for how a retired one is replaced. */
 async function callGroq(
   userPrompt: string,
   apiKey: string,
+  model: string,
   systemPrompt: string,
   signal: AbortSignal,
 ): Promise<string> {
-  // llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16;
-  // openai/gpt-oss-120b is Groq's own recommended free-tier replacement.
-  const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     signal,
@@ -221,12 +327,23 @@ async function callGroq(
         { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 8192,
+      // Groq's free tier allows 8,000 tokens a minute per model; a week's
+      // plan is well under 4096, and a smaller cap keeps each request
+      // inside that allowance.
+      max_tokens: 4096,
+      // gpt-oss and Qwen 3.8 reason at "medium" by default, which is most
+      // of their wait.
+      ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/") ? { reasoning_effort: "low" } : {}),
     }),
   });
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Groq API ${res.status}: ${errText.slice(0, 300)}`);
+    if (res.status === 404 || /model_not_found|decommissioned/.test(errText)) {
+      groqLive = null; // re-check Groq's list on the next request
+      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model}`);
+      alertRetiredGroq(model);
+    }
+    throw new Error(`Groq API ${res.status} (${model}): ${errText.slice(0, 300)}`);
   }
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? "";
@@ -292,6 +409,14 @@ async function callGemini(
 
   if (!res.ok) {
     const errText = await res.text();
+    if (res.status === 404) {
+      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: gemini ${model}`);
+      alertOwner(
+        `ai-retired:gemini:${model}`,
+        `Google retired the Gemini model ${model}`,
+        "Wynky is answering with Groq only until this is fixed. Set the GEMINI_MODEL secret in Supabase (or the default in ai-generate-schedule) to a current Gemini model.",
+      );
+    }
     throw new GeminiError(res.status, `Gemini API ${res.status}: ${errText}`);
   }
 
@@ -446,7 +571,15 @@ ABOUT THE STUDENT: ${strList(body.facts, 12).join("; ") || "nothing more known"}
 DRAFT:
 ${draft.join("\n")}`;
       const isWeek = mode === "refine_week";
-      const rawText = await generate(prompt, apiKey, model, isWeek ? REFINE_WEEK_PROMPT : REFINE_PROMPT);
+      const rawText = await generate(prompt, apiKey, model, isWeek ? REFINE_WEEK_PROMPT : REFINE_PROMPT, (text) => {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = extractJson(text) as Record<string, unknown>;
+        } catch {
+          return "not JSON";
+        }
+        return isWeek ? validateRefinedWeek(parsed, subjectNames) : validateRefined(parsed, subjectNames);
+      });
       let out: Record<string, unknown>;
       try {
         out = extractJson(rawText) as Record<string, unknown>;
@@ -586,7 +719,13 @@ SUBJECTS: ${subjectList.join(", ") || "none specified"}
 Create a balanced, realistic schedule that addresses these goals.`;
     }
 
-    const rawText = await generate(userPrompt, apiKey, model);
+    const rawText = await generate(userPrompt, apiKey, model, SYSTEM_PROMPT, (text) => {
+      try {
+        return validateSchedule(extractJson(text) as Record<string, unknown>);
+      } catch {
+        return "not JSON";
+      }
+    });
 
     let schedule: unknown;
     try {
@@ -621,9 +760,10 @@ Create a balanced, realistic schedule that addresses these goals.`;
     // the student directly — only a plain sentence they can act on.
     const bothProvidersDown = e instanceof Error && /^(Groq API|Empty response from Groq)/.test(e.message);
     const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const unusable = e instanceof Error && e.message.startsWith("unusable answer");
     const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown || timedOut
       ? "Gemini is busy right now. Please try again in a moment."
-      : e instanceof GeminiError
+      : e instanceof GeminiError || unusable
       ? "The AI couldn't answer that request."
       : msg;
     return json({ error: friendly }, 500);
