@@ -130,11 +130,15 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // WynkyChat.tsx). The main model starts first; if it fails, or hasn't
 // answered within HEDGE_AFTER_MS, the next provider starts alongside it and
 // the first good answer wins. A busy Gemini can take 15s just to answer
-// "503", so waiting for it in turn used to use up the whole wait. At 6s
-// Groq only started at 12s with 3s left and timed out too, so each
-// provider now gets a 3s head start: main at 0s, fallback 3s, Groq 6s.
+// "503", so waiting for it in turn used to use up the whole wait. With a
+// 6s hedge Groq only started at 12s and timed out too, so providers now
+// start 2s apart, alternating Google and Groq so one company's outage
+// never holds up the next try: main Gemini 0s, Groq 2s, fallback Gemini
+// 4s, then the other Groq models. Each Groq model has its own free-tier
+// limit, so a rate-limited one doesn't block the next.
 const TOTAL_BUDGET_MS = 15_000;
-const HEDGE_AFTER_MS = 3_000;
+const HEDGE_AFTER_MS = 2_000;
+const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3-32b"];
 
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
@@ -142,25 +146,43 @@ class GeminiError extends Error {
   }
 }
 
-/** Races the main Gemini model, the fallback Gemini model and — only if
- *  GROQ_API_KEY is set — Groq, a different provider entirely. Each one
- *  starts when the one before it fails or is slow (HEDGE_AFTER_MS); the
- *  first answer wins and the rest are cancelled. */
+type Provider = { name: string; run: (signal: AbortSignal) => Promise<string> };
+
+/** Races both Gemini models and — only if GROQ_API_KEY is set — several
+ *  Groq models (GROQ_MODELS, comma-separated, or the defaults above). Each
+ *  one starts when the one before it fails or is slow (HEDGE_AFTER_MS); the
+ *  first answer that passes `check` wins and the rest are cancelled. An
+ *  answer that fails `check` counts as that model failing, so the race
+ *  goes on instead of the student getting an error. */
 async function generate(
   userPrompt: string,
   apiKey: string,
   model: string,
   systemPrompt = SYSTEM_PROMPT,
+  check: (text: string) => string | null = () => null,
 ): Promise<string> {
   const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  const providers: { name: string; run: (signal: AbortSignal) => Promise<string> }[] = [
+  const gemini: Provider[] = [
     { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
   ];
   if (fallback && fallback !== model) {
-    providers.push({ name: fallback, run: (sig) => callGemini(userPrompt, apiKey, fallback, systemPrompt, sig) });
+    gemini.push({ name: fallback, run: (sig) => callGemini(userPrompt, apiKey, fallback, systemPrompt, sig) });
   }
-  if (groqKey) providers.push({ name: "groq", run: (sig) => callGroq(userPrompt, groqKey, systemPrompt, sig) });
+  const groqModels = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
+    .split(",").map((m) => m.trim()).filter(Boolean);
+  const groq: Provider[] = groqKey
+    ? (groqModels.length ? groqModels : DEFAULT_GROQ_MODELS).map((m) => ({
+      name: `groq ${m}`,
+      run: (sig: AbortSignal) => callGroq(userPrompt, groqKey, m, systemPrompt, sig),
+    }))
+    : [];
+  // Alternate providers: Gemini, Groq, Gemini, Groq, then any Groq left.
+  const providers: Provider[] = [];
+  for (let i = 0; i < Math.max(gemini.length, groq.length); i++) {
+    if (gemini[i]) providers.push(gemini[i]);
+    if (groq[i]) providers.push(groq[i]);
+  }
 
   const stop = new AbortController();
   const budget = AbortSignal.timeout(TOTAL_BUDGET_MS);
@@ -183,7 +205,11 @@ async function generate(
       if (done || budget.aborted || next >= providers.length) return;
       const p = providers[next++];
       running++;
-      p.run(signal).then(
+      p.run(signal).then((text) => {
+        const bad = check(text);
+        if (bad) throw new Error(`unusable answer: ${bad}`);
+        return text;
+      }).then(
         (text) => finish(() => resolve(text)),
         (e) => {
           running--;
@@ -200,18 +226,17 @@ async function generate(
   });
 }
 
-/** Last-resort fallback on a different provider (OpenAI-compatible chat API),
- *  started only when both Gemini models have failed or are slow and
- *  GROQ_API_KEY is set. Free tier at console.groq.com. */
+/** A different provider (OpenAI-compatible chat API), used only when
+ *  GROQ_API_KEY is set. Free tier at console.groq.com. Groq retires models
+ *  now and then (llama-3.3-70b-versatile went on 2026-08-16); a retired
+ *  one fails in milliseconds and the race moves straight on. */
 async function callGroq(
   userPrompt: string,
   apiKey: string,
+  model: string,
   systemPrompt: string,
   signal: AbortSignal,
 ): Promise<string> {
-  // llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16;
-  // openai/gpt-oss-120b is Groq's own recommended free-tier replacement.
-  const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     signal,
@@ -224,8 +249,10 @@ async function callGroq(
       ],
       response_format: { type: "json_object" },
       max_tokens: 8192,
-      // gpt-oss reasons at "medium" by default, which is most of its wait.
+      // gpt-oss reasons at "medium" by default, which is most of its wait;
+      // Qwen 3 can skip reasoning altogether.
       ...(model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}),
+      ...(model.startsWith("qwen/qwen3") ? { reasoning_effort: "none" } : {}),
     }),
   });
   if (!res.ok) {
@@ -450,7 +477,15 @@ ABOUT THE STUDENT: ${strList(body.facts, 12).join("; ") || "nothing more known"}
 DRAFT:
 ${draft.join("\n")}`;
       const isWeek = mode === "refine_week";
-      const rawText = await generate(prompt, apiKey, model, isWeek ? REFINE_WEEK_PROMPT : REFINE_PROMPT);
+      const rawText = await generate(prompt, apiKey, model, isWeek ? REFINE_WEEK_PROMPT : REFINE_PROMPT, (text) => {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = extractJson(text) as Record<string, unknown>;
+        } catch {
+          return "not JSON";
+        }
+        return isWeek ? validateRefinedWeek(parsed, subjectNames) : validateRefined(parsed, subjectNames);
+      });
       let out: Record<string, unknown>;
       try {
         out = extractJson(rawText) as Record<string, unknown>;
@@ -590,7 +625,13 @@ SUBJECTS: ${subjectList.join(", ") || "none specified"}
 Create a balanced, realistic schedule that addresses these goals.`;
     }
 
-    const rawText = await generate(userPrompt, apiKey, model);
+    const rawText = await generate(userPrompt, apiKey, model, SYSTEM_PROMPT, (text) => {
+      try {
+        return validateSchedule(extractJson(text) as Record<string, unknown>);
+      } catch {
+        return "not JSON";
+      }
+    });
 
     let schedule: unknown;
     try {
@@ -625,9 +666,10 @@ Create a balanced, realistic schedule that addresses these goals.`;
     // the student directly — only a plain sentence they can act on.
     const bothProvidersDown = e instanceof Error && /^(Groq API|Empty response from Groq)/.test(e.message);
     const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const unusable = e instanceof Error && e.message.startsWith("unusable answer");
     const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown || timedOut
       ? "Gemini is busy right now. Please try again in a moment."
-      : e instanceof GeminiError
+      : e instanceof GeminiError || unusable
       ? "The AI couldn't answer that request."
       : msg;
     return json({ error: friendly }, 500);
