@@ -46,6 +46,30 @@ export function draftSlots(result: GeneratorResult): RefinedSlot[] {
     .map(b => ({ start_time: b.startTime, end_time: b.endTime, subject: b.subjectName || 'Study' }));
 }
 
+export interface ChatTurn { sender: 'bot' | 'user'; text: string }
+
+/** The last few messages of the chat, oldest first, so the AI can read a
+ *  follow-up ("make it shorter", "move that to the evening") against what
+ *  was said and shown before. The message being answered now is sent on
+ *  its own as the request, so the chat's copy of it is left out. Long
+ *  messages are cut: a plan Wynky showed keeps its first lines. */
+export function recentChat(messages: { from: string; text: string }[], requestNow: string | null, max = 10, budget = 6000): ChatTurn[] {
+  const turns = messages.filter((m): m is ChatTurn & { from: 'bot' | 'user' } => (m.from === 'bot' || m.from === 'user') && !!m.text.trim())
+  const now = requestNow?.split('\n')[0].trim()
+  // Drop it and Wynky's "Got it" after it, if the chat already shows them.
+  const lastUser = turns.map(m => m.from).lastIndexOf('user')
+  if (now && lastUser >= 0 && turns[lastUser].text.trim() === now) turns.splice(lastUser)
+  const out: ChatTurn[] = []
+  let used = 0
+  for (const m of turns.slice(-max).reverse()) {
+    const text = m.text.trim().slice(0, m.from === 'bot' ? 1500 : 300)
+    if (used + text.length > budget) break
+    used += text.length
+    out.unshift({ sender: m.from, text })
+  }
+  return out
+}
+
 /** Earlier typed requests, newest first, without repeats. */
 export function standingRequests(events: { field: string; value: string; action: string; at: string }[], max = 5): string[] {
   const out: string[] = [];

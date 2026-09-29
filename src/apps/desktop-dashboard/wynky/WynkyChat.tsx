@@ -23,7 +23,7 @@ import {
   parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
-import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult } from './wynkyRefine'
+import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 /* ============================================================
@@ -300,6 +300,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   onPlanConfirmed: (plan: { days_of_week: number[]; slots: AiSlot[] } | { week: Record<number, AiSlot[]> }) => void
 }) {
   const [messages, setMessages] = useState<Msg[]>([])
+  // The chat as last shown, for AI calls made after an await.
+  const messagesRef = useRef<Msg[]>([])
+  messagesRef.current = messages
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState(true) // Wynky is working: loading, asking the AI, searching YouTube
   const [saving, setSaving] = useState(false)
@@ -843,6 +846,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           wake: d.wakeTime, sleep: d.sleepTime, busy: busyWindows(d.busy),
           target_minutes: base.placedStudyMinutes, block_minutes: base.blockLengthMinutes,
           facts: p ? studentFacts(p.known) : [], request_now: requestNow, standing_requests: standing,
+          history: recentChat(messagesRef.current, requestNow),
         }),
       })
       const data = await res.json()

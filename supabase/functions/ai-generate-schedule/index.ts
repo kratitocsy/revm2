@@ -75,7 +75,7 @@ const REFINE_PROMPT = `You are Wynky, a study planner for Indian exam students (
 You get a DRAFT plan for one day, built by simple rules, and return an improved plan for the same day.
 
 Priority, highest first — a higher item always wins over a lower one:
-1. STUDENT'S REQUEST NOW (if given).
+1. STUDENT'S REQUEST NOW (if given), read together with RECENT CHAT.
 2. STANDING REQUESTS the student made in earlier chats.
 3. Hard limits: never study inside BUSY times, never before WAKE + 30 min or after SLEEP - 30 min.
 4. What is known about the student: Study DNA, weak subjects, exam.
@@ -90,6 +90,12 @@ How to improve the draft:
 - Keep total study time close to TARGET STUDY MINUTES unless a request says otherwise.
 - If the draft is already good, return it unchanged.
 
+RECENT CHAT is the conversation so far. The request now is often a follow-up to it: words like "it", "that",
+"this", "shorter", "more", "instead", "again" or "undo" refer to the plan Wynky showed last and the requests
+before it. When the request changes that last plan, start from the last plan in RECENT CHAT (keep what the
+student didn't ask to change) rather than from the DRAFT, and keep earlier requests from the chat unless the
+student takes them back.
+
 Return ONLY raw JSON, no markdown:
 {"slots":[{"start_time":"HH:MM","end_time":"HH:MM","subject":"one of SUBJECTS, copied exactly"}],"note":"one short friendly sentence (max 120 chars) saying what you changed and why, or empty"}
 
@@ -102,7 +108,7 @@ each day 0-6 (0=Sun 1=Mon ... 6=Sat), that rotates subjects across the week inst
 same subjects every day.
 
 Priority, highest first — a higher item always wins over a lower one:
-1. STUDENT'S REQUEST NOW (if given).
+1. STUDENT'S REQUEST NOW (if given), read together with RECENT CHAT.
 2. STANDING REQUESTS the student made in earlier chats.
 3. Hard limits: never study inside BUSY times, never before WAKE + 30 min or after SLEEP - 30 min.
 4. What is known about the student: Study DNA, weak subjects, exam.
@@ -114,6 +120,12 @@ How to build the week:
 - Give WEAK subjects more days across the week than the others.
 - Every subject in SUBJECTS should appear on at least one day across the week.
 - Don't put the same subject twice in a row within a single day.
+
+RECENT CHAT is the conversation so far. The request now is often a follow-up to it: words like "it", "that",
+"this", "shorter", "more", "instead", "again" or "undo" refer to the plan Wynky showed last and the requests
+before it. When the request changes that last plan, start from the last plan in RECENT CHAT (keep what the
+student didn't ask to change) rather than from the DRAFT, and keep earlier requests from the chat unless the
+student takes them back.
 
 Return ONLY raw JSON, no markdown:
 {"days":[{"day":0,"slots":[{"start_time":"HH:MM","end_time":"HH:MM","subject":"one of SUBJECTS, copied exactly"}]}],"note":"one short friendly sentence (max 120 chars), or empty"}
@@ -557,7 +569,14 @@ Deno.serve(async (req: Request) => {
         .map((b: Record<string, unknown>) => `${str(b.start, 5)}-${str(b.end, 5)}`);
       const requestNow = str(body.request_now);
       const standing = strList(body.standing_requests, 5);
-      const prompt = `STUDENT'S REQUEST NOW: ${requestNow || "none"}
+      const chat = (Array.isArray(body.history) ? body.history : []).slice(-12)
+        .filter((m: Record<string, unknown>) => m && (m.sender === "user" || m.sender === "bot") && typeof m.text === "string")
+        .map((m: Record<string, unknown>) =>
+          `${m.sender === "user" ? "Student" : "Wynky"}: ${str(m.text, m.sender === "user" ? 300 : 1500).replace(/\s*\n\s*/g, " / ")}`);
+      const prompt = `RECENT CHAT (oldest first; "Wynky" is you):
+${chat.join("\n") || "none"}
+
+STUDENT'S REQUEST NOW: ${requestNow || "none"}
 STANDING REQUESTS: ${standing.length ? standing.map((r) => `"${r}"`).join("; ") : "none"}
 
 SUBJECTS: ${subjectNames.join(", ")}

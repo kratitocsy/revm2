@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateSchedule } from '../../_shared/scheduleGenerator';
-import { checkRefined, checkRefinedWeek, draftSlots, standingRequests, toResult, type RefineContext } from './wynkyRefine';
+import { checkRefined, checkRefinedWeek, draftSlots, recentChat, standingRequests, toResult, type RefineContext } from './wynkyRefine';
 import { weakSubjects } from './wynkyPlanner';
 
 const subjects = ['Physics', 'Chemistry', 'Maths'];
@@ -98,5 +98,35 @@ describe('weakSubjects', () => {
   });
   it('needs a few sessions of history first', () => {
     expect(weakSubjects(subjects, { bySubject: { physics: 60 }, sessions: 1 })).toEqual([]);
+  });
+});
+
+describe('recentChat', () => {
+  const chat = [
+    { from: 'divider', text: 'Your last chat was earlier today' },
+    { from: 'user', text: 'more physics please' },
+    { from: 'bot', text: 'Here is your plan:\n09:00-10:00 Physics' },
+    { from: 'user', text: 'make it shorter' },
+    { from: 'bot', text: "Got it. I'll build your plan around that." },
+  ];
+
+  it('keeps earlier turns oldest first and leaves out the message being answered', () => {
+    expect(recentChat(chat, 'make it shorter')).toEqual([
+      { sender: 'user', text: 'more physics please' },
+      { sender: 'bot', text: 'Here is your plan:\n09:00-10:00 Physics' },
+    ]);
+  });
+
+  it('matches a one-day edit by its first line and keeps everything when nothing matches', () => {
+    expect(recentChat(chat, 'make it shorter\n(This change is only for Monday.)')).toHaveLength(2);
+    expect(recentChat(chat, null)).toHaveLength(4);
+  });
+
+  it('caps how many turns and how much text are sent', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ from: i % 2 ? 'bot' : 'user', text: 'x'.repeat(2000) }));
+    const out = recentChat(many, null);
+    expect(out.length).toBeLessThanOrEqual(10);
+    expect(out.every(t => t.text.length <= (t.sender === 'bot' ? 1500 : 300))).toBe(true);
+    expect(out.reduce((n, t) => n + t.text.length, 0)).toBeLessThanOrEqual(6000);
   });
 });
