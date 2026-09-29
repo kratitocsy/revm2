@@ -5,7 +5,7 @@ import { REVM2_CONFIG } from '../../../lib/supabase.js'
 import {
   loadKnownProfile, loadRemembered, loadEvents, recordEvents, fetchPeerStats, fetchChannelSignals,
   defaultDailyMinutes, bucketMinutes, distractionSites, distractionApps,
-  recommend, confirmPlan, rememberAnswers, rememberAllowlists, recordOutcome, loadStudyMinutes, weakSubjects,
+  recommend, confirmPlan, confirmWeekPlan, rememberAnswers, rememberAllowlists, recordOutcome, loadStudyMinutes, weakSubjects,
   NoEnforceableBlocksError, STUDY_MODE_OPTIONS, examFamilyKey, subjectKey, seedQueriesFor,
   resolveChannelSeed, fetchPopularChannels, setChannelPick, channelPickId, appPickerAvailable, listPickableApps,
   type WynkyKnownProfile, type WynkyRemembered, type SubjectAllowlist, type AiSlot, type ChannelPick,
@@ -14,14 +14,14 @@ import {
 import {
   subjectChoices, examSubjects, uniqueCaseless, isEnforceable, hoursOptions, minutesFromOptionId,
   parseStudyMinutes, clockOptions, parseClock, fmtClock, fmtHours, siteFromText, filterOptions, clearMatch,
-  blockOptions, parseBusyText, fmtBusy, formatRecommendedPlan, type ChatOption,
+  blockOptions, parseBusyText, fmtBusy, formatRecommendedPlan, wantsWeeklyVariation, formatWeeklyPlan, type ChatOption,
 } from './wynkyChatFlow'
 import {
   rank, best, preselect, isSettled, latestOwn, sourceLabel, blockMinutesPriors, sitePriors, busyPriors, needsBusyQuestion,
   parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
-import { draftSlots, standingRequests, checkRefined, toResult } from './wynkyRefine'
+import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 /* ============================================================
@@ -265,7 +265,7 @@ function recommendDraft(p: Profile, now: number): { draft: Draft; recs: Recs; ga
 
 export default function WynkyChat({ onClose, onPlanConfirmed }: {
   onClose: () => void
-  onPlanConfirmed: (plan: { days_of_week: number[]; slots: AiSlot[] }) => void
+  onPlanConfirmed: (plan: { days_of_week: number[]; slots: AiSlot[] } | { week: Record<number, AiSlot[]> }) => void
 }) {
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
@@ -283,6 +283,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   const [ruleResult, setRuleResult] = useState<GeneratorResult | null>(null)
   // The plan before Gemini's changes, while the shown plan is Gemini's.
   const [plainResult, setPlainResult] = useState<GeneratorResult | null>(null)
+  // Set only when the student asked for a week that varies by day; the
+  // preview and Confirm then show/save this instead of ruleResult alone.
+  const [weekResult, setWeekResult] = useState<Record<number, GeneratorResult> | null>(null)
   const profileRef = useRef<Profile | null>(null)
   const recsRef = useRef<Recs | null>(null)
   const gapsRef = useRef<Gap[]>([])
@@ -616,12 +619,18 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   }
 
   /** Lets Gemini improve the rule-based plan, then shows whichever passed
-   *  the checks. The student's request (if any) is Gemini's top priority. */
+   *  the checks. The student's request (if any) is Gemini's top priority.
+   *  A request that asks for a week where each day differs (rather than
+   *  the same day repeated, the default) gets the whole week in one
+   *  Gemini call instead of a single day; if that fails or doesn't fit,
+   *  it falls back to the single repeated-day plan like any other request. */
   async function refineAndShow(d: Draft, result: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null) {
     const p = profileRef.current
     const seq = ++refineSeq.current
     const standing = p ? standingRequests(p.events.filter(e => !requestNow || e.value !== requestNow.slice(0, 300))) : []
+    const wantsWeek = !!requestNow && wantsWeeklyVariation(requestNow)
     let shown = result
+    let week: Record<number, GeneratorResult> | null = null
     let note = ''
     let failed = ''
     setTyping(true)
@@ -636,21 +645,30 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           signal: ctrl.signal,
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({
-            mode: 'refine', subjects, weak, draft: draftSlots(result),
+            mode: wantsWeek ? 'refine_week' : 'refine', subjects, weak, draft: draftSlots(result),
             wake: d.wakeTime, sleep: d.sleepTime, busy: busyWindows(d.busy),
             target_minutes: result.placedStudyMinutes, block_minutes: result.blockLengthMinutes,
             facts: p ? studentFacts(p.known) : [], request_now: requestNow, standing_requests: standing,
           }),
         })
         const data = await res.json()
-        // An older deployed function ignores "refine" and answers in another shape.
-        if (!res.ok || !data.success || data.mode !== 'refine') throw new Error(data.error || 'Gemini is not available right now.')
-        const check = checkRefined(data.slots, result, {
+        const refineCtx = {
           subjects, wakeTime: d.wakeTime!, sleepTime: d.sleepTime!, busy: busyWindows(d.busy),
           requestNow: !!requestNow, standingRequests: standing,
-        })
-        if (!check.ok) throw new Error(`Gemini's plan didn't fit (${check.reason}).`)
-        shown = toResult(check.slots, result)
+        }
+        if (wantsWeek) {
+          if (!res.ok || !data.success || data.mode !== 'refine_week') throw new Error(data.error || 'Gemini is not available right now.')
+          const check = checkRefinedWeek(data.days, result, refineCtx)
+          if (!check.ok) throw new Error(`Gemini's week didn't fit (${check.reason}).`)
+          week = Object.fromEntries(Object.entries(check.days).map(([day, slots]) => [Number(day), toResult(slots, result)]))
+          shown = week[new Date().getDay()] ?? result
+        } else {
+          // An older deployed function ignores "refine" and answers in another shape.
+          if (!res.ok || !data.success || data.mode !== 'refine') throw new Error(data.error || 'Gemini is not available right now.')
+          const check = checkRefined(data.slots, result, refineCtx)
+          if (!check.ok) throw new Error(`Gemini's plan didn't fit (${check.reason}).`)
+          shown = toResult(check.slots, result)
+        }
         note = typeof data.note === 'string' ? data.note.trim() : ''
       } finally {
         clearTimeout(timer)
@@ -661,11 +679,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     if (seq !== refineSeq.current) return
     setTyping(false)
     setRuleResult(shown)
-    setPlainResult(shown === result ? null : result)
+    setWeekResult(week)
+    setPlainResult(week || shown === result ? null : result)
     const head = requestNow && failed
-      ? `I couldn't apply that just now (${failed.replace(/\.$/, '')}). Here's your plan without it; try asking again in a moment.\n\n`
+      ? `I couldn't apply that just now (${failed.replace(/\.$/, '')}). Here's your plan${week ? '' : ' without it'}; try asking again in a moment.\n\n`
       : note ? `✨ ${note}\n\n` : ''
-    ask('preview', head + formatRecommendedPlan(shown))
+    ask('preview', head + (week ? formatWeeklyPlan(week) : formatRecommendedPlan(shown)))
   }
 
   // ── Options for the current question ──────────────────────────────────
@@ -835,7 +854,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   function pickSingle(opt: ChatOption) {
     if (busy) return
     const d = draft
-    if (step === 'preview' && opt.id === 'confirm') { void confirmRecommended(d); return }
+    if (step === 'preview' && opt.id === 'confirm') { void (weekResult ? confirmWeek(d) : confirmRecommended(d)); return }
     echo(opt.label)
     if (step === 'apps_mode') {
       afterSubject(withAllow(d, subject, { appsMode: opt.id === 'whitelist' ? 'whitelist' : 'blacklist' }), subjIdx)
@@ -857,6 +876,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       else if (opt.id === 'plain' && plainResult) {
         setRuleResult(plainResult)
         setPlainResult(null)
+        setWeekResult(null)
         ask('preview', formatRecommendedPlan(plainResult))
       }
       else enterSubjects(d)
@@ -1065,6 +1085,39 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       }).catch(() => {})
       onPlanConfirmed({ days_of_week: ALL_DAYS, slots })
       finishConfirmed(ruleResult.blocks.filter(b => b.kind === 'study').length - slots.filter(s => !s.is_sleep).length)
+    } catch (e) {
+      saveFailed(e, d)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Same as confirmRecommended, but for a week that varies by day: writes
+   *  one schedule per weekday (confirmWeekPlan) instead of one shared one. */
+  async function confirmWeek(d: Draft) {
+    const p = profileRef.current
+    if (!p || !weekResult || !d.wakeTime || !d.sleepTime) return
+    echo('Confirm this plan')
+    setSaving(true)
+    try {
+      const { freeSites, freeApps } = freeTimeLists()
+      const allow = allowFor(d)
+      const { writtenSlots } = await confirmWeekPlan(sb as any, {
+        userId: p.uid, planName: PLAN_NAME, week: weekResult, subjectAllowlists: allow,
+        freeTimeSites: freeSites, freeTimeApps: freeApps,
+      })
+      const week = Object.fromEntries(Object.entries(writtenSlots).map(([day, s]) => [Number(day), toAiSlots(s)]))
+      await rememberAnswers(sb as any, p.uid, { wakeTime: d.wakeTime, sleepTime: d.sleepTime, subjectAllowlists: allow }).catch(() => {})
+      saveLearning(d, confirmedEvents(d), { planFields: true })
+      await recordOutcome(sb as any, {
+        source: 'ai_custom', requestedMinutes: d.dailyMinutes,
+        confirmedMinutes: Math.round(Object.values(weekResult).reduce((sum, r) => sum + r.placedStudyMinutes, 0) / 7),
+        outcome: 'accepted_as_is',
+      }).catch(() => {})
+      onPlanConfirmed({ week })
+      const skipped = Object.values(weekResult).reduce((sum, r) => sum + r.blocks.filter(b => b.kind === 'study').length, 0)
+        - Object.values(writtenSlots).reduce((sum, s) => sum + s.filter(x => !x.isSleep).length, 0)
+      finishConfirmed(skipped)
     } catch (e) {
       saveFailed(e, d)
     } finally {

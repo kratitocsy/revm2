@@ -381,6 +381,9 @@ export async function confirmPlan(sb: SupaLike, args: ConfirmPlanArgs): Promise<
     freeTimeSites: args.freeTimeSites,
     freeTimeApps: args.freeTimeApps,
   });
+  // A student who previously asked for a varied week and now confirms a
+  // single repeated day shouldn't keep the old per-weekday schedules too.
+  await clearWeekdayVariants(sb, args.userId, args.planName);
 
   const slots: PlanSlotInput[] = args.result.blocks
     .filter(b => b.kind !== 'break') // represented as break_after_minutes on the previous slot, not its own slot
@@ -398,6 +401,69 @@ export async function confirmPlan(sb: SupaLike, args: ConfirmPlanArgs): Promise<
 
   const { scheduleId } = await writeSchedule(sb, args.userId, { planName: args.planName, daysOfWeek: args.daysOfWeek, slots });
   return { scheduleId, writtenSlots };
+}
+
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Deletes the per-weekday schedules ("<planName> - Mon" etc.) a varied
+ *  week left behind, so switching back to a single repeated day doesn't
+ *  leave stale schedules still enforcing on other days. */
+async function clearWeekdayVariants(sb: SupaLike, userId: string, planName: string): Promise<void> {
+  const { data: rows } = await sb.from('focus_lock_schedules').select('id, name').eq('user_id', userId);
+  const stale = ((rows as { id: string; name: string }[]) || []).filter(r => r.name.startsWith(`${planName} - `));
+  for (const r of stale) {
+    await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', r.id);
+    await sb.from('focus_lock_schedules').delete().eq('id', r.id);
+  }
+}
+
+export interface ConfirmWeekPlanArgs {
+  userId: string;
+  planName: string;
+  /** One rule/AI result per day of week, 0 (Sun) to 6 (Sat). */
+  week: Record<number, GeneratorResult>;
+  subjectAllowlists: Record<string, SubjectAllowlist>;
+  freeTimeSites: string[];
+  freeTimeApps: string[];
+}
+
+/** Writes a varied week as one schedule per day ("<planName> - Mon", ...)
+ *  instead of the single repeated-day schedule confirmPlan writes, since
+ *  focus_lock_schedules has one slot set per schedule — a day-varying week
+ *  needs a schedule per day. Replaces both the single schedule and any
+ *  earlier per-weekday ones, so re-confirming a week never doubles up. */
+export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): Promise<{ writtenSlots: Record<number, PlanSlotInput[]> }> {
+  const { presetIdBySubject, freeTimePresetId } = await ensurePresets(sb, args.userId, {
+    subjectAllowlists: args.subjectAllowlists,
+    freeTimeSites: args.freeTimeSites,
+    freeTimeApps: args.freeTimeApps,
+  });
+
+  const { data: single } = await sb.from('focus_lock_schedules').select('id').eq('user_id', args.userId).eq('name', args.planName).maybeSingle();
+  if (single?.id) {
+    await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', single.id);
+    await sb.from('focus_lock_schedules').delete().eq('id', single.id);
+  }
+  await clearWeekdayVariants(sb, args.userId, args.planName);
+
+  const writtenSlots: Record<number, PlanSlotInput[]> = {};
+  for (const [dayStr, result] of Object.entries(args.week)) {
+    const day = Number(dayStr);
+    const slots: PlanSlotInput[] = result.blocks
+      .filter(b => b.kind !== 'break')
+      .map(block => ({
+        presetId: block.kind === 'sleep' ? null : (block.subjectName ? presetIdBySubject[block.subjectName] : null) ?? freeTimePresetId,
+        subject: block.kind === 'sleep' ? null : (block.subjectName ?? null),
+        startTime: block.startTime,
+        endTime: block.endTime,
+        isSleep: block.kind === 'sleep',
+      }));
+    const usable = slots.filter(s => s.isSleep || s.presetId);
+    if (slots.some(s => !s.isSleep) && !usable.some(s => !s.isSleep)) throw new NoEnforceableBlocksError();
+    await writeSchedule(sb, args.userId, { planName: `${args.planName} - ${WEEKDAY_NAMES[day]}`, daysOfWeek: [day], slots: usable });
+    writtenSlots[day] = usable;
+  }
+  return { writtenSlots };
 }
 
 export interface AiSlot {

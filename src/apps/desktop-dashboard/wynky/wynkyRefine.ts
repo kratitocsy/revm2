@@ -105,6 +105,26 @@ export function checkRefined(slots: unknown, draft: GeneratorResult, ctx: Refine
   return { ok: true, slots: out };
 }
 
+/** Same checks as checkRefined, run once per day of a refine_week answer.
+ *  Each day is checked on its own terms (its own overlap/order check),
+ *  but the wake/sleep/busy/total checks still apply to every day since
+ *  those don't vary by day of week. */
+export function checkRefinedWeek(days: unknown, draft: GeneratorResult, ctx: RefineContext): { ok: true; days: Record<number, RefinedSlot[]> } | { ok: false; reason: string } {
+  if (!Array.isArray(days) || days.length !== 7) return { ok: false, reason: 'need exactly 7 days' };
+  const out: Record<number, RefinedSlot[]> = {};
+  const seen = new Set<number>();
+  for (const raw of days as Record<string, unknown>[]) {
+    const day = raw?.day;
+    if (typeof day !== 'number' || day < 0 || day > 6) return { ok: false, reason: `invalid day ${String(day)}` };
+    if (seen.has(day)) return { ok: false, reason: `duplicate day ${day}` };
+    seen.add(day);
+    const check = checkRefined(raw?.slots, draft, ctx);
+    if (!check.ok) return { ok: false, reason: `day ${day}: ${check.reason}` };
+    out[day] = check.slots;
+  }
+  return { ok: true, days: out };
+}
+
 /** The refined day as a GeneratorResult, keeping the draft's sleep block
  *  and adding the breaks between blocks back for display. */
 export function toResult(slots: RefinedSlot[], draft: GeneratorResult): GeneratorResult {

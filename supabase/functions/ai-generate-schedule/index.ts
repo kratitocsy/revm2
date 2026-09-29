@@ -96,6 +96,32 @@ Return ONLY raw JSON, no markdown:
 Rules for slots: study blocks only (no sleep, no breaks), 24-hour HH:MM, end_time later than start_time
 on the same day, chronological, no overlaps, subject copied exactly from SUBJECTS.`;
 
+const REFINE_WEEK_PROMPT = `You are Wynky, a study planner for Indian exam students (JEE, NEET, boards and others).
+You get a DRAFT plan for one day (its block times and lengths) and return a full WEEK of plans, one for
+each day 0-6 (0=Sun 1=Mon ... 6=Sat), that rotates subjects across the week instead of repeating the
+same subjects every day.
+
+Priority, highest first — a higher item always wins over a lower one:
+1. STUDENT'S REQUEST NOW (if given).
+2. STANDING REQUESTS the student made in earlier chats.
+3. Hard limits: never study inside BUSY times, never before WAKE + 30 min or after SLEEP - 30 min.
+4. What is known about the student: Study DNA, weak subjects, exam.
+5. The draft's block times and lengths.
+
+How to build the week:
+- Keep the same start/end times and block lengths as the draft on every day, unless a request says otherwise.
+- Rotate which subjects fill those blocks so different days cover different subjects (e.g. Mon: A+B, Tue: C+D).
+- Give WEAK subjects more days across the week than the others.
+- Every subject in SUBJECTS should appear on at least one day across the week.
+- Don't put the same subject twice in a row within a single day.
+
+Return ONLY raw JSON, no markdown:
+{"days":[{"day":0,"slots":[{"start_time":"HH:MM","end_time":"HH:MM","subject":"one of SUBJECTS, copied exactly"}]}],"note":"one short friendly sentence (max 120 chars), or empty"}
+
+"days" must have exactly 7 entries, one per day number 0-6 with no repeats, each with at least one slot.
+Rules for each day's slots: study blocks only (no sleep, no breaks), 24-hour HH:MM, end_time later than
+start_time on the same day, chronological, no overlaps, subject copied exactly from SUBJECTS.`;
+
 // Statuses that mean "busy or briefly broken, try again", not "bad request".
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
@@ -286,12 +312,12 @@ function validateSchedule(sched: Record<string, unknown>): string | null {
 
 const HHMM = /^\d{2}:\d{2}$/;
 
-/** Checks the refine answer's shape; Wynky checks the plan itself
- *  (busy times, wake/sleep, total) again before showing it. */
-function validateRefined(out: Record<string, unknown>, subjects: string[]): string | null {
-  if (!Array.isArray(out.slots) || !out.slots.length) return "No study blocks";
+/** Checks one day's slots (format, order, overlap, known subject). Shared
+ *  by the single-day and weekly refine answers. */
+function slotsError(slots: unknown, subjects: string[]): string | null {
+  if (!Array.isArray(slots) || !slots.length) return "No study blocks";
   let prevEnd = "00:00";
-  for (const slot of out.slots as Record<string, unknown>[]) {
+  for (const slot of slots as Record<string, unknown>[]) {
     const { start_time, end_time, subject } = slot;
     if (typeof start_time !== "string" || !HHMM.test(start_time)) return `Bad start_time: ${start_time}`;
     if (typeof end_time !== "string" || !HHMM.test(end_time)) return `Bad end_time: ${end_time}`;
@@ -299,6 +325,27 @@ function validateRefined(out: Record<string, unknown>, subjects: string[]): stri
     if (start_time < prevEnd) return `Overlapping or out-of-order block at ${start_time}`;
     if (typeof subject !== "string" || !subjects.includes(subject)) return `Unknown subject: ${subject}`;
     prevEnd = end_time;
+  }
+  return null;
+}
+
+/** Checks the refine answer's shape; Wynky checks the plan itself
+ *  (busy times, wake/sleep, total) again before showing it. */
+function validateRefined(out: Record<string, unknown>, subjects: string[]): string | null {
+  return slotsError(out.slots, subjects);
+}
+
+/** Checks the refine_week answer's shape: exactly 7 days, 0-6 with no
+ *  repeats, each day's own slots valid on their own terms. */
+function validateRefinedWeek(out: Record<string, unknown>, subjects: string[]): string | null {
+  if (!Array.isArray(out.days) || out.days.length !== 7) return "Need exactly 7 days";
+  const seen = new Set<number>();
+  for (const day of out.days as Record<string, unknown>[]) {
+    if (typeof day.day !== "number" || day.day < 0 || day.day > 6) return `Invalid day: ${day.day}`;
+    if (seen.has(day.day)) return `Duplicate day: ${day.day}`;
+    seen.add(day.day);
+    const err = slotsError(day.slots, subjects);
+    if (err) return `Day ${day.day}: ${err}`;
   }
   return null;
 }
@@ -338,7 +385,7 @@ Deno.serve(async (req: Request) => {
     if (!apiKey) return json({ error: "AI not configured" }, 500);
     const model = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash";
 
-    if (mode === "refine") {
+    if (mode === "refine" || mode === "refine_week") {
       const subjectNames = strList(subjects, 20);
       if (!subjectNames.length) return json({ error: "subjects are required" }, 400);
       const draft = (Array.isArray(body.draft) ? body.draft : []).slice(0, 30)
@@ -360,13 +407,19 @@ ABOUT THE STUDENT: ${strList(body.facts, 12).join("; ") || "nothing more known"}
 
 DRAFT:
 ${draft.join("\n")}`;
-      const rawText = await generate(prompt, apiKey, model, REFINE_PROMPT);
+      const isWeek = mode === "refine_week";
+      const rawText = await generate(prompt, apiKey, model, isWeek ? REFINE_WEEK_PROMPT : REFINE_PROMPT);
       let out: Record<string, unknown>;
       try {
         out = extractJson(rawText) as Record<string, unknown>;
       } catch {
-        console.error("ai-generate-schedule: refine output not JSON:", rawText.slice(0, 300));
+        console.error(`ai-generate-schedule: ${mode} output not JSON:`, rawText.slice(0, 300));
         return json({ error: "The AI's answer was cut off." }, 500);
+      }
+      if (isWeek) {
+        const err = validateRefinedWeek(out, subjectNames);
+        if (err) return json({ error: `AI returned an invalid week: ${err}` }, 500);
+        return json({ success: true, mode: "refine_week", days: out.days, note: str(out.note, 160) });
       }
       const err = validateRefined(out, subjectNames);
       if (err) return json({ error: `AI returned an invalid plan: ${err}` }, 500);
