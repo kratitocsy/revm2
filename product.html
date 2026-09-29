@@ -205,11 +205,17 @@ header .btn-primary:hover, .hero .btn-primary:hover{ box-shadow:0 14px 40px -12p
 .hero .lead{ color:#D9D4CC; }
 .hero-meta .item{ color:#A9A196; }
 
-/* hero visual: devices + Wynky, in the same 590px-tall box the phone mockup used */
-.hero-visual{ position:relative; display:flex; align-items:center; min-height:590px; }
+/* hero visual: Wynky at the desk with the Today dashboard */
+.hero-visual{ position:relative; display:flex; align-items:center; justify-content:center; min-height:590px; }
 .hero-visual img{
-  width:calc(100% + 36px + clamp(0px, (100vw - 1200px) / 2 + 4px, 180px)); max-width:none; height:auto; margin-left:-36px;
-  filter:drop-shadow(0 28px 36px rgba(0,0,0,.55));
+  display:block; width:100%; max-width:580px; height:auto;
+  /* crop the empty black sky above the dashboard */
+  aspect-ratio:1055/1080; object-fit:cover; object-position:50% 100%;
+  /* the art sits on black: feather all four edges into the hero background */
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 12%,#000 84%,transparent);
+  -webkit-mask-composite:source-in;
+          mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,transparent,#000 12%,#000 84%,transparent);
+          mask-composite:intersect;
 }
 
 /* ---------- marquee / built-for ---------- */
@@ -488,7 +494,6 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 @media (max-width:1024px){
   .hero-grid{ grid-template-columns:1fr; gap:48px; }
   .hero-visual{ min-height:0; max-width:640px; width:100%; margin:0 auto; }
-  .hero-visual img{ width:100%; margin:0; }
   .split{ grid-template-columns:1fr; gap:44px; }
   .cards-4{ grid-template-columns:repeat(2,1fr); }
   .quotes{ grid-template-columns:1fr; }
@@ -593,11 +598,8 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
     </div>
 
     <div class="hero-visual" id="emulator">
-      <picture>
-        <source media="(max-width:760px)" srcset="assets/hero/wynko-hero-devices-720.webp" />
-        <img src="assets/hero/wynko-hero-devices.webp" width="2280" height="1400" fetchpriority="high"
-             alt="The Wynko dashboard on a laptop next to the Wynko mobile app" />
-      </picture>
+      <img src="assets/hero/wynko-hero-study-buddy.webp" width="1055" height="1491" fetchpriority="high"
+           alt="Wynky, the Wynko study buddy, at a laptop beside the Today dashboard: focus timer, study streak, tasks, Study Room and Battleground" />
     </div>
   </div>
 </section>
