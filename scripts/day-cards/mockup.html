@@ -1,0 +1,263 @@
+<!doctype html>
+<!--
+  Source for assets/day/day-0{1..4}-*.webp (the four "Your Day" cards on product.html).
+  Re-render with:  node scripts/day-cards/render.cjs   (needs Playwright + Chromium)
+  Each .cv canvas is 480x278 CSS px (the card visual's aspect) on a transparent background, captured at 2x.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wynko day cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=block" rel="stylesheet">
+<style>
+:root{
+  --orange:#FF8A3D; --amber:#FFB257; --deep:#F26A1B; --cream:#FFF4E4;
+  --txt:#F6F1EA; --txt-2:#B9B0A5; --txt-3:#7E766C;
+  --card:rgba(255,255,255,.045); --line:rgba(255,190,130,.14);
+  --grad:linear-gradient(135deg,#FFC069,#FF8A3D 55%,#F26A1B);
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ background:transparent; }
+body{ width:480px; font-family:'Poppins',system-ui,sans-serif; color:var(--txt); -webkit-font-smoothing:antialiased; text-rendering:geometricPrecision; font-kerning:normal; display:flex; flex-direction:column; gap:24px; }
+svg{ display:block; }
+.mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+
+/* ---------- canvas ---------- */
+.cv{
+  position:relative; width:480px; height:278px; overflow:hidden;
+  /* the phone dissolves into the card at the bottom */
+  -webkit-mask-image:linear-gradient(180deg,#000 78%,transparent 100%);
+}
+.glow{ position:absolute; left:50%; top:58%; width:420px; height:300px; transform:translate(-50%,-50%);
+  background:radial-gradient(closest-side, rgba(255,130,50,.30), rgba(255,130,50,.08) 60%, transparent); }
+
+/* ---------- phone ---------- */
+.phone{
+  position:absolute; left:50%; top:14px; width:240px; height:330px; margin-left:-120px;
+  border-radius:36px; padding:6px;
+  background:linear-gradient(160deg,#4a3d31 0%,#1a1410 38%,#0b0908 70%,#2a211a 100%);
+  box-shadow:
+    0 0 0 1.2px rgba(255,176,105,.55),
+    0 0 18px rgba(255,138,61,.55),
+    0 0 54px rgba(255,110,30,.28);
+}
+.screen{
+  position:relative; height:100%; border-radius:30px; overflow:hidden; padding:21px 13px 0;
+  background:radial-gradient(130% 70% at 50% -5%, #2a1d13 0%, #120d0a 55%, #0b0908 100%);
+}
+.island{ position:absolute; top:7px; left:50%; width:54px; height:13px; margin-left:-27px; border-radius:999px; background:#030202; }
+.bar{ display:flex; align-items:center; gap:5px; margin-bottom:6px; }
+.bar img{ width:15px; height:15px; object-fit:contain; }
+.bar .brand{ font-weight:800; font-size:10px; letter-spacing:.14em; }
+.bar .end{ margin-left:auto; }
+.pill{ font-size:7.5px; font-weight:600; padding:3px 7px; border-radius:999px; background:rgba(255,138,61,.14); color:var(--amber); border:1px solid rgba(255,138,61,.3); display:inline-flex; align-items:center; gap:4px; }
+.pill i{ width:5px; height:5px; border-radius:50%; background:var(--orange); box-shadow:0 0 6px var(--orange); }
+h3{ font-size:16px; font-weight:700; line-height:1.15; letter-spacing:-.01em; }
+.sub{ font-size:8.5px; color:var(--txt-2); margin-top:2px; }
+.tile{ background:var(--card); border:1px solid var(--line); border-radius:13px; padding:9px 10px; }
+.lbl{ white-space:nowrap; font-size:7px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--txt-3); }
+.big{ font-weight:700; font-size:12.5px; white-space:nowrap; line-height:1.25; }
+.ic{ width:26px; height:26px; border-radius:9px; display:grid; place-items:center; background:var(--grad); box-shadow:0 4px 14px -4px rgba(255,120,40,.8); flex-shrink:0; }
+.ic svg{ width:14px; height:14px; }
+
+/* ---------- floating chip ---------- */
+.chip{
+  position:absolute; display:flex; align-items:center; gap:8px; padding:8px 12px 8px 8px; border-radius:14px;
+  background:linear-gradient(180deg,rgba(38,26,18,.96),rgba(20,14,10,.96));
+  border:1px solid rgba(255,160,90,.55);
+  box-shadow:0 0 14px rgba(255,138,61,.35), 0 14px 30px -12px rgba(0,0,0,.9);
+  z-index:3;
+}
+.chip b{ display:block; font-size:12px; font-weight:700; line-height:1.2; }
+.chip span{ display:block; font-size:8px; color:var(--txt-2); }
+.chip .ic{ width:28px; height:28px; }
+
+/* progress bars */
+.prog{ height:5px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; }
+.prog i{ display:block; height:100%; border-radius:inherit; background:var(--grad); }
+</style>
+</head>
+<body>
+
+<!-- ============ 01 PLAN ============ -->
+<div class="cv" id="plan">
+  <div class="glow"></div>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="bar">
+      <img src="../../wynko-mark.png" alt=""><span class="brand">WYNKO</span>
+      <span class="end pill"><i></i>Plan</span>
+    </div>
+    <h3>Plan your exam</h3>
+    <p class="sub">Set your goal. Wynko builds the plan.</p>
+
+    <div class="tile" style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:7px 9px;">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg></div>
+      <div style="flex:1;min-width:0">
+        <div class="lbl">Target exam</div>
+        <div class="big">JEE Main 2026</div>
+      </div>
+      <span class="pill mono" style="font-size:7px;">142 days</span>
+    </div>
+
+    <div class="tile" style="display:flex;align-items:center;gap:10px;margin-top:6px;padding:7px 9px;">
+      <svg width="54" height="54" viewBox="0 0 58 58">
+        <defs><linearGradient id="gp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC069"/><stop offset="1" stop-color="#F26A1B"/></linearGradient></defs>
+        <circle cx="29" cy="29" r="23" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+        <circle cx="29" cy="29" r="23" fill="none" stroke="url(#gp)" stroke-width="6" stroke-linecap="round"
+                stroke-dasharray="60.7 144.5" transform="rotate(-90 29 29)"/>
+        <text x="29" y="30" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="13" fill="#F6F1EA">42%</text>
+        <text x="29" y="40" text-anchor="middle" font-family="Poppins" font-size="6" fill="#B9B0A5">syllabus</text>
+      </svg>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+        <div><div style="display:flex;justify-content:space-between;font-size:7.5px;margin-bottom:3px;"><span>Physics</span><span class="mono" style="color:var(--txt-2)">58%</span></div><div class="prog"><i style="width:58%"></i></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:7.5px;margin-bottom:3px;"><span>Chemistry</span><span class="mono" style="color:var(--txt-2)">41%</span></div><div class="prog"><i style="width:41%"></i></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:7.5px;margin-bottom:3px;"><span>Maths</span><span class="mono" style="color:var(--txt-2)">33%</span></div><div class="prog"><i style="width:33%"></i></div></div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="chip" style="left:14px;top:138px;">
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></div>
+    <div><b>6 sessions</b><span>scheduled today</span></div>
+  </div>
+</div>
+
+<!-- ============ 02 FOCUS ============ -->
+<div class="cv" id="focus">
+  <div class="glow"></div>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="bar">
+      <img src="../../wynko-mark.png" alt=""><span class="brand">WYNKO</span>
+      <span class="end pill"><i></i>Focus mode</span>
+    </div>
+    <h3>Focus session</h3>
+    <p class="sub">Organic Chemistry &middot; Aldehydes</p>
+
+    <div style="position:relative;width:108px;height:108px;margin:4px auto 0;">
+      <svg width="108" height="108" viewBox="0 0 120 120" style="filter:drop-shadow(0 0 8px rgba(255,138,61,.55));">
+        <defs><linearGradient id="gf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC069"/><stop offset=".6" stop-color="#FF8A3D"/><stop offset="1" stop-color="#F26A1B"/></linearGradient></defs>
+        <circle cx="60" cy="60" r="51" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="8"/>
+        <circle cx="60" cy="60" r="51" fill="none" stroke="url(#gf)" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="231 320.4" transform="rotate(-90 60 60)"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div class="mono" style="font-size:23px;font-weight:600;letter-spacing:-.02em;">24:18</div>
+        <div style="font-size:7.5px;color:var(--txt-2);margin-top:1px;">Session 2 of 4</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:7px;margin-top:7px;">
+      <div style="flex:1;height:28px;border-radius:10px;background:var(--grad);display:grid;place-items:center;font-size:9px;font-weight:700;box-shadow:0 6px 16px -6px rgba(255,120,40,.9);">Pause</div>
+      <div style="width:56px;height:28px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;font-size:9px;font-weight:600;color:var(--txt-2);">End</div>
+    </div>
+  </div></div>
+
+  <div class="chip" style="right:12px;top:112px;">
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+    <div><b>Distractions</b><span>blocked &middot; 3 apps</span></div>
+  </div>
+</div>
+
+<!-- ============ 03 TRACK ============ -->
+<div class="cv" id="track">
+  <div class="glow"></div>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="bar">
+      <img src="../../wynko-mark.png" alt=""><span class="brand">WYNKO</span>
+      <span class="end pill"><i></i>This week</span>
+    </div>
+    <h3>Study progress</h3>
+    <p class="sub">Every session, logged for you.</p>
+
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <div class="tile" style="flex:1.15;display:flex;align-items:center;gap:7px;padding:7px 8px;">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c1 3.6-1.6 5.2-1.6 7.6 0 1.4 1.1 2.4 2.4 2.4 1.8 0 3-1.6 2.5-3.7C18 10.1 19 12.6 19 15a7 7 0 1 1-14 0c0-4.1 3-6.8 7-13z"/></svg></div>
+        <div><div class="lbl">Streak</div><div class="big">12 days</div></div>
+      </div>
+      <div class="tile" style="flex:1;padding:7px 8px;">
+        <div class="lbl">Focused</div><div class="big mono" style="font-size:12px;">18h 42m</div>
+      </div>
+    </div>
+
+    <div class="tile" style="margin-top:6px;padding:7px 9px 6px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:8.5px;font-weight:600;">Weekly activity</span>
+        <span class="mono" style="font-size:7px;color:var(--txt-2);">24 sessions</span>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:7px;height:44px;">
+        <div style="flex:1;height:44%;border-radius:4px;background:rgba(255,160,90,.28);"></div>
+        <div style="flex:1;height:62%;border-radius:4px;background:rgba(255,160,90,.28);"></div>
+        <div style="flex:1;height:50%;border-radius:4px;background:rgba(255,160,90,.28);"></div>
+        <div style="flex:1;height:78%;border-radius:4px;background:rgba(255,160,90,.28);"></div>
+        <div style="flex:1;height:68%;border-radius:4px;background:rgba(255,160,90,.28);"></div>
+        <div style="flex:1;height:100%;border-radius:4px;background:var(--grad);box-shadow:0 0 10px rgba(255,138,61,.6);"></div>
+        <div style="flex:1;height:22%;border-radius:4px;background:rgba(255,255,255,.07);"></div>
+      </div>
+      <div class="mono" style="display:flex;gap:7px;margin-top:4px;font-size:6.5px;color:var(--txt-3);">
+        <span style="flex:1;text-align:center">M</span><span style="flex:1;text-align:center">T</span><span style="flex:1;text-align:center">W</span><span style="flex:1;text-align:center">T</span><span style="flex:1;text-align:center">F</span><span style="flex:1;text-align:center;color:var(--amber)">S</span><span style="flex:1;text-align:center">S</span>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="chip" style="right:14px;top:112px;">
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <div><b>Session logged</b><span>Physics &middot; 1h 15m</span></div>
+  </div>
+</div>
+
+<!-- ============ 04 IMPROVE ============ -->
+<div class="cv" id="improve">
+  <div class="glow"></div>
+  <div class="phone"><div class="screen">
+    <div class="island"></div>
+    <div class="bar">
+      <img src="../../wynko-mark.png" alt=""><span class="brand">WYNKO</span>
+      <span class="end pill"><i></i>Insights</span>
+    </div>
+    <h3>Your progress</h3>
+    <p class="sub">Consistency over intensity.</p>
+
+    <div class="tile" style="margin-top:8px;padding:7px 9px 4px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="lbl">Focus hours</span>
+        <span class="pill mono" style="font-size:7px;background:rgba(52,211,153,.12);color:#5BE3A8;border-color:rgba(52,211,153,.3);">+18%</span>
+      </div>
+      <svg width="190" height="50" viewBox="0 0 170 66" preserveAspectRatio="none" style="margin-top:4px;overflow:visible;">
+        <defs>
+          <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8A3D" stop-opacity=".45"/><stop offset="1" stop-color="#FF8A3D" stop-opacity="0"/></linearGradient>
+          <linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFC069"/><stop offset="1" stop-color="#F26A1B"/></linearGradient>
+        </defs>
+        <path d="M0 16H170M0 36H170M0 56H170" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+        <path d="M2 50 C20 46 26 38 42 40 S66 30 82 32 S108 18 124 22 S150 8 168 6 V64 H2 Z" fill="url(#ga)"/>
+        <path d="M2 50 C20 46 26 38 42 40 S66 30 82 32 S108 18 124 22 S150 8 168 6" fill="none" stroke="url(#gl)" stroke-width="2.4" stroke-linecap="round" style="filter:drop-shadow(0 0 4px rgba(255,138,61,.8));"/>
+        <circle cx="168" cy="6" r="3.6" fill="#FFF4E4" stroke="#FF8A3D" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <div class="tile" style="margin-top:6px;display:flex;align-items:center;gap:8px;padding:7px 9px;">
+      <span style="font-size:8.5px;font-weight:600;">Consistency</span>
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <i style="width:8px;height:8px;border-radius:50%;background:var(--grad);"></i>
+        <i style="width:8px;height:8px;border-radius:50%;background:var(--grad);"></i>
+        <i style="width:8px;height:8px;border-radius:50%;background:var(--grad);"></i>
+        <i style="width:8px;height:8px;border-radius:50%;background:var(--grad);"></i>
+        <i style="width:8px;height:8px;border-radius:50%;background:var(--grad);"></i>
+        <i style="width:8px;height:8px;border-radius:50%;background:var(--grad);box-shadow:0 0 6px var(--orange);"></i>
+        <i style="width:8px;height:8px;border-radius:50%;border:1.5px solid rgba(255,160,90,.4);"></i>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="chip" style="right:10px;top:90px;">
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div>
+    <div><b>+18%</b><span>focus vs last week</span></div>
+  </div>
+</div>
+
+</body>
+</html>
