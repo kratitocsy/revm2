@@ -11,9 +11,9 @@
 //              requests) and the AI returns an improved version of the
 //              same day. The student's own requests rank above everything.
 //
-// Google sometimes answers 429/5xx when a model is busy: each call falls
-// back first to GEMINI_FALLBACK_MODEL, then — if GROQ_API_KEY is set — to
-// Groq's free API (a different provider entirely) as the second fallback.
+// Google is sometimes busy or slow, so each call races the main model,
+// GEMINI_FALLBACK_MODEL and — if GROQ_API_KEY is set — Groq's free API (a
+// different provider entirely); see generate().
 //
 // The generated schedule is returned as JSON for the client to preview in
 // the normal schedule builder — the user always reviews before saving.
@@ -125,16 +125,25 @@ start_time on the same day, chronological, no overlaps, subject copied exactly f
 // Statuses that mean "busy or briefly broken, try again", not "bad request".
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
+// Speed matters more than which model answers. Every call shares one 15s
+// budget (Wynky's chat stops waiting at 18s, REFINE_TIMEOUT_MS in
+// WynkyChat.tsx). The main model starts first; if it fails, or hasn't
+// answered within HEDGE_AFTER_MS, the next provider starts alongside it and
+// the first good answer wins. A busy Gemini can take 15s just to answer
+// "503", so waiting for it in turn used to use up the whole wait.
+const TOTAL_BUDGET_MS = 15_000;
+const HEDGE_AFTER_MS = 6_000;
+
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
 }
 
-/** Calls Gemini, then on a busy/overloaded answer tries, in order: the
- *  fallback Gemini model (1st fallback), then — only if GROQ_API_KEY is
- *  set — Groq, a different provider entirely (2nd fallback), for the
- *  rare case where Google itself is having a bad moment. */
+/** Races the main Gemini model, the fallback Gemini model and — only if
+ *  GROQ_API_KEY is set — Groq, a different provider entirely. Each one
+ *  starts when the one before it fails or is slow (HEDGE_AFTER_MS); the
+ *  first answer wins and the rest are cancelled. */
 async function generate(
   userPrompt: string,
   apiKey: string,
@@ -142,45 +151,68 @@ async function generate(
   systemPrompt = SYSTEM_PROMPT,
 ): Promise<string> {
   const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
-  const attempts = [model, ...(fallback && fallback !== model ? [fallback] : [])];
-  let lastErr: unknown = null;
-  for (let i = 0; i < attempts.length; i++) {
-    try {
-      return await callGemini(userPrompt, apiKey, attempts[i], systemPrompt);
-    } catch (e) {
-      lastErr = e;
-      const retryable = e instanceof GeminiError ? RETRYABLE.has(e.status) : true;
-      if (!retryable) break;
-      console.warn(`ai-generate-schedule: ${attempts[i]} failed (${e instanceof Error ? e.message.slice(0, 120) : e}), trying again`);
-      if (i === 0) await new Promise((r) => setTimeout(r, 1200));
-    }
-  }
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  if (groqKey) {
-    try {
-      console.warn("ai-generate-schedule: all Gemini attempts failed, trying Groq");
-      return await callGroq(userPrompt, groqKey, systemPrompt);
-    } catch (e) {
-      console.warn(`ai-generate-schedule: Groq fallback also failed (${e instanceof Error ? e.message.slice(0, 120) : e})`);
-      lastErr = e;
-    }
+  const providers: { name: string; run: (signal: AbortSignal) => Promise<string> }[] = [
+    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
+  ];
+  if (fallback && fallback !== model) {
+    providers.push({ name: fallback, run: (sig) => callGemini(userPrompt, apiKey, fallback, systemPrompt, sig) });
   }
-  throw lastErr instanceof Error ? lastErr : new Error("Gemini failed");
+  if (groqKey) providers.push({ name: "groq", run: (sig) => callGroq(userPrompt, groqKey, systemPrompt, sig) });
+
+  const stop = new AbortController();
+  const budget = AbortSignal.timeout(TOTAL_BUDGET_MS);
+  const signal = AbortSignal.any([stop.signal, budget]);
+  return await new Promise<string>((resolve, reject) => {
+    let next = 0;
+    let running = 0;
+    let done = false;
+    let lastErr: unknown = null;
+    let hedge: ReturnType<typeof setTimeout> | undefined;
+    const finish = (settle: () => void) => {
+      if (done) return;
+      done = true;
+      clearTimeout(hedge);
+      stop.abort();
+      settle();
+    };
+    const launch = () => {
+      clearTimeout(hedge);
+      if (done || budget.aborted || next >= providers.length) return;
+      const p = providers[next++];
+      running++;
+      p.run(signal).then(
+        (text) => finish(() => resolve(text)),
+        (e) => {
+          running--;
+          if (done) return;
+          lastErr = e;
+          console.warn(`ai-generate-schedule: ${p.name} failed (${e instanceof Error ? e.message.slice(0, 120) : e})`);
+          if (next < providers.length && !budget.aborted) launch();
+          else if (running === 0) finish(() => reject(lastErr instanceof Error ? lastErr : new Error("Gemini failed")));
+        },
+      );
+      if (next < providers.length) hedge = setTimeout(launch, HEDGE_AFTER_MS);
+    };
+    launch();
+  });
 }
 
 /** Last-resort fallback on a different provider (OpenAI-compatible chat API),
- *  used only when every Gemini attempt above has already failed and
+ *  started only when both Gemini models have failed or are slow and
  *  GROQ_API_KEY is set. Free tier at console.groq.com. */
 async function callGroq(
   userPrompt: string,
   apiKey: string,
   systemPrompt: string,
+  signal: AbortSignal,
 ): Promise<string> {
   // llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16;
   // openai/gpt-oss-120b is Groq's own recommended free-tier replacement.
   const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model,
@@ -207,12 +239,14 @@ async function callGemini(
   apiKey: string,
   model: string,
   systemPrompt: string,
+  signal: AbortSignal,
 ): Promise<string> {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: systemPrompt }] },
@@ -230,6 +264,10 @@ async function callGemini(
         // was surfacing directly in the UI. Raised with real headroom.
         maxOutputTokens: 8192,
         responseMimeType: "application/json",
+        // Plans don't need deep reasoning, and thinking is most of the
+        // wait. Gemini 3 models take thinkingLevel; older ones would
+        // reject it, so it's only sent to them.
+        ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
       },
       safetySettings: [
         {
@@ -582,7 +620,8 @@ Create a balanced, realistic schedule that addresses these goals.`;
     // Gemini's own error body (raw JSON, sometimes long) must never reach
     // the student directly — only a plain sentence they can act on.
     const bothProvidersDown = e instanceof Error && /^(Groq API|Empty response from Groq)/.test(e.message);
-    const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown
+    const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown || timedOut
       ? "Gemini is busy right now. Please try again in a moment."
       : e instanceof GeminiError
       ? "The AI couldn't answer that request."

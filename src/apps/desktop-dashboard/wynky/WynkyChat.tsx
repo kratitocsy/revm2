@@ -120,8 +120,12 @@ const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
 // the last one instead of stacking a second active schedule on top.
 const PLAN_NAME = 'Wynky Plan'
 const MAX_SHOWN_OPTIONS = 40
-// Longest Wynky waits for Gemini before showing the rule-based plan.
-const REFINE_TIMEOUT_MS = 20_000
+// Longest Wynky waits for Gemini before showing the rule-based plan. Kept just
+// above ai-generate-schedule's 15s budget (TOTAL_BUDGET_MS), where the main
+// model, its fallback and Groq race and the first good answer wins.
+const REFINE_TIMEOUT_MS = 18_000
+// A Week A / Week B plan makes two calls in a row; both share this one wait.
+const AB_REFINE_TIMEOUT_MS = 25_000
 const TIME_RE = /^\d{2}:\d{2}$/
 
 const EMPTY_KNOWN: WynkyKnownProfile = {
@@ -772,12 +776,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   }
 
   /** One call to ai-generate-schedule; throws with a readable reason. */
-  async function callRefine(mode: 'refine' | 'refine_week', d: Draft, base: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null, standing: string[]) {
+  async function callRefine(mode: 'refine' | 'refine_week', d: Draft, base: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null, standing: string[], deadline = Date.now() + REFINE_TIMEOUT_MS) {
     const p = profileRef.current
     const { data: { session } } = await sb.auth.getSession()
     if (!session) throw new Error('Not signed in.')
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), REFINE_TIMEOUT_MS)
+    const timer = setTimeout(() => ctrl.abort(), Math.max(0, Math.min(REFINE_TIMEOUT_MS, deadline - Date.now())))
     try {
       const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
         method: 'POST',
@@ -827,8 +831,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         shown = toResult(check.slots, result)
         note = typeof data.note === 'string' ? data.note.trim() : ''
       } else {
+        const deadline = Date.now() + (kind === 'ab' ? AB_REFINE_TIMEOUT_MS : REFINE_TIMEOUT_MS)
         const getWeek = async (req: string | null) => {
-          const data = await callRefine('refine_week', d, result, subjects, weak, req, standing)
+          const data = await callRefine('refine_week', d, result, subjects, weak, req, standing, deadline)
           const check = checkRefinedWeek(data.days, result, ctx)
           if (!check.ok) throw new Error(`Gemini's week didn't fit (${check.reason}).`)
           note ||= typeof data.note === 'string' ? data.note.trim() : ''
