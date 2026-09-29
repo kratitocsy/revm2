@@ -153,6 +153,15 @@ describe('formatWeeklyPlan', () => {
       '08:40–10:00  Free time (1 hour 20 min)',
       '10:00–11:00  📘 Maths',
     ]);
+    expect(timetableLines(result, [{ start: '08:45', end: '09:40' }])).toEqual([
+      '06:30–07:30  📘 Chemistry',
+      '07:30–07:40  ☕ Break (10 min)',
+      '07:40–08:40  📘 Physics',
+      '08:40–08:45  ☕ Break (5 min)',
+      '08:45–09:40  🏫 Busy',
+      '09:40–10:00  ☕ Break (20 min)',
+      '10:00–11:00  📘 Maths',
+    ]);
   });
 });
 

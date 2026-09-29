@@ -220,25 +220,46 @@ function fmtGap(minutes: number): string {
   return [hours, m ? `${m} min` : ''].filter(Boolean).join(' ')
 }
 
-/** One line per block, timetable style, with the break or free time
- *  between study blocks spelled out, so a student can see exactly what
- *  runs from when to when. */
-export function timetableLines(result: GeneratorResult): string[] {
+const toMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+const toClock = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+/** One line per block, timetable style, with what fills each gap between
+ *  study blocks spelled out: the student's busy times (school, coaching),
+ *  then short gaps as breaks and longer ones as free time. */
+export function timetableLines(result: GeneratorResult, busy: { start: string; end: string }[] = []): string[] {
   const blocks = result.blocks.filter(b => b.kind !== 'break').slice().sort((a, b) => a.startMinutes - b.startMinutes)
+  const busyMins = busy.map(w => [toMinutes(w.start), toMinutes(w.end)] as const).sort((a, b) => a[0] - b[0])
+  const gapLines = (from: number, to: number) => {
+    const out: string[] = []
+    const free = (a: number, b: number) => {
+      if (b <= a) return
+      const gap = b - a
+      out.push(`${toClock(a)}–${toClock(b)}  ${gap <= BREAK_MAX_MINUTES ? `☕ Break (${gap} min)` : `Free time (${fmtGap(gap)})`}`)
+    }
+    let at = from
+    for (const [bs, be] of busyMins) {
+      const s = Math.max(bs, at), e = Math.min(be, to)
+      if (e <= s) continue
+      free(at, s)
+      out.push(`${toClock(s)}–${toClock(e)}  🏫 Busy`)
+      at = e
+    }
+    free(at, to)
+    return out
+  }
   const lines: string[] = []
   blocks.forEach((b, i) => {
     const prev = blocks[i - 1]
     if (prev && prev.kind === 'study' && b.kind === 'study' && b.startMinutes > prev.endMinutes) {
-      const gap = b.startMinutes - prev.endMinutes
-      lines.push(`${prev.endTime}–${b.startTime}  ${gap <= BREAK_MAX_MINUTES ? `☕ Break (${gap} min)` : `Free time (${fmtGap(gap)})`}`)
+      lines.push(...gapLines(prev.endMinutes, b.startMinutes))
     }
     lines.push(`${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : `📘 ${b.subjectName || 'Study'}`}`)
   })
   return lines
 }
 
-export function formatRecommendedPlan(result: GeneratorResult): string {
-  const lines = timetableLines(result)
+export function formatRecommendedPlan(result: GeneratorResult, busy: { start: string; end: string }[] = []): string {
+  const lines = timetableLines(result, busy)
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
   return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
 }
@@ -338,7 +359,7 @@ export function formatDayOverrides(overrides: DayOverrides): string {
  *  Days 7-13 are shown as Week B; days not in activeDays as "off". */
 export function formatWeeklyPlan(
   week: Record<number, GeneratorResult>,
-  opts: { activeDays?: number[]; repeat?: Repeat } = {},
+  opts: { activeDays?: number[]; repeat?: Repeat; busy?: { start: string; end: string }[] } = {},
 ): string {
   const active = new Set(opts.activeDays ?? [0, 1, 2, 3, 4, 5, 6]);
   const twoWeeks = Object.keys(week).some(k => Number(k) >= 7);
@@ -350,7 +371,7 @@ export function formatWeeklyPlan(
       const name = FULL_DAY_NAMES[day % 7];
       const result = week[day];
       if (!active.has(day % 7) || !result) return `${name}: day off`;
-      const lines = timetableLines(result).join('\n');
+      const lines = timetableLines(result, opts.busy).join('\n');
       const same = seen.find(s => s.lines === lines);
       if (same) return `${name}: same as ${same.name}`;
       seen.push({ name, lines });
