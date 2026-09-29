@@ -255,7 +255,28 @@ const OAUTH_OPTS = {
   facebook: {},
 };
 
+/* Only offer providers that are switched on in Supabase (Auth → Providers).
+   signInWithOAuth navigates straight to Supabase, so a disabled provider
+   lands on a bare "Unsupported provider: provider is not enabled" JSON
+   page, which the desktop app has no back button to escape. If the
+   settings can't be read, every button stays up as before. */
+const enabledProviders = fetch(`${REVM2_CONFIG.SUPABASE_URL}/auth/v1/settings`, {
+  headers: { apikey: REVM2_CONFIG.SUPABASE_ANON },
+}).then(r => r.ok ? r.json() : null).then(s => s && s.external).catch(() => null);
+
+enabledProviders.then(ext => {
+  if(!ext) return;
+  Object.keys(OAUTH_OPTS).forEach(id => {
+    if(!ext[id]) document.querySelector(`.btn-oauth[data-provider="${id}"]`)?.remove();
+  });
+});
+
 async function signInOAuth(providerId){
+  const ext = await enabledProviders;
+  if(ext && !ext[providerId]){
+    setStatus('That sign-in option isn’t available right now. Please use another one.', 'err');
+    return;
+  }
   const buttons = document.querySelectorAll('.btn-oauth');
   const btn = document.querySelector(`.btn-oauth[data-provider="${providerId}"]`);
   buttons.forEach(b => b.disabled = true);

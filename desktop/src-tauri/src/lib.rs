@@ -294,9 +294,9 @@ pub(crate) fn apply_schedule_active_lock(
 
     if !session_active.load(Ordering::SeqCst) {
         let text = if schedule_active.load(Ordering::SeqCst) {
-            "RevM2 - Schedule active (locked, no session right now)".to_string()
+            "Wynko - Schedule active (locked, no session right now)".to_string()
         } else {
-            "RevM2 - No active session".to_string()
+            "Wynko - No active session".to_string()
         };
         let _ = set_tray_status(app.clone(), text);
     }
@@ -355,9 +355,9 @@ pub(crate) async fn apply_session_state(
     // session" for a moment right as a schedule keeps it locked anyway.
     if was_active && !active {
         let idle_text = if schedule_active.load(Ordering::SeqCst) {
-            "RevM2 - Schedule active (locked, no session right now)".to_string()
+            "Wynko - Schedule active (locked, no session right now)".to_string()
         } else {
-            "RevM2 - No active session".to_string()
+            "Wynko - No active session".to_string()
         };
         let _ = set_tray_status(app.clone(), idle_text);
     }
@@ -695,25 +695,25 @@ async fn run_guard_tick(
         if reason == "incognito" {
             notify(
                 app,
-                "RevM2 - Incognito access not allowed",
+                "Wynko - Incognito access not allowed",
                 &format!(
-                    "{name}'s RevM2 extension doesn't have Incognito access. Go to chrome://extensions -> RevM2 -> Details -> turn on \"Allow in Incognito\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
+                    "{name}'s Wynko extension doesn't have Incognito access. Go to chrome://extensions -> Wynko Focus Lock -> Details -> turn on \"Allow in Incognito\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
                 ),
             );
         } else if reason == "site_access" {
             notify(
                 app,
-                "RevM2 - Site access restricted",
+                "Wynko - Site access restricted",
                 &format!(
-                    "{name}'s RevM2 extension's Site access is set to something other than \"On all sites\". Go to chrome://extensions -> RevM2 -> Details -> Site access -> \"On all sites\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
+                    "{name}'s Wynko extension's Site access is set to something other than \"On all sites\". Go to chrome://extensions -> Wynko Focus Lock -> Details -> Site access -> \"On all sites\" within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
                 ),
             );
         } else {
             notify(
                 app,
-                "RevM2 - Extension disabled",
+                "Wynko - Extension disabled",
                 &format!(
-                    "{name}'s RevM2 extension is missing or disabled. Re-enable it within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
+                    "{name}'s Wynko extension is missing or disabled. Re-enable it within {EXTENSION_GRACE_SECS} seconds or {name} will be closed."
                 ),
             );
         }
@@ -725,8 +725,8 @@ async fn run_guard_tick(
     for name in &recovered {
         notify(
             app,
-            "RevM2 - Extension re-enabled",
-            &format!("{name}'s RevM2 extension is back on - {name} is protected again."),
+            "Wynko - Extension re-enabled",
+            &format!("{name}'s Wynko extension is back on - {name} is protected again."),
         );
     }
 
@@ -740,9 +740,9 @@ async fn run_guard_tick(
             eprintln!("browser_guard: grace expired, closed: {killed:?}");
             notify(
                 app,
-                "RevM2 - Browser closed",
+                "Wynko - Browser closed",
                 &format!(
-                    "{} was closed because the RevM2 extension wasn't re-enabled in time.",
+                    "{} was closed because the Wynko extension wasn't re-enabled in time.",
                     killed.join(", ")
                 ),
             );
@@ -771,7 +771,7 @@ async fn run_guard_tick(
             eprintln!("app_guard: relaunched allowed apps: {relaunched_apps:?}");
             notify(
                 app,
-                "RevM2 - App reopened",
+                "Wynko - App reopened",
                 &format!(
                     "{} was closed during your session and has been reopened - it's on your allow list.",
                     relaunched_apps.join(", ")
@@ -789,13 +789,13 @@ async fn run_guard_tick(
     }
 
     let status_text = if !closed.is_empty() {
-        format!("RevM2 - closed: {}", closed.join(", "))
+        format!("Wynko - closed: {}", closed.join(", "))
     } else if !relaunched_apps.is_empty() {
-        format!("RevM2 - reopened: {}", relaunched_apps.join(", "))
+        format!("Wynko - reopened: {}", relaunched_apps.join(", "))
     } else if let Some((name, remaining)) = soonest_grace {
-        format!("RevM2 - {name} extension missing, {remaining}s until blocked")
+        format!("Wynko - {name} extension missing, {remaining}s until blocked")
     } else {
-        "RevM2 - Session active, all protected".to_string()
+        "Wynko - Session active, all protected".to_string()
     };
     let _ = set_tray_status(app.clone(), status_text);
 }
@@ -860,16 +860,16 @@ fn spawn_watchdog_loop(
                 eprintln!("taskmgr_backstop: failed to cancel during watchdog release: {e}");
             }
             let idle_text = if still_locked {
-                "RevM2 - Schedule active (locked, no session right now)".to_string()
+                "Wynko - Schedule active (locked, no session right now)".to_string()
             } else {
-                "RevM2 - No active session".to_string()
+                "Wynko - No active session".to_string()
             };
             let _ = set_tray_status(app.clone(), idle_text);
 
             notify(
                 &app,
-                "RevM2 - Block auto-released",
-                "Lost contact with your account for a couple of minutes, so the block was released as a safety measure. Open RevM2 in your browser to confirm your session actually ended.",
+                "Wynko - Block auto-released",
+                "Lost contact with your account for a couple of minutes, so the block was released as a safety measure. Open Wynko in your browser to confirm your session actually ended.",
             );
         }
     });
@@ -1064,7 +1064,7 @@ pub fn run() {
             let autostart_item = tauri::menu::CheckMenuItem::with_id(
                 app, "toggle_autostart", "Start with Windows", true, autostart_enabled, None::<&str>,
             )?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit RevM2", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Wynko", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&debug_item, &autostart_item, &quit_item])?;
 
             // Also managed as app state so set_session_active can grey it
@@ -1081,7 +1081,7 @@ pub fn run() {
             let _tray = TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .tooltip("RevM2 - No active session")
+                .tooltip("Wynko - No active session")
                 .on_menu_event(move |app, event| {
                     match event.id.as_ref() {
                         "quit" => {
@@ -1092,11 +1092,11 @@ pub fn run() {
                             // still fire the click (e.g. a stale enabled
                             // state from a missed toggle).
                             if quit_session_active.load(Ordering::SeqCst) {
-                                notify(app, "RevM2 - Can't quit", "A block is active. End it from the app to quit.");
+                                notify(app, "Wynko - Can't quit", "A block is active. End it from the app to quit.");
                                 return;
                             }
                             if quit_schedule_active.load(Ordering::SeqCst) {
-                                notify(app, "RevM2 - Can't quit", "A schedule is active on this account. Turn it off from Blocks to quit.");
+                                notify(app, "Wynko - Can't quit", "A schedule is active on this account. Turn it off from Blocks to quit.");
                                 return;
                             }
                             app.exit(0);
@@ -1214,7 +1214,7 @@ pub fn run() {
                                 } else {
                                     "A schedule is active on this account. Turn it off from Blocks first."
                                 };
-                                notify(&close_guard_app, "RevM2 - Can't close", body);
+                                notify(&close_guard_app, "Wynko - Can't close", body);
                             }
                         } else {
                             let _ = close_guard_window.hide();

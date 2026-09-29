@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "revm2-desktop",
+  "productName": "Wynko Study OS",
   "version": "0.1.0",
   "identifier": "com.kiaro.revm2-desktop",
   "build": {
@@ -10,11 +10,11 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "revm2-desktop",
+        "title": "Wynko Study OS",
         "width": 800,
         "height": 600,
         "visible": false,
-      "url": "https://revm-2-new.vercel.app/home"
+      "url": "https://www.wynko.in/home"
       }
     ],
     "security": {

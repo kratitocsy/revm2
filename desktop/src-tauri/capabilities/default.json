@@ -7,6 +7,7 @@
   ],
   "remote": {
     "urls": [
+      "https://www.wynko.in/*",
       "https://revm-2-new.vercel.app/*"
     ]
   },

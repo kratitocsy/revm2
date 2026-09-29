@@ -42,8 +42,9 @@ pub const EXTENSION_ID: &str = "knofmgookchmjekaefloaljcamjlbnmp";
 
 // The extension's manifest "name" - stable across every browser regardless
 // of what ID that browser assigns it. Used as a fallback identifier for
-// browsers (Edge) that don't honor EXTENSION_ID above.
-const EXTENSION_NAME: &str = "RevM\u{b2} Focus Lock";
+// browsers (Edge) that don't honor EXTENSION_ID above. Both the Wynko name
+// and the pre-rebrand RevM² name count, so older installs keep working.
+const EXTENSION_NAMES: &[&str] = &["Wynko Focus Lock", "RevM\u{b2} Focus Lock"];
 
 pub struct BrowserTarget {
     pub name: &'static str,
@@ -141,7 +142,7 @@ fn read_extension_settings(profile_dir: &PathBuf) -> Option<Value> {
                 let name_matches = entry
                     .pointer("/manifest/name")
                     .and_then(|v| v.as_str())
-                    .map(|n| n == EXTENSION_NAME)
+                    .map(|n| EXTENSION_NAMES.contains(&n))
                     .unwrap_or(false);
                 if name_matches {
                     return Some(entry.clone());

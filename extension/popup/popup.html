@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Wynko Focus Lock</title>
+<link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="header">
+    <img class="brand-mark" src="../icons/icon48.png" alt="" /><span class="brand">Wynko</span>
+    <span class="brand-sub">Focus Lock</span>
+  </header>
+
+  <!-- Shown when a block is currently running -->
+  <section id="active-view" class="view hidden">
+    <div class="status-card">
+      <div class="status-dot"></div>
+      <div>
+        <div class="status-title" id="active-block-name">Block name</div>
+        <div class="status-sub" id="active-time-remaining">Time remaining</div>
+      </div>
+      <span class="mode-badge" id="active-mode-badge">Blacklist</span>
+    </div>
+
+    <div class="current-site-row">
+      <span id="current-site-label">this site</span>
+      <button id="add-current-site-btn" class="btn btn-secondary">Block this site now</button>
+    </div>
+
+    <div class="current-site-row hidden" id="current-channel-row">
+      <span id="current-channel-label">this channel</span>
+      <button id="add-current-channel-btn" class="btn btn-secondary">Block this channel</button>
+    </div>
+
+    <div class="sites-list-label" id="active-sites-list-label">Blocked sites</div>
+    <div class="sites-list" id="active-sites-list"></div>
+
+    <button id="manage-block-btn" class="btn btn-outline">Manage this block in Wynko &rarr;</button>
+    <button id="end-early-btn" class="btn btn-danger">Pause for a Cause</button>
+    <button id="emergency-unlock-btn" class="btn btn-ghost">Emergency unlock &middot; &#8377;90 (ends session)</button>
+    <p id="locked-note" class="hint hidden" style="margin-top:0.4rem;">This block is locked - no early exit, it ends automatically.</p>
+  </section>
+
+  <!-- Shown when nothing is running - block creation, presets, whitelist/
+       blacklist mode, and YouTube channel rules all live on the website now,
+       so this is just a hand-off, not another copy of that form. -->
+  <section id="start-view" class="view hidden">
+    <p class="hint" style="margin-top:0.4rem;">No block is running right now.</p>
+    <button id="open-website-btn" class="btn btn-primary">Start a block in Wynko &rarr;</button>
+  </section>
+
+  <footer class="footer">
+    <a href="#" id="open-options-link">Extension settings</a>
+  </footer>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

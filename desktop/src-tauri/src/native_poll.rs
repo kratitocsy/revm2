@@ -45,7 +45,7 @@
 // stay true instead of depending on a single fragile signal.
 
 use serde::Deserialize;
-use std::sync::atomic::{AtomicBool, AtomicI64};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::menu::MenuItem;
