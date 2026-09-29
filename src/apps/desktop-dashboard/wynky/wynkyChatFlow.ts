@@ -208,10 +208,37 @@ export function fmtBusy(value: string): string {
   return a && b ? `${fmtClock(a)}–${fmtClock(b)}` : value;
 }
 
+// Gaps up to this long between two study blocks read as a break; longer
+// ones are free time (meals, school, anything the student is busy with).
+const BREAK_MAX_MINUTES = 30
+
+/** "45 min", "1 hour", "1 hour 20 min": exact, unlike fmtHours' "1.3 hours". */
+function fmtGap(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  const hours = h ? `${h} ${h === 1 ? 'hour' : 'hours'}` : ''
+  return [hours, m ? `${m} min` : ''].filter(Boolean).join(' ')
+}
+
+/** One line per block, timetable style, with the break or free time
+ *  between study blocks spelled out, so a student can see exactly what
+ *  runs from when to when. */
+export function timetableLines(result: GeneratorResult): string[] {
+  const blocks = result.blocks.filter(b => b.kind !== 'break').slice().sort((a, b) => a.startMinutes - b.startMinutes)
+  const lines: string[] = []
+  blocks.forEach((b, i) => {
+    const prev = blocks[i - 1]
+    if (prev && prev.kind === 'study' && b.kind === 'study' && b.startMinutes > prev.endMinutes) {
+      const gap = b.startMinutes - prev.endMinutes
+      lines.push(`${prev.endTime}–${b.startTime}  ${gap <= BREAK_MAX_MINUTES ? `☕ Break (${gap} min)` : `Free time (${fmtGap(gap)})`}`)
+    }
+    lines.push(`${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : `📘 ${b.subjectName || 'Study'}`}`)
+  })
+  return lines
+}
+
 export function formatRecommendedPlan(result: GeneratorResult): string {
-  const lines = result.blocks
-    .filter(b => b.kind !== 'break')
-    .map(b => `${b.startTime}–${b.endTime}  ${b.kind === 'sleep' ? '😴 Sleep' : (b.subjectName || 'Study')}`);
+  const lines = timetableLines(result)
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
   return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
 }
@@ -231,6 +258,7 @@ export function wantsWeeklyVariation(text: string): boolean {
 }
 
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 /** Days in the order a student reads a week: Monday first. */
 export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
@@ -314,18 +342,24 @@ export function formatWeeklyPlan(
 ): string {
   const active = new Set(opts.activeDays ?? [0, 1, 2, 3, 4, 5, 6]);
   const twoWeeks = Object.keys(week).some(k => Number(k) >= 7);
-  const line = (day: number) => {
-    const name = DAY_NAMES[day % 7];
-    if (!active.has(day % 7)) return `${name}: off`;
-    const result = week[day];
-    if (!result) return `${name}: off`;
-    const study = result.blocks.filter(b => b.kind === 'study');
-    const blocks = study.map(b => `${b.subjectName || 'Study'} ${b.startTime}`);
-    return `${name}: ${blocks.join(', ') || 'Study'} (${fmtHours(result.placedStudyMinutes)})`;
+  // Each day is a small timetable. A day identical to one already shown in
+  // the same week just points back to it, so a mostly-repeating week stays short.
+  const section = (days: number[]) => {
+    const seen: { name: string; lines: string }[] = [];
+    return days.map(day => {
+      const name = FULL_DAY_NAMES[day % 7];
+      const result = week[day];
+      if (!active.has(day % 7) || !result) return `${name}: day off`;
+      const lines = timetableLines(result).join('\n');
+      const same = seen.find(s => s.lines === lines);
+      if (same) return `${name}: same as ${same.name}`;
+      seen.push({ name, lines });
+      return `${name} · ${fmtHours(result.placedStudyMinutes)} of study\n${lines}`;
+    }).join('\n\n');
   };
   const body = twoWeeks
-    ? `Week A (this week):\n${WEEK_ORDER.map(line).join('\n')}\n\nWeek B (next week):\n${WEEK_ORDER.map(d => line(d + 7)).join('\n')}`
-    : WEEK_ORDER.map(line).join('\n');
+    ? `WEEK A (this week)\n\n${section(WEEK_ORDER)}\n\nWEEK B (next week)\n\n${section(WEEK_ORDER.map(d => d + 7))}`
+    : section(WEEK_ORDER);
   const repeatNote = twoWeeks
     ? '\n\nWeek A and Week B take turns, starting with Week A this week.'
     : opts.repeat === 'every2' ? '\n\nRuns every 2 weeks, starting this week.' : '';
