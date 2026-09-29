@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateSchedule } from '../../_shared/scheduleGenerator';
-import { checkRefined, draftSlots, standingRequests, toResult, type RefineContext } from './wynkyRefine';
+import { checkRefined, checkRefinedWeek, draftSlots, standingRequests, toResult, type RefineContext } from './wynkyRefine';
 import { weakSubjects } from './wynkyPlanner';
 
 const subjects = ['Physics', 'Chemistry', 'Maths'];
@@ -49,6 +49,36 @@ describe('toResult', () => {
     expect(r.placedStudyMinutes).toBe(120);
     expect(r.blocks.filter(b => b.kind === 'sleep')).toHaveLength(1);
     expect(r.blocks.filter(b => b.kind === 'break')).toHaveLength(1);
+  });
+});
+
+describe('checkRefinedWeek', () => {
+  // A varied week is only ever requested via a typed request, so the busy-
+  // time/wake-sleep/total checks relax the same way a single-day request does.
+  const weekCtx: RefineContext = { ...ctx, requestNow: true };
+  const oneDay = [slot('14:30', '15:30', 'Maths'), slot('15:40', '16:40', 'Physics')];
+  const sevenDays = (day: number) => ({ day, slots: oneDay });
+
+  it('accepts exactly 7 distinct days, each checked like a single day', () => {
+    const days = Array.from({ length: 7 }, (_, i) => sevenDays(i));
+    const r = checkRefinedWeek(days, draft, weekCtx);
+    expect(r.ok).toBe(true);
+    expect(r.ok && Object.keys(r.days)).toHaveLength(7);
+  });
+
+  it('rejects anything other than 7 days', () => {
+    expect(checkRefinedWeek([sevenDays(0)], draft, weekCtx).ok).toBe(false);
+  });
+
+  it('rejects a duplicate day number', () => {
+    const days = [sevenDays(0), sevenDays(0), sevenDays(2), sevenDays(3), sevenDays(4), sevenDays(5), sevenDays(6)];
+    expect(checkRefinedWeek(days, draft, weekCtx).ok).toBe(false);
+  });
+
+  it("rejects a day whose slots break the single-day rules (overlapping blocks)", () => {
+    const badDay = [slot('14:30', '15:30', 'Maths'), slot('15:00', '16:00', 'Physics')];
+    const days = Array.from({ length: 7 }, (_, i) => i === 0 ? { day: 0, slots: badDay } : sevenDays(i));
+    expect(checkRefinedWeek(days, draft, weekCtx).ok).toBe(false);
   });
 });
 

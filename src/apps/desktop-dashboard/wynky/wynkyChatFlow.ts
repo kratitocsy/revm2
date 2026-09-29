@@ -215,3 +215,29 @@ export function formatRecommendedPlan(result: GeneratorResult): string {
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
   return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
 }
+
+/** True when the student is asking for a week where each day differs,
+ *  rather than one day repeated all week (the default). Deliberately
+ *  narrow — a plain "give me a weekly plan" should still repeat the
+ *  single-day plan, since that is what most students mean. */
+export function wantsWeeklyVariation(text: string): boolean {
+  const t = text.toLowerCase();
+  if (!/\bweek(ly)?\b/.test(t)) return false;
+  return /(each day|every day|per day|different (subjects|plans?)|day[- ]wise|day of week|vary(ing)? by day|alternat\w* days?)/.test(t);
+}
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** One line per day, showing which subjects are on it and the study
+ *  total, so a student can scan the whole week before confirming. */
+export function formatWeeklyPlan(week: Record<number, GeneratorResult>): string {
+  const lines = DAY_NAMES.map((name, day) => {
+    const result = week[day];
+    if (!result) return `${name}: —`;
+    const subjects = uniqueCaseless(
+      result.blocks.filter(b => b.kind === 'study').map(b => b.subjectName || 'Study'),
+    );
+    return `${name}: ${subjects.join(', ') || 'Study'} (${fmtHours(result.placedStudyMinutes)})`;
+  });
+  return `Here's your week:\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+}

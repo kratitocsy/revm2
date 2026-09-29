@@ -7026,14 +7026,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   }
 
   // Mirrors a confirmed Wynky plan into this page's week grid so the student
-  // sees it right away. days_of_week is 0=Sun..6=Sat; the grid is Mon-first.
-  function applyWynkyPlan(plan: { days_of_week: number[]; slots: AiSlot[] }) {
-    const studySlots = (plan.slots || []).filter(s => !s.is_sleep)
+  // sees it right away. days_of_week/day is 0=Sun..6=Sat; the grid is Mon-first.
+  function applyWynkyPlan(plan: { days_of_week: number[]; slots: AiSlot[] } | { week: Record<number, AiSlot[]> }) {
     const stamp = Date.now()
     const next: ScheduleItem[][] = Array.from({ length: 7 }, () => [])
-    for (const d of plan.days_of_week || []) {
-      const gridIdx = d === 0 ? 6 : d - 1
-      next[gridIdx] = studySlots.map((s, i) => {
+    const toItems = (gridIdx: number, slots: AiSlot[]) =>
+      slots.filter(s => !s.is_sleep).map((s, i) => {
         const sub = s.subject || 'Study'
         return {
           id: `wynky_${gridIdx}_${i}_${stamp}`, subject: sub, topic: 'Study session',
@@ -7041,9 +7039,23 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
           color: subjectColor(sub), iconEmoji: subjectEmoji(sub),
         }
       })
+    const allSlots: AiSlot[] = []
+    if ('week' in plan) {
+      for (const [dayStr, slots] of Object.entries(plan.week)) {
+        const day = Number(dayStr)
+        const gridIdx = day === 0 ? 6 : day - 1
+        next[gridIdx] = toItems(gridIdx, slots)
+        allSlots.push(...slots)
+      }
+    } else {
+      for (const d of plan.days_of_week || []) {
+        const gridIdx = d === 0 ? 6 : d - 1
+        next[gridIdx] = toItems(gridIdx, plan.slots)
+      }
+      allSlots.push(...(plan.slots || []))
     }
     setSchedule(next)
-    const newSubjects = [...new Set(studySlots.map(s => s.subject || 'Study'))]
+    const newSubjects = [...new Set(allSlots.filter(s => !s.is_sleep).map(s => s.subject || 'Study'))]
       .filter(sub => !sharedUnits.find(u => u.subject.toLowerCase() === sub.toLowerCase()))
     if (newSubjects.length) setSharedUnits(prev => [...prev, ...newSubjects.map(sub => ({ subject: sub, exam: '', topics: ['Study session'] }))])
   }

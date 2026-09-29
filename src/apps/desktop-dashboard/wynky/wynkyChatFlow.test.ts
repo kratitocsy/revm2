@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   subjectChoices, hasSavedSetup, hoursOptions, minutesFromOptionId, parseStudyMinutes, parseClock,
-  fmtClock, clockOptions, siteFromText, clearMatch, filterOptions,
+  fmtClock, clockOptions, siteFromText, clearMatch, filterOptions, wantsWeeklyVariation, formatWeeklyPlan,
 } from './wynkyChatFlow';
 import { recommend, type WynkyKnownProfile, type WynkyRemembered } from './wynkyPlanner';
+import type { GeneratorResult } from '../../_shared/scheduleGenerator';
 
 const known = (over: Partial<WynkyKnownProfile> = {}): WynkyKnownProfile => ({
   subjects: [], exam: null, dailyHoursBucket: null, customDailyHoursText: null, distractionTags: [], customDistractionText: null,
@@ -102,5 +103,33 @@ describe('recommended day across midnight', () => {
     const r = recommend({ wakeTime: '06:30', sleepTime: '00:30', dailyMinutes: 240, subjects: ['Physics'], blockLengthMinutes: 60 });
     expect(r.blocks.some(b => b.kind === 'study')).toBe(true);
     expect(r.scheduledStudyMinutes).toBeGreaterThan(0);
+  });
+});
+
+describe('wantsWeeklyVariation', () => {
+  it('detects a request for a plan that differs by day', () => {
+    expect(wantsWeeklyVariation('give me weekly plan for each day of week')).toBe(true);
+    expect(wantsWeeklyVariation('different subjects every day this week')).toBe(true);
+    expect(wantsWeeklyVariation('can you do a day-wise weekly schedule')).toBe(true);
+  });
+
+  it('does not fire for a plain weekly request (repeat the same day)', () => {
+    expect(wantsWeeklyVariation('give me a weekly plan')).toBe(false);
+    expect(wantsWeeklyVariation('apply this to the whole week')).toBe(false);
+    expect(wantsWeeklyVariation('I want 5 hours a day')).toBe(false);
+  });
+});
+
+describe('formatWeeklyPlan', () => {
+  it('lists all 7 days with their subjects and totals', () => {
+    const day = (subject: string): GeneratorResult => ({
+      blocks: [{ kind: 'study', startMinutes: 360, endMinutes: 420, startTime: '06:00', endTime: '07:00', subjectName: subject }],
+      requestedMinutes: 60, usableWindowMinutes: 60, scheduledStudyMinutes: 60, placedStudyMinutes: 60,
+      blockLengthMinutes: 60, wasCut: false,
+    });
+    const text = formatWeeklyPlan({ 0: day('Biology'), 1: day('Physics') });
+    expect(text).toContain('Sun: Biology');
+    expect(text).toContain('Mon: Physics');
+    expect(text).toContain('Tue: —');
   });
 });
