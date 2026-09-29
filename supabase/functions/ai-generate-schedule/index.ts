@@ -125,6 +125,16 @@ start_time on the same day, chronological, no overlaps, subject copied exactly f
 // Statuses that mean "busy or briefly broken, try again", not "bad request".
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
+// Wynky's chat stops waiting after 45s (REFINE_TIMEOUT_MS in WynkyChat.tsx),
+// so every attempt shares one 40s budget. When Google is overloaded the main
+// model can take 15s just to answer "503", which used to eat the whole wait
+// before the fallbacks ever ran. Each attempt is capped so the next one
+// still gets a turn.
+const TOTAL_BUDGET_MS = 40_000;
+const MAIN_ATTEMPT_MS = 20_000;
+const FALLBACK_ATTEMPT_MS = 12_000;
+const MIN_ATTEMPT_MS = 4_000;
+
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -143,10 +153,17 @@ async function generate(
 ): Promise<string> {
   const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-flash-lite-latest";
   const attempts = [model, ...(fallback && fallback !== model ? [fallback] : [])];
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  const signalFor = (cap: number) => {
+    const left = deadline - Date.now();
+    return left < MIN_ATTEMPT_MS ? null : AbortSignal.timeout(Math.min(cap, left));
+  };
   let lastErr: unknown = null;
   for (let i = 0; i < attempts.length; i++) {
+    const signal = signalFor(i === 0 ? MAIN_ATTEMPT_MS : FALLBACK_ATTEMPT_MS);
+    if (!signal) break;
     try {
-      return await callGemini(userPrompt, apiKey, attempts[i], systemPrompt);
+      return await callGemini(userPrompt, apiKey, attempts[i], systemPrompt, signal);
     } catch (e) {
       lastErr = e;
       const retryable = e instanceof GeminiError ? RETRYABLE.has(e.status) : true;
@@ -156,10 +173,11 @@ async function generate(
     }
   }
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  if (groqKey) {
+  const groqSignal = groqKey ? signalFor(FALLBACK_ATTEMPT_MS) : null;
+  if (groqKey && groqSignal) {
     try {
       console.warn("ai-generate-schedule: all Gemini attempts failed, trying Groq");
-      return await callGroq(userPrompt, groqKey, systemPrompt);
+      return await callGroq(userPrompt, groqKey, systemPrompt, groqSignal);
     } catch (e) {
       console.warn(`ai-generate-schedule: Groq fallback also failed (${e instanceof Error ? e.message.slice(0, 120) : e})`);
       lastErr = e;
@@ -175,12 +193,14 @@ async function callGroq(
   userPrompt: string,
   apiKey: string,
   systemPrompt: string,
+  signal: AbortSignal,
 ): Promise<string> {
   // llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16;
   // openai/gpt-oss-120b is Groq's own recommended free-tier replacement.
   const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model,
@@ -207,12 +227,14 @@ async function callGemini(
   apiKey: string,
   model: string,
   systemPrompt: string,
+  signal: AbortSignal,
 ): Promise<string> {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: systemPrompt }] },
@@ -582,7 +604,8 @@ Create a balanced, realistic schedule that addresses these goals.`;
     // Gemini's own error body (raw JSON, sometimes long) must never reach
     // the student directly — only a plain sentence they can act on.
     const bothProvidersDown = e instanceof Error && /^(Groq API|Empty response from Groq)/.test(e.message);
-    const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown
+    const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const friendly = (e instanceof GeminiError && RETRYABLE.has(e.status)) || bothProvidersDown || timedOut
       ? "Gemini is busy right now. Please try again in a moment."
       : e instanceof GeminiError
       ? "The AI couldn't answer that request."

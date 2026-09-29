@@ -120,8 +120,11 @@ const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
 // the last one instead of stacking a second active schedule on top.
 const PLAN_NAME = 'Wynky Plan'
 const MAX_SHOWN_OPTIONS = 40
-// Longest Wynky waits for Gemini before showing the rule-based plan.
-const REFINE_TIMEOUT_MS = 20_000
+// Longest Wynky waits for Gemini before showing the rule-based plan. Must stay
+// above ai-generate-schedule's 40s budget (TOTAL_BUDGET_MS), which is shared by
+// the main model, its fallback and Groq: a busy Gemini can take 15s just to
+// say it's busy, and 20s cut the fallbacks off before they could answer.
+const REFINE_TIMEOUT_MS = 45_000
 const TIME_RE = /^\d{2}:\d{2}$/
 
 const EMPTY_KNOWN: WynkyKnownProfile = {
