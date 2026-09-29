@@ -6,7 +6,7 @@
 // user's browser open at exactly the right minute.
 //
 // What it does, once per minute, per active schedule whose days_of_week
-// includes today (Asia/Kolkata, since that's this product's timezone -
+// includes today and whose repeat_weeks cycle is on this week (Asia/Kolkata, since that's this product's timezone -
 // see IST_OFFSET_MINUTES below):
 //   1. Find the slot (if any) that "now" falls inside.
 //   2. If that slot hasn't been started yet today (no focus_lock_schedule_
@@ -49,6 +49,14 @@ function nowInIst(): { dayOfWeek: number; hhmm: string; dateStr: string } {
   const mm = String(ist.getUTCMinutes()).padStart(2, "0");
   const dateStr = ist.toISOString().slice(0, 10);
   return { dayOfWeek, hhmm: `${hh}:${mm}`, dateStr };
+}
+
+// Whole weeks (Monday to Sunday, IST) since Monday 2024-01-01. A schedule
+// with repeat_weeks = N runs only when weekIndex % N = week_offset (see
+// migration 0099); the Wynky planner computes the same number.
+const WEEK_EPOCH_DAYS = Date.UTC(2024, 0, 1) / 86_400_000;
+function istWeekIndex(dateStr: string): number {
+  return Math.floor((Date.parse(`${dateStr}T00:00:00.000Z`) / 86_400_000 - WEEK_EPOCH_DAYS) / 7);
 }
 
 // Converts an IST "HH:MM[:SS]" wall-clock time on dateStr into a UTC ISO
@@ -120,14 +128,22 @@ Deno.serve(async (req) => {
   const db = admin();
   const { dayOfWeek, hhmm, dateStr } = nowInIst();
 
-  const { data: schedules, error: schedErr } = await db
+  const { data: allSchedules, error: schedErr } = await db
     .from("focus_lock_schedules")
-    .select("id, user_id, days_of_week")
+    // "*" rather than naming repeat_weeks/week_offset, so this keeps working
+    // on a database that doesn't have those columns yet (they default to
+    // every week).
+    .select("*")
     .eq("active", true)
     .contains("days_of_week", [dayOfWeek]);
 
   if (schedErr) return json({ error: schedErr.message }, 500);
-  if (!schedules?.length) return json({ ok: true, checked: 0 });
+  const weekIndex = istWeekIndex(dateStr);
+  const schedules = (allSchedules || []).filter((s: any) => {
+    const every = s.repeat_weeks || 1;
+    return every <= 1 || ((weekIndex % every) + every) % every === (s.week_offset || 0);
+  });
+  if (!schedules.length) return json({ ok: true, checked: 0 });
 
   let started = 0;
   let ended = 0;

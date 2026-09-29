@@ -15,7 +15,8 @@ import {
   subjectChoices, examSubjects, uniqueCaseless, isEnforceable, hoursOptions, minutesFromOptionId,
   parseStudyMinutes, clockOptions, parseClock, fmtClock, fmtHours, siteFromText, filterOptions, clearMatch,
   blockOptions, parseBusyText, fmtBusy, formatRecommendedPlan, mentionsWeek, wantsWeeklyVariation, formatWeeklyPlan,
-  formatDayOverrides, repeatWeek, WEEK_ORDER, DAY_NAMES, type ChatOption,
+  formatDayOverrides, repeatWeek, WEEK_ORDER, DAY_NAMES, planDays, dayLabel, repeatFromText, mentionedDays,
+  wantsDaysOff, mentionsWeekB, type ChatOption, type Repeat,
 } from './wynkyChatFlow'
 import {
   rank, best, preselect, isSettled, latestOwn, sourceLabel, blockMinutesPriors, sitePriors, busyPriors, needsBusyQuestion,
@@ -53,11 +54,11 @@ import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 type Step = 'loading' | 'signed_out' | 'subjects' | 'sites' | 'channels' | 'apps' | 'apps_mode'
   | 'busy' | 'hours' | 'block' | 'wake' | 'sleep' | 'preview' | 'done'
-  | 'week_choice' | 'override_day' | 'override_subject'
+  | 'week_choice' | 'days' | 'repeat' | 'override_day' | 'override_subject' | 'override_slot'
 
 type Gap = 'subjects' | 'busy' | 'wake' | 'sleep' | 'hours'
 
-const MULTI_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'busy']
+const MULTI_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'busy', 'days']
 // Steps where typing narrows the options, like "Start typing to see options…".
 const FILTER_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'hours', 'wake', 'sleep']
 
@@ -91,6 +92,26 @@ interface Recs {
   sites: Record<string, string[]>
 }
 interface ChannelSuggestion extends ChannelPick { pickCount: number; note?: string; score: number }
+/** Which days a plan runs on and how often it repeats. */
+interface Shape { days: number[]; rep: Repeat }
+/** A typed week request waiting on the same-or-different, days and repeat questions. */
+interface PendingWeek { text: string | null; vary: boolean; rep: Repeat | null }
+
+const isTwoWeeks = (week: Record<number, GeneratorResult> | null) => !!week && Object.keys(week).some(k => Number(k) >= 7)
+
+/** Drops block-only set-ups ("Physics@17:00") whose block the plan no longer has. */
+function liveOverrides(overrides: DayOverrides, week: Record<number, GeneratorResult>): DayOverrides {
+  const out: DayOverrides = {}
+  for (const [dayStr, bySubject] of Object.entries(overrides)) {
+    const blocks = week[Number(dayStr)]?.blocks || []
+    const kept = Object.entries(bySubject).filter(([key]) => {
+      const at = key.lastIndexOf('@')
+      return at < 0 || blocks.some(b => b.kind === 'study' && b.startTime === key.slice(at + 1) && (b.subjectName || 'Study') === key.slice(0, at))
+    })
+    if (kept.length) out[Number(dayStr)] = Object.fromEntries(kept)
+  }
+  return out
+}
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
 // One name for every plan the chat saves, so confirming a new one replaces
@@ -288,14 +309,18 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   // Set only when the student asked for a week that varies by day; the
   // preview and Confirm then show/save this instead of ruleResult alone.
   const [weekResult, setWeekResult] = useState<Record<number, GeneratorResult> | null>(null)
-  // Sites/channels/apps for a subject on one day only ("Tuesday's Physics").
+  // Days the plan runs on (the rest are days off) and how often it repeats.
+  const [activeDays, setActiveDays] = useState<number[]>(ALL_DAYS)
+  const [repeat, setRepeat] = useState<Repeat>('weekly')
+  // Sites/channels/apps for a subject on one day only ("Tuesday's Physics"),
+  // or for one of its blocks that day ("Tuesday's 5 pm Physics").
   const [dayOverrides, setDayOverrides] = useState<DayOverrides>({})
   const [overrideDay, setOverrideDay] = useState<number | null>(null)
+  const [overrideSubject, setOverrideSubject] = useState<string | null>(null)
   // While one is being picked, the set-up questions run on a one-subject copy
   // of the draft; the real draft waits here and comes back when it's done.
-  const overrideRef = useRef<{ day: number; subject: string; base: Draft } | null>(null)
-  // A typed request about the week, waiting on "same every day or different?".
-  const pendingWeekRef = useRef<string | null>(null)
+  const overrideRef = useRef<{ day: number; subject: string; key: string; base: Draft } | null>(null)
+  const pendingWeekRef = useRef<PendingWeek | null>(null)
   const profileRef = useRef<Profile | null>(null)
   const recsRef = useRef<Recs | null>(null)
   const gapsRef = useRef<Gap[]>([])
@@ -558,17 +583,63 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     else finishSetup(d)
   }
 
-  // ── Day-specific set-up ("Tuesday's Physics") ──────────────────────────
+  // ── Plan shape: days, repeat, day-specific set-up ─────────────────────
 
-  /** " on Tue" while a day-specific set-up is being picked, else "". */
+  /** " on Tue" (or " on Tue at 17:00") while a day-specific set-up is being picked, else "". */
   function onDay(): string {
-    return overrideRef.current ? ` on ${DAY_NAMES[overrideRef.current.day]}` : ''
+    const o = overrideRef.current
+    if (!o) return ''
+    const time = o.key !== o.subject ? o.key.slice(o.subject.length + 1) : null
+    return ` on ${dayLabel(o.day)}${time ? ` at ${fmtClock(time)}` : ''}`
   }
 
-  /** The week on screen, with its day-specific set-ups listed under it. */
-  function showWeek(week: Record<number, GeneratorResult>, overrides: DayOverrides, head = '') {
-    const extra = formatDayOverrides(overrides)
-    ask('preview', head + formatWeeklyPlan(week) + (extra ? `\n\n${extra}` : ''))
+  /** Shows the plan: one day, or the week when anything differs by day
+   *  (a varied week, days off, repeat every 2 weeks, a day-specific set-up).
+   *  Values not passed come from state; pass the ones just changed, since
+   *  state set in the same handler isn't visible yet. */
+  function showPlan(v: Partial<{ single: GeneratorResult | null; week: Record<number, GeneratorResult> | null; days: number[]; rep: Repeat; overrides: DayOverrides }> = {}, head = '') {
+    const single = v.single !== undefined ? v.single : ruleResult
+    const week = v.week !== undefined ? v.week : weekResult
+    const days = v.days ?? activeDays
+    const rep = v.rep ?? repeat
+    const overrides = v.overrides ?? dayOverrides
+    if (!week && !single) return
+    const byDay = week || rep !== 'weekly' || days.length < 7 || Object.keys(overrides).length > 0
+    if (!byDay && single) { ask('preview', head + formatRecommendedPlan(single)); return }
+    const shownWeek = week ?? repeatWeek(single!)
+    const extra = formatDayOverrides(liveOverrides(overrides, shownWeek))
+    ask('preview', head + formatWeeklyPlan(shownWeek, { activeDays: days, repeat: rep }) + (extra ? `\n\n${extra}` : ''))
+  }
+
+  /** The plan as one result per day, for anything that works day by day. */
+  function planWeek(): Record<number, GeneratorResult> | null {
+    return weekResult ?? (ruleResult ? repeatWeek(ruleResult) : null)
+  }
+
+  function enterDays(d: Draft, days: number[]) {
+    setDraft(d)
+    ask('days', 'Which days should this plan run? Untick any day off, then tap Done.', days.map(day => `wd:${day}`))
+  }
+
+  function enterRepeat(d: Draft) {
+    setDraft(d)
+    ask('repeat', 'How often should it repeat?')
+  }
+
+  /** Days or repeat changed from the plan: only a new Week B needs the AI. */
+  function applyShape(d: Draft, shape: Shape) {
+    setActiveDays(shape.days)
+    setRepeat(shape.rep)
+    if (shape.rep === 'ab' && !isTwoWeeks(weekResult)) { buildPreview(d, null, true, shape); return }
+    let week = weekResult
+    let overrides = dayOverrides
+    if (shape.rep !== 'ab' && isTwoWeeks(week)) {
+      week = Object.fromEntries(Object.entries(week!).filter(([k]) => Number(k) < 7))
+      overrides = Object.fromEntries(Object.entries(overrides).filter(([k]) => Number(k) < 7))
+      setWeekResult(week)
+      setDayOverrides(overrides)
+    }
+    showPlan({ week, days: shape.days, rep: shape.rep, overrides }, 'Done.\n\n')
   }
 
   function enterOverrideDay(d: Draft) {
@@ -577,20 +648,32 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   }
 
   function backToPlan() {
-    if (weekResult) showWeek(weekResult, dayOverrides)
-    else if (ruleResult) ask('preview', formatRecommendedPlan(ruleResult))
+    showPlan()
   }
 
   function enterOverrideSubject(day: number) {
     setOverrideDay(day)
-    ask('override_subject', `Which subject on ${DAY_NAMES[day]}?`)
+    ask('override_subject', `Which subject on ${dayLabel(day)}?`)
+  }
+
+  /** Study blocks of one subject on one day of the plan. */
+  function blocksOf(day: number, subject: string) {
+    return (planWeek()?.[day]?.blocks || []).filter(b => b.kind === 'study' && (b.subjectName || 'Study') === subject)
+  }
+
+  function pickOverrideSubject(d: Draft, day: number, subject: string) {
+    if (blocksOf(day, subject).length > 1) {
+      setOverrideSubject(subject)
+      ask('override_slot', `All ${subject} blocks on ${dayLabel(day)}, or just one?`)
+    } else startOverride(d, day, subject, subject)
   }
 
   /** Runs the usual sites, channels and apps questions for one subject on
-   *  one day, starting from that day's earlier pick or the usual set-up. */
-  function startOverride(d: Draft, day: number, subject: string) {
-    overrideRef.current = { day, subject, base: d }
-    const allow = dayOverrides[day]?.[subject] ?? d.allow[subject] ?? emptyAllow()
+   *  one day (key "Physics") or one block of it (key "Physics@17:00"),
+   *  starting from the earlier pick, then the day's, then the usual set-up. */
+  function startOverride(d: Draft, day: number, subject: string, key: string) {
+    overrideRef.current = { day, subject, key, base: d }
+    const allow = dayOverrides[day]?.[key] ?? dayOverrides[day]?.[subject] ?? d.allow[subject] ?? emptyAllow()
     enterSites({ ...d, subjects: [subject], allow: { [subject]: allow } }, 0)
   }
 
@@ -598,15 +681,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     const o = overrideRef.current
     if (!o) return
     overrideRef.current = null
-    const next: DayOverrides = { ...dayOverrides, [o.day]: { ...dayOverrides[o.day], [o.subject]: tmp.allow[o.subject] || emptyAllow() } }
+    const next: DayOverrides = { ...dayOverrides, [o.day]: { ...dayOverrides[o.day], [o.key]: tmp.allow[o.subject] || emptyAllow() } }
     setDayOverrides(next)
     setDraft(o.base); setSubjIdx(0)
-    // A repeated day becomes a week of identical days, so this one can differ.
-    const week = weekResult ?? (ruleResult ? repeatWeek(ruleResult) : null)
-    if (!week) return
-    setWeekResult(week)
-    setPlainResult(null)
-    showWeek(week, next, `Done. ${o.subject} on ${DAY_NAMES[o.day]} will use that; other days keep the usual set-up.\n\n`)
+    const what = o.key === o.subject ? `${o.subject} on ${dayLabel(o.day)}` : `${o.subject} at ${fmtClock(o.key.slice(o.subject.length + 1))} on ${dayLabel(o.day)}`
+    showPlan({ overrides: next }, `Done. ${what} will use that; everything else keeps the usual set-up.\n\n`)
   }
 
   function finishSetup(d: Draft) {
@@ -649,21 +728,26 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     ask('sleep', 'And when do you usually go to sleep?')
   }
 
-  function buildPreview(d: Draft, requestNow: string | null = null, varyDays = false) {
+  /** Subjects the plan can lock anything for. A subject with nothing of
+   *  its own to allow still gets blocks when the free-time blocklist can
+   *  cover them; otherwise those blocks would be dropped on save. */
+  function planSubjects(d: Draft): string[] {
+    const { freeSites, freeApps } = freeTimeLists()
+    return freeSites.length || freeApps.length ? d.subjects : d.subjects.filter(s => isEnforceable(d.allow[s]))
+  }
+
+  // A plan that already differs by day stays that way when it is rebuilt
+  // (new hours, times or subjects).
+  function buildPreview(d: Draft, requestNow: string | null = null, varyDays = weekResult !== null, shape: Shape = { days: activeDays, rep: repeat }) {
     setDraft(d)
     if (!d.wakeTime) { enterWake(d); return }
     if (!d.sleepTime) { enterSleep(d); return }
-    const { freeSites, freeApps } = freeTimeLists()
-    const enforceable = d.subjects.filter(s => isEnforceable(d.allow[s]))
-    if (!enforceable.length && !freeSites.length && !freeApps.length) {
+    const subjects = planSubjects(d)
+    if (!subjects.length) {
       say("To lock anything during study time I need to know how you study. Let's pick that for each subject, it's quick.")
       enterSites(d, 0)
       return
     }
-    // A subject with nothing of its own to allow still gets blocks when the
-    // free-time blocklist can cover them; otherwise those blocks would be
-    // dropped on save, so leave the subject out of the plan.
-    const subjects = freeSites.length || freeApps.length ? d.subjects : enforceable
     const p = profileRef.current
     const weak = p ? weakSubjects(subjects, p.study) : []
     const result = recommend({
@@ -677,79 +761,151 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       if (askBusy) enterBusy(d); else nextGap(d)
       return
     }
-    void refineAndShow(d, result, subjects, weak, requestNow, varyDays)
+    void refineAndShow(d, result, subjects, weak, requestNow, varyDays, shape)
+  }
+
+  function standingFor(requestNow: string | null): string[] {
+    const p = profileRef.current
+    return p ? standingRequests(p.events.filter(e => !requestNow || e.value !== requestNow.slice(0, 300))) : []
+  }
+
+  /** One call to ai-generate-schedule; throws with a readable reason. */
+  async function callRefine(mode: 'refine' | 'refine_week', d: Draft, base: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null, standing: string[]) {
+    const p = profileRef.current
+    const { data: { session } } = await sb.auth.getSession()
+    if (!session) throw new Error('Not signed in.')
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), REFINE_TIMEOUT_MS)
+    try {
+      const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          mode, subjects, weak, draft: draftSlots(base),
+          wake: d.wakeTime, sleep: d.sleepTime, busy: busyWindows(d.busy),
+          target_minutes: base.placedStudyMinutes, block_minutes: base.blockLengthMinutes,
+          facts: p ? studentFacts(p.known) : [], request_now: requestNow, standing_requests: standing,
+        }),
+      })
+      const data = await res.json()
+      // An older deployed function ignores the mode and answers in another shape.
+      if (!res.ok || !data.success || data.mode !== mode) throw new Error(data.error || 'Gemini is not available right now.')
+      return data
+    } catch (e) {
+      throw new Error(e instanceof DOMException && e.name === 'AbortError' ? 'Gemini took too long.' : chatErrorText(e, 'Gemini is not available right now.'))
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   /** Lets Gemini improve the rule-based plan, then shows whichever passed
    *  the checks. The student's request (if any) is Gemini's top priority.
-   *  A request that asks for a week where each day differs (rather than
-   *  the same day repeated, the default) gets the whole week in one
-   *  Gemini call instead of a single day; if that fails or doesn't fit,
-   *  it falls back to the single repeated-day plan like any other request. */
-  async function refineAndShow(d: Draft, result: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null, varyDays = false) {
-    const p = profileRef.current
+   *  A week where each day differs gets the whole week in one call; a
+   *  Week A / Week B plan gets a second call for Week B, told what Week A
+   *  has so it differs. If that fails or doesn't fit, the rule plan is shown. */
+  async function refineAndShow(d: Draft, result: GeneratorResult, subjects: string[], weak: string[], requestNow: string | null, varyDays: boolean, shape: Shape) {
     const seq = ++refineSeq.current
-    const standing = p ? standingRequests(p.events.filter(e => !requestNow || e.value !== requestNow.slice(0, 300))) : []
-    const wantsWeek = varyDays || (!!requestNow && wantsWeeklyVariation(requestNow))
+    const standing = standingFor(requestNow)
+    const kind = shape.rep === 'ab' ? 'ab' : varyDays || (!!requestNow && wantsWeeklyVariation(requestNow)) ? 'week' : 'day'
+    const ctx = {
+      subjects, wakeTime: d.wakeTime!, sleepTime: d.sleepTime!, busy: busyWindows(d.busy),
+      requestNow: !!requestNow, standingRequests: standing,
+    }
     let shown = result
     let week: Record<number, GeneratorResult> | null = null
     let note = ''
     let failed = ''
     setTyping(true)
     try {
-      const { data: { session } } = await sb.auth.getSession()
-      if (!session) throw new Error('Not signed in.')
-      const ctrl = new AbortController()
-      const timer = setTimeout(() => ctrl.abort(), REFINE_TIMEOUT_MS)
-      try {
-        const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
-          method: 'POST',
-          signal: ctrl.signal,
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({
-            mode: wantsWeek ? 'refine_week' : 'refine', subjects, weak, draft: draftSlots(result),
-            wake: d.wakeTime, sleep: d.sleepTime, busy: busyWindows(d.busy),
-            target_minutes: result.placedStudyMinutes, block_minutes: result.blockLengthMinutes,
-            facts: p ? studentFacts(p.known) : [], request_now: requestNow, standing_requests: standing,
-          }),
-        })
-        const data = await res.json()
-        const refineCtx = {
-          subjects, wakeTime: d.wakeTime!, sleepTime: d.sleepTime!, busy: busyWindows(d.busy),
-          requestNow: !!requestNow, standingRequests: standing,
-        }
-        if (wantsWeek) {
-          if (!res.ok || !data.success || data.mode !== 'refine_week') throw new Error(data.error || 'Gemini is not available right now.')
-          const check = checkRefinedWeek(data.days, result, refineCtx)
-          if (!check.ok) throw new Error(`Gemini's week didn't fit (${check.reason}).`)
-          week = Object.fromEntries(Object.entries(check.days).map(([day, slots]) => [Number(day), toResult(slots, result)]))
-          shown = week[new Date().getDay()] ?? result
-        } else {
-          // An older deployed function ignores "refine" and answers in another shape.
-          if (!res.ok || !data.success || data.mode !== 'refine') throw new Error(data.error || 'Gemini is not available right now.')
-          const check = checkRefined(data.slots, result, refineCtx)
-          if (!check.ok) throw new Error(`Gemini's plan didn't fit (${check.reason}).`)
-          shown = toResult(check.slots, result)
-        }
+      if (kind === 'day') {
+        const data = await callRefine('refine', d, result, subjects, weak, requestNow, standing)
+        const check = checkRefined(data.slots, result, ctx)
+        if (!check.ok) throw new Error(`Gemini's plan didn't fit (${check.reason}).`)
+        shown = toResult(check.slots, result)
         note = typeof data.note === 'string' ? data.note.trim() : ''
-      } finally {
-        clearTimeout(timer)
+      } else {
+        const getWeek = async (req: string | null) => {
+          const data = await callRefine('refine_week', d, result, subjects, weak, req, standing)
+          const check = checkRefinedWeek(data.days, result, ctx)
+          if (!check.ok) throw new Error(`Gemini's week didn't fit (${check.reason}).`)
+          note ||= typeof data.note === 'string' ? data.note.trim() : ''
+          return Object.fromEntries(Object.entries(check.days).map(([day, slots]) => [Number(day), toResult(slots, result)])) as Record<number, GeneratorResult>
+        }
+        const a = await getWeek(requestNow)
+        week = a
+        if (kind === 'ab') {
+          const summary = WEEK_ORDER.map(day => `${DAY_NAMES[day]}: ${uniqueCaseless(a[day].blocks.filter(b => b.kind === 'study').map(b => b.subjectName || 'Study')).join(', ')}`).join('; ')
+          const b = await getWeek(`${requestNow ? `${requestNow}\n` : ''}This is Week B of a two-week rotation that alternates with Week A. Give each day a different mix or order of subjects from Week A (${summary}).`)
+          week = { ...a, ...Object.fromEntries(Object.entries(b).map(([day, r]) => [Number(day) + 7, r])) }
+        }
+        shown = week[new Date().getDay()] ?? result
       }
     } catch (e) {
-      failed = e instanceof DOMException && e.name === 'AbortError' ? 'Gemini took too long.' : chatErrorText(e, 'Gemini is not available right now.')
+      failed = e instanceof Error ? e.message : 'Gemini is not available right now.'
+      // Two weeks still have to exist to be shown and saved; both start as the rule plan.
+      if (kind === 'ab') week = Object.fromEntries(planDays(true).map(day => [day, result]))
     }
     if (seq !== refineSeq.current) return
     setTyping(false)
-    const head = requestNow && failed
-      ? `I couldn't apply that just now (${failed.replace(/\.$/, '')}). Here's your plan${week ? '' : ' without it'}; try asking again in a moment.\n\n`
+    const head = (requestNow || kind === 'ab') && failed
+      ? `I couldn't ${requestNow ? 'apply that' : 'make Week B different'} just now (${failed.replace(/\.$/, '')}). Here's your plan${requestNow ? ' without it' : ''}; try asking again in a moment.\n\n`
       : note ? `✨ ${note}\n\n` : ''
-    // Day-specific set-ups need a plan saved day by day, even a repeated one.
-    const shownWeek = week ?? (Object.keys(dayOverrides).length ? repeatWeek(shown) : null)
     setRuleResult(shown)
-    setWeekResult(shownWeek)
-    setPlainResult(shownWeek || shown === result ? null : result)
-    if (shownWeek) showWeek(shownWeek, dayOverrides, head)
-    else ask('preview', head + formatRecommendedPlan(shown))
+    setWeekResult(week)
+    setPlainResult(week || shown === result ? null : result)
+    showPlan({ single: shown, week, days: shape.days, rep: shape.rep }, head)
+  }
+
+  /** A typed change to named days only ("move Tuesday Physics to 5 pm",
+   *  "Sunday off", "add Maths on Saturday"): the rest of the week stays. */
+  async function editDays(d: Draft, text: string, days: number[]) {
+    if (!ruleResult) return
+    const twoWeeks = isTwoWeeks(weekResult)
+    if (wantsDaysOff(text)) {
+      const nextDays = activeDays.filter(day => !days.includes(day))
+      if (!nextDays.length) { say("That would leave no study days at all. Tell me which days to keep."); return }
+      setActiveDays(nextDays)
+      showPlan({ days: nextDays }, `Done, ${days.map(day => DAY_NAMES[day]).join(', ')} ${days.length === 1 ? 'is' : 'are'} off now.\n\n`)
+      return
+    }
+    learn([{ field: 'note', value: text.slice(0, 300), action: 'requested' }])
+    // In a Week A / Week B plan a day means both weeks' unless one is named.
+    const weekA = /\b(week a|this week)\b/i.test(text)
+    const keys = days.flatMap(day => (!twoWeeks ? [day] : mentionsWeekB(text) ? [day + 7] : weekA ? [day] : [day, day + 7]))
+    const subjects = planSubjects(d)
+    const p = profileRef.current
+    const weak = p ? weakSubjects(subjects, p.study) : []
+    const standing = standingFor(text)
+    const ctx = { subjects, wakeTime: d.wakeTime!, sleepTime: d.sleepTime!, busy: busyWindows(d.busy), requestNow: true, standingRequests: standing }
+    const week = { ...planWeek()! }
+    const done: string[] = []
+    const failed: string[] = []
+    let note = ''
+    const seq = ++refineSeq.current
+    setTyping(true)
+    for (const key of keys) {
+      const base = week[key] ?? ruleResult
+      try {
+        const data = await callRefine('refine', d, base, subjects, weak, `${text}\n(This change is only for ${dayLabel(key, twoWeeks)}.)`, standing)
+        const check = checkRefined(data.slots, base, ctx)
+        if (!check.ok) throw new Error(check.reason)
+        week[key] = toResult(check.slots, base)
+        done.push(dayLabel(key, twoWeeks))
+        note ||= typeof data.note === 'string' ? data.note.trim() : ''
+      } catch {
+        failed.push(dayLabel(key, twoWeeks))
+      }
+    }
+    if (seq !== refineSeq.current) return
+    setTyping(false)
+    const nextDays = done.length ? uniq([...activeDays, ...days]).sort((a, b) => a - b) : activeDays
+    if (done.length) { setWeekResult(week); setActiveDays(nextDays); setPlainResult(null) }
+    const head = [
+      done.length ? `Done, only ${done.join(', ')} changed.${note ? ` ✨ ${note}` : ''}` : '',
+      failed.length ? `I couldn't change ${failed.join(', ')} just now; try again in a moment.` : '',
+    ].filter(Boolean).join(' ')
+    showPlan({ week: done.length ? week : weekResult, days: nextDays }, `${head}\n\n`)
   }
 
   // ── Options for the current question ──────────────────────────────────
@@ -817,20 +973,42 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       { id: 'times', label: 'Change wake/sleep times' }, { id: 'block', label: 'Change block length' },
       { id: 'setup', label: 'Change subjects & sites' },
       { id: 'day_sites', label: 'Different sites for a day' },
+      { id: 'days_repeat', label: 'Change days or repeat' },
       ...(plainResult ? [{ id: 'plain', label: 'Use the plan without AI changes' }] : []),
     ]
-  } else if (step === 'override_day' || step === 'override_subject') {
-    const week = weekResult ?? (ruleResult ? repeatWeek(ruleResult) : {})
+  } else if (step === 'override_day' || step === 'override_subject' || step === 'override_slot') {
+    const week = planWeek() ?? {}
+    const twoWeeks = isTwoWeeks(week)
     const subjectsOn = (day: number) => uniqueCaseless((week[day]?.blocks || []).filter(b => b.kind === 'study').map(b => b.subjectName || 'Study'))
-    options = step === 'override_day'
-      ? WEEK_ORDER.filter(day => subjectsOn(day).length).map(day => ({
+    const customised = (day: number, subject?: string) => Object.keys(dayOverrides[day] || {}).some(k => !subject || k === subject || k.startsWith(`${subject}@`))
+    if (step === 'override_day') {
+      options = planDays(twoWeeks).filter(day => activeDays.includes(day % 7) && subjectsOn(day).length).map(day => ({
         id: `day:${day}`,
-        label: `${DAY_NAMES[day]} · ${subjectsOn(day).join(', ')}${dayOverrides[day] && Object.keys(dayOverrides[day]).length ? ' · customised' : ''}`,
+        label: `${dayLabel(day, twoWeeks)} · ${subjectsOn(day).join(', ')}${customised(day) ? ' · customised' : ''}`,
       }))
-      : subjectsOn(overrideDay ?? 0).map(s => ({ id: `osub:${s}`, label: dayOverrides[overrideDay ?? 0]?.[s] ? `${s} · customised` : s }))
+    } else if (step === 'override_subject') {
+      options = subjectsOn(overrideDay ?? 0).map(s => ({ id: `osub:${s}`, label: customised(overrideDay ?? 0, s) ? `${s} · customised` : s }))
+    } else if (overrideDay !== null && overrideSubject) {
+      options = [
+        { id: 'all', label: `All ${overrideSubject} blocks` },
+        ...blocksOf(overrideDay, overrideSubject).map(b => ({
+          id: `slot:${b.startTime}`,
+          label: `${fmtClock(b.startTime)}–${fmtClock(b.endTime)}${dayOverrides[overrideDay]?.[`${overrideSubject}@${b.startTime}`] ? ' · customised' : ''}`,
+        })),
+      ]
+    }
     options.push({ id: 'back', label: 'Back to the plan' })
   } else if (step === 'week_choice') {
-    options = [{ id: 'same', label: 'Same plan every day' }, { id: 'vary', label: 'Different each day' }]
+    options = [
+      { id: 'same', label: 'Same plan every day' }, { id: 'vary', label: 'Different each day' },
+      { id: 'ab', label: 'Different Week A and Week B' },
+    ]
+  } else if (step === 'days') {
+    options = WEEK_ORDER.map(day => ({ id: `wd:${day}`, label: DAY_NAMES[day] }))
+  } else if (step === 'repeat') {
+    options = [{ id: 'weekly', label: 'Every week' }, { id: 'every2', label: 'Every 2 weeks' }]
+    // Coming from "Change days or repeat": Week A / Week B is chosen here.
+    if (!pendingWeekRef.current) options.push({ id: 'ab', label: 'Week A and Week B take turns' })
   } else if (step === 'done') {
     options = [{ id: 'again', label: 'Plan again' }, { id: 'setup', label: 'Change subjects & sites' }]
   }
@@ -889,6 +1067,16 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       enterSites({ ...d, subjects, allow }, 0)
       return
     }
+    if (step === 'days') {
+      const days = uniq(picked.map(id => Number(id.slice(3)))).sort((a, b) => a - b)
+      if (!days.length) { say('Pick at least one day.'); return }
+      echo(days.length === 7 ? 'Every day' : WEEK_ORDER.filter(day => days.includes(day)).map(day => DAY_NAMES[day]).join(', '))
+      setActiveDays(days)
+      const pw = pendingWeekRef.current
+      if (pw?.rep) { pendingWeekRef.current = null; startWeek(d, pw, { days, rep: pw.rep }); return }
+      enterRepeat(d)
+      return
+    }
     if (step === 'busy') {
       const windows = picked.filter(v => v !== NOTHING_FIXED)
       echo(windows.length ? windows.map(labelOf).join(', ') : 'Nothing fixed')
@@ -932,7 +1120,10 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   function pickSingle(opt: ChatOption) {
     if (busy) return
     const d = draft
-    if (step === 'preview' && opt.id === 'confirm') { void (weekResult ? confirmWeek(d) : confirmRecommended(d)); return }
+    if (step === 'preview' && opt.id === 'confirm') {
+      void (weekResult || repeat !== 'weekly' || Object.keys(dayOverrides).length ? confirmWeek(d) : confirmRecommended(d))
+      return
+    }
     echo(opt.label)
     if (step === 'apps_mode') {
       afterSubject(withAllow(d, subject, { appsMode: opt.id === 'whitelist' ? 'whitelist' : 'blacklist' }), subjIdx)
@@ -952,30 +1143,35 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       else if (opt.id === 'times') { gapsRef.current = ['sleep']; enterWake(d) }
       else if (opt.id === 'block') enterBlock(d)
       else if (opt.id === 'day_sites') enterOverrideDay(d)
+      else if (opt.id === 'days_repeat') { pendingWeekRef.current = null; enterDays(d, activeDays) }
       else if (opt.id === 'plain' && plainResult) {
         setRuleResult(plainResult)
         setPlainResult(null)
-        if (Object.keys(dayOverrides).length) {
-          const week = repeatWeek(plainResult)
-          setWeekResult(week)
-          showWeek(week, dayOverrides, 'Here is the plan without AI changes.\n\n')
-        } else {
-          setWeekResult(null)
-          ask('preview', formatRecommendedPlan(plainResult))
-        }
+        setWeekResult(null)
+        showPlan({ single: plainResult, week: null })
       }
       else enterSubjects(d)
     } else if (step === 'week_choice') {
-      const text = pendingWeekRef.current || ''
-      pendingWeekRef.current = null
-      say("Got it. I'll build your plan around that and remember it for next time.")
-      buildPreview(d, text, opt.id === 'vary')
+      const pw = pendingWeekRef.current ?? { text: null, vary: false, rep: null }
+      pendingWeekRef.current = { ...pw, vary: opt.id !== 'same', rep: opt.id === 'ab' ? 'ab' : pw.rep }
+      enterDays(d, activeDays)
+    } else if (step === 'repeat') {
+      const rep = (['weekly', 'every2', 'ab'] as Repeat[]).find(r => r === opt.id)
+      if (!rep) return
+      const pw = pendingWeekRef.current
+      if (pw) { pendingWeekRef.current = null; startWeek(d, pw, { days: activeDays, rep }) }
+      else applyShape(d, { days: activeDays, rep })
     } else if (step === 'override_day') {
       if (opt.id === 'back') backToPlan()
       else if (opt.id.startsWith('day:')) enterOverrideSubject(Number(opt.id.slice(4)))
     } else if (step === 'override_subject') {
       if (opt.id === 'back') enterOverrideDay(d)
-      else if (opt.id.startsWith('osub:') && overrideDay !== null) startOverride(d, overrideDay, opt.id.slice(5))
+      else if (opt.id.startsWith('osub:') && overrideDay !== null) pickOverrideSubject(d, overrideDay, opt.id.slice(5))
+    } else if (step === 'override_slot') {
+      if (overrideDay === null || !overrideSubject) return
+      if (opt.id === 'back') enterOverrideSubject(overrideDay)
+      else if (opt.id === 'all') startOverride(d, overrideDay, overrideSubject, overrideSubject)
+      else if (opt.id.startsWith('slot:')) startOverride(d, overrideDay, overrideSubject, `${overrideSubject}@${opt.id.slice(5)}`)
     } else if (step === 'done') {
       if (opt.id === 'again') buildPreview(d); else enterSubjects(d)
     }
@@ -1078,15 +1274,27 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       if (match) { pickSingle(match); return }
       echo(text)
       say('Tap one of the two options.')
-    } else if (step === 'override_day' || step === 'override_subject') {
+    } else if (step === 'override_day' || step === 'override_subject' || step === 'override_slot') {
       if (match) { pickSingle(match); return }
       echo(text)
-      say(step === 'override_day' ? 'Tap the day, or Back to the plan.' : 'Tap the subject, or Back to the plan.')
-    } else if (step === 'week_choice') {
-      const pick = match ?? options.find(o => o.id === (/\b(differ|vary|varied|each|mix)/i.test(text) ? 'vary' : /\bsame\b/i.test(text) ? 'same' : ''))
+      say(step === 'override_day' ? 'Tap the day, or Back to the plan.' : step === 'override_subject' ? 'Tap the subject, or Back to the plan.' : 'Tap a block, or Back to the plan.')
+    } else if (step === 'days') {
+      if (match) { togglePick(match.id, true); return }
+      const days = mentionedDays(text, -1)
+      if (days.length) { setPicked(p => uniq([...p, ...days.map(day => `wd:${day}`)])); return }
+      echo(text)
+      say('Tap the days, then Done.')
+    } else if (step === 'repeat') {
+      const guess = repeatFromText(text) ?? (/\b(every ?week|weekly)\b/i.test(text) ? 'weekly' : null)
+      const pick = match ?? options.find(o => o.id === guess)
       if (pick) { pickSingle(pick); return }
       echo(text)
-      say('Tap Same plan every day or Different each day.')
+      say('Tap one of the options.')
+    } else if (step === 'week_choice') {
+      const pick = match ?? options.find(o => o.id === (repeatFromText(text) === 'ab' ? 'ab' : /\b(differ|vary|varied|each|mix)/i.test(text) ? 'vary' : /\bsame\b/i.test(text) ? 'same' : ''))
+      if (pick) { pickSingle(pick); return }
+      echo(text)
+      say('Tap one of the three options.')
     } else if (step === 'hours') {
       if (match) { pickSingle(match); return }
       echo(text)
@@ -1112,6 +1320,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       const exact = options.find(o => o.label.toLowerCase() === text.toLowerCase())
       if (exact) { pickSingle(exact); return }
       echo(text)
+      // A change to named days only ("Tuesday Physics at 5 pm", "Sunday off").
+      const named = step === 'preview' && ruleResult ? mentionedDays(text, -1) : []
+      if (named.length && !mentionsWeek(text) && !repeatFromText(text)) { void editDays(draft, text, named); return }
       const updated = applyLocalRequest(text, draft)
       if (updated) { if (updated !== draft) buildPreview(updated); return }
       askAi(draft, text)
@@ -1123,15 +1334,29 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
    *  so every later plan follows it too. */
   function askAi(d: Draft, text: string) {
     learn([{ field: 'note', value: text.slice(0, 300), action: 'requested' }])
-    // "A weekly plan" can mean either, so ask rather than guess.
-    if (mentionsWeek(text) && !wantsWeeklyVariation(text)) {
-      pendingWeekRef.current = text
+    const rep = repeatFromText(text)
+    const off = wantsDaysOff(text) ? mentionedDays(text, -1) : []
+    const days = off.length && off.length < activeDays.length ? activeDays.filter(day => !off.includes(day)) : activeDays
+    if (days !== activeDays) setActiveDays(days)
+    if (rep === 'ab') { startWeek(d, { text, vary: true, rep }, { days, rep }); return }
+    // A week can mean the same day repeated or each day different, and
+    // weeks can repeat or take turns, so ask rather than guess.
+    if (mentionsWeek(text) || rep) {
       setDraft(d)
-      ask('week_choice', 'Should every day of the week have the same plan, or different subjects on different days?')
+      pendingWeekRef.current = { text, vary: wantsWeeklyVariation(text), rep }
+      if (wantsWeeklyVariation(text)) enterDays(d, days)
+      else ask('week_choice', 'Should every day of the week have the same plan, different subjects on different days, or two different weeks that take turns?')
       return
     }
     say("Got it. I'll build your plan around that and remember it for next time.")
-    buildPreview(d, text)
+    buildPreview(d, text, weekResult !== null, { days, rep: repeat })
+  }
+
+  function startWeek(d: Draft, pw: PendingWeek, shape: Shape) {
+    setActiveDays(shape.days)
+    setRepeat(shape.rep)
+    say(pw.text ? "Got it. I'll build your plan around that and remember it for next time." : 'Got it, building your plan.')
+    buildPreview(d, pw.text, pw.vary, shape)
   }
 
   // ── Saving ─────────────────────────────────────────────────────────────
@@ -1185,7 +1410,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       const allow = allowFor(d)
       const { writtenSlots } = await confirmPlan(sb as any, {
         userId: p.uid, planName: PLAN_NAME, result: ruleResult, subjectAllowlists: allow,
-        freeTimeSites: freeSites, freeTimeApps: freeApps, daysOfWeek: ALL_DAYS,
+        freeTimeSites: freeSites, freeTimeApps: freeApps, daysOfWeek: activeDays,
       })
       const slots = toAiSlots(writtenSlots)
       // The plan is saved at this point; remembering and learning are best-effort.
@@ -1195,7 +1420,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         source: plainResult ? 'ai_custom' : 'rule_based', requestedMinutes: d.dailyMinutes, confirmedMinutes: ruleResult.placedStudyMinutes,
         outcome: String(d.dailyMinutes) === recsRef.current?.dailyMinutes?.value ? 'accepted_as_is' : 'accepted_edited',
       }).catch(() => {})
-      onPlanConfirmed({ days_of_week: ALL_DAYS, slots })
+      onPlanConfirmed({ days_of_week: activeDays, slots })
       finishConfirmed(ruleResult.blocks.filter(b => b.kind === 'study').length - slots.filter(s => !s.is_sleep).length)
     } catch (e) {
       saveFailed(e, d)
@@ -1204,30 +1429,34 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     }
   }
 
-  /** Same as confirmRecommended, but for a week that varies by day: writes
+  /** Same as confirmRecommended, but for a plan saved day by day (a varied
+   *  week, days off, every 2 weeks, Week A / Week B or a day-specific set-up):
    *  one schedule per weekday (confirmWeekPlan) instead of one shared one. */
   async function confirmWeek(d: Draft) {
     const p = profileRef.current
-    if (!p || !weekResult || !d.wakeTime || !d.sleepTime) return
+    const plan = planWeek()
+    if (!p || !plan || !d.wakeTime || !d.sleepTime) return
     echo('Confirm this plan')
     setSaving(true)
     try {
       const { freeSites, freeApps } = freeTimeLists()
       const allow = allowFor(d)
       const { writtenSlots } = await confirmWeekPlan(sb as any, {
-        userId: p.uid, planName: PLAN_NAME, week: weekResult, subjectAllowlists: allow, dayOverrides,
-        freeTimeSites: freeSites, freeTimeApps: freeApps,
+        userId: p.uid, planName: PLAN_NAME, week: plan, subjectAllowlists: allow, dayOverrides: liveOverrides(dayOverrides, plan),
+        freeTimeSites: freeSites, freeTimeApps: freeApps, activeDays, repeatWeeks: repeat === 'every2' ? 2 : 1,
       })
-      const week = Object.fromEntries(Object.entries(writtenSlots).map(([day, s]) => [Number(day), toAiSlots(s)]))
+      // Your Schedule shows this week, which is Week A of a two-week plan.
+      const week = Object.fromEntries(Object.entries(writtenSlots).filter(([day]) => Number(day) < 7).map(([day, s]) => [Number(day), toAiSlots(s)]))
       await rememberAnswers(sb as any, p.uid, { wakeTime: d.wakeTime, sleepTime: d.sleepTime, subjectAllowlists: allow }).catch(() => {})
       saveLearning(d, confirmedEvents(d), { planFields: true })
       await recordOutcome(sb as any, {
         source: 'ai_custom', requestedMinutes: d.dailyMinutes,
-        confirmedMinutes: Math.round(Object.values(weekResult).reduce((sum, r) => sum + r.placedStudyMinutes, 0) / 7),
+        confirmedMinutes: Math.round(Object.values(plan).reduce((sum, r) => sum + r.placedStudyMinutes, 0) / Object.keys(plan).length),
         outcome: 'accepted_as_is',
       }).catch(() => {})
       onPlanConfirmed({ week })
-      const skipped = Object.values(weekResult).reduce((sum, r) => sum + r.blocks.filter(b => b.kind === 'study').length, 0)
+      const skipped = Object.entries(plan).filter(([day]) => activeDays.includes(Number(day) % 7))
+        .reduce((sum, [, r]) => sum + r.blocks.filter(b => b.kind === 'study').length, 0)
         - Object.values(writtenSlots).reduce((sum, s) => sum + s.filter(x => !x.isSleep).length, 0)
       finishConfirmed(skipped)
     } catch (e) {

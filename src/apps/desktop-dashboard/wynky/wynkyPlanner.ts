@@ -330,6 +330,9 @@ export async function writeSchedule(sb: SupaLike, userId: string, args: {
   planName: string;
   daysOfWeek: number[];
   slots: PlanSlotInput[];
+  /** Runs only every N weeks (migration 0099). Left out for every week, so
+   *  saving still works on a database without those columns. */
+  repeat?: { repeatWeeks: number; weekOffset: number };
 }): Promise<{ scheduleId: string }> {
   const scheduleName = args.planName || 'Wynky Plan';
   const { data: existingSchedule } = await sb.from('focus_lock_schedules')
@@ -338,11 +341,17 @@ export async function writeSchedule(sb: SupaLike, userId: string, args: {
   let scheduleId: string;
   if (existingSchedule?.id) {
     scheduleId = existingSchedule.id;
-    await sb.from('focus_lock_schedules').update({ days_of_week: args.daysOfWeek, active: true }).eq('id', scheduleId);
+    await sb.from('focus_lock_schedules').update({
+      days_of_week: args.daysOfWeek, active: true,
+      ...(args.repeat && args.repeat.repeatWeeks > 1 ? { repeat_weeks: args.repeat.repeatWeeks, week_offset: args.repeat.weekOffset } : {}),
+    }).eq('id', scheduleId);
     await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', scheduleId);
   } else {
     const { data: created, error } = await sb.from('focus_lock_schedules')
-      .insert({ user_id: userId, name: scheduleName, days_of_week: args.daysOfWeek }).select('id').single();
+      .insert({
+      user_id: userId, name: scheduleName, days_of_week: args.daysOfWeek,
+      ...(args.repeat && args.repeat.repeatWeeks > 1 ? { repeat_weeks: args.repeat.repeatWeeks, week_offset: args.repeat.weekOffset } : {}),
+    }).select('id').single();
     if (error) throw new Error(error.message);
     scheduleId = created.id;
   }
@@ -417,32 +426,59 @@ async function clearWeekdayVariants(sb: SupaLike, userId: string, planName: stri
   }
 }
 
-/** Day (0 Sun .. 6 Sat) -> subject -> the allow-list to use for that
- *  subject on that day only, instead of the subject's usual one. */
+/** Day -> subject -> the allow-list to use for that subject on that day
+ *  only, instead of the subject's usual one. Days 0 (Sun) to 6 (Sat) are the
+ *  week (Week A in a two-week plan); 7 to 13 are Week B's Sun to Sat. The
+ *  subject key is "Physics" for every Physics block that day, or
+ *  "Physics@17:00" for just the block starting at 17:00. */
 export type DayOverrides = Record<number, Record<string, SubjectAllowlist>>;
 
-/** The name a day override's preset is saved under, e.g. "Physics (Tue)". */
-export function dayOverrideKey(subject: string, day: number): string {
-  return `${subject} (${WEEKDAY_NAMES[day]})`;
+export function splitOverrideKey(key: string): { subject: string; time: string | null } {
+  const m = /^(.*)@(\d{2}:\d{2})$/.exec(key);
+  return m ? { subject: m[1], time: m[2] } : { subject: key, time: null };
+}
+
+/** The name a day override's preset is saved under, e.g. "Physics (Tue)",
+ *  "Physics (Tue 17:00)" or "Physics (B Tue)". */
+export function dayOverrideKey(subject: string, day: number, time: string | null = null): string {
+  return `${subject} (${day >= 7 ? 'B ' : ''}${WEEKDAY_NAMES[day % 7]}${time ? ` ${time}` : ''})`;
+}
+
+// Monday 2024-01-01, the same start schedule-tick counts weeks from.
+const WEEK_EPOCH_DAYS = Date.UTC(2024, 0, 1) / 86_400_000;
+const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+
+/** Whole weeks (Monday to Sunday, India time) since Monday 2024-01-01. */
+export function istWeekIndex(now: Date = new Date()): number {
+  const istDays = Math.floor((now.getTime() + IST_OFFSET_MS) / 86_400_000);
+  return Math.floor((istDays - WEEK_EPOCH_DAYS) / 7);
 }
 
 export interface ConfirmWeekPlanArgs {
   userId: string;
   planName: string;
-  /** One rule/AI result per day of week, 0 (Sun) to 6 (Sat). */
+  /** One rule/AI result per day: 0 (Sun) to 6 (Sat), plus 7 to 13 for Week B. */
   week: Record<number, GeneratorResult>;
   subjectAllowlists: Record<string, SubjectAllowlist>;
-  /** Per-day sites/channels/apps for a subject; days/subjects left out use subjectAllowlists. */
+  /** Per-day (or per-block) sites/channels/apps; anything left out uses subjectAllowlists. */
   dayOverrides?: DayOverrides;
   freeTimeSites: string[];
   freeTimeApps: string[];
+  /** Days (0-6) the plan runs on; the rest are days off. Default: all. */
+  activeDays?: number[];
+  /** 1 = every week (default), 2 = every other week starting this week.
+   *  A week with days 7-13 is always a two-week Week A / Week B plan. */
+  repeatWeeks?: number;
+  now?: Date;
 }
 
 /** Writes a varied week as one schedule per day ("<planName> - Mon", ...)
  *  instead of the single repeated-day schedule confirmPlan writes, since
  *  focus_lock_schedules has one slot set per schedule — a day-varying week
  *  needs a schedule per day. Replaces both the single schedule and any
- *  earlier per-weekday ones, so re-confirming a week never doubles up. */
+ *  earlier per-weekday ones, so re-confirming a week never doubles up.
+ *  A Week A / Week B plan is saved as "<planName> - A Mon" and "- B Mon",
+ *  each running every other week (A this week, B next week). */
 export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): Promise<{ writtenSlots: Record<number, PlanSlotInput[]> }> {
   const { presetIdBySubject, freeTimePresetId } = await ensurePresets(sb, args.userId, {
     subjectAllowlists: args.subjectAllowlists,
@@ -454,12 +490,46 @@ export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): 
   // same way as a subject's usual one; an empty override falls back to it.
   const overrideAllow: Record<string, SubjectAllowlist> = {};
   for (const [dayStr, bySubject] of Object.entries(args.dayOverrides || {})) {
-    for (const [subject, allow] of Object.entries(bySubject)) overrideAllow[dayOverrideKey(subject, Number(dayStr))] = allow;
+    for (const [key, allow] of Object.entries(bySubject)) {
+      const { subject, time } = splitOverrideKey(key);
+      overrideAllow[dayOverrideKey(subject, Number(dayStr), time)] = allow;
+    }
   }
   const overridePresetIds = Object.keys(overrideAllow).length
     ? (await ensurePresets(sb, args.userId, { subjectAllowlists: overrideAllow, freeTimeSites: [], freeTimeApps: [] })).presetIdBySubject
     : {};
 
+  const twoWeeks = Object.keys(args.week).some(k => Number(k) >= 7);
+  const repeatWeeks = twoWeeks ? 2 : Math.max(1, Math.min(4, args.repeatWeeks || 1));
+  const thisWeek = istWeekIndex(args.now);
+  const active = new Set(args.activeDays ?? [0, 1, 2, 3, 4, 5, 6]);
+  const presetFor = (subject: string, day: number, start: string) =>
+    overridePresetIds[dayOverrideKey(subject, day, start)] ?? overridePresetIds[dayOverrideKey(subject, day)] ?? presetIdBySubject[subject];
+
+  const writtenSlots: Record<number, PlanSlotInput[]> = {};
+  let anyStudy = false;
+  let anyUsableStudy = false;
+  for (const [dayStr, result] of Object.entries(args.week)) {
+    const day = Number(dayStr);
+    if (!active.has(day % 7)) continue;
+    const slots: PlanSlotInput[] = result.blocks
+      .filter(b => b.kind !== 'break')
+      .map(block => ({
+        presetId: block.kind === 'sleep' ? null
+          : (block.subjectName ? presetFor(block.subjectName, day, block.startTime) : null) ?? freeTimePresetId,
+        subject: block.kind === 'sleep' ? null : (block.subjectName ?? null),
+        startTime: block.startTime,
+        endTime: block.endTime,
+        isSleep: block.kind === 'sleep',
+      }));
+    const usable = slots.filter(s => s.isSleep || s.presetId);
+    anyStudy ||= slots.some(s => !s.isSleep);
+    anyUsableStudy ||= usable.some(s => !s.isSleep);
+    writtenSlots[day] = usable;
+  }
+  if (anyStudy && !anyUsableStudy) throw new NoEnforceableBlocksError();
+
+  // Only now, with a plan that can be saved, remove the old one.
   const { data: single } = await sb.from('focus_lock_schedules').select('id').eq('user_id', args.userId).eq('name', args.planName).maybeSingle();
   if (single?.id) {
     await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', single.id);
@@ -467,23 +537,13 @@ export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): 
   }
   await clearWeekdayVariants(sb, args.userId, args.planName);
 
-  const writtenSlots: Record<number, PlanSlotInput[]> = {};
-  for (const [dayStr, result] of Object.entries(args.week)) {
+  for (const [dayStr, usable] of Object.entries(writtenSlots)) {
     const day = Number(dayStr);
-    const slots: PlanSlotInput[] = result.blocks
-      .filter(b => b.kind !== 'break')
-      .map(block => ({
-        presetId: block.kind === 'sleep' ? null
-          : (block.subjectName ? overridePresetIds[dayOverrideKey(block.subjectName, day)] ?? presetIdBySubject[block.subjectName] : null) ?? freeTimePresetId,
-        subject: block.kind === 'sleep' ? null : (block.subjectName ?? null),
-        startTime: block.startTime,
-        endTime: block.endTime,
-        isSleep: block.kind === 'sleep',
-      }));
-    const usable = slots.filter(s => s.isSleep || s.presetId);
-    if (slots.some(s => !s.isSleep) && !usable.some(s => !s.isSleep)) throw new NoEnforceableBlocksError();
-    await writeSchedule(sb, args.userId, { planName: `${args.planName} - ${WEEKDAY_NAMES[day]}`, daysOfWeek: [day], slots: usable });
-    writtenSlots[day] = usable;
+    const label = twoWeeks ? `${day >= 7 ? 'B' : 'A'} ${WEEKDAY_NAMES[day % 7]}` : WEEKDAY_NAMES[day];
+    await writeSchedule(sb, args.userId, {
+      planName: `${args.planName} - ${label}`, daysOfWeek: [day % 7], slots: usable,
+      repeat: repeatWeeks > 1 ? { repeatWeeks, weekOffset: (thisWeek + (day >= 7 ? 1 : 0)) % repeatWeeks } : undefined,
+    });
   }
   return { writtenSlots };
 }
