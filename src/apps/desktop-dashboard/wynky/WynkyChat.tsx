@@ -62,7 +62,10 @@ const MULTI_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'busy', 'd
 // Steps where typing narrows the options, like "Start typing to see options…".
 const FILTER_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'hours', 'wake', 'sleep']
 
-interface Msg { id: number; from: 'bot' | 'user'; text: string }
+// 'divider' separates earlier chats (past: true) from this one.
+interface Msg { id: number; from: 'bot' | 'user' | 'divider'; text: string; past?: boolean }
+// How many earlier messages the chat shows when it opens (the table keeps 300).
+const HISTORY_SHOWN = 60
 interface Profile {
   uid: string
   known: WynkyKnownProfile
@@ -343,6 +346,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(1)
+  // Set once signed in; every message after that is saved to the student's history.
+  const uidRef = useRef<string | null>(null)
+  const [hasHistory, setHasHistory] = useState(false)
+  // History writes run one after another, so saved order matches chat order.
+  const writeChain = useRef<Promise<unknown>>(Promise.resolve())
 
   const busy = typing || saving || step === 'loading'
   const subject = draft.subjects[subjIdx] ?? ''
@@ -356,13 +364,52 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  /** Saves one message to the student's chat history; best-effort, the
+   *  chat works the same if it fails. */
+  function remember(sender: 'bot' | 'user', text: string) {
+    if (!uidRef.current || !text.trim()) return
+    const row = { sender, body: text.slice(0, 8000) }
+    writeChain.current = writeChain.current
+      .then(() => (sb as any).from('wynky_chat_messages').insert(row))
+      .then((res: { error?: unknown } | undefined) => { if (!res?.error) setHasHistory(true) }, () => {})
+  }
+  /** Shows the student's earlier chats above this one. */
+  async function loadHistory() {
+    try {
+      const { data } = await (sb as any).from('wynky_chat_messages')
+        .select('id, sender, body, created_at').order('id', { ascending: false }).limit(HISTORY_SHOWN)
+      const rows = (data || []) as { sender: 'bot' | 'user'; body: string; created_at: string }[]
+      if (!rows.length) return
+      const past: Msg[] = rows.reverse().map(r => ({ id: nextId.current++, from: r.sender, text: r.body, past: true }))
+      const last = new Date(rows[rows.length - 1].created_at)
+      const when = last.toDateString() === new Date().toDateString() ? 'earlier today'
+        : last.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+      setMessages(m => [...past, { id: nextId.current++, from: 'divider', text: `Your last chat was ${when} · new chat below`, past: true }, ...m])
+      setHasHistory(true)
+    } catch { /* no history then */ }
+  }
+  async function clearHistory() {
+    if (!uidRef.current || !window.confirm('Delete your chat history with Wynky? Your saved plans stay as they are.')) return
+    try {
+      // Wait for saves still on their way, so none lands after the delete.
+      await writeChain.current
+      const { error } = await (sb as any).from('wynky_chat_messages').delete().eq('user_id', uidRef.current)
+      if (error) throw error
+      setMessages(m => m.filter(msg => !msg.past))
+      setHasHistory(false)
+    } catch {
+      window.alert("Couldn't clear your history just now. Please try again.")
+    }
+  }
   function say(text: string) {
     const id = nextId.current++
     setMessages(m => [...m, { id, from: 'bot', text }])
+    remember('bot', text)
   }
   function echo(text: string) {
     const id = nextId.current++
     setMessages(m => [...m, { id, from: 'user', text }])
+    remember('user', text)
   }
   function ask(next: Step, text: string, initialPicked: string[] = []) {
     setStep(next)
@@ -429,6 +476,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         ask('signed_out', 'Please sign in first. I need your profile to build a schedule.')
         return
       }
+      await loadHistory()
+      if (cancelled) return
+      uidRef.current = uid
       let known = EMPTY_KNOWN
       let remembered = EMPTY_REMEMBERED
       let events: WynkyEvent[] = []
@@ -1521,6 +1571,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: 'none' }} /> Online
             </div>
           </div>
+          {hasHistory && (
+            <button onClick={() => void clearHistory()}
+              className="text-[11px] text-wk-ink-400 hover:text-wk-ink-100 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors flex-shrink-0">
+              Clear history
+            </button>
+          )}
           <button onClick={onClose} aria-label="Close chat"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-wk-ink-400 hover:text-wk-ink-100 hover:bg-white/5 transition-colors flex-shrink-0">
             <Icon d="M6 18L18 6M6 6l12 12" cls="w-4 h-4" />
@@ -1529,7 +1585,13 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
 
         {/* Messages */}
         <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-          {messages.map(m => m.from === 'bot' ? (
+          {messages.map(m => m.from === 'divider' ? (
+            <div key={m.id} className="flex items-center gap-3 text-[11px] text-wk-ink-400">
+              <span className="flex-1 h-px" style={{ background: '#26262A' }} />
+              {m.text}
+              <span className="flex-1 h-px" style={{ background: '#26262A' }} />
+            </div>
+          ) : m.from === 'bot' ? (
             <div key={m.id} className="flex items-end gap-2.5">
               <MascotAvatar size={34} />
               <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
