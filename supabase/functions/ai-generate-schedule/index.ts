@@ -140,8 +140,62 @@ const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
 // Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
 // qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
-// can go at short notice; a retired one fails fast and the race moves on.
+// can go at short notice. groqModels() swaps a retired one for another
+// live model on its own, and logs RETIRED_TAG so the daily check can tell
+// the Founder which name to update here.
 const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+const RETIRED_TAG = "AI MODEL RETIRED";
+// Groq's /models list also has speech, safety and tool-router models that
+// can't write a plan; never pick those as a stand-in.
+const NOT_CHAT = /whisper|tts|guard|playai|orpheus|distil|compound|allam|vision/i;
+// Stand-ins are picked in this order of family, then Groq's own order.
+const FAMILY_ORDER = [/gpt-oss/, /qwen/, /llama/, /kimi/];
+
+let groqLive: { at: number; ids: string[] } | null = null;
+
+/** Groq's live model ids, cached for an hour per function instance.
+ *  Null if Groq doesn't answer quickly, so the configured list is used. */
+async function liveGroqModels(apiKey: string): Promise<string[] | null> {
+  if (groqLive && Date.now() - groqLive.at < 3_600_000) return groqLive.ids;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(HEDGE_AFTER_MS - 200),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const ids = (Array.isArray(data?.data) ? data.data : [])
+      .filter((m: Record<string, unknown>) => m?.active !== false && typeof m?.id === "string")
+      .map((m: Record<string, unknown>) => m.id as string);
+    if (!ids.length) return null;
+    groqLive = { at: Date.now(), ids };
+    return ids;
+  } catch {
+    return null;
+  }
+}
+
+/** The configured Groq models, with any Groq has retired swapped for other
+ *  live chat models so the race keeps the same number of tries. */
+async function groqModels(apiKey: string, wanted: string[]): Promise<string[]> {
+  const live = await liveGroqModels(apiKey);
+  if (!live) return wanted;
+  const kept = wanted.filter((m) => live.includes(m));
+  const retired = wanted.filter((m) => !live.includes(m));
+  if (!retired.length) return wanted;
+  const family = (id: string) => {
+    const i = FAMILY_ORDER.findIndex((re) => re.test(id));
+    return i < 0 ? FAMILY_ORDER.length : i;
+  };
+  const standIns = live
+    .filter((id) => !kept.includes(id) && !NOT_CHAT.test(id))
+    .sort((a, b) => family(a) - family(b))
+    .slice(0, retired.length);
+  console.warn(
+    `ai-generate-schedule: ${RETIRED_TAG}: groq ${retired.join(", ")}; using ${standIns.join(", ") || "nothing"} instead`,
+  );
+  return [...kept, ...standIns];
+}
 
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
@@ -165,14 +219,21 @@ async function generate(
   check: (text: string) => string | null = () => null,
 ): Promise<string> {
   const groqKey = Deno.env.get("GROQ_API_KEY");
-  const groqModels = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
+  const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
+  const wanted = configured.length ? configured : DEFAULT_GROQ_MODELS;
+  // Checked while Gemini runs; the first Groq try starts after the hedge.
+  const groqList = groqKey ? groqModels(groqKey, wanted) : Promise.resolve([]);
   const providers: Provider[] = [
     { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
     ...(groqKey
-      ? (groqModels.length ? groqModels : DEFAULT_GROQ_MODELS).map((m) => ({
-        name: `groq ${m}`,
-        run: (sig: AbortSignal) => callGroq(userPrompt, groqKey, m, systemPrompt, sig),
+      ? wanted.map((_, i) => ({
+        name: `groq #${i + 1}`,
+        run: async (sig: AbortSignal) => {
+          const m = (await groqList)[i];
+          if (!m) throw new Error("Groq API: no live model for this slot");
+          return callGroq(userPrompt, groqKey, m, systemPrompt, sig);
+        },
       }))
       : []),
   ];
@@ -221,8 +282,8 @@ async function generate(
 
 /** A different provider (OpenAI-compatible chat API), used only when
  *  GROQ_API_KEY is set. Free tier at console.groq.com. Groq retires models
- *  now and then (llama-3.3-70b-versatile went on 2026-08-16); a retired
- *  one fails in milliseconds and the race moves straight on. */
+ *  now and then (llama-3.3-70b-versatile went on 2026-08-16); see
+ *  groqModels() for how a retired one is replaced. */
 async function callGroq(
   userPrompt: string,
   apiKey: string,
@@ -252,7 +313,11 @@ async function callGroq(
   });
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Groq API ${res.status}: ${errText.slice(0, 300)}`);
+    if (res.status === 404 || /model_not_found|decommissioned/.test(errText)) {
+      groqLive = null; // re-check Groq's list on the next request
+      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model}`);
+    }
+    throw new Error(`Groq API ${res.status} (${model}): ${errText.slice(0, 300)}`);
   }
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? "";
@@ -318,6 +383,7 @@ async function callGemini(
 
   if (!res.ok) {
     const errText = await res.text();
+    if (res.status === 404) console.warn(`ai-generate-schedule: ${RETIRED_TAG}: gemini ${model}`);
     throw new GeminiError(res.status, `Gemini API ${res.status}: ${errText}`);
   }
 
