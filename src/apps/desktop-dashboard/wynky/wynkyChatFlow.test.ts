@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   subjectChoices, hasSavedSetup, hoursOptions, minutesFromOptionId, parseStudyMinutes, parseClock,
   fmtClock, clockOptions, siteFromText, clearMatch, filterOptions, wantsWeeklyVariation, formatWeeklyPlan,
-  repeatWeek, formatDayOverrides, mentionsWeek,
+  repeatWeek, formatDayOverrides, mentionsWeek, mentionedDays, repeatFromText, wantsDaysOff, mentionsWeekB,
+  dayLabel, planDays,
 } from './wynkyChatFlow';
 import { recommend, type WynkyKnownProfile, type WynkyRemembered } from './wynkyPlanner';
 import type { GeneratorResult } from '../../_shared/scheduleGenerator';
@@ -131,7 +132,7 @@ describe('formatWeeklyPlan', () => {
     const text = formatWeeklyPlan({ 0: day('Biology'), 1: day('Physics') });
     expect(text).toContain('Sun: Biology');
     expect(text).toContain('Mon: Physics');
-    expect(text).toContain('Tue: —');
+    expect(text).toContain('Tue: off');
   });
 });
 
@@ -161,7 +162,71 @@ describe('formatDayOverrides', () => {
     });
     expect(text).toBe('Day-specific set-up:\nTue Physics: eduniti.in, youtube.com, 1 channel, 1 app\nSun Maths: khanacademy.org');
   });
+  it('names single blocks and Week B days', () => {
+    const text = formatDayOverrides({
+      2: { 'Physics@17:00': { sites: ['eduniti.in'], apps: [] } },
+      9: { Maths: { sites: ['youtube.com'], apps: [] } },
+    });
+    expect(text).toBe('Day-specific set-up:\nWeek A Tue Physics 17:00: eduniti.in\nWeek B Tue Maths: youtube.com');
+  });
   it('is empty when nothing is customised', () => {
     expect(formatDayOverrides({})).toBe('');
+  });
+});
+
+describe('mentionedDays', () => {
+  it('finds named days, weekends and weekdays', () => {
+    expect(mentionedDays('move Tuesday physics to 5 pm', -1)).toEqual([2]);
+    expect(mentionedDays('tues and thurs maths', -1)).toEqual([2, 4]);
+    expect(mentionedDays('no study on weekends', -1)).toEqual([0, 6]);
+    expect(mentionedDays('weekdays only', -1)).toEqual([1, 2, 3, 4, 5]);
+    expect(mentionedDays('more maths please', -1)).toEqual([]);
+  });
+  it('reads today and tomorrow only when asked to', () => {
+    expect(mentionedDays('physics today, maths tomorrow', 6)).toEqual([0, 6]);
+    expect(mentionedDays('physics today', -1)).toEqual([]);
+  });
+});
+
+describe('repeatFromText', () => {
+  it('spots every other week and two alternating weeks', () => {
+    expect(repeatFromText('repeat it every 2 weeks')).toBe('every2');
+    expect(repeatFromText('a fortnightly plan')).toBe('every2');
+    expect(repeatFromText('every other week')).toBe('every2');
+    expect(repeatFromText('week A and week B should be different')).toBe('ab');
+    expect(repeatFromText('two different weeks that alternate')).toBe('ab');
+    expect(repeatFromText('a weekly plan')).toBeNull();
+  });
+});
+
+describe('wantsDaysOff and mentionsWeekB', () => {
+  it('tells a day off from a change to that day', () => {
+    expect(wantsDaysOff('Sunday off')).toBe(true);
+    expect(wantsDaysOff('no study on Saturday')).toBe(true);
+    expect(wantsDaysOff('move Tuesday physics to 5 pm')).toBe(false);
+    expect(mentionsWeekB('week B tuesday more chemistry')).toBe(true);
+    expect(mentionsWeekB('tuesday more chemistry')).toBe(false);
+  });
+});
+
+describe('two-week plans', () => {
+  const day = (subject: string): GeneratorResult => ({
+    blocks: [{ kind: 'study', startMinutes: 360, endMinutes: 420, startTime: '06:00', endTime: '07:00', subjectName: subject }],
+    requestedMinutes: 60, usableWindowMinutes: 60, scheduledStudyMinutes: 60, placedStudyMinutes: 60,
+    blockLengthMinutes: 60, wasCut: false,
+  });
+  it('labels and orders Week A then Week B', () => {
+    expect(planDays(true)).toEqual([1, 2, 3, 4, 5, 6, 0, 8, 9, 10, 11, 12, 13, 7]);
+    expect(dayLabel(9)).toBe('Week B Tue');
+    expect(dayLabel(2)).toBe('Tue');
+  });
+  it('shows both weeks, days off and the repeat', () => {
+    const week = Object.fromEntries(planDays(true).map(d => [d, day(d >= 7 ? 'Chemistry' : 'Physics')]));
+    const text = formatWeeklyPlan(week, { activeDays: [1, 2, 3, 4, 5] });
+    expect(text).toContain('Week A (this week):\nMon: Physics 06:00 (1 hour)');
+    expect(text).toContain('Week B (next week):\nMon: Chemistry 06:00 (1 hour)');
+    expect(text).toContain('Sun: off');
+    expect(text).toContain('take turns');
+    expect(formatWeeklyPlan(repeatWeek(day('Maths')), { repeat: 'every2' })).toContain('every 2 weeks');
   });
 });

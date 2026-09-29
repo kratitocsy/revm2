@@ -1124,6 +1124,19 @@ let editingScheduleId=null; // null while creating a new schedule
 let originalScheduleSlotsById={}; // id -> {start_time,end_time,is_sleep} as loaded, for gating sleep-slot edits
 let scheduleUnlockedForEdit=new Set(); // schedule ids that passed the gate this page-load
 
+// 0 or 1 for this Sunday-to-Saturday week (India time), the same
+// week_parity schedule-tick uses: the week of Sunday 2026-08-02 is 0.
+function istWeekParity(){
+  const istDays=Math.floor((Date.now()+330*60000)/86400000);
+  const sunday=istDays-new Date(istDays*86400000).getUTCDay();
+  const weeks=Math.floor((sunday-Date.UTC(2026,7,2)/86400000)/7);
+  return ((weeks%2)+2)%2;
+}
+function scheduleRepeatNote(s){
+  if(s.week_parity===null || s.week_parity===undefined) return '';
+  return ` · every other week (${s.week_parity===istWeekParity()?'runs this week':'runs next week'})`;
+}
+
 async function loadSchedules(){
   if(!myUserId) return;
   const { data: schedules } = await sb.from('focus_lock_schedules')
@@ -1145,7 +1158,7 @@ async function loadSchedules(){
 
   list.innerHTML=schedules.map(s=>{
     const slots=(s.focus_lock_schedule_slots||[]).slice().sort((a,b)=>a.slot_order-b.slot_order);
-    const days=(s.days_of_week||[]).slice().sort().map(d=>SCHEDULE_DAY_LABELS[d]).join(', ') || 'no days selected';
+    const days=((s.days_of_week||[]).slice().sort().map(d=>SCHEDULE_DAY_LABELS[d]).join(', ') || 'no days selected')+scheduleRepeatNote(s);
     const slotSummary=slots.map(sl=>`${sl.is_sleep?'😴 Sleep':(sl.subject||presetNameById[sl.preset_id]||'Deleted block')} ${formatTimeDisplay(sl.start_time.slice(0,5))}\u2013${formatTimeDisplay(sl.end_time.slice(0,5))}`).join(' · ') || 'No slots';
     const overrideNote=s.overrides_schedule_id ? `<br><span style="color:var(--muted);">↳ overrides "${escHtml(scheduleNameById[s.overrides_schedule_id]||'a deleted schedule')}"</span>` : '';
     const overrideCountNote=(s.override_count||0)>0 ? `<br><span style="color:var(--muted);">overridden ${s.override_count}/2 times</span>` : '';

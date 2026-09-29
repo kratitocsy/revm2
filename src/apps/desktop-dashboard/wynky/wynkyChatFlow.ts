@@ -240,31 +240,94 @@ export function repeatWeek(result: GeneratorResult): Record<number, GeneratorRes
   return Object.fromEntries(WEEK_ORDER.map(day => [day, result]));
 }
 
-/** One line per day-specific set-up, e.g. "Tue Physics: eduniti.in, youtube.com (2 channels)". */
+/** Every day key of a plan in reading order: Mon..Sun, then Week B's Mon..Sun. */
+export function planDays(twoWeeks: boolean): number[] {
+  return twoWeeks ? [...WEEK_ORDER, ...WEEK_ORDER.map(d => d + 7)] : WEEK_ORDER;
+}
+
+/** "Tue", or "Week B Tue" for days 7-13 of a two-week plan. */
+export function dayLabel(day: number, twoWeeks = day >= 7): string {
+  return twoWeeks ? `Week ${day >= 7 ? 'B' : 'A'} ${DAY_NAMES[day % 7]}` : DAY_NAMES[day % 7];
+}
+
+export type Repeat = 'weekly' | 'every2' | 'ab';
+
+/** "Every other week", "fortnightly" or "Week A / Week B" in a request. */
+export function repeatFromText(text: string): Repeat | null {
+  const t = text.toLowerCase();
+  if (/(week a\b|week b\b|(two|2) different weeks|alternat\w* (between )?(two|2) (weeks|plans))/.test(t)) return 'ab';
+  if (/(every (other|2(nd)?|two|second) weeks?|alternate weeks?|fortnight\w*|bi-?weekly)/.test(t)) return 'every2';
+  return null;
+}
+
+const DAY_RES = [
+  /\bsun(day)?s?\b/, /\bmon(day)?s?\b/, /\btue(s|sday)?s?\b/, /\bwed(nesday)?s?\b/,
+  /\bthu(r|rs|rsday)?s?\b/, /\bfri(day)?s?\b/, /\bsat(urday)?s?\b/,
+];
+
+/** Weekdays (0 Sun .. 6 Sat) a message names, including "weekends",
+ *  "weekdays", "today" and "tomorrow". */
+export function mentionedDays(text: string, today: number = new Date().getDay()): number[] {
+  const t = text.toLowerCase();
+  const out = new Set<number>();
+  DAY_RES.forEach((re, i) => { if (re.test(t)) out.add(i); });
+  if (/\bweekends?\b/.test(t)) { out.add(0); out.add(6); }
+  if (/\bweekdays?\b/.test(t)) [1, 2, 3, 4, 5].forEach(d => out.add(d));
+  // today < 0: named days only, no "today"/"tomorrow".
+  if (today >= 0 && /\btoday\b/.test(t)) out.add(today);
+  if (today >= 0 && /\btomorrow\b/.test(t)) out.add((today + 1) % 7);
+  return [...out].sort((a, b) => a - b);
+}
+
+/** True when the named days should have no study at all ("Sunday off"). */
+export function wantsDaysOff(text: string): boolean {
+  return /\b(off|holiday|rest day|no (study|studying|plan|blocks?)|free day|don'?t study|skip)\b/i.test(text);
+}
+
+/** True when a Week B day is meant ("week b tuesday", "next week's Monday"). */
+export function mentionsWeekB(text: string): boolean {
+  return /\b(week b|second week|next week)\b/i.test(text);
+}
+
+/** One line per day-specific set-up, e.g. "Tue Physics: eduniti.in, youtube.com, 2 channels"
+ *  or "Tue Physics 17:00: ..." for a single block. */
 export function formatDayOverrides(overrides: DayOverrides): string {
   const lines: string[] = [];
-  for (const day of WEEK_ORDER) {
-    for (const [subject, allow] of Object.entries(overrides[day] || {})) {
+  const twoWeeks = Object.keys(overrides).some(k => Number(k) >= 7);
+  for (const day of planDays(twoWeeks)) {
+    for (const [key, allow] of Object.entries(overrides[day] || {})) {
       const bits = [...allow.sites];
       if (allow.channels?.length) bits.push(`${allow.channels.length} channel${allow.channels.length === 1 ? '' : 's'}`);
       if (allow.apps.length) bits.push(`${allow.apps.length} app${allow.apps.length === 1 ? '' : 's'}`);
-      lines.push(`${DAY_NAMES[day]} ${subject}: ${bits.join(', ') || 'nothing picked, uses the usual'}`);
+      lines.push(`${dayLabel(day, twoWeeks)} ${key.replace('@', ' ')}: ${bits.join(', ') || 'nothing picked, uses the usual'}`);
     }
   }
   return lines.length ? `Day-specific set-up:\n${lines.join('\n')}` : '';
 }
 
-/** One line per day, showing which subjects are on it and the study
- *  total, so a student can scan the whole week before confirming. */
-export function formatWeeklyPlan(week: Record<number, GeneratorResult>): string {
-  const lines = WEEK_ORDER.map(day => {
-    const name = DAY_NAMES[day];
+/** One line per day with each block's subject and start time and the
+ *  study total, so a student can scan the whole week before confirming.
+ *  Days 7-13 are shown as Week B; days not in activeDays as "off". */
+export function formatWeeklyPlan(
+  week: Record<number, GeneratorResult>,
+  opts: { activeDays?: number[]; repeat?: Repeat } = {},
+): string {
+  const active = new Set(opts.activeDays ?? [0, 1, 2, 3, 4, 5, 6]);
+  const twoWeeks = Object.keys(week).some(k => Number(k) >= 7);
+  const line = (day: number) => {
+    const name = DAY_NAMES[day % 7];
+    if (!active.has(day % 7)) return `${name}: off`;
     const result = week[day];
-    if (!result) return `${name}: —`;
-    const subjects = uniqueCaseless(
-      result.blocks.filter(b => b.kind === 'study').map(b => b.subjectName || 'Study'),
-    );
-    return `${name}: ${subjects.join(', ') || 'Study'} (${fmtHours(result.placedStudyMinutes)})`;
-  });
-  return `Here's your week:\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+    if (!result) return `${name}: off`;
+    const study = result.blocks.filter(b => b.kind === 'study');
+    const blocks = study.map(b => `${b.subjectName || 'Study'} ${b.startTime}`);
+    return `${name}: ${blocks.join(', ') || 'Study'} (${fmtHours(result.placedStudyMinutes)})`;
+  };
+  const body = twoWeeks
+    ? `Week A (this week):\n${WEEK_ORDER.map(line).join('\n')}\n\nWeek B (next week):\n${WEEK_ORDER.map(d => line(d + 7)).join('\n')}`
+    : WEEK_ORDER.map(line).join('\n');
+  const repeatNote = twoWeeks
+    ? '\n\nWeek A and Week B take turns, starting with Week A this week.'
+    : opts.repeat === 'every2' ? '\n\nRuns every 2 weeks, starting this week.' : '';
+  return `Here's your week:\n\n${body}${repeatNote}\n\nTap Confirm to make it live, or tell me what to change.`;
 }
