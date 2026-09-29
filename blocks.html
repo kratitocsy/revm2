@@ -1124,17 +1124,17 @@ let editingScheduleId=null; // null while creating a new schedule
 let originalScheduleSlotsById={}; // id -> {start_time,end_time,is_sleep} as loaded, for gating sleep-slot edits
 let scheduleUnlockedForEdit=new Set(); // schedule ids that passed the gate this page-load
 
-// Whole weeks (Monday to Sunday, India time) since Monday 2024-01-01, the
-// same count schedule-tick uses for repeat_weeks / week_offset.
-function istWeekIndex(){
+// 0 or 1 for this Sunday-to-Saturday week (India time), the same
+// week_parity schedule-tick uses: the week of Sunday 2026-08-02 is 0.
+function istWeekParity(){
   const istDays=Math.floor((Date.now()+330*60000)/86400000);
-  return Math.floor((istDays-Date.UTC(2024,0,1)/86400000)/7);
+  const sunday=istDays-new Date(istDays*86400000).getUTCDay();
+  const weeks=Math.floor((sunday-Date.UTC(2026,7,2)/86400000)/7);
+  return ((weeks%2)+2)%2;
 }
 function scheduleRepeatNote(s){
-  const every=s.repeat_weeks||1;
-  if(every<=1) return '';
-  const weeksAway=(((s.week_offset||0)-istWeekIndex())%every+every)%every;
-  return ` · every ${every} weeks (${weeksAway===0?'runs this week':weeksAway===1?'runs next week':`runs in ${weeksAway} weeks`})`;
+  if(s.week_parity===null || s.week_parity===undefined) return '';
+  return ` · every other week (${s.week_parity===istWeekParity()?'runs this week':'runs next week'})`;
 }
 
 async function loadSchedules(){

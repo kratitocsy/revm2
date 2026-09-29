@@ -330,9 +330,9 @@ export async function writeSchedule(sb: SupaLike, userId: string, args: {
   planName: string;
   daysOfWeek: number[];
   slots: PlanSlotInput[];
-  /** Runs only every N weeks (migration 0099). Left out for every week, so
-   *  saving still works on a database without those columns. */
-  repeat?: { repeatWeeks: number; weekOffset: number };
+  /** 0 or 1 to run only in weeks of that parity (every other week, see
+   *  istWeekParity); left out to run every week. */
+  weekParity?: 0 | 1;
 }): Promise<{ scheduleId: string }> {
   const scheduleName = args.planName || 'Wynky Plan';
   const { data: existingSchedule } = await sb.from('focus_lock_schedules')
@@ -343,14 +343,14 @@ export async function writeSchedule(sb: SupaLike, userId: string, args: {
     scheduleId = existingSchedule.id;
     await sb.from('focus_lock_schedules').update({
       days_of_week: args.daysOfWeek, active: true,
-      ...(args.repeat && args.repeat.repeatWeeks > 1 ? { repeat_weeks: args.repeat.repeatWeeks, week_offset: args.repeat.weekOffset } : {}),
+      week_parity: args.weekParity ?? null,
     }).eq('id', scheduleId);
     await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', scheduleId);
   } else {
     const { data: created, error } = await sb.from('focus_lock_schedules')
       .insert({
       user_id: userId, name: scheduleName, days_of_week: args.daysOfWeek,
-      ...(args.repeat && args.repeat.repeatWeeks > 1 ? { repeat_weeks: args.repeat.repeatWeeks, week_offset: args.repeat.weekOffset } : {}),
+      week_parity: args.weekParity ?? null,
     }).select('id').single();
     if (error) throw new Error(error.message);
     scheduleId = created.id;
@@ -444,14 +444,18 @@ export function dayOverrideKey(subject: string, day: number, time: string | null
   return `${subject} (${day >= 7 ? 'B ' : ''}${WEEKDAY_NAMES[day % 7]}${time ? ` ${time}` : ''})`;
 }
 
-// Monday 2024-01-01, the same start schedule-tick counts weeks from.
-const WEEK_EPOCH_DAYS = Date.UTC(2024, 0, 1) / 86_400_000;
+// Same anchor as the deployed schedule-tick: the Sunday-to-Saturday week
+// starting Sunday 2026-08-02 (India time) is parity 0, the next is 1, and so on.
+const WEEK_PARITY_EPOCH_DAYS = Date.UTC(2026, 7, 2) / 86_400_000;
 const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
 
-/** Whole weeks (Monday to Sunday, India time) since Monday 2024-01-01. */
-export function istWeekIndex(now: Date = new Date()): number {
+/** 0 or 1 for this week (Sunday to Saturday, India time), matching the
+ *  week_parity that schedule-tick runs schedules on. */
+export function istWeekParity(now: Date = new Date()): 0 | 1 {
   const istDays = Math.floor((now.getTime() + IST_OFFSET_MS) / 86_400_000);
-  return Math.floor((istDays - WEEK_EPOCH_DAYS) / 7);
+  const sunday = istDays - new Date(istDays * 86_400_000).getUTCDay();
+  const weeks = Math.floor((sunday - WEEK_PARITY_EPOCH_DAYS) / 7);
+  return (((weeks % 2) + 2) % 2) as 0 | 1;
 }
 
 export interface ConfirmWeekPlanArgs {
@@ -466,7 +470,8 @@ export interface ConfirmWeekPlanArgs {
   freeTimeApps: string[];
   /** Days (0-6) the plan runs on; the rest are days off. Default: all. */
   activeDays?: number[];
-  /** 1 = every week (default), 2 = every other week starting this week.
+  /** 1 = every week (default), 2 = every other week starting this week
+   *  (saved as week_parity).
    *  A week with days 7-13 is always a two-week Week A / Week B plan. */
   repeatWeeks?: number;
   now?: Date;
@@ -500,8 +505,8 @@ export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): 
     : {};
 
   const twoWeeks = Object.keys(args.week).some(k => Number(k) >= 7);
-  const repeatWeeks = twoWeeks ? 2 : Math.max(1, Math.min(4, args.repeatWeeks || 1));
-  const thisWeek = istWeekIndex(args.now);
+  const everyOther = twoWeeks || (args.repeatWeeks ?? 1) === 2;
+  const thisWeek = istWeekParity(args.now);
   const active = new Set(args.activeDays ?? [0, 1, 2, 3, 4, 5, 6]);
   const presetFor = (subject: string, day: number, start: string) =>
     overridePresetIds[dayOverrideKey(subject, day, start)] ?? overridePresetIds[dayOverrideKey(subject, day)] ?? presetIdBySubject[subject];
@@ -542,7 +547,7 @@ export async function confirmWeekPlan(sb: SupaLike, args: ConfirmWeekPlanArgs): 
     const label = twoWeeks ? `${day >= 7 ? 'B' : 'A'} ${WEEKDAY_NAMES[day % 7]}` : WEEKDAY_NAMES[day];
     await writeSchedule(sb, args.userId, {
       planName: `${args.planName} - ${label}`, daysOfWeek: [day % 7], slots: usable,
-      repeat: repeatWeeks > 1 ? { repeatWeeks, weekOffset: (thisWeek + (day >= 7 ? 1 : 0)) % repeatWeeks } : undefined,
+      weekParity: everyOther ? (day >= 7 ? (1 - thisWeek) as 0 | 1 : thisWeek) : undefined,
     });
   }
   return { writtenSlots };

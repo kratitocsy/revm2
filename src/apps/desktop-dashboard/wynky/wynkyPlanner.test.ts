@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { confirmAiPlan, confirmPlan, confirmWeekPlan, istWeekIndex, ensurePresets, eventsFromSummary, NoEnforceableBlocksError, type LearnedRow, type SupaLike } from './wynkyPlanner';
+import { confirmAiPlan, confirmPlan, confirmWeekPlan, istWeekParity, ensurePresets, eventsFromSummary, NoEnforceableBlocksError, type LearnedRow, type SupaLike } from './wynkyPlanner';
 
 // Minimal stand-in for the Supabase query builder: every lookup finds
 // nothing, every insert gets a fresh id, and all writes are recorded.
@@ -148,12 +148,12 @@ describe('confirmWeekPlan', () => {
     writes.filter(w => w.table === 'focus_lock_schedules' && w.op === 'insert').map(w => w.row);
   const week7 = (subject: string) => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(d => [d, day(subject)]));
 
-  it('skips days off and saves every week without repeat columns', async () => {
+  it('skips days off and saves every week with no week parity', async () => {
     const { sb, writes } = fakeSb();
     await confirmWeekPlan(sb, { ...base, week: week7('Physics'), activeDays: [1, 2, 3, 4, 5] });
     const rows = schedules(writes);
     expect(rows.map(r => r.name)).toEqual(['Plan - Mon', 'Plan - Tue', 'Plan - Wed', 'Plan - Thu', 'Plan - Fri']);
-    expect(rows.every(r => r.repeat_weeks === undefined)).toBe(true);
+    expect(rows.every(r => r.week_parity === null)).toBe(true);
   });
 
   it('runs every other week starting this week', async () => {
@@ -162,7 +162,7 @@ describe('confirmWeekPlan', () => {
     await confirmWeekPlan(sb, { ...base, week: week7('Physics'), repeatWeeks: 2, now });
     const rows = schedules(writes);
     expect(rows).toHaveLength(7);
-    expect(rows.every(r => r.repeat_weeks === 2 && r.week_offset === istWeekIndex(now) % 2)).toBe(true);
+    expect(rows.every(r => r.week_parity === istWeekParity(now))).toBe(true);
   });
 
   it('saves Week A this week and Week B next week', async () => {
@@ -176,8 +176,8 @@ describe('confirmWeekPlan', () => {
     expect(rows).toHaveLength(14);
     expect(a.days_of_week).toEqual([2]);
     expect(b.days_of_week).toEqual([2]);
-    expect(a.week_offset).toBe(istWeekIndex(now) % 2);
-    expect(b.week_offset).toBe((istWeekIndex(now) + 1) % 2);
+    expect(a.week_parity).toBe(istWeekParity(now));
+    expect(b.week_parity).toBe(1 - istWeekParity(now));
   });
 
   it('uses a block-only set-up for that block and the day set-up for the rest', async () => {
@@ -194,10 +194,13 @@ describe('confirmWeekPlan', () => {
   });
 });
 
-describe('istWeekIndex', () => {
-  it('starts a new week on Monday, India time', () => {
-    // Sunday 23:00 IST and Monday 00:30 IST.
-    expect(istWeekIndex(new Date('2026-09-27T17:30:00Z')) + 1).toBe(istWeekIndex(new Date('2026-09-27T19:00:00Z')));
-    expect(istWeekIndex(new Date('2024-01-01T00:00:00Z'))).toBe(0);
+describe('istWeekParity', () => {
+  it('matches schedule-tick: week of Sunday 2026-08-02 is 0, weeks flip on Sunday, India time', () => {
+    expect(istWeekParity(new Date('2026-08-02T00:00:00+05:30'))).toBe(0);
+    expect(istWeekParity(new Date('2026-08-08T23:59:00+05:30'))).toBe(0);
+    expect(istWeekParity(new Date('2026-08-09T00:00:00+05:30'))).toBe(1);
+    expect(istWeekParity(new Date('2026-08-16T09:00:00+05:30'))).toBe(0);
+    // Saturday 23:00 IST is still the old week even though UTC is earlier/later.
+    expect(istWeekParity(new Date('2026-08-15T23:00:00+05:30'))).toBe(1);
   });
 });
