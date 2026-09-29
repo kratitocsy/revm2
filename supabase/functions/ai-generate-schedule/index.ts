@@ -138,7 +138,10 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // doesn't block the next.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
-const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3-32b"];
+// Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
+// qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
+// can go at short notice; a retired one fails fast and the race moves on.
+const DEFAULT_GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
 
 class GeminiError extends Error {
   constructor(public status: number, message: string) {
@@ -238,11 +241,13 @@ async function callGroq(
         { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 8192,
-      // gpt-oss reasons at "medium" by default, which is most of its wait;
-      // Qwen 3 can skip reasoning altogether.
-      ...(model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}),
-      ...(model.startsWith("qwen/qwen3") ? { reasoning_effort: "none" } : {}),
+      // Groq's free tier allows 8,000 tokens a minute per model; a week's
+      // plan is well under 4096, and a smaller cap keeps each request
+      // inside that allowance.
+      max_tokens: 4096,
+      // gpt-oss and Qwen 3.8 reason at "medium" by default, which is most
+      // of their wait.
+      ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/") ? { reasoning_effort: "low" } : {}),
     }),
   });
   if (!res.ok) {
