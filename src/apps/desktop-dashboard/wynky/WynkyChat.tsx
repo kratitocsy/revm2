@@ -23,7 +23,7 @@ import {
   parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
-import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat } from './wynkyRefine'
+import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, type ChatSettings, type ChatDay } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 /* ============================================================
@@ -50,6 +50,14 @@ import type { GeneratorResult } from '../../_shared/scheduleGenerator'
    The full set-up (subjects, sites, channels, apps) is still one tap
    away under "Change my set-up". Nothing is saved until the student
    taps Confirm.
+
+   Once the first plan is shown, everything typed goes to the AI chat
+   mode (chatAi): it reads the whole conversation, the plan on screen and
+   the settings agreed so far (hours, session length, windows, rules),
+   answers in its own words and returns the full updated plan. Those
+   settings are kept for every later message, so nothing said once is
+   dropped; the plan buttons (hours, times, block length) go through the
+   same path once the chat has been used.
    ============================================================ */
 
 type Step = 'loading' | 'signed_out' | 'subjects' | 'sites' | 'channels' | 'apps' | 'apps_mode'
@@ -129,6 +137,8 @@ const MAX_SHOWN_OPTIONS = 40
 const REFINE_TIMEOUT_MS = 18_000
 // A Week A / Week B plan makes two calls in a row; both share this one wait.
 const AB_REFINE_TIMEOUT_MS = 25_000
+// The chat mode thinks harder; kept just above its 24s budget (CHAT_BUDGET_MS).
+const CHAT_TIMEOUT_MS = 27_000
 const TIME_RE = /^\d{2}:\d{2}$/
 
 const EMPTY_KNOWN: WynkyKnownProfile = {
@@ -346,6 +356,10 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   const subjectsGapRef = useRef(false)
   // Only the latest plan request may show its answer.
   const refineSeq = useRef(0)
+  // What the AI chat and the student agreed (hours, session length, study
+  // windows, rules...). Set once the student has typed to the chat; from
+  // then on every change goes through the chat so none of it is lost.
+  const chatSettingsRef = useRef<ChatSettings | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(1)
@@ -802,6 +816,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setDraft(d)
     if (!d.wakeTime) { enterWake(d); return }
     if (!d.sleepTime) { enterSleep(d); return }
+    // A button change after chatting: the chat rebuilds the plan with every
+    // rule agreed so far, instead of starting over from the simple rules.
+    if (chatSettingsRef.current && ruleResult && !requestNow) {
+      void chatAi(`I changed my settings with the buttons: ${fmtHours(d.dailyMinutes)} a day, ${d.blockMinutes}-minute sessions, up at ${fmtClock(d.wakeTime)}, asleep by ${fmtClock(d.sleepTime)}${busyWindows(d.busy).length ? `, busy ${d.busy.map(busyLabel).join(', ')}` : ', nothing fixed'}. Update the plan and keep everything else we agreed.`, d, shape)
+      return
+    }
     const subjects = planSubjects(d)
     if (!subjects.length) {
       say("To lock anything during study time I need to know how you study. Let's pick that for each subject, it's quick.")
@@ -974,6 +994,138 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       failed.length ? `I couldn't change ${failed.join(', ')} just now; try again in a moment.` : '',
     ].filter(Boolean).join(' ')
     showPlan({ week: done.length ? week : weekResult, days: nextDays }, `${head}\n\n`)
+  }
+
+  // ── AI chat ────────────────────────────────────────────────────────────
+
+  /** The agreed settings as the chat reads them: the last ones the AI
+   *  returned, with the current answers (which buttons may just have
+   *  changed) on top. */
+  function chatSettings(d: Draft, shape: Shape): ChatSettings {
+    return {
+      ...chatSettingsRef.current,
+      daily_hours: Math.round((d.dailyMinutes / 60) * 100) / 100,
+      session_minutes: d.blockMinutes,
+      ...(d.wakeTime ? { wake: d.wakeTime } : {}),
+      ...(d.sleepTime ? { sleep: d.sleepTime } : {}),
+      busy: busyWindows(d.busy).map(b => `${b.start}-${b.end}`),
+      active_days: shape.days,
+      repeat: shape.rep,
+      week_shape: shape.rep === 'ab' ? 'ab' : weekResult ? 'vary' : 'same',
+    }
+  }
+
+  /** What Wynky learned from the student's history and similar students,
+   *  in words, for anything the student hasn't said in this chat. */
+  function learnedLines(): string[] {
+    const r = recsRef.current
+    if (!r) return []
+    const line = (label: string, c: Candidate | null, fmt: (v: string) => string) => {
+      const src = c ? why(c) : null
+      return c && src ? `${label}: ${fmt(c.value)} (${src})` : null
+    }
+    return [
+      line('study a day', r.dailyMinutes, v => fmtHours(Number(v))),
+      line('session length', r.blockMinutes, v => `${v} min`),
+      line('wakes up', r.wake, fmtClock),
+      line('sleeps', r.sleep, fmtClock),
+      line('busy', r.busy, v => (v === NOTHING_FIXED ? 'nothing fixed' : busyLabel(v))),
+    ].filter((x): x is string => !!x)
+  }
+
+  /** One message to the AI chat. It answers in its own words and, unless it
+   *  only replies or asks something back, returns the whole updated plan and
+   *  the settings it followed; both are kept for the next message. */
+  async function chatAi(text: string, d: Draft, shape: Shape = { days: activeDays, rep: repeat }) {
+    const p = profileRef.current
+    const subjects = planSubjects(d)
+    if (!p || !subjects.length || !ruleResult) { askAi(d, text); return }
+    const seq = ++refineSeq.current
+    const settings = chatSettings(d, shape)
+    setTyping(true)
+    let data: { reply: string; settings: ChatSettings; days: ChatDay[]; remember: string[]; forget: string[] }
+    try {
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) throw new Error('Not signed in.')
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), CHAT_TIMEOUT_MS)
+      try {
+        const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`, {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({
+            mode: 'chat', message: text, subjects, weak: weakSubjects(subjects, p.study), settings,
+            plan: planForChat(weekResult, ruleResult, shape.days),
+            history: recentChat(messagesRef.current, text, 16, 9000),
+            facts: studentFacts(p.known), learned: learnedLines(), standing_requests: standingRequests(p.events, 15),
+            today: DAY_NAMES[new Date().getDay()],
+          }),
+        })
+        const json = await res.json()
+        if (!res.ok || !json.success || json.mode !== 'chat') throw new Error(json.error || 'The AI is not available right now.')
+        data = json
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch (e) {
+      if (seq !== refineSeq.current) return
+      setTyping(false)
+      const reason = e instanceof DOMException && e.name === 'AbortError' ? 'the AI took too long' : chatErrorText(e, 'the AI is not available right now').replace(/\.$/, '')
+      ask('preview', `I couldn't do that just now (${reason}). Your plan is unchanged; please try again in a moment.`)
+      return
+    }
+    if (seq !== refineSeq.current) return
+
+    // Keep what was agreed, and put the answers the rest of the app uses
+    // (and learns from on Confirm) in the draft.
+    const s = { ...settings, ...data.settings }
+    chatSettingsRef.current = s
+    const next: Draft = {
+      ...d,
+      dailyMinutes: s.daily_hours ? Math.round(s.daily_hours * 60) : d.dailyMinutes,
+      blockMinutes: s.session_minutes ?? d.blockMinutes,
+      wakeTime: s.wake ?? d.wakeTime,
+      sleepTime: s.sleep ?? d.sleepTime,
+      busy: s.busy ? (s.busy.length ? s.busy : [NOTHING_FIXED]) : d.busy,
+    }
+    const days = s.active_days?.length ? s.active_days : shape.days
+    const rep: Repeat = s.repeat ?? shape.rep
+    // Facts and rules the AI picked up are remembered like typed requests
+    // (saved with a confirmed plan); ones the student took back are dropped.
+    learn([
+      ...[...(s.rules || []), ...(data.remember || [])].map(v => ({ field: 'note', value: v.slice(0, 300), action: 'requested' as const })),
+      ...(data.forget || []).map(v => ({ field: 'note', value: v.slice(0, 300), action: 'removed' as const })),
+    ])
+    setDraft(next)
+    setTyping(false)
+
+    if (!data.days?.length) {
+      setActiveDays(days)
+      setRepeat(rep)
+      ask('preview', data.reply)
+      return
+    }
+    // Sleep blocks for the (possibly new) wake and sleep times.
+    const base = recommend({
+      wakeTime: next.wakeTime!, sleepTime: next.sleepTime!, dailyMinutes: next.dailyMinutes, subjects, weak: [],
+      blockLengthMinutes: next.blockMinutes, fixedCommitments: busyWindows(next.busy),
+    })
+    const plan = chatPlan(data.days, planWeek(), base, {
+      subjects, wakeTime: next.wakeTime!, sleepTime: next.sleepTime!, busy: busyWindows(next.busy), requestNow: true, standingRequests: [],
+    }, days)
+    if (!plan.ok) {
+      ask('preview', `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so I kept your current one. Try asking again.`)
+      return
+    }
+    const today = new Date().getDay()
+    const single = plan.single ?? plan.week?.[today] ?? plan.week?.[plan.activeDays[0]] ?? ruleResult
+    setRuleResult(single)
+    setWeekResult(plan.week)
+    setPlainResult(null)
+    setActiveDays(plan.activeDays)
+    setRepeat(rep)
+    showPlan({ single, week: plan.week, days: plan.activeDays, rep, busy: next.busy }, `${data.reply}\n\n`)
   }
 
   // ── Options for the current question ──────────────────────────────────
@@ -1392,6 +1544,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       const named = step === 'preview' && ruleResult ? mentionedDays(text, -1) : []
       // "Week B Tuesday ..." on a two-week plan is still a change to one day.
       const weekScoped = isTwoWeeks(weekResult) && namesOneWeek(text)
+      if (ruleResult) { void chatAi(text, draft); return }
       if (named.length && (weekScoped || (!mentionsWeek(text) && !repeatFromText(text)))) { void editDays(draft, text, named); return }
       const updated = applyLocalRequest(text, draft)
       if (updated) { if (updated !== draft) buildPreview(updated); return }

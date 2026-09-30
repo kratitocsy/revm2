@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateSchedule } from '../../_shared/scheduleGenerator';
-import { checkRefined, checkRefinedWeek, draftSlots, recentChat, standingRequests, toResult, type RefineContext } from './wynkyRefine';
+import { chatPlan, checkRefined, checkRefinedWeek, draftSlots, planForChat, recentChat, standingRequests, toResult, type RefineContext } from './wynkyRefine';
 import { weakSubjects } from './wynkyPlanner';
 
 const subjects = ['Physics', 'Chemistry', 'Maths'];
@@ -128,5 +128,52 @@ describe('recentChat', () => {
     expect(out.length).toBeLessThanOrEqual(10);
     expect(out.every(t => t.text.length <= (t.sender === 'bot' ? 1500 : 300))).toBe(true);
     expect(out.reduce((n, t) => n + t.text.length, 0)).toBeLessThanOrEqual(6000);
+  });
+});
+
+describe('standingRequests with requests taken back', () => {
+  it('drops a request whose newest event is removed', () => {
+    const events = [
+      { field: 'note', value: 'coaching 4-7 pm', action: 'requested', at: '2026-09-01T00:00:00Z' },
+      { field: 'note', value: 'Coaching 4-7 pm', action: 'removed', at: '2026-09-02T00:00:00Z' },
+      { field: 'note', value: 'Chemistry every day', action: 'requested', at: '2026-09-03T00:00:00Z' },
+    ];
+    expect(standingRequests(events)).toEqual(['Chemistry every day']);
+  });
+});
+
+describe('chatPlan', () => {
+  const all = [0, 1, 2, 3, 4, 5, 6];
+  const chatCtx = { ...ctx, requestNow: true };
+
+  it('turns an "all" answer into one plan for every active day, with midnight as 23:59', () => {
+    const r = chatPlan([{ day: 'all', slots: [slot('05:30', '07:00', 'Chemistry'), slot('22:30', '24:00', 'physics')] }], null, draft, chatCtx, all);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.week).toBeNull();
+    expect(draftSlots(r.single!)).toEqual([slot('05:30', '07:00', 'Chemistry'), slot('22:30', '23:59', 'Physics')]);
+    expect(r.single!.placedStudyMinutes).toBe(179);
+  });
+
+  it('replaces only the answered days of the current week, and an empty day becomes a day off', () => {
+    const current = Object.fromEntries(all.map(d => [d, draft]));
+    const r = chatPlan([{ day: 2, slots: [slot('17:00', '18:30', 'Maths')] }, { day: 0, slots: [] }], current, draft, chatCtx, all);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.activeDays).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(r.week![0]).toBeUndefined();
+    expect(draftSlots(r.week![2])).toEqual([slot('17:00', '18:30', 'Maths')]);
+    expect(r.week![3]).toBe(draft);
+  });
+
+  it('rejects a day with overlapping sessions', () => {
+    const r = chatPlan([{ day: 1, slots: [slot('17:00', '18:30', 'Maths'), slot('18:00', '19:00', 'Physics')] }], null, draft, chatCtx, all);
+    expect(r.ok).toBe(false);
+  });
+
+  it('describes the current plan per active day for the chat', () => {
+    const week = { 1: draft, 2: draft, 7: draft };
+    expect(planForChat(week, null, [1]).days.map(d => d.day)).toEqual([1]);
+    expect(planForChat(null, draft, all).days[0].day).toBe('all');
   });
 });
