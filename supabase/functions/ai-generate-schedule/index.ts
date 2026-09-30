@@ -205,10 +205,12 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
 // Wynky's chat thinks harder (the whole conversation and a full week at
-// once), so it gets a longer budget and more room before the next provider
-// joins. WynkyChat.tsx waits CHAT_TIMEOUT_MS, just above this.
+// once), so it gets a longer budget. Gemini Flash answers it alone: Groq
+// starts only when Gemini fails, or if Gemini still hasn't answered after
+// CHAT_HEDGE_MS, so a stuck Google doesn't leave the student waiting.
+// WynkyChat.tsx waits CHAT_TIMEOUT_MS, just above the budget.
 const CHAT_BUDGET_MS = 24_000;
-const CHAT_HEDGE_MS = 4_000;
+const CHAT_HEDGE_MS = 12_000;
 // Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
 // qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
 // can go at short notice. groqModels() swaps a retired one for another
@@ -223,6 +225,12 @@ const NOT_CHAT = /whisper|tts|guard|playai|orpheus|distil|compound|allam|vision/
 const FAMILY_ORDER = [/gpt-oss/, /qwen/, /llama/, /kimi/];
 
 let groqLive: { at: number; ids: string[] } | null = null;
+// Models Groq refused for good on a request (retired, or no longer on the
+// free tier), skipped by this function instance for a day and replaced by
+// groqModels() like a retired one.
+const groqBlocked = new Map<string, number>();
+const BLOCK_MS = 86_400_000;
+const isBlocked = (m: string) => (groqBlocked.get(m) ?? 0) > Date.now();
 
 /** Adds a red banner to Owner Control (migration 0100). An open alert with
  *  the same key isn't added twice, so this is safe to call per request. */
@@ -239,11 +247,11 @@ function alertOwner(key: string, title: string, body: string) {
   (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(done);
 }
 
-function alertRetiredGroq(model: string, standIn?: string) {
+function alertRetiredGroq(model: string, standIn?: string, why: "retired" | "paid" = "retired") {
   alertOwner(
-    `ai-retired:groq:${model}`,
-    `Groq retired the AI model ${model}`,
-    `${standIn ? `Wynky switched to ${standIn} on its own, so students aren't affected. ` : ""}` +
+    `ai-${why}:groq:${model}`,
+    why === "paid" ? `Groq no longer offers ${model} on the free tier` : `Groq retired the AI model ${model}`,
+    `${standIn ? `Wynky switched to ${standIn} on its own, so students aren't affected. ` : "Wynky moves to another free Groq model on its own from the next request. "}` +
       `Update DEFAULT_GROQ_MODELS in supabase/functions/ai-generate-schedule/index.ts to a current Groq model so this stays fixed.`,
   );
 }
@@ -270,26 +278,30 @@ async function liveGroqModels(apiKey: string): Promise<string[] | null> {
   }
 }
 
-/** The configured Groq models, with any Groq has retired swapped for other
- *  live chat models so the race keeps the same number of tries. */
+/** The configured Groq models, with any Groq has retired (gone from its
+ *  model list) or refused (retired or no longer free, see callGroq)
+ *  swapped for other live chat models the account can use, so the race
+ *  keeps the same number of tries. */
 async function groqModels(apiKey: string, wanted: string[]): Promise<string[]> {
   const live = await liveGroqModels(apiKey);
-  if (!live) return wanted;
-  const kept = wanted.filter((m) => live.includes(m));
-  const retired = wanted.filter((m) => !live.includes(m));
+  const usable = (m: string) => !isBlocked(m) && (!live || live.includes(m));
+  const kept = wanted.filter(usable);
+  const retired = wanted.filter((m) => !usable(m));
   if (!retired.length) return wanted;
+  if (!live) return kept;
   const family = (id: string) => {
     const i = FAMILY_ORDER.findIndex((re) => re.test(id));
     return i < 0 ? FAMILY_ORDER.length : i;
   };
   const standIns = live
-    .filter((id) => !kept.includes(id) && !NOT_CHAT.test(id))
+    .filter((id) => !kept.includes(id) && !NOT_CHAT.test(id) && !isBlocked(id))
     .sort((a, b) => family(a) - family(b))
     .slice(0, retired.length);
   console.warn(
     `ai-generate-schedule: ${RETIRED_TAG}: groq ${retired.join(", ")}; using ${standIns.join(", ") || "nothing"} instead`,
   );
-  retired.forEach((m, i) => alertRetiredGroq(m, standIns[i]));
+  // Refused models were alerted when refused; only newly missing ones here.
+  retired.forEach((m, i) => { if (!isBlocked(m)) alertRetiredGroq(m, standIns[i]); });
   return [...kept, ...standIns];
 }
 
@@ -429,10 +441,17 @@ async function callGroq(
   });
   if (!res.ok) {
     const errText = await res.text();
-    if (res.status === 404 || /model_not_found|decommissioned/.test(errText)) {
+    // Retired, or taken off the free tier (Groq answers 402/403 or names
+    // billing or the plan): stop using it and let groqModels() pick a free,
+    // live stand-in from the next request on. A 429 is only the per-minute
+    // limit and passes.
+    const retired = res.status === 404 || /model_not_found|decommissioned|does not exist/i.test(errText);
+    const paid = res.status === 402 || res.status === 403 || /\b(billing|upgrade|paid|plan|permission)\b/i.test(errText);
+    if (res.status !== 429 && res.status < 500 && (retired || paid)) {
+      groqBlocked.set(model, Date.now() + BLOCK_MS);
       groqLive = null; // re-check Groq's list on the next request
-      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model}`);
-      alertRetiredGroq(model);
+      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model} (${retired ? "retired" : "not free"})`);
+      alertRetiredGroq(model, undefined, retired ? "retired" : "paid");
     }
     throw new Error(`Groq API ${res.status} (${model}): ${errText.slice(0, 300)}`);
   }
@@ -768,8 +787,7 @@ RECENT CHAT (oldest first; "Wynky" is you):
 ${chat.join("\n") || "none"}
 
 STUDENT'S MESSAGE NOW: ${message}`;
-      const chatModel = Deno.env.get("GEMINI_CHAT_MODEL") || model;
-      const rawText = await generate(prompt, apiKey, chatModel, CHAT_PROMPT, (text) => {
+      const rawText = await generate(prompt, apiKey, model, CHAT_PROMPT, (text) => {
         let parsed: Record<string, unknown>;
         try {
           parsed = extractJson(text) as Record<string, unknown>;
