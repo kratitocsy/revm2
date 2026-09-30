@@ -769,7 +769,7 @@ Deno.serve(async (req: Request) => {
         .map((m: Record<string, unknown>) =>
           `${m.sender === "user" ? "Student" : "Wynky"}: ${str(m.text, m.sender === "user" ? 500 : 700).replace(/\s*\n\s*/g, " / ")}`);
       const learned = [...strList(body.facts, 12), ...strList(body.learned, 12)];
-      const remembered = strList(body.standing_requests, 15);
+      const remembered = strList(body.standing_requests, 40);
       const prompt = `SUBJECTS: ${subjectNames.join(", ")}
 WEAK SUBJECTS (least studied lately): ${strList(body.weak, 20).join(", ") || "none known"}
 TODAY: ${str(body.today, 12) || "unknown"}

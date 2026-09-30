@@ -203,6 +203,8 @@ export async function exportMyData(userId: string): Promise<Blob> {
   ]);
   const failed = [profile, sessions, plan, tasks, battles].find((r) => r.error);
   if (failed?.error) throw new Error(messageOf(failed.error, 'Could not export your data'));
+  // Optional: missing before migration 0101, so it never blocks the export.
+  const memory = await sb.from('wynky_memory').select('fact, kind, created_at').eq('user_id', userId).order('id', { ascending: false });
   const payload = {
     exported_at: new Date().toISOString(),
     profile: profile.data,
@@ -210,6 +212,7 @@ export async function exportMyData(userId: string): Promise<Blob> {
     study_plan: plan.data,
     study_plan_tasks: tasks.data,
     battle_history: battles.data,
+    wynky_memory: memory.error ? [] : memory.data,
   };
   return new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 }

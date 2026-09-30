@@ -15,6 +15,7 @@ import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
 import WynkyChat from './wynky/WynkyChat'
+import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import type { AiSlot } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -8966,8 +8967,12 @@ function SettingsPage({ onNavigate, profile }: { onNavigate: (id: string) => voi
           </StRow>
           <StRow label="Allow Room Invites" sub="Let others invite you to study rooms"><StToggle val={prefs.privacy_allow_room_invites} onChange={v => void updatePrefs({ privacy_allow_room_invites: v })} /></StRow>
         </StSection>
+        <StSection title="WHAT WYNKY REMEMBERS">
+          <div className="text-[11px] text-wk-ink-500 -mt-2 mb-1">Things you told Wynky that it uses for every plan. Delete anything you don't want it to keep.</div>
+          {s && <WynkyMemorySettings userId={s.userId} exam={exam} notify={notify} />}
+        </StSection>
         <StSection title="DATA & PRIVACY">
-          <StRow label="Download My Data" sub="Your profile, study sessions, plan and battle history as JSON">
+          <StRow label="Download My Data" sub="Your profile, study sessions, plan, battle history and what Wynky remembers as JSON">
             <button onClick={() => void downloadData()} disabled={busy === 'export'}
               className="px-3.5 py-1.5 rounded-xl border text-[11px] font-semibold text-wk-orange-300 hover:border-wk-orange-500/50 transition-all border-[#3A3A3A] disabled:opacity-50">
               {busy === 'export' ? 'Preparing…' : 'Download'}

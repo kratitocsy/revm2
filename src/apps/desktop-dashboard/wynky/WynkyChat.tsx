@@ -6,7 +6,7 @@ import {
   loadKnownProfile, loadRemembered, loadEvents, recordEvents, fetchPeerStats, fetchChannelSignals,
   defaultDailyMinutes, bucketMinutes, distractionSites, distractionApps,
   recommend, confirmPlan, confirmWeekPlan, rememberAnswers, rememberAllowlists, recordOutcome, loadStudyMinutes, weakSubjects,
-  NoEnforceableBlocksError, STUDY_MODE_OPTIONS, examFamilyKey, subjectKey, seedQueriesFor,
+  NoEnforceableBlocksError, STUDY_MODE_OPTIONS, examFamilyKey, loadMemory, rememberFacts, forgetFacts, type MemoryItem, subjectKey, seedQueriesFor,
   resolveChannelSeed, fetchPopularChannels, setChannelPick, channelPickId, appPickerAvailable, listPickableApps,
   type WynkyKnownProfile, type WynkyRemembered, type SubjectAllowlist, type AiSlot, type ChannelPick,
   type PickableApp, type PlanSlotInput, type NewEvent, type DayOverrides,
@@ -23,7 +23,7 @@ import {
   parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
-import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, type ChatSettings, type ChatDay } from './wynkyRefine'
+import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, memoryLines, droppedRules, type ChatSettings, type ChatDay } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
 /* ============================================================
@@ -79,6 +79,8 @@ interface Profile {
   known: WynkyKnownProfile
   remembered: WynkyRemembered
   events: WynkyEvent[]
+  /** What Wynky remembers (Settings > Privacy lists and deletes these). */
+  memory: MemoryItem[]
   peers: PeerStats
   /** Minutes per subject over the last 30 days, for weak subjects. */
   study: { bySubject: Record<string, number>; sessions: number }
@@ -476,6 +478,39 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     pendingRef.current = []
     if (events.length) void recordEvents(sb as any, p.uid, cohort(), events).catch(() => { /* learning is best-effort */ })
   }
+  /** Saves facts and rules to what Wynky remembers straight away, and
+   *  forgets the ones the student took back. If the memory table isn't
+   *  there yet, they're kept as requests saved with a confirmed plan. */
+  function saveMemory(add: { fact: string; kind: 'fact' | 'rule' }[], drop: string[]) {
+    const p = profileRef.current
+    if (!p) return
+    const key = (v: string) => v.trim().toLowerCase()
+    const gone = new Set(drop.map(key).filter(Boolean))
+    const known = new Set(p.memory.map(m => key(m.fact)))
+    const fresh = add.map(a => ({ fact: a.fact.trim().slice(0, 300), kind: a.kind }))
+      .filter(a => a.fact && !gone.has(key(a.fact)) && !known.has(key(a.fact)))
+    const dropped = drop.filter(v => known.has(key(v)) || p.events.some(e => e.field === 'note' && key(e.value) === key(v)))
+    if (!fresh.length && !dropped.length) return
+    const at = new Date().toISOString()
+    p.memory = [
+      ...fresh.map((a, i) => ({ id: -Date.now() - i, fact: a.fact, kind: a.kind, created_at: at })),
+      ...p.memory.filter(m => !gone.has(key(m.fact))),
+    ]
+    // Older typed requests with the same words stop being sent too.
+    p.events = [...dropped.map(v => ({ field: 'note', value: v.slice(0, 300), multi: false, action: 'removed' as const, at })), ...p.events]
+    const c = cohort()
+    void (async () => {
+      try {
+        if (dropped.length) await forgetFacts(sb as any, p.uid, c, dropped)
+        if (fresh.length) await rememberFacts(sb as any, p.uid, c, fresh)
+      } catch {
+        pendingRef.current.push(
+          ...fresh.map(a => ({ field: 'note', value: a.fact, action: 'requested' as const })),
+          ...dropped.map(v => ({ field: 'note', value: v.slice(0, 300), action: 'removed' as const })),
+        )
+      }
+    })()
+  }
   function why(c: Candidate | null | undefined): string | null {
     return c ? sourceLabel(c.source, exam) : null
   }
@@ -505,6 +540,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         // Start from scratch rather than fail: every answer can be picked again.
       }
       try { events = await loadEvents(sb as any, uid) } catch { /* no history yet */ }
+      const memory = await loadMemory(sb as any, uid)
       let study: Profile['study'] = { bySubject: {}, sessions: 0 }
       try { study = await loadStudyMinutes(sb as any, uid) } catch { /* no weak subjects then */ }
       const now = Date.now()
@@ -517,7 +553,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           ['wake', 'sleep', 'daily_minutes', 'block_minutes', 'busy', ...uniq(subjectsForPeers.map(sitesField))])
       } catch { /* Study DNA and defaults still work */ }
       if (cancelled) return
-      const p: Profile = { uid, known, remembered, events, peers, study }
+      const p: Profile = { uid, known, remembered, events, memory, peers, study }
       profileRef.current = p
       setProfile(p)
       const { draft: d, recs, gaps } = recommendDraft(p, now)
@@ -1058,7 +1094,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
             mode: 'chat', message: text, subjects, weak: weakSubjects(subjects, p.study), settings,
             plan: planForChat(weekResult, ruleResult, shape.days),
             history: recentChat(messagesRef.current, text, 16, 9000),
-            facts: studentFacts(p.known), learned: learnedLines(), standing_requests: standingRequests(p.events, 15),
+            facts: studentFacts(p.known), learned: learnedLines(), standing_requests: memoryLines(p.memory.map(m => m.fact), standingRequests(p.events, 40)),
             today: DAY_NAMES[new Date().getDay()],
           }),
         })
@@ -1091,12 +1127,13 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     }
     const days = s.active_days?.length ? s.active_days : shape.days
     const rep: Repeat = s.repeat ?? shape.rep
-    // Facts and rules the AI picked up are remembered like typed requests
-    // (saved with a confirmed plan); ones the student took back are dropped.
-    learn([
-      ...[...(s.rules || []), ...(data.remember || [])].map(v => ({ field: 'note', value: v.slice(0, 300), action: 'requested' as const })),
-      ...(data.forget || []).map(v => ({ field: 'note', value: v.slice(0, 300), action: 'removed' as const })),
-    ])
+    // Facts and rules the AI picked up go straight into what Wynky
+    // remembers; ones the student took back, and rules the AI stopped
+    // following, are forgotten.
+    saveMemory(
+      [...(s.rules || []).map(fact => ({ fact, kind: 'rule' as const })), ...(data.remember || []).map(fact => ({ fact, kind: 'fact' as const }))],
+      [...(data.forget || []), ...droppedRules(settings.rules || [], s.rules || [])],
+    )
     setDraft(next)
     setTyping(false)
 
