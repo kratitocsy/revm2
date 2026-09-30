@@ -259,9 +259,9 @@ function recommendSites(p: Profile, subject: string, now: number): string[] {
 /** The student's own settled answer, used as-is: once they have kept it,
  *  fading evidence must not let the crowd swap it out behind their back. */
 function settledOr(events: WynkyEvent[], field: string, fallback: Candidate | null): Candidate | null {
-  if (!isSettled(events, field)) return fallback
   const value = latestOwn(events, field)
   if (value == null) return fallback
+  if (!isSettled(events, field) && !events.some(e => e.field === field && !e.multi && e.action !== 'removed')) return fallback
   const last = events.filter(e => e.field === field && !e.multi).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]
   return { value, score: 1, source: last?.action === 'requested' ? 'request' : 'you' }
 }
@@ -290,6 +290,9 @@ function recommendDraft(p: Profile, now: number): { draft: Draft; recs: Recs; ga
   const busy = needsBusyQuestion(dna)
     ? settledOr(events, 'busy', best({ field: 'busy', events, peers: peers.busy, now, priors: busyPrior.length ? [{ value: busyValue(busyPrior.map(b => b.value).filter(v => v !== NOTHING_FIXED)), weight: 1, source: 'study_dna' }] : [] }))
     : null
+  // One answer of their own is enough: Wynky asks once, then remembers.
+  const answered = (field: string) => isSettled(events, field)
+    || events.some(e => e.field === field && !e.multi && e.action !== 'removed')
   const wake = settledOr(events, 'wake', best({ field: 'wake', events, peers: peers.wake, now }))
   const sleep = settledOr(events, 'sleep', best({ field: 'sleep', events, peers: peers.sleep, now }))
 
@@ -310,9 +313,9 @@ function recommendDraft(p: Profile, now: number): { draft: Draft; recs: Recs; ga
   const gaps: Gap[] = []
   // Never plan made-up subjects: with none saved anywhere, ask (exam subjects pre-ticked).
   if (!saved.length && !known.subjects.length) gaps.push('subjects')
-  if (needsBusyQuestion(dna) && !isSettled(events, 'busy')) gaps.push('busy')
-  if (!isSettled(events, 'wake')) gaps.push('wake')
-  if (!isSettled(events, 'sleep')) gaps.push('sleep')
+  if (needsBusyQuestion(dna) && !answered('busy')) gaps.push('busy')
+  if (!answered('wake')) gaps.push('wake')
+  if (!answered('sleep')) gaps.push('sleep')
   if (!dailyMinutes && remembered.lastDailyMinutes == null) gaps.push('hours')
   return { draft, recs: { dailyMinutes, blockMinutes, busy, wake, sleep, sites }, gaps }
 }
@@ -487,6 +490,26 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     })
     pendingRef.current = []
     if (events.length) void recordEvents(sb as any, p.uid, cohort(), events).catch(() => { /* learning is best-effort */ })
+  }
+  function learnAgreed(d: Draft, hours = true) {
+    const p = profileRef.current
+    if (!p) return
+    const mk = (field: string, value: string): NewEvent => ({ field, value, action: 'requested' })
+    const events = [
+      ...(d.wakeTime ? [mk('wake', d.wakeTime)] : []),
+      ...(d.sleepTime ? [mk('sleep', d.sleepTime)] : []),
+      ...(d.busy.length ? [mk('busy', busyValue(d.busy))] : []),
+      ...(hours ? [mk('daily_minutes', String(d.dailyMinutes)), mk('block_minutes', String(d.blockMinutes))] : []),
+    ].filter(e => {
+      const key = `${e.field}|${e.value}|${e.action}`
+      if (loggedRef.current.has(key)) return false
+      loggedRef.current.add(key)
+      return true
+    })
+    if (!events.length) return
+    const at = new Date().toISOString()
+    p.events = [...events.map(e => ({ field: e.field, value: e.value, multi: false, action: e.action, at })), ...p.events]
+    void recordEvents(sb as any, p.uid, cohort(), events).catch(() => { /* learning is best-effort */ })
   }
   /** Saves facts and rules to what Wynky remembers straight away, and
    *  forgets the ones the student took back. If the memory table isn't
@@ -880,6 +903,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setDraft(d)
     if (!d.wakeTime) { enterWake(d); return }
     if (!d.sleepTime) { enterSleep(d); return }
+    learnAgreed(d, false)
     // A button change after chatting: the chat rebuilds the plan with every
     // rule agreed so far, instead of starting over from the simple rules.
     if (chatSettingsRef.current && ruleResult && !requestNow) {
@@ -1167,6 +1191,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     }
     const days = s.active_days?.length ? s.active_days : shape.days
     const rep: Repeat = s.repeat ?? shape.rep
+    // Wake, sleep, busy times and hours the student has given are learned now,
+    // not only on Confirm, so Wynky doesn't ask them again next time.
+    learnAgreed(next)
     // Facts and rules the AI picked up go straight into what Wynky
     // remembers; ones the student took back, and rules the AI stopped
     // following, are forgotten.
