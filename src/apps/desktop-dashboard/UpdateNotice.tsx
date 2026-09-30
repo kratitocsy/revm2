@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react'
 
 /* The dashboard bundle keeps one file name, so a window that stays open (the
    desktop app especially) never picks up a new deploy by itself. This checks
-   the bundle's version now and then and offers a reload when it changed. */
+   the bundle's version now and then and offers a reload when it changed.
+   The desktop app's X button only hides it to the tray, so when the window
+   comes back after being hidden a while, it reloads on its own (the student
+   has just returned, so nothing is in progress). */
 
 const BUNDLE = '/home-app-dist/home-app.js'
 const CHECK_MS = 10 * 60 * 1000
+const AWAY_MS = 2 * 60 * 1000
 
 async function bundleVersion(): Promise<string | null> {
   try {
@@ -24,17 +28,33 @@ export default function UpdateNotice() {
   useEffect(() => {
     let base: string | null = null
     let stopped = false
-    const check = async () => {
+    let hiddenAt: number | null = null
+    const check = async (reloadIfNew = false) => {
       const now = await bundleVersion()
       if (stopped || !now) return
       if (base === null) base = now
-      else if (now !== base) setReady(true)
+      else if (now !== base) {
+        if (reloadIfNew) window.location.reload()
+        else setReady(true)
+      }
     }
     void check()
-    const timer = window.setInterval(check, CHECK_MS)
+    const timer = window.setInterval(() => { void check() }, CHECK_MS)
     const onFocus = () => { void check() }
+    const onVisible = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+      const away = hiddenAt !== null && Date.now() - hiddenAt >= AWAY_MS
+      hiddenAt = null
+      void check(away)
+    }
     window.addEventListener('focus', onFocus)
-    return () => { stopped = true; window.clearInterval(timer); window.removeEventListener('focus', onFocus) }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   if (!ready || later) return null
