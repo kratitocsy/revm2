@@ -204,7 +204,9 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // Gemini after Flash's daily quota is used. It was dropped once because
 // Google's busy spells hit both models, which still holds, so Groq follows
 // it; each Groq model has its own free-tier limit, so a rate-limited one
-// doesn't block the next.
+// doesn't block the next. OpenRouter (OPENROUTER_API_KEY) runs last, as one
+// more free-tier try after Groq's models are all spent — a separate account
+// with its own daily allowance, so it doesn't compete with Groq's.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
 // Wynky's chat thinks harder (the whole conversation and a full week at
@@ -343,6 +345,8 @@ async function generate(
   const effort = opts.effort ?? "low";
   const groqKey = Deno.env.get("GROQ_API_KEY");
   const lite = (Deno.env.get("GEMINI_LITE_MODEL") ?? "gemini-3.5-flash-lite").trim();
+  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
+  const openRouterModel = (Deno.env.get("OPENROUTER_MODEL") ?? "openai/gpt-oss-120b:free").trim();
   const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
   const wanted = configured.length ? configured : DEFAULT_GROQ_MODELS;
@@ -367,6 +371,14 @@ async function generate(
           return callGroq(userPrompt, groqKey, m, systemPrompt, sig, "low", opts.maxTokens);
         },
       }))
+      : []),
+    // One more free-tier try after Groq, on a separate account so it isn't
+    // capped by Groq's own daily limit.
+    ...(openRouterKey
+      ? [{
+        name: "openrouter",
+        run: (sig: AbortSignal) => callOpenRouter(userPrompt, openRouterKey, openRouterModel, systemPrompt, sig, opts.maxTokens),
+      }]
       : []),
   ];
 
@@ -469,6 +481,57 @@ async function callGroq(
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? "";
   if (!text) throw new Error("Empty response from Groq");
+  return text;
+}
+
+/** OpenRouter (OPENROUTER_API_KEY), the last free-tier try after Groq. Same
+ *  OpenAI-compatible shape as callGroq, on a `:free`-suffixed model id
+ *  (OPENROUTER_MODEL) so it never bills. OpenRouter rotates which models
+ *  carry `:free`, so if this one stops working, pick a current one from
+ *  https://openrouter.ai/models?max_price=0 and set OPENROUTER_MODEL. */
+async function callOpenRouter(
+  userPrompt: string,
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  signal: AbortSignal,
+  maxTokens = 4096,
+): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      // OpenRouter asks free-tier callers to identify the app; not required,
+      // but keeps this key out of their generic/unlabelled bucket.
+      "HTTP-Referer": "https://wynko.app",
+      "X-Title": "Wynko",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: maxTokens,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    if (res.status === 404 || /not found|no longer|no endpoints/i.test(errText)) {
+      alertOwner(
+        `ai-retired:openrouter:${model}`,
+        `OpenRouter no longer offers ${model} for free`,
+        "Wynky skips OpenRouter until this is fixed. Pick a current free model at https://openrouter.ai/models?max_price=0 and set the OPENROUTER_MODEL secret in Supabase.",
+      );
+    }
+    throw new Error(`OpenRouter API ${res.status}: ${errText.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
+  if (!text) throw new Error("Empty response from OpenRouter");
   return text;
 }
 
