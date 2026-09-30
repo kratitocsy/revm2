@@ -1917,7 +1917,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div role="dialog" aria-modal="true" aria-label="Wynko AI assistant"
+      <div role="dialog" aria-modal="true" aria-label="Wynky assistant"
         className="rounded-2xl border w-[520px] max-w-full h-[640px] max-h-[90vh] flex flex-col overflow-hidden"
         style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
 
@@ -1926,7 +1926,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           style={{ background: 'linear-gradient(135deg,#1C1C1F,#1C1C1F)', borderColor: '#26262A' }}>
           <MascotAvatar size={52} />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
+            <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">WYNKY ASSISTANT</div>
             <div className="text-base font-bold text-white leading-tight">Create Your Study Schedule</div>
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: 'none' }} /> Online
