@@ -86,3 +86,13 @@ describe('plan text without tables', () => {
     expect(week).toBe("Here's your week:\n\nTap Confirm to make it live, or tell me what to change.")
   })
 })
+
+describe('named blocks', () => {
+  it('shows a time the student named instead of Free time', () => {
+    const rows = buildTimeline([slot('10:00', '12:00', 'Maths'), slot('17:00', '18:00', 'Physics')],
+      { wake: '07:00', sleep: '23:00', named_blocks: [{ range: '13:30-17:00', label: 'Coding session' }] })
+    const r = rows.find((x) => x.label === 'Coding session')
+    expect(r).toMatchObject({ kind: 'named', start: 13 * 60 + 30, end: 17 * 60 })
+    expect(rows.some((x) => x.label === 'Free time' && x.start >= 13 * 60 + 30 && x.end <= 17 * 60)).toBe(false)
+  })
+})

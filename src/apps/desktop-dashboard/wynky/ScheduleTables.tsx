@@ -13,6 +13,7 @@ const ROW_STYLE: Record<RowKind, string> = {
   study: 'text-wk-ink-100 font-semibold',
   break: 'text-wk-ink-400 text-[11px]',
   meal: 'text-wk-orange-300 bg-wk-orange-500/10 font-medium',
+  named: 'text-wk-ink-100 bg-white/[0.06] font-medium',
   busy: 'text-wk-ink-400 bg-white/[0.03]',
   free: 'text-wk-ink-500 text-[11px]',
   wake: 'text-wk-ink-500 italic',

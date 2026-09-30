@@ -144,7 +144,7 @@ smart friend: short, warm, clear, in the student's language style. Never robotic
 
 You get:
 - SETTINGS: what you and the student have agreed so far (hours a day, session length, break length, wake, sleep,
-  busy times, preferred study windows, lunch and dinner times, week shape, rules in the student's own words). These stay true until the
+  busy times, preferred study windows, lunch and dinner times, named blocks, week shape, rules in the student's own words). These stay true until the
   student changes them. Never silently drop or change one.
 - CURRENT PLAN: the timetable the student is looking at now.
 - RECENT CHAT and the STUDENT'S MESSAGE NOW.
@@ -165,9 +165,13 @@ What to do with each message:
    - Breaks between sessions follow break_minutes; nothing inside busy times; nothing before wake or after sleep.
    - Every rule is followed on every day (e.g. "2 subjects a day" means exactly 2 different subjects each day).
    - Use only subject names from SUBJECTS, copied exactly.
-   - Keep lunch and dinner windows free of study sessions. If SETTINGS has no lunch or dinner
+   - Keep named blocks, lunch and dinner windows free of study sessions. If SETTINGS has no lunch or dinner
      time yet, still build the plan, then ask once in your reply "When do you usually have
      lunch and dinner?" and save the answer to settings.
+   - A named block is a time the student gave a name that is not one of SUBJECTS ("call 1:30-5 pm my coding
+     session"). Save it in settings.named_blocks as {"range":"HH:MM-HH:MM","label":"Coding session"}, keep it out of the
+     study slots, and never put its name in "slots". The app shows it in the timetable under that name. Rename or
+     remove it when the student asks. Keep earlier named blocks.
 4. If the message is only a question or chat, answer it and leave the plan out. If something is truly unclear
    and guessing would likely be wrong, ask ONE short question and leave the plan out. Otherwise don't ask; decide
    and say what you assumed.
@@ -182,7 +186,7 @@ Days: 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat. active_days = days with study (
 
 Return ONLY raw JSON, no markdown:
 {"reply":"...","settings":{"daily_hours":number,"session_minutes":number,"break_minutes":number,"wake":"HH:MM","sleep":"HH:MM",
-"busy":["HH:MM-HH:MM"],"study_windows":["HH:MM-HH:MM"],"lunch":"HH:MM-HH:MM","dinner":"HH:MM-HH:MM","week_shape":"same|vary|ab","repeat":"weekly|every2|ab",
+"busy":["HH:MM-HH:MM"],"study_windows":["HH:MM-HH:MM"],"lunch":"HH:MM-HH:MM","dinner":"HH:MM-HH:MM","named_blocks":[{"range":"HH:MM-HH:MM","label":"..."}],"week_shape":"same|vary|ab","repeat":"weekly|every2|ab",
 "active_days":[0,1,2,3,4,5,6],"rules":["..."]},
 "days":[{"day":"all" or 0-13,"slots":[["HH:MM","HH:MM","Subject"]]}],
 "remember":["..."],"forget":["..."]}
@@ -741,6 +745,11 @@ function cleanSettings(v: unknown): Record<string, unknown> {
     study_windows: ranges(o.study_windows),
     lunch: typeof o.lunch === "string" && RANGE.test(o.lunch) ? o.lunch : undefined,
     dinner: typeof o.dinner === "string" && RANGE.test(o.dinner) ? o.dinner : undefined,
+    named_blocks: (Array.isArray(o.named_blocks) ? o.named_blocks : []).slice(0, 10).flatMap((b) => {
+      const r = b && typeof b === "object" ? b as Record<string, unknown> : {};
+      const label = str(r.label, 40).trim();
+      return typeof r.range === "string" && RANGE.test(r.range) && label ? [{ range: r.range, label }] : [];
+    }),
     week_shape: ["same", "vary", "ab"].includes(o.week_shape as string) ? o.week_shape : undefined,
     repeat: ["weekly", "every2", "ab"].includes(o.repeat as string) ? o.repeat : undefined,
     active_days: Array.isArray(o.active_days)
@@ -827,6 +836,7 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
     ...((settings.busy as string[]) || []),
     ...(typeof settings.lunch === "string" ? [settings.lunch] : []),
     ...(typeof settings.dinner === "string" ? [settings.dinner] : []),
+    ...((settings.named_blocks as { range: string }[]) || []).map((b) => b.range),
   ];
   for (const d of days) {
     if (!d.slots.length) continue;

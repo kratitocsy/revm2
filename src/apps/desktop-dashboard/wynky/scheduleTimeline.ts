@@ -7,8 +7,9 @@ export type Day = { day: number | 'all'; slots: Slot[] }
 export type TimelineSettings = {
   wake?: string; sleep?: string; busy?: string[]; active_days?: number[]
   lunch?: string; dinner?: string
+  named_blocks?: { range: string; label: string }[]
 }
-export type RowKind = 'study' | 'break' | 'meal' | 'busy' | 'free' | 'wake' | 'sleep'
+export type RowKind = 'study' | 'break' | 'meal' | 'named' | 'busy' | 'free' | 'wake' | 'sleep'
 export type Row = { kind: RowKind; label: string; start: number; end: number }
 
 // Fallback meal windows, used only when the student hasn't told Wynky their
@@ -60,6 +61,10 @@ export function buildTimeline(slots: Slot[], s: TimelineSettings): Row[] {
     const [a, b] = r.split('-').map(mins)
     events.push({ kind: 'meal', label, start: a, end: b <= a ? 1440 : b })
     used.add(label)
+  }
+  for (const nb of s.named_blocks ?? []) {
+    const [a, b] = nb.range.split('-').map(mins)
+    events.push({ kind: 'named', label: nb.label, start: a, end: b <= a ? 1440 : b })
   }
   events.sort((x, y) => x.start - y.start)
 
