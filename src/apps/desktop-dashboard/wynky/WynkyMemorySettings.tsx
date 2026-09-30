@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb } from '../../_shared/supabaseClient'
-import { loadMemory, loadEvents, forgetFacts, examFamilyKey } from './wynkyPlanner'
+import { loadMemory, loadEvents, forgetFacts, examFamilyKey, saveChatSettings } from './wynkyPlanner'
 import { memoryLines, standingRequests } from './wynkyRefine'
 
 /* "What Wynky remembers" under Settings > Privacy: the facts and rules the
@@ -32,6 +32,7 @@ export default function WynkyMemorySettings({ userId, exam, notify }: { userId: 
     setBusy(key)
     try {
       await forgetFacts(sb as any, userId, { examKey: examFamilyKey(exam || null), dayType: null }, facts)
+      if (key === '*') await saveChatSettings(sb as any, userId, null).catch(() => {})
       const gone = new Set(facts.map(f => f.trim().toLowerCase()))
       setItems(list => (list || []).filter(i => !gone.has(i.fact.trim().toLowerCase())))
       notify(facts.length > 1 ? '✓ Wynky forgot everything' : '✓ Wynky forgot that')

@@ -5,7 +5,7 @@ import { REVM2_CONFIG } from '../../../lib/supabase.js'
 import {
   loadKnownProfile, loadRemembered, loadEvents, recordEvents, fetchPeerStats, fetchChannelSignals,
   defaultDailyMinutes, bucketMinutes, distractionSites, distractionApps,
-  recommend, confirmPlan, confirmWeekPlan, rememberAnswers, rememberAllowlists, recordOutcome, loadStudyMinutes, weakSubjects,
+  recommend, confirmPlan, confirmWeekPlan, rememberAnswers, rememberAllowlists, saveChatSettings, loadChatSettings, recordOutcome, loadStudyMinutes, weakSubjects,
   NoEnforceableBlocksError, STUDY_MODE_OPTIONS, examFamilyKey, loadMemory, rememberFacts, forgetFacts, type MemoryItem, subjectKey, seedQueriesFor,
   resolveChannelSeed, fetchPopularChannels, setChannelPick, channelPickId, appPickerAvailable, listPickableApps,
   type WynkyKnownProfile, type WynkyRemembered, type SubjectAllowlist, type AiSlot, type ChannelPick,
@@ -378,6 +378,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   // windows, rules...). Set once the student has typed to the chat; from
   // then on every change goes through the chat so none of it is lost.
   const chatSettingsRef = useRef<ChatSettings | null>(null)
+  /** What was agreed in an earlier chat; the first plan of this chat follows it. */
+  const savedChatRef = useRef<ChatSettings | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(1)
@@ -577,6 +579,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       }
       try { events = await loadEvents(sb as any, uid) } catch { /* no history yet */ }
       const memory = await loadMemory(sb as any, uid)
+      try { savedChatRef.current = (await loadChatSettings(sb as any, uid)) as ChatSettings | null } catch { /* starts fresh */ }
       let study: Profile['study'] = { bySubject: {}, sessions: 0 }
       try { study = await loadStudyMinutes(sb as any, uid) } catch { /* no weak subjects then */ }
       const now = Date.now()
@@ -925,6 +928,15 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       wakeTime: d.wakeTime, sleepTime: d.sleepTime, dailyMinutes: d.dailyMinutes, subjects, weak,
       blockLengthMinutes: d.blockMinutes, fixedCommitments: busyWindows(d.busy),
     })
+    // A new chat starts from what was agreed last time (rules, named blocks,
+    // lunch and dinner, week shape), not from the simple rules alone.
+    const saved = savedChatRef.current
+    if (saved && !chatSettingsRef.current && !requestNow && result.blocks.some(b => b.kind === 'study')) {
+      savedChatRef.current = null
+      chatSettingsRef.current = saved
+      void chatAi('Show my usual plan again, with everything we agreed before.', d, { days: saved.active_days?.length ? saved.active_days : activeDays, rep: saved.repeat ?? repeat }, result)
+      return
+    }
     if (!result.blocks.some(b => b.kind === 'study')) {
       const askBusy = !!p && needsBusyQuestion(p.known.dna) && busyWindows(d.busy).length > 0
       say(`Those times don't leave any room for study. Let's go over your ${askBusy ? 'busy times and ' : ''}wake and sleep times again.`)
@@ -1228,6 +1240,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     // (and learns from on Confirm) in the draft.
     const s = { ...settings, ...data.settings }
     chatSettingsRef.current = s
+    void saveChatSettings(sb as any, p.uid, s as Record<string, unknown>).catch(() => {})
     let next: Draft = {
       ...d,
       dailyMinutes: s.daily_hours ? Math.round(s.daily_hours * 60) : d.dailyMinutes,

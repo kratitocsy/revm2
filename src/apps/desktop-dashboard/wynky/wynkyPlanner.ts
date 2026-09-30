@@ -642,6 +642,22 @@ export async function rememberAllowlists(sb: SupaLike, userId: string, subjectAl
   if (error) throw new Error(error.message);
 }
 
+/** What was agreed in the AI chat, kept so the next chat starts from it
+ *  (migration 0102). Best-effort: without the column nothing is kept. */
+export async function saveChatSettings(sb: SupaLike, userId: string, settings: Record<string, unknown> | null): Promise<void> {
+  await sb.from('wynky_profiles').upsert({
+    user_id: userId,
+    chat_settings: settings,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+}
+
+export async function loadChatSettings(sb: SupaLike, userId: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await sb.from('wynky_profiles').select('chat_settings').eq('user_id', userId).maybeSingle();
+  if (error || !data?.chat_settings || typeof data.chat_settings !== 'object') return null;
+  return data.chat_settings as Record<string, unknown>;
+}
+
 export async function recordOutcome(sb: SupaLike, args: {
   source: 'rule_based' | 'ai_custom';
   requestedMinutes: number | null;
