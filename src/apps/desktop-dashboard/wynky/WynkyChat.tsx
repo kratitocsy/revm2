@@ -82,6 +82,14 @@ interface Msg { id: number; from: 'bot' | 'user' | 'divider'; text: string; past
 const HISTORY_SHOWN = 60
 // Set-up questions a typed full request can skip straight past.
 const SETUP_STEPS = ['busy', 'hours', 'block', 'wake', 'sleep', 'week_choice', 'days', 'repeat']
+/** What the AI reads of the chat: the last 10 messages from earlier chats
+ *  (without Wynky's set-up summaries, which say nothing new) followed by
+ *  this chat, so a reopened chat carries on from where it stopped. */
+function chatHistory(messages: Msg[], text: string) {
+  const isSetupText = (m: Msg) => m.from === 'bot' && /^(Welcome back!|Hi, I'm Wynky!)/.test(m.text)
+  const earlier = recentChat(messages.filter(m => m.past && !isSetupText(m)), null, 10, 5000)
+  return [...earlier, ...recentChat(messages.filter(m => !m.past), text, 16, 9000)]
+}
 /** A sentence or more, not an answer like "4-7 pm" or "11 hrs". */
 const isFullRequest = (text: string) => text.trim().split(/\s+/).length >= 6
 interface Profile {
@@ -1207,7 +1215,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           body: JSON.stringify({
             mode: 'chat', message: text, subjects, weak: weakSubjects(subjects, p.study), settings,
             plan: planForChat(currentWeek, current, shape.days),
-            history: recentChat(messagesRef.current, text, 16, 9000),
+            history: chatHistory(messagesRef.current, text),
             facts: studentFacts(p.known), learned: learnedLines(), standing_requests: memoryLines(p.memory.map(m => m.fact), standingRequests(p.events, 40)),
             today: DAY_NAMES[new Date().getDay()],
             device_apps: (apps || []).map(a => a.label).slice(0, 80),
