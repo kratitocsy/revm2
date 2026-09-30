@@ -7158,7 +7158,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   style={{ filter: '' }} />
               </div>
               <div className="flex-1 min-w-0 max-md:basis-[calc(100%-5rem)]">
-                <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">AI ASSISTANT</div>
+                <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">WYNKY ASSISTANT</div>
                 <div className="text-lg font-bold text-white mb-0.5">Create Your Study Schedule</div>
                 <div className="text-sm text-wk-ink-400 leading-relaxed">Tell us your subjects, goals and available time. Our AI will build a personalized plan for you.</div>
               </div>
