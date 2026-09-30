@@ -19,6 +19,7 @@ import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
+import { autoConnectExtension } from './lib/extensionConnect'
 import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -10664,6 +10665,12 @@ export default function DesktopDashboard() {
   // left over from a previous visit (offline, tab closed mid-save).
   useEffect(() => {
     if (authState === 'ready') void flushStudyTimeQueue()
+  }, [authState])
+  // Pair the Focus Lock extension in this browser so scheduled and desktop
+  // blocks reach it (lib/extensionConnect.ts).
+  useEffect(() => {
+    if (authState !== 'ready') return
+    void sb.auth.getUser().then(({ data }) => { if (data.user) void autoConnectExtension(data.user.id) })
   }, [authState])
   // Invite links (roomInviteLink): home.html?room=<id> opens that room's Join
   // flow once signed in, then the parameter is dropped from the address bar.

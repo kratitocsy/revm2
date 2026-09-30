@@ -1,4 +1,4 @@
-; RevM2 desktop installer hooks (referenced via bundle.windows.nsis.installerHooks
+; Wynko (formerly RevM2) desktop installer hooks (referenced via bundle.windows.nsis.installerHooks
 ; in tauri.conf.json). Tauri's NSIS template calls these macros automatically
 ; at the right points - nothing else needs to invoke them.
 ;
@@ -22,6 +22,25 @@
 ;   5. Uninstall is gated on session.lock (written/removed by the app
 ;      itself in lib.rs's set_session_active) - if a session is active,
 ;      the uninstaller refuses and explains why.
+
+!macro NSIS_HOOK_PREINSTALL
+    ; --- Remove the pre-rename install ("revm2-desktop") -------------
+    ; Builds before the Wynko rename were a different product to NSIS
+    ; (productName "revm2-desktop", installed to Program Files\revm2-desktop),
+    ; so installing Wynko left the old copy in place: its own Start Menu
+    ; shortcut, Apps-list entry and login autostart kept launching the old
+    ; exe with the old icon and name. Run its uninstaller silently first.
+    ; If a focus session is running, the old uninstaller refuses (same
+    ; session.lock rule) and the old copy simply stays until the next install.
+    IfFileExists "$PROGRAMFILES64\revm2-desktop\uninstall.exe" 0 wynko_old_gone
+        ExecWait '"$PROGRAMFILES64\revm2-desktop\uninstall.exe" /S _?=$PROGRAMFILES64\revm2-desktop' $0
+        StrCmp $0 "0" 0 wynko_old_gone
+        RMDir /r "$PROGRAMFILES64\revm2-desktop"
+    wynko_old_gone:
+    Delete "$SMPROGRAMS\revm2-desktop.lnk"
+    Delete "$DESKTOP\revm2-desktop.lnk"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "revm2-desktop"
+!macroend
 
 !macro NSIS_HOOK_POSTINSTALL
     ; --- ProgramData\RevM2 needs to be writable by standard users -----
