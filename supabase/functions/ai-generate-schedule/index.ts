@@ -201,20 +201,18 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // the first good answer wins. A busy Gemini can take 15s just to answer
 // "503", so waiting for it in turn used to use up the whole wait. With a
 // 6s hedge Groq only started at 12s and timed out too, so providers now
-// start 2s apart: Flash-Lite 0s, Flash 2s, then each Groq model in turn.
+// start 2s apart: Flash-Lite 0s, then each Groq model in turn, OpenRouter,
+// and Flash last of all.
 // Gemini Flash-Lite runs first (GEMINI_LITE_MODEL): the free tier gives
 // Flash only 20 requests a day but Flash-Lite 500, so Lite takes the bulk
-// and Flash steps in when Lite fails or is slow. A second Gemini model was
-// dropped once because Google's busy spells hit both, which still holds, so
-// Groq follows them; each Groq model has its own free-tier limit, so a
-// rate-limited one doesn't block the next. OpenRouter (OPENROUTER_API_KEY) runs last, as one
-// more free-tier try after Groq's models are all spent — a separate account
-// with its own daily allowance, so it doesn't compete with Groq's.
+// and Flash is kept in reserve at the end. Each Groq model has its own
+// free-tier limit, so a rate-limited one doesn't block the next. OpenRouter
+// (OPENROUTER_API_KEY) is one more free-tier try, on its own account.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
 // Wynky's chat thinks harder (the whole conversation and a full week at
-// once), so it gets a longer budget. Gemini Flash answers it alone: Groq
-// starts only when Gemini fails, or if Gemini still hasn't answered after
+// once), so it gets a longer budget. Flash-Lite answers it alone: the next
+// provider starts only when it fails, or if it still hasn't answered after
 // CHAT_HEDGE_MS, so a stuck Google doesn't leave the student waiting.
 // WynkyChat.tsx waits CHAT_TIMEOUT_MS, just above the budget.
 const CHAT_BUDGET_MS = 24_000;
@@ -353,18 +351,16 @@ async function generate(
   const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
   const wanted = configured.length ? configured : DEFAULT_GROQ_MODELS;
-  // Checked while Gemini runs; the first Groq try starts after the hedge.
+  // Checked while Flash-Lite runs; the first Groq try starts after the hedge.
   const groqList = groqKey ? groqModels(groqKey, wanted) : Promise.resolve([]);
-  const flash: Provider = { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig, effort) };
   // Flash-Lite goes first: its free allowance is 500 requests a day against
   // Flash's 20, so most chats are answered without touching Flash's quota.
-  // Flash follows when Lite fails or is slow, then Groq.
-  const flashLite: Provider[] = lite && lite !== model
-    ? [{ name: lite, run: (sig: AbortSignal) => callGemini(userPrompt, apiKey, lite, systemPrompt, sig, "low") }]
-    : [];
+  // Groq's free models and OpenRouter follow, and Flash is held in reserve
+  // last: best answers, but the tightest free quota of the lot.
   const providers: Provider[] = [
-    ...flashLite,
-    flash,
+    ...(lite && lite !== model
+      ? [{ name: lite, run: (sig: AbortSignal) => callGemini(userPrompt, apiKey, lite, systemPrompt, sig, "low") }]
+      : []),
     ...(groqKey
       ? wanted.map((_, i) => ({
         name: `groq #${i + 1}`,
@@ -377,14 +373,15 @@ async function generate(
         },
       }))
       : []),
-    // One more free-tier try after Groq, on a separate account so it isn't
-    // capped by Groq's own daily limit.
+    // One more free-tier try on a separate account, so it isn't capped by
+    // Groq's own daily limit.
     ...(openRouterKey
       ? [{
         name: "openrouter",
         run: (sig: AbortSignal) => callOpenRouter(userPrompt, openRouterKey, openRouterModel, systemPrompt, sig, opts.maxTokens),
       }]
       : []),
+    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig, effort) },
   ];
 
   const stop = new AbortController();
