@@ -23,6 +23,7 @@ import {
   parseBusy, parseLocalRequest, BUSY_OPTIONS, NOTHING_FIXED,
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
+import PlanMessage from './PlanMessage'
 import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, memoryLines, droppedRules, type ChatSettings, type ChatDay } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
@@ -1790,7 +1791,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
               <MascotAvatar size={34} />
               <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
                 style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
-                {m.text}
+                <PlanMessage text={m.text} />
               </div>
             </div>
           ) : (
