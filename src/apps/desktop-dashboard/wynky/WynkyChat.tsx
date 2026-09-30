@@ -744,6 +744,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         active_days: days,
         lunch: agreed?.lunch,
         dinner: agreed?.dinner,
+        named_blocks: agreed?.named_blocks,
       },
     })
   }

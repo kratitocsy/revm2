@@ -206,6 +206,8 @@ export interface ChatSettings {
   /** "HH:MM-HH:MM"; the plan keeps study out of these. */
   lunch?: string;
   dinner?: string;
+  /** Times the student named ("Coding session"); the plan keeps study out of them. */
+  named_blocks?: { range: string; label: string }[];
   week_shape?: 'same' | 'vary' | 'ab';
   repeat?: 'weekly' | 'every2' | 'ab';
   active_days?: number[];
