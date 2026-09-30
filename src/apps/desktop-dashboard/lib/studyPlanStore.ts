@@ -40,6 +40,12 @@ export interface StudyTask {
   pomodoroPhase?: PomodoroPhase; // 'focus' unless the task is currently in its break
   pomodoroTotal?: number; // full length (s) of the phase now counting - a session finishes at the length it started with
   completed?: boolean; // manually marked done from the ⋮ menu - shows a strikethrough, doesn't touch the timer itself
+  // Calendar day (local, 'YYYY-MM-DD') this task belongs to. Missing = an older
+  // task from before dates existed, which counts as today's (see planCalendar.ts).
+  planDate?: string;
+  // Set when the task was created from a Schedules block (see reconcileScheduleTasks),
+  // so deleting either side removes the other.
+  sourceScheduleId?: string;
 }
 export interface FocusPlanSnapshot {
   tasks: StudyTask[];
@@ -50,6 +56,11 @@ export interface FocusPlanSnapshot {
 export interface ScheduleItem {
   id: string; subject: string; topic: string;
   startTime: string; endTime: string; color: string; iconEmoji: string;
+  // A block with a date is a one-off on that calendar day ('YYYY-MM-DD', local).
+  // Without one it repeats every week on its weekday (how the schedule always worked).
+  date?: string;
+  // Days a weekly block was removed for (from Home / Focus Lock) without deleting the block.
+  skipDates?: string[];
 }
 export interface StudyUnit { subject: string; exam: string; topics: string[] }
 export interface StudyWeek { schedule: ScheduleItem[][]; units: StudyUnit[] }
@@ -87,6 +98,9 @@ let syncedRows = new Map<string, string>(); // task id -> serialized row
 let syncedPlanKey = '';
 let syncedWeekKey = '';
 let syncedNotes: string | null = null;
+// Migration 0104 (plan_date / source_schedule_id). Flips to false if the server
+// rejects those columns, so an app deployed before the migration keeps working.
+let datesSupported = true;
 
 let planTimer: ReturnType<typeof setTimeout> | null = null;
 let planTimerDue = 0;
@@ -142,7 +156,7 @@ function cachedWeekFor(uid: string | null): StudyWeek | null {
 
 // ── row mapping ──────────────────────────────────────────────────────────────
 function taskToRow(t: StudyTask, position: number, uid: string) {
-  return {
+  const row = {
     user_id: uid,
     id: t.id,
     subject: t.subject || 'General',
@@ -155,8 +169,12 @@ function taskToRow(t: StudyTask, position: number, uid: string) {
     completed: !!t.completed,
     position,
   };
+  // Left out entirely until the 0104 columns exist on the server (see datesSupported).
+  return datesSupported
+    ? { ...row, plan_date: t.planDate ?? null, source_schedule_id: t.sourceScheduleId ?? null }
+    : row;
 }
-type TaskRow = ReturnType<typeof taskToRow>;
+type TaskRow = ReturnType<typeof taskToRow> & { plan_date?: string | null; source_schedule_id?: string | null };
 function rowToTask(r: TaskRow): StudyTask {
   const t: StudyTask = {
     id: r.id,
@@ -169,6 +187,8 @@ function rowToTask(r: TaskRow): StudyTask {
   if (r.pomodoro_phase) t.pomodoroPhase = r.pomodoro_phase as PomodoroPhase;
   if (r.pomodoro_total != null) t.pomodoroTotal = r.pomodoro_total;
   if (r.completed) t.completed = true;
+  if (r.plan_date) t.planDate = String(r.plan_date).slice(0, 10);
+  if (r.source_schedule_id) t.sourceScheduleId = r.source_schedule_id;
   return t;
 }
 function planStateOf(snap: FocusPlanSnapshot) {
@@ -183,7 +203,7 @@ function planStateOf(snap: FocusPlanSnapshot) {
 function structuralKey(snap: FocusPlanSnapshot): string {
   return JSON.stringify([
     snap.activeTaskId, snap.running,
-    snap.tasks.map((t) => [t.id, t.subject, t.topic, t.mode, t.pomodoroPhase ?? null, t.pomodoroTotal ?? null, !!t.completed]),
+    snap.tasks.map((t) => [t.id, t.subject, t.topic, t.mode, t.pomodoroPhase ?? null, t.pomodoroTotal ?? null, !!t.completed, t.planDate ?? null, t.sourceScheduleId ?? null]),
   ]);
 }
 let syncedStructuralKey = '';
@@ -239,17 +259,28 @@ export function mergeRemotePlan(
 }
 
 // ── remote ───────────────────────────────────────────────────────────────────
+const TASK_COLUMNS = 'user_id, id, subject, topic, mode, pomodoro_phase, pomodoro_total, pomodoro_remaining, regular_elapsed, completed, position';
+
+function isMissingDateColumns(e: any): boolean {
+  const msg = String(e?.message || '');
+  return e?.code === '42703' || e?.code === 'PGRST204' || /plan_date|source_schedule_id/.test(msg);
+}
+
 async function fetchRemote(uid: string) {
-  const [planRes, tasksRes] = await Promise.all([
-    sb.from('study_plans').select('active_task_id, running, anchor_at, weekly_schedule, study_units, quick_notes').eq('user_id', uid).maybeSingle(),
-    sb.from('study_plan_tasks')
-      .select('user_id, id, subject, topic, mode, pomodoro_phase, pomodoro_total, pomodoro_remaining, regular_elapsed, completed, position')
-      .eq('user_id', uid)
-      .order('position', { ascending: true }),
-  ]);
+  const fetchTasks = () => sb.from('study_plan_tasks')
+    .select(datesSupported ? `${TASK_COLUMNS}, plan_date, source_schedule_id` : TASK_COLUMNS)
+    .eq('user_id', uid)
+    .order('position', { ascending: true });
+  const planReq = sb.from('study_plans').select('active_task_id, running, anchor_at, weekly_schedule, study_units, quick_notes').eq('user_id', uid).maybeSingle();
+  let [planRes, tasksRes] = await Promise.all([planReq, fetchTasks()]);
+  if (tasksRes.error && datesSupported && isMissingDateColumns(tasksRes.error)) {
+    datesSupported = false;
+    console.warn('Study plan: task dates need migration 0104 on the server; syncing without them for now');
+    tasksRes = await fetchTasks();
+  }
   if (planRes.error) throw planRes.error;
   if (tasksRes.error) throw tasksRes.error;
-  return { planRow: planRes.data as any, taskRows: (tasksRes.data || []) as TaskRow[] };
+  return { planRow: planRes.data as any, taskRows: ((tasksRes.data || []) as unknown) as TaskRow[] };
 }
 
 function applyRemote(uid: string, planRow: any, taskRows: TaskRow[]) {
@@ -381,7 +412,14 @@ async function flushPlan(force = false) {
     if (changed.length) {
       const { error } = await sb.from('study_plan_tasks')
         .upsert(changed.map((r) => ({ ...r, updated_by: CLIENT_ID, updated_at: now })), { onConflict: 'user_id,id' });
-      if (error) throw error;
+      if (error) {
+        if (datesSupported && isMissingDateColumns(error)) {
+          // Server hasn't got 0104 yet: drop the date columns and retry through the normal path.
+          datesSupported = false;
+          schedulePlanFlush(0);
+        }
+        throw error;
+      }
     }
     if (removed.length) {
       const { error } = await sb.from('study_plan_tasks').delete().eq('user_id', uid).in('id', removed);
