@@ -75,6 +75,10 @@ const FILTER_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'hours', 
 interface Msg { id: number; from: 'bot' | 'user' | 'divider'; text: string; past?: boolean }
 // How many earlier messages the chat shows when it opens (the table keeps 300).
 const HISTORY_SHOWN = 60
+// Set-up questions a typed full request can skip straight past.
+const SETUP_STEPS = ['busy', 'hours', 'block', 'wake', 'sleep', 'week_choice', 'days', 'repeat']
+/** A sentence or more, not an answer like "4-7 pm" or "11 hrs". */
+const isFullRequest = (text: string) => text.trim().split(/\s+/).length >= 6
 interface Profile {
   uid: string
   known: WynkyKnownProfile
@@ -1072,11 +1076,15 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
 
   /** One message to the AI chat. It answers in its own words and, unless it
    *  only replies or asks something back, returns the whole updated plan and
-   *  the settings it followed; both are kept for the next message. */
-  async function chatAi(text: string, d: Draft, shape: Shape = { days: activeDays, rep: repeat }) {
+   *  the settings it followed; both are kept for the next message.
+   *  `start` is a first plan to talk about when the student types a full
+   *  request during the set-up questions, before any plan is shown. */
+  async function chatAi(text: string, d: Draft, shape: Shape = { days: activeDays, rep: repeat }, start?: GeneratorResult) {
     const p = profileRef.current
     const subjects = planSubjects(d)
-    if (!p || !subjects.length || !ruleResult) { askAi(d, text); return }
+    const current = start ?? ruleResult
+    const currentWeek = start ? null : weekResult
+    if (!p || !subjects.length || !current) { askAi(d, text); return }
     const seq = ++refineSeq.current
     const settings = chatSettings(d, shape)
     setTyping(true)
@@ -1093,7 +1101,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({
             mode: 'chat', message: text, subjects, weak: weakSubjects(subjects, p.study), settings,
-            plan: planForChat(weekResult, ruleResult, shape.days),
+            plan: planForChat(currentWeek, current, shape.days),
             history: recentChat(messagesRef.current, text, 16, 9000),
             facts: studentFacts(p.known), learned: learnedLines(), standing_requests: memoryLines(p.memory.map(m => m.fact), standingRequests(p.events, 40)),
             today: DAY_NAMES[new Date().getDay()],
@@ -1109,6 +1117,14 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       if (seq !== refineSeq.current) return
       setTyping(false)
       const reason = e instanceof DOMException && e.name === 'AbortError' ? 'the AI took too long' : chatErrorText(e, 'the AI is not available right now').replace(/\.$/, '')
+      if (start) {
+        setDraft(d)
+        setRuleResult(start)
+        setWeekResult(null)
+        setPlainResult(null)
+        showPlan({ single: start, week: null, busy: d.busy }, `I couldn't read that just now (${reason}). Here's a starting plan; please send your request again.\n\n`)
+        return
+      }
       ask('preview', `I couldn't do that just now (${reason}). Your plan is unchanged; please try again in a moment.`)
       return
     }
@@ -1138,6 +1154,15 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setDraft(next)
     setTyping(false)
 
+    if (!data.days?.length && start) {
+      setRuleResult(start)
+      setWeekResult(null)
+      setPlainResult(null)
+      setActiveDays(days)
+      setRepeat(rep)
+      showPlan({ single: start, week: null, days, rep, busy: next.busy }, `${data.reply}\n\n`)
+      return
+    }
     if (!data.days?.length) {
       setActiveDays(days)
       setRepeat(rep)
@@ -1149,15 +1174,22 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       wakeTime: next.wakeTime!, sleepTime: next.sleepTime!, dailyMinutes: next.dailyMinutes, subjects, weak: [],
       blockLengthMinutes: next.blockMinutes, fixedCommitments: busyWindows(next.busy),
     })
-    const plan = chatPlan(data.days, planWeek(), base, {
+    const plan = chatPlan(data.days, currentWeek ?? repeatWeek(current), base, {
       subjects, wakeTime: next.wakeTime!, sleepTime: next.sleepTime!, busy: busyWindows(next.busy), requestNow: true, standingRequests: [],
     }, days)
+    if (!plan.ok && start) {
+      setRuleResult(start)
+      setWeekResult(null)
+      setPlainResult(null)
+      showPlan({ single: start, week: null, busy: next.busy }, `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so here's a starting plan instead. Tell me what to change.\n\n`)
+      return
+    }
     if (!plan.ok) {
       ask('preview', `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so I kept your current one. Try asking again.`)
       return
     }
     const today = new Date().getDay()
-    const single = plan.single ?? plan.week?.[today] ?? plan.week?.[plan.activeDays[0]] ?? ruleResult
+    const single = plan.single ?? plan.week?.[today] ?? plan.week?.[plan.activeDays[0]] ?? current
     setRuleResult(single)
     setWeekResult(plan.week)
     setPlainResult(null)
@@ -1502,6 +1534,14 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     // one rather than adding "phy" as its own subject, site or app.
     if (!match && (step === 'subjects' || step === 'sites' || step === 'apps') && filterOptions(options, text).length > 1) return
     setInput('')
+    // A full request typed during the set-up questions ("5:30 am to 1 pm is
+    // my focus time, 90-minute sessions...") goes to the AI now, instead of
+    // being asked to fit the question on screen.
+    if (!match && SETUP_STEPS.includes(step) && isFullRequest(text) && planSubjects(draft).length) {
+      echo(text)
+      chatFromSetup(text)
+      return
+    }
     if (step === 'subjects') {
       if (match) togglePick(match.id, true)
       else setPicked(p => (p.some(id => id.toLowerCase() === `subj:${text}`.toLowerCase()) ? p : [...p, `subj:${text}`]))
@@ -1588,6 +1628,26 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       if (updated) { if (updated !== draft) buildPreview(updated); return }
       askAi(draft, text)
     }
+  }
+
+  /** Skips the rest of the set-up questions: a first plan from what Wynky
+   *  already knows, then the student's request goes to the AI chat. */
+  function chatFromSetup(text: string) {
+    const p = profileRef.current
+    const d: Draft = {
+      ...draft,
+      wakeTime: draft.wakeTime ?? '06:30',
+      sleepTime: draft.sleepTime ?? '23:00',
+      busy: draft.busy.length ? draft.busy : [NOTHING_FIXED],
+    }
+    const subjects = planSubjects(d)
+    const start = recommend({
+      wakeTime: d.wakeTime!, sleepTime: d.sleepTime!, dailyMinutes: d.dailyMinutes, subjects,
+      weak: p ? weakSubjects(subjects, p.study) : [], blockLengthMinutes: d.blockMinutes, fixedCommitments: busyWindows(d.busy),
+    })
+    gapsRef.current = []
+    setDraft(d)
+    void chatAi(text, d, { days: activeDays, rep: repeat }, start)
   }
 
   /** A request Wynky can't apply by itself: Gemini rebuilds the plan with
