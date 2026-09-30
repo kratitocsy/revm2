@@ -1,10 +1,11 @@
-import { ensurePresets, loadRemembered, writeSchedule, type PlanSlotInput, type SupaLike } from '../wynky/wynkyPlanner';
+import { ensurePresets, loadRemembered, rememberAllowlists, writeSchedule, type PlanSlotInput, type SubjectAllowlist, type SupaLike } from '../wynky/wynkyPlanner';
 import { isEnforceable } from '../wynky/wynkyChatFlow';
 
 /* ============================================================
    Focus Lock enforcement of an accepted community schedule.
 
-   Accepting a WynkoHead's published week writes it as real
+   On accepting, the member confirms per subject which sites, channels
+   and apps stay allowed (CommunityFocusSetup.tsx). The week is then written as real
    focus_lock_schedules (one per weekday, "Community — <name> - Mon"),
    the same tables schedule-tick and the desktop app enforce every
    minute. Each block uses the member's own saved allow-list for that
@@ -94,13 +95,26 @@ async function ensureCommunityStudyPreset(sb: SupaLike, userId: string): Promise
   return created.id;
 }
 
-/** Makes Focus Lock enforce an accepted community week for this member.
- *  Replaces any earlier community schedule (one is followed at a time). */
-export async function enforceCommunitySchedule(sb: SupaLike, userId: string, communityName: string, week: CommunityItem[][]): Promise<void> {
+export function communitySubjects(week: CommunityItem[][]): string[] {
+  return [...new Set(Object.values(communityWeekSlots(week)).flat().map(s => s.subject))];
+}
+
+/** The member's saved Wynky set-up, used to pre-fill the accept step. */
+export async function savedAllowlists(sb: SupaLike, userId: string): Promise<Record<string, SubjectAllowlist>> {
+  return (await loadRemembered(sb, userId)).subjectAllowlists;
+}
+
+/** Makes Focus Lock enforce an accepted community week for this member,
+ *  with the allow-lists they confirmed on accepting (saved back to their
+ *  Wynky set-up too). Replaces any earlier community schedule (one is
+ *  followed at a time). */
+export async function enforceCommunitySchedule(sb: SupaLike, userId: string, communityName: string, week: CommunityItem[][], chosen?: Record<string, SubjectAllowlist>): Promise<void> {
   const byDay = communityWeekSlots(week);
   const subjects = [...new Set(Object.values(byDay).flat().map(s => s.subject))];
 
-  const { subjectAllowlists } = await loadRemembered(sb, userId);
+  const saved = await savedAllowlists(sb, userId);
+  if (chosen) await rememberAllowlists(sb, userId, { ...saved, ...chosen });
+  const subjectAllowlists = { ...saved, ...(chosen || {}) };
   const own = Object.fromEntries(subjects.filter(s => isEnforceable(subjectAllowlists[s])).map(s => [s, subjectAllowlists[s]]));
   const { presetIdBySubject } = await ensurePresets(sb, userId, { subjectAllowlists: own, freeTimeSites: [], freeTimeApps: [] });
   const fallback = subjects.some(s => !presetIdBySubject[s]) ? await ensureCommunityStudyPreset(sb, userId) : null;

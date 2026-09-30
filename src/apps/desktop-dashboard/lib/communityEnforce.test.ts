@@ -25,6 +25,7 @@ function fakeSb(tables: { schedules?: any[]; profile?: any } = {}) {
         delete: () => { op = 'delete'; return q; },
         insert: (r: any) => { writes.push({ table, op: 'insert', row: r }); return q; },
         update: (r: any) => { op = 'update'; row = r; return q; },
+        upsert: (r: any) => { op = 'upsert'; row = r; return q; },
         maybeSingle: async () => ({ data: table === 'wynky_profiles' ? tables.profile ?? null : null, error: null }),
         single: async () => ({ data: { id: `${table}-${++n}` }, error: null }),
         then: (resolve: (v: any) => void) => {
@@ -85,6 +86,17 @@ describe('enforceCommunitySchedule', () => {
       ['Physics', '09:00', '10:00', true], ['Biology', '10:30', '11:30', true],
     ]);
     expect(localStorage.getItem('wynko.communityPaused.u1')).toBe('["own1"]');
+  });
+
+  it('enforces and saves what the member chose on accepting', async () => {
+    localStorage.clear();
+    const { sb, writes } = fakeSb({ profile: { subject_allowlists: { Physics: { sites: ['khanacademy.org'], apps: [] } } }, schedules: [] });
+    await enforceCommunitySchedule(sb, 'u1', 'JEE Squad', week, { Biology: { sites: ['byjus.com'], apps: [] } });
+    expect(writes.find(w => w.op === 'upsert')!.row.subject_allowlists).toEqual({
+      Physics: { sites: ['khanacademy.org'], apps: [] }, Biology: { sites: ['byjus.com'], apps: [] },
+    });
+    const presets = writes.filter(w => w.table === 'focus_lock_presets' && w.op === 'insert').map(w => w.row.name);
+    expect(presets).toEqual(['Wynky — Physics', 'Wynky — Biology']);
   });
 
   it('switches paused schedules back on when released, only for the enforced community', async () => {

@@ -17,8 +17,9 @@ import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } f
 import WynkyChat from './wynky/WynkyChat'
 import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import { sb } from '../_shared/supabaseClient'
-import { enforceCommunitySchedule, releaseCommunitySchedule } from './lib/communityEnforce'
-import type { AiSlot } from './wynky/wynkyPlanner'
+import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
+import CommunityFocusSetup from './CommunityFocusSetup'
+import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
   usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
@@ -10448,6 +10449,7 @@ export default function DesktopDashboard() {
   const [headUnits, setHeadUnits] = useState<StudyUnit[]>([])
   const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null)
   const [communityNotice, setCommunityNotice] = useState<string | null>(null)
+  const [focusSetup, setFocusSetup] = useState<{ row: CommunityScheduleRow; subjects: string[]; initial: Record<string, SubjectAllowlist> } | null>(null)
   const [userAvatar, setUserAvatar] = useState<string>(avatar7)
   const [avatarTouched, setAvatarTouched] = useState(false)
 
@@ -10645,21 +10647,31 @@ export default function DesktopDashboard() {
     await communitySchedulesQ.refresh()
     return true
   }
-  // Accepting also makes Focus Lock enforce the week (communityEnforce.ts);
+  // Accepted weeks are enforced by Focus Lock (communityEnforce.ts);
   // rejecting or leaving stops it and switches the member's own schedules back on.
   async function currentUserId(): Promise<string | null> {
     const { data } = await sb.auth.getUser()
     return data.user?.id ?? null
   }
+  // Accepting first asks, per subject, what stays allowed (pre-filled from
+  // the member's Wynky set-up); the schedule is accepted and enforced on confirm.
   async function acceptCommunitySchedule(id: string) {
     const row = scheduleRowFor(id)
     if (!row) return
+    const week = normalizeWeek(row.week)
+    const subjects = communitySubjects(week)
+    const uid = await currentUserId()
+    if (!uid || !subjects.length) { await finishAccept(row, undefined); return }
+    const initial = await savedAllowlists(sb, uid).catch(() => ({}))
+    setFocusSetup({ row, subjects, initial })
+  }
+  async function finishAccept(row: CommunityScheduleRow, chosen: Record<string, SubjectAllowlist> | undefined) {
     if (!followingId) ownScheduleBackup.current = schedule
-    if (!(await decideSchedule(id, 'accepted'))) return
+    if (!(await decideSchedule(row.group_id, 'accepted'))) return
     applyCommunitySchedule(row)
     try {
       const uid = await currentUserId()
-      if (uid) await enforceCommunitySchedule(sb, uid, row.name, normalizeWeek(row.week))
+      if (uid) await enforceCommunitySchedule(sb, uid, row.name, normalizeWeek(row.week), chosen)
     } catch (e) {
       setCommunityNotice(`Schedule accepted, but Focus Lock couldn\u2019t be set up for it: ${(e as Error).message}`)
     }
@@ -11003,6 +11015,11 @@ export default function DesktopDashboard() {
           onAccept={() => { void acceptCommunitySchedule(scheduleNotif.id) }}
           onCreateOwn={() => { void rejectCommunitySchedule(scheduleNotif.id); handleNav('schedules') }}
           onDismiss={dismissScheduleNotif} />
+      )}
+      {focusSetup && (
+        <CommunityFocusSetup communityName={focusSetup.row.name} subjects={focusSetup.subjects} initial={focusSetup.initial}
+          onCancel={() => setFocusSetup(null)}
+          onConfirm={async chosen => { await finishAccept(focusSetup.row, chosen); setFocusSetup(null) }} />
       )}
       {communityNotice && (
         <div role="status" className="fixed bottom-5 right-5 z-[80] max-w-[360px] rounded-xl border px-4 py-3 flex items-start gap-3 text-[13px] text-wk-ink-200"
