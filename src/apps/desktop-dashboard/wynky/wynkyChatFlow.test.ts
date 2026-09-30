@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  splitPlanText,
   subjectChoices, hasSavedSetup, hoursOptions, minutesFromOptionId, parseStudyMinutes, parseClock,
   fmtClock, clockOptions, siteFromText, clearMatch, filterOptions, wantsWeeklyVariation, formatWeeklyPlan, timetableLines,
   repeatWeek, formatDayOverrides, mentionsWeek, mentionedDays, repeatFromText, wantsDaysOff, mentionsWeekB,
@@ -259,3 +260,28 @@ describe('two-week plans', () => {
     expect(formatWeeklyPlan(repeatWeek(day('Maths')), { repeat: 'every2' })).toContain('every 2 weeks');
   });
 });
+
+describe('splitPlanText', () => {
+  it('turns timetable lines into table rows and keeps the rest as text', () => {
+    const parts = splitPlanText("Here's your day: 2 hours of study.\n\n00:00–05:30  😴 Sleep\n06:30–08:00  📘 Chemistry\n08:00–08:10  ☕ Break (10 min)\n\nTap Confirm to make it live.")
+    expect(parts).toEqual([
+      { kind: 'text', text: "Here's your day: 2 hours of study." },
+      { kind: 'table', rows: [
+        { start: '00:00', end: '05:30', minutes: 330, activity: 'Sleep', kind: 'sleep' },
+        { start: '06:30', end: '08:00', minutes: 90, activity: 'Chemistry', kind: 'study' },
+        { start: '08:00', end: '08:10', minutes: 10, activity: 'Break', kind: 'break' },
+      ] },
+      { kind: 'text', text: 'Tap Confirm to make it live.' },
+    ])
+  })
+  it('leaves a message without a timetable as one text part', () => {
+    expect(splitPlanText('What time do you usually wake up?')).toEqual([{ kind: 'text', text: 'What time do you usually wake up?' }])
+  })
+  it('handles a block that ends at midnight and a free-time gap', () => {
+    const [part] = splitPlanText('22:30–00:00  📘 Physics\n13:00–14:30  Free time (1 hour 30 min)')
+    expect(part).toEqual({ kind: 'table', rows: [
+      { start: '22:30', end: '00:00', minutes: 90, activity: 'Physics', kind: 'study' },
+      { start: '13:00', end: '14:30', minutes: 90, activity: 'Free time', kind: 'free' },
+    ] })
+  })
+})

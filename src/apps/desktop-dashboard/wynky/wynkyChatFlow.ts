@@ -213,7 +213,7 @@ export function fmtBusy(value: string): string {
 const BREAK_MAX_MINUTES = 30
 
 /** "45 min", "1 hour", "1 hour 20 min": exact, unlike fmtHours' "1.3 hours". */
-function fmtGap(minutes: number): string {
+export function fmtGap(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   const hours = h ? `${h} ${h === 1 ? 'hour' : 'hours'}` : ''
@@ -385,4 +385,36 @@ export function formatWeeklyPlan(
     ? '\n\nWeek A and Week B take turns, starting with Week A this week.'
     : opts.repeat === 'every2' ? '\n\nRuns every 2 weeks, starting this week.' : '';
   return `Here's your week:\n\n${body}${repeatNote}\n\nTap Confirm to make it live, or tell me what to change.`;
+}
+
+export interface PlanRow { start: string; end: string; minutes: number; activity: string; kind: 'study' | 'break' | 'sleep' | 'busy' | 'free' }
+export type PlanPart = { kind: 'text'; text: string } | { kind: 'table'; rows: PlanRow[] }
+
+const PLAN_LINE = /^(\d{1,2}:\d{2})–(\d{1,2}:\d{2}) {2}(.+)$/
+
+/** Splits a chat message into plain text and the timetable lines
+ *  timetableLines() writes, so the chat can show those as a table. */
+export function splitPlanText(text: string): PlanPart[] {
+  const parts: PlanPart[] = []
+  let buf: string[] = []
+  let rows: PlanRow[] = []
+  const flushText = () => { if (buf.length) parts.push({ kind: 'text', text: buf.join('\n') }); buf = [] }
+  const flushRows = () => { if (rows.length) parts.push({ kind: 'table', rows }); rows = [] }
+  for (const line of text.split('\n')) {
+    const m = PLAN_LINE.exec(line)
+    if (!m) { flushRows(); buf.push(line); continue }
+    flushText()
+    const [, start, end, raw] = m
+    const [sh, sm] = start.split(':').map(Number), [eh, em] = end.split(':').map(Number)
+    const minutes = ((eh * 60 + em) - (sh * 60 + sm) + 1440) % 1440 || 1440
+    const kind: PlanRow['kind'] = raw.startsWith('😴') ? 'sleep' : raw.startsWith('☕') ? 'break' : raw.startsWith('🏫') ? 'busy' : raw.startsWith('Free time') ? 'free' : 'study'
+    const activity = raw.replace(/^(📘|😴|☕|🏫)\s*/u, '').replace(/\s*\([^)]*\)$/, '')
+    rows.push({ start, end, minutes, activity, kind })
+  }
+  flushRows()
+  flushText()
+  // Blank lines around a table are spacing the table already has.
+  return parts
+    .map(p => p.kind === 'text' ? { kind: 'text' as const, text: p.text.replace(/^\s*\n|\n\s*$/g, '') } : p)
+    .filter(p => p.kind === 'table' || p.text.trim())
 }
