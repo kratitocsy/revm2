@@ -48,6 +48,7 @@ import {
   getQuickNotes, setQuickNotes,
   type TimerMode, type PomodoroPhase, type StudyTask, type FocusPlanSnapshot, type ScheduleItem, type StudyUnit,
 } from './lib/studyPlanStore'
+import { dateKey, itemsForDate, parseDateKey, reconcileScheduleTasks, removeScheduleOccurrence, shiftDateKey, tasksForDate, weekKeysFor } from './lib/planCalendar'
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
 import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
 import { useNotifications, notificationHref, notificationIcon, timeAgo, type AppNotification } from './lib/notifications'
@@ -1728,8 +1729,7 @@ function seedTasksFromRealData(units: StudyUnit[], schedule: ScheduleItem[][], t
     tasks.push({ id: makeTaskId(), subject, topic, mode: 'pomodoro', ...pomodoroFields(pomo), regularElapsed: 0 })
   }
   units.forEach(u => u.topics.forEach(t => addTask(u.subject, t)))
-  const todaySchedule = schedule[todayIdx] || []
-  todaySchedule.forEach(s => addTask(s.subject, s.topic || s.subject))
+  itemsForDate(schedule, dateKey()).forEach(s => addTask(s.subject, s.topic || s.subject))
   return tasks
 }
 
@@ -1831,14 +1831,16 @@ function StudyPlanRow({ task, isActive, running, onStart, onPause, onRemove, onT
 // Timer mode is deliberately NOT asked here - the task starts in whichever
 // mode the user last selected from the Pomodoro/Regular blocks (see
 // timerModeSettings.ts), so adding a task stays a single-step action.
-function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject: string, topic: string) => void }) {
+function AddTaskModal({ onClose, onAdd, defaultDate }: { onClose: () => void; onAdd: (subject: string, topic: string, date: string) => void; defaultDate?: string }) {
   const [subject, setSubject] = useState('')
   const [topic, setTopic] = useState('')
-  const canAdd = subject.trim().length > 0 && topic.trim().length > 0
+  // The day the task belongs to: it shows on Home, Focus Lock and Schedules on that day.
+  const [date, setDate] = useState(defaultDate || dateKey())
+  const canAdd = subject.trim().length > 0 && topic.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date)
 
   function submit() {
     if (!canAdd) return
-    onAdd(subject.trim(), topic.trim())
+    onAdd(subject.trim(), topic.trim(), date)
   }
 
   return (
@@ -1867,6 +1869,12 @@ function AddTaskModal({ onClose, onAdd }: { onClose: () => void; onAdd: (subject
           placeholder="e.g. Electricity"
           className="w-full mb-4 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-wk-ink-200 placeholder-wk-ink-600 transition-colors focus:border-wk-orange-300/70"
           style={{ borderColor: '#26262A' }} />
+
+        <label className="block text-[11px] text-wk-ink-500 mb-1.5">Date</label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          className="w-full mb-1.5 px-3 py-2.5 rounded-xl border bg-transparent outline-none text-sm text-wk-ink-200 transition-colors focus:border-wk-orange-300/70"
+          style={{ borderColor: '#26262A', colorScheme: 'dark' }} />
+        <div className="text-[11px] text-wk-ink-600 mb-4">Shows in Home, Focus Lock and Schedules on this day.</div>
 
         <div className="flex gap-3">
           <button onClick={onClose}
@@ -2090,7 +2098,7 @@ Add a quick note for this session."
   )
 }
 
-function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void }) {
+function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled, onTaskRemoved }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void; onTaskRemoved?: (task: StudyTask) => void }) {
   // The user's saved Pomodoro configuration (25/5/Repeat until they change it). Same store the
   // Study Room reads, so a change here is the new default everywhere.
   const { settings: pomo, save: savePomo } = usePomodoroSettings()
@@ -2104,6 +2112,9 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   const selectedMode = useTimerMode()
   const [fullscreen, setFullscreen] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
+  // Which day's tasks the plan list shows (today until the person steps to another day).
+  const todayKey = dateKey()
+  const [viewDate, setViewDate] = useState(todayKey)
   const [showPomodoroSettings, setShowPomodoroSettings] = useState(false)
   // Pause Reflection gate: clicking Pause opens this instead of pausing directly.
   // The task id is captured at click-time so "Unlock Pause" pauses the right task
@@ -2304,8 +2315,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   // the task actually running floats to the top so it's never scrolled out
   // of view, finished tasks sink to the bottom, everything else keeps its
   // original order in between.
-  const completedCount = tasks.filter(t => t.completed).length
-  const displayTasks = [...tasks].sort((a, b) => {
+  // Only the chosen day's tasks (plus whatever is running, so a live timer never disappears).
+  const dayTasks = tasks.filter(t => t.id === activeTaskId || tasksForDate([t], viewDate, todayKey).length > 0)
+  const completedCount = dayTasks.filter(t => t.completed).length
+  const displayTasks = [...dayTasks].sort((a, b) => {
     const rank = (t: StudyTask) => (t.id === activeTaskId && running ? 0 : t.completed ? 2 : 1)
     return rank(a) - rank(b)
   })
@@ -2359,6 +2372,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   }
 
   function handleRemoveTask(taskId: string) {
+    const removed = tasks.find(t => t.id === taskId)
+    if (removed) onTaskRemoved?.(removed)
     if (activeTaskId === taskId) {
       setRunning(false)
       stopRemoteSession()
@@ -2397,15 +2412,16 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   // nothing to start, so open Add Task instead.
   function handleMainStart() {
     if (activeTask) { handleStartTask(activeTask.id); return }
-    if (tasks.length > 0) { handleStartTask(tasks[0].id); return }
+    if (displayTasks.length > 0) { handleStartTask(displayTasks[0].id); return }
     setShowAddTask(true)
   }
 
-  function handleAddTask(subject: string, topic: string) {
+  function handleAddTask(subject: string, topic: string, date: string) {
     // No mode prompt: the task starts in whichever mode the user selected
     // last (the Pomodoro/Regular blocks above), same store Start reads from.
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0 }
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0, planDate: date }
     setTasks(prev => [task, ...prev])
+    setViewDate(date) // jump to the day it was added for, so it's visible
     setShowAddTask(false)
   }
 
@@ -2416,15 +2432,17 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   useEffect(() => {
     if (!autoStartTask) return
     const key = `${autoStartTask.subject}::${autoStartTask.topic}`
-    const existing = tasks.find(t => `${t.subject}::${t.topic}` === key)
+    const existing = tasks.find(t => `${t.subject}::${t.topic}` === key && tasksForDate([t], todayKey, todayKey).length > 0)
     if (existing) {
+      setViewDate(todayKey)
       handleStartTask(existing.id)
     } else {
       // Not in the plan yet - add it, then start it directly (rather than
       // via handleStartTask, whose `tasks` lookup would still see the
       // pre-update array in this same tick and silently no-op).
-      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0 }
+      const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0, planDate: todayKey }
       setTasks(prev => [task, ...prev])
+      setViewDate(todayKey)
       if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
       setActiveTaskId(task.id)
       setRunning(true)
@@ -2616,9 +2634,16 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-wk-ink-100 leading-tight">My Study Plan</div>
-                        {tasks.length > 0 && (
-                          <div className="text-[11px] text-wk-ink-500 leading-tight mt-0.5">{completedCount} of {tasks.length} tasks completed</div>
-                        )}
+                        <div className="flex items-center gap-1 mt-0.5 text-[11px] text-wk-ink-500 leading-tight">
+                          <button onClick={() => setViewDate(d => shiftDateKey(d, -1))} title="Previous day"
+                            className="px-1 hover:text-wk-ink-200 transition-colors">‹</button>
+                          <button onClick={() => setViewDate(todayKey)} title="Back to today" className="hover:text-wk-ink-200 transition-colors">
+                            {viewDate === todayKey ? 'Today' : parseDateKey(viewDate).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </button>
+                          <button onClick={() => setViewDate(d => shiftDateKey(d, 1))} title="Next day"
+                            className="px-1 hover:text-wk-ink-200 transition-colors">›</button>
+                          {dayTasks.length > 0 && <span>· {completedCount} of {dayTasks.length} completed</span>}
+                        </div>
                       </div>
                     </div>
                     <button onClick={() => setShowAddTask(true)}
@@ -2630,10 +2655,10 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
                   {/* Fixed-height, internally-scrolling list - a growing task count scrolls
                       here instead of stretching this card (and the page) taller, and rows
                       keep their normal size instead of shrinking to force a fit. */}
-                  {tasks.length === 0 ? (
+                  {dayTasks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-14 text-center px-4">
                       <div className="text-2xl mb-2">📋</div>
-                      <div className="text-xs text-wk-ink-500">No study tasks yet.<br />Add your first subject + topic to start a timer.</div>
+                      <div className="text-xs text-wk-ink-500">{viewDate === todayKey ? 'No study tasks yet.' : 'No tasks on this day.'}<br />Add a subject + topic to start a timer.</div>
                     </div>
                   ) : (
                     <div className="px-4 pb-4 space-y-2 overflow-y-auto" style={{ maxHeight: 392 }}>
@@ -2655,7 +2680,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
         </main>
       </div>
 
-      {showAddTask && <AddTaskModal onClose={() => setShowAddTask(false)} onAdd={handleAddTask} />}
+      {showAddTask && <AddTaskModal onClose={() => setShowAddTask(false)} onAdd={handleAddTask} defaultDate={viewDate} />}
       {showPomodoroSettings && (
         <PomodoroSettingsModal
           initial={pomo}
@@ -6984,15 +7009,6 @@ interface FocusRoutine {
 
 const DAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-function getWeekDates(): number[] {
-  const today = new Date(), dow = today.getDay()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() + (dow === 0 ? -6 : 1 - dow))
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday); d.setDate(monday.getDate() + i); return d.getDate()
-  })
-}
-
 const SUBJECT_COLOR_MAP: Record<string, string> = {
   physics: '#3B82F6', chemistry: '#A855F7', mathematics: '#CFC8BB', maths: '#CFC8BB',
   biology: '#34D399', history: '#F59E0B', geography: '#F87171', english: '#EC4899',
@@ -7055,8 +7071,13 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   title?: string
   subtitle?: string
 }) {
-  const weekDates = getWeekDates()
+  const todayKey = dateKey()
   const todayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 })()
+  // Which week the day tabs show (0 = this week). Blocks and tasks live on real
+  // dates, so the editor has to be able to reach other weeks.
+  const [weekOffset, setWeekOffset] = useState(0)
+  const weekKeys = weekKeysFor(shiftDateKey(todayKey, weekOffset * 7))
+  const weekDates = weekKeys.map(k => parseDateKey(k).getDate())
 
   const [activeDay, setActiveDay] = useState(todayIdx)
   const [editMode, setEditMode] = useState(false)
@@ -7069,11 +7090,29 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   const [showMoreApps, setShowMoreApps] = useState(false)
   const [routines, setRoutines] = useState<FocusRoutine[]>([])
   const [showCreateRoutine, setShowCreateRoutine] = useState(false)
-  const [newSession, setNewSession] = useState({ subject: '', topic: '', startTime: '9:00 AM', endTime: '11:00 AM', color: '#3B82F6' })
+  const [newSession, setNewSession] = useState({ subject: '', topic: '', startTime: '9:00 AM', endTime: '11:00 AM', color: '#3B82F6', repeatWeekly: false })
+  // Tasks added on Home / Focus Lock for the day being shown (blocks that became
+  // tasks are already listed as sessions, so they're left out here).
+  const planStore = useStudyPlanStore()
   const [newRoutine, setNewRoutine] = useState({ name: '', days: [] as number[], apps: [] as string[], websites: [] as string[], customWebsite: '', timeFrom: '08:00', timeTo: '22:00' })
   const [aiForm, setAiForm] = useState({ subjects: '', exam: '', hoursPerDay: '8' })
 
-  const currentDaySchedule = schedule[activeDay] || []
+  const activeKey = weekKeys[activeDay]
+  // The community editor edits a plain weekly template; the personal schedule is date-aware.
+  const currentDaySchedule = embedded ? (schedule[activeDay] || []) : itemsForDate(schedule, activeKey)
+  const currentDayTasks = embedded ? [] : tasksForDate(planStore.plan?.tasks ?? [], activeKey, todayKey).filter(t => !t.sourceScheduleId)
+
+  function removePlanTask(taskId: string) {
+    const snap = getPlanSnapshot()
+    if (!snap) return
+    const wasActive = snap.activeTaskId === taskId
+    setPlanSnapshot({
+      tasks: snap.tasks.filter(t => t.id !== taskId),
+      activeTaskId: wasActive ? null : snap.activeTaskId,
+      running: wasActive ? false : snap.running,
+      runningStartedAtMs: wasActive ? null : snap.runningStartedAtMs,
+    })
+  }
 
   function generateAI() {
     setAiStep('generating')
@@ -7142,13 +7181,16 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
       id: String(Date.now()), subject: sub, topic: newSession.topic,
       startTime: newSession.startTime, endTime: newSession.endTime,
       color: newSession.color, iconEmoji: subjectEmoji(sub),
+      // A block belongs to the day it was added on (and so shows on Home and in Focus Lock that
+      // day); "Repeat every week" keeps the old weekly behaviour. The community editor is always weekly.
+      ...(embedded || newSession.repeatWeekly ? {} : { date: activeKey }),
     }
     setSchedule(prev => { const n = [...prev]; n[activeDay] = [...n[activeDay], item]; return n })
     if (!sharedUnits.find(u => u.subject.toLowerCase() === sub.toLowerCase())) {
       setSharedUnits(prev => [...prev, { subject: sub, exam: '', topics: newSession.topic ? [newSession.topic] : ['Study session'] }])
     }
     setShowAddSession(false)
-    setNewSession({ subject: '', topic: '', startTime: '9:00 AM', endTime: '11:00 AM', color: '#3B82F6' })
+    setNewSession({ subject: '', topic: '', startTime: '9:00 AM', endTime: '11:00 AM', color: '#3B82F6', repeatWeekly: false })
   }
 
   function deleteSession(id: string) {
@@ -7267,6 +7309,17 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
               </button>
             </div>
 
+            {/* Week navigation (personal schedule only: the community editor is a weekly template) */}
+            {!embedded && (
+              <div className="flex items-center justify-between px-5 mb-2 text-[11px] text-wk-ink-500">
+                <button onClick={() => setWeekOffset(o => o - 1)} className="px-2 py-1 rounded-lg hover:text-wk-ink-200 transition-colors" title="Previous week">‹ Prev</button>
+                <button onClick={() => { setWeekOffset(0); setActiveDay(todayIdx) }} className="hover:text-wk-ink-200 transition-colors" title="Back to this week">
+                  {parseDateKey(weekKeys[0]).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} – {parseDateKey(weekKeys[6]).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </button>
+                <button onClick={() => setWeekOffset(o => o + 1)} className="px-2 py-1 rounded-lg hover:text-wk-ink-200 transition-colors" title="Next week">Next ›</button>
+              </div>
+            )}
+
             {/* Day tabs */}
             <div className="flex gap-1.5 px-5 mb-4">
               {DAYS_SHORT.map((day, i) => (
@@ -7285,7 +7338,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
 
             {/* Session rows */}
             <div className="px-4 pb-2 space-y-2">
-              {currentDaySchedule.length === 0 && (
+              {currentDaySchedule.length === 0 && currentDayTasks.length === 0 && (
                 <div className="py-8 text-center text-wk-ink-500 text-sm">No sessions for {DAYS_SHORT[activeDay]}. Add one below!</div>
               )}
               {currentDaySchedule.map(session => (
@@ -7305,7 +7358,7 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-wk-ink-100">{session.subject}</div>
-                    <div className="text-[11px] text-wk-ink-500">{session.topic}</div>
+                    <div className="text-[11px] text-wk-ink-500">{session.topic}{!embedded && !session.date ? ' · repeats weekly' : ''}</div>
                   </div>
                   <div className="text-[11px] text-wk-ink-400 mr-3 flex-shrink-0" >
                     {session.startTime} – {session.endTime}
@@ -7321,6 +7374,27 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                   )}
                 </div>
               ))}
+              {currentDayTasks.map(task => {
+                const { emoji, color } = subjectVisual(task.subject)
+                return (
+                  <div key={task.id}
+                    className="flex items-center gap-3 p-3.5 rounded-xl border transition-all bg-[#161618] border-[rgba(38,38,42,0.55)]">
+                    {editMode && (
+                      <button onClick={() => removePlanTask(task.id)} title="Remove task"
+                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors bg-[rgba(248,113,113,0.15)] text-[#F87171]">
+                        <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                      style={{ background: `${color}18`, border: `1px solid ${color}40` }}>{emoji}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-bold text-wk-ink-100 ${task.completed ? 'line-through opacity-60' : ''}`}>{task.subject}</div>
+                      <div className="text-[11px] text-wk-ink-500">{task.topic}</div>
+                    </div>
+                    <div className="text-[11px] text-wk-ink-400 mr-3 flex-shrink-0">Task</div>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Add new */}
@@ -7547,6 +7621,12 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                      placeholder="11:00 AM" />
                 </div>
               </div>
+              {!embedded && (
+                <label className="flex items-center gap-2 text-[12px] text-wk-ink-400 cursor-pointer select-none">
+                  <input type="checkbox" checked={newSession.repeatWeekly} onChange={e => setNewSession(s => ({ ...s, repeatWeekly: e.target.checked }))} />
+                  Repeat every {DAYS_SHORT[activeDay]} (otherwise only on this date)
+                </label>
+              )}
               <div>
                 <label className="text-[10px] text-wk-ink-500 mb-2 block font-mono">COLOR</label>
                 <div className="flex gap-2">
@@ -10679,7 +10759,28 @@ export default function DesktopDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNav, planStore.version])
 
+  // Keeps the plan's tasks in step with the schedule: a block added on Schedules
+  // becomes a task on its day (so Home and Focus Lock show it there), and a
+  // deleted block takes its untouched task with it (see planCalendar.ts).
+  // Skipped until the schedule this page holds is the one the store has, or a
+  // half-loaded (empty) schedule would look like "everything was deleted".
+  function reconcilePlanWithSchedule() {
+    if (planStore.status !== 'ready' || !planStore.week || planStore.week.schedule !== schedule) return
+    const snap = loadFocusPlanSnapshot()
+    if (!snap) return
+    const pomo = getPomodoroSettings()
+    const next = reconcileScheduleTasks(snap, schedule, dateKey(), (subject, topic) =>
+      ({ id: makeTaskId(), subject, topic, mode: getTimerMode(), ...pomodoroFields(pomo), regularElapsed: 0 }))
+    if (next) saveFocusPlanSnapshot(next)
+  }
+  // Not while Focus Lock is open: it owns the plan there and reconciles on the way in (handleNav).
+  useEffect(() => {
+    if (activeNav !== 'focus') reconcilePlanWithSchedule()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule, planStore.status, planStore.week, activeNav])
+
   function handleNav(id: string) {
+    if (id === 'focus') reconcilePlanWithSchedule() // Focus Lock reads the plan when it mounts
     setActiveNav(id)
     if (id !== 'studyrooms') { setActiveRoom(null); setActiveCommunity(null) }
   }
@@ -10873,10 +10974,10 @@ export default function DesktopDashboard() {
   // synced store) so it shows up in Today's Study Plan immediately -
   // reads the freshest snapshot first so it never clobbers a session that's
   // actually running right now.
-  function handleHomeAddTask(subject: string, topic: string) {
+  function handleHomeAddTask(subject: string, topic: string, date: string) {
     // Same rule as Focus Lock: no mode prompt here either - use whichever
     // mode the user last picked from the Pomodoro/Regular blocks.
-    const task: StudyTask = { id: makeTaskId(), subject, topic, mode: getTimerMode(), ...pomodoroFields(getPomodoroSettings()), regularElapsed: 0 }
+    const task: StudyTask = { id: makeTaskId(), subject, topic, mode: getTimerMode(), ...pomodoroFields(getPomodoroSettings()), regularElapsed: 0, planDate: date }
     const existing = loadFocusPlanSnapshot()
     const nextTasks = [task, ...(existing?.tasks ?? focusPlan.tasks)]
     saveFocusPlanSnapshot({
@@ -10894,10 +10995,19 @@ export default function DesktopDashboard() {
   // schedule entry (if it came from Schedules) - a row built from either
   // source, or both, disappears either way.
   function handleHomeRemoveTask(subject: string, topic: string) {
+    removeTodayEntry(subject, topic)
+  }
+
+  // Removes today's entry for subject/topic from every place it lives: today's
+  // tasks and today's schedule occurrence (a one-off block is deleted, a weekly
+  // block only skips today). Other days' tasks with the same name stay.
+  function removeTodayEntry(subject: string, topic: string) {
+    const today = dateKey()
+    const isThis = (t: StudyTask) => t.subject === subject && t.topic === topic && tasksForDate([t], today, today).length > 0
     const existing = loadFocusPlanSnapshot()
     const baseTasks = existing?.tasks ?? focusPlan.tasks
-    const removedTask = baseTasks.find(t => t.subject === subject && t.topic === topic)
-    const nextTasks = baseTasks.filter(t => !(t.subject === subject && t.topic === topic))
+    const removedTask = baseTasks.find(isThis)
+    const nextTasks = baseTasks.filter(t => !isThis(t))
     const activeTaskId = existing?.activeTaskId ?? focusPlan.activeTaskId
     const wasActive = !!removedTask && removedTask.id === activeTaskId
     saveFocusPlanSnapshot({
@@ -10907,9 +11017,18 @@ export default function DesktopDashboard() {
       runningStartedAtMs: wasActive ? null : (existing?.runningStartedAtMs ?? null),
     })
     setFocusPlan(prev => ({ tasks: nextTasks, activeTaskId: wasActive ? null : prev.activeTaskId }))
-    setSchedule(prev => prev.map((day, idx) =>
-      idx === todayIdx ? day.filter(s => !(s.subject === subject && (s.topic || s.subject) === topic)) : day
-    ))
+    setSchedule(prev => removeScheduleOccurrence(prev, today, s => s.subject === subject && (s.topic || s.subject) === topic))
+  }
+
+  // Focus Lock deleted a task: take its schedule block with it (the block for
+  // that task's own day), or the schedule would just recreate the task.
+  function handleFocusTaskRemoved(task: StudyTask) {
+    const day = task.planDate || dateKey()
+    setSchedule(prev => removeScheduleOccurrence(prev, day, s => (
+      task.sourceScheduleId
+        ? (s.date ? s.id : `${s.id}@${day}`) === task.sourceScheduleId
+        : s.subject === task.subject && (s.topic || s.subject) === task.topic
+    )))
   }
 
   function handleAddUnit(u: StudyUnit) {
@@ -10939,7 +11058,7 @@ export default function DesktopDashboard() {
 
   function renderPage() {
     if (activeNav === 'focus') {
-      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} />
+      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} onTaskRemoved={handleFocusTaskRemoved} />
     }
     // Quick Timer is intentionally separate from FocusLockPage - its own
     // page, own localStorage key, no shared state with Focus Lock at all.
@@ -11038,8 +11157,9 @@ export default function DesktopDashboard() {
     // Today's rows for the study-plan card below - real data only:
     // schedule[todayIdx] (today's actual scheduled sessions) merged with
     // the live Focus Lock plan, see buildTodayPlanRows.
-    const todaySchedule = schedule[todayIdx] || []
-    const todayPlanRows = buildTodayPlanRows(todaySchedule, focusPlan.tasks)
+    const todayKey = dateKey()
+    const todaySchedule = itemsForDate(schedule, todayKey)
+    const todayPlanRows = buildTodayPlanRows(todaySchedule, tasksForDate(focusPlan.tasks, todayKey, todayKey))
 
     // Focus Timer's "completed today" count: pomodoro tasks in the live plan
     return (
