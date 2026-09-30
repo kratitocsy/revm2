@@ -13,6 +13,7 @@ import {
   type SubjectAllowlist, type WynkyKnownProfile, type WynkyRemembered, type DayOverrides,
 } from './wynkyPlanner';
 import type { GeneratorResult } from '../../_shared/scheduleGenerator';
+import type { Day as TimelineDay } from './scheduleTimeline';
 
 export interface ChatOption { id: string; label: string }
 
@@ -258,10 +259,10 @@ export function timetableLines(result: GeneratorResult, busy: { start: string; e
   return lines
 }
 
-export function formatRecommendedPlan(result: GeneratorResult, busy: { start: string; end: string }[] = []): string {
-  const lines = timetableLines(result, busy)
+export function formatRecommendedPlan(result: GeneratorResult, busy: { start: string; end: string }[] = [], opts: { tables?: boolean } = {}): string {
+  const lines = opts.tables === false ? '' : `${timetableLines(result, busy).join('\n')}\n\n`
   const cut = result.wasCut ? ' (trimmed to fit between your wake and sleep times)' : '';
-  return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines.join('\n')}\n\nTap Confirm to make it live, or tell me what to change.`;
+  return `Here's your day: ${fmtHours(result.placedStudyMinutes)} of study${cut}.\n\n${lines}Tap Confirm to make it live, or tell me what to change.`;
 }
 
 /** True when the student is asking for a week where each day differs,
@@ -359,7 +360,7 @@ export function formatDayOverrides(overrides: DayOverrides): string {
  *  Days 7-13 are shown as Week B; days not in activeDays as "off". */
 export function formatWeeklyPlan(
   week: Record<number, GeneratorResult>,
-  opts: { activeDays?: number[]; repeat?: Repeat; busy?: { start: string; end: string }[] } = {},
+  opts: { activeDays?: number[]; repeat?: Repeat; busy?: { start: string; end: string }[]; tables?: boolean } = {},
 ): string {
   const active = new Set(opts.activeDays ?? [0, 1, 2, 3, 4, 5, 6]);
   const twoWeeks = Object.keys(week).some(k => Number(k) >= 7);
@@ -384,7 +385,29 @@ export function formatWeeklyPlan(
   const repeatNote = twoWeeks
     ? '\n\nWeek A and Week B take turns, starting with Week A this week.'
     : opts.repeat === 'every2' ? '\n\nRuns every 2 weeks, starting this week.' : '';
+  // Without tables the chat shows the week as the day-wise timetable instead.
+  if (opts.tables === false) return `Here's your week:${repeatNote}\n\nTap Confirm to make it live, or tell me what to change.`;
   return `Here's your week:\n\n${body}${repeatNote}\n\nTap Confirm to make it live, or tell me what to change.`;
+}
+
+/** The study sessions of a plan, day by day, for the chat's timetable view.
+ *  A varied or two-week plan gives one entry per day (keys 7-13 are Week B,
+ *  kept only for days that run); a plan that is the same every day gives one
+ *  entry for "all". */
+export function planTimelineDays(
+  week: Record<number, GeneratorResult> | null,
+  single: GeneratorResult | null,
+  activeDays: number[],
+): TimelineDay[] {
+  const slotsOf = (r: GeneratorResult) => r.blocks
+    .filter(b => b.kind === 'study')
+    .map(b => ({ start_time: b.startTime, end_time: b.endTime, subject: b.subjectName || 'Study' }))
+  if (week) {
+    return Object.entries(week)
+      .filter(([k]) => activeDays.includes(Number(k) % 7))
+      .map(([k, r]) => ({ day: Number(k), slots: slotsOf(r) }))
+  }
+  return single ? [{ day: 'all', slots: slotsOf(single) }] : []
 }
 
 export interface PlanRow { start: string; end: string; minutes: number; activity: string; kind: 'study' | 'break' | 'sleep' | 'busy' | 'free' }

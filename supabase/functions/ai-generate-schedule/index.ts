@@ -201,15 +201,18 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // the first good answer wins. A busy Gemini can take 15s just to answer
 // "503", so waiting for it in turn used to use up the whole wait. With a
 // 6s hedge Groq only started at 12s and timed out too, so providers now
-// start 2s apart: Gemini 0s, then each Groq model in turn (2s, 4s, 6s).
-// A second Gemini model was dropped: when Google is busy both usually are,
-// and each Groq model has its own free-tier limit, so a rate-limited one
-// doesn't block the next.
+// start 2s apart: Flash-Lite 0s, then each Groq model in turn, OpenRouter,
+// and Flash last of all.
+// Gemini Flash-Lite runs first (GEMINI_LITE_MODEL): the free tier gives
+// Flash only 20 requests a day but Flash-Lite 500, so Lite takes the bulk
+// and Flash is kept in reserve at the end. Each Groq model has its own
+// free-tier limit, so a rate-limited one doesn't block the next. OpenRouter
+// (OPENROUTER_API_KEY) is one more free-tier try, on its own account.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
 // Wynky's chat thinks harder (the whole conversation and a full week at
-// once), so it gets a longer budget. Gemini Flash answers it alone: Groq
-// starts only when Gemini fails, or if Gemini still hasn't answered after
+// once), so it gets a longer budget. Flash-Lite answers it alone: the next
+// provider starts only when it fails, or if it still hasn't answered after
 // CHAT_HEDGE_MS, so a stuck Google doesn't leave the student waiting.
 // WynkyChat.tsx waits CHAT_TIMEOUT_MS, just above the budget.
 const CHAT_BUDGET_MS = 24_000;
@@ -342,13 +345,22 @@ async function generate(
   const hedgeMs = opts.hedgeMs ?? HEDGE_AFTER_MS;
   const effort = opts.effort ?? "low";
   const groqKey = Deno.env.get("GROQ_API_KEY");
+  const lite = (Deno.env.get("GEMINI_LITE_MODEL") ?? "gemini-3.5-flash-lite").trim();
+  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
+  const openRouterModel = (Deno.env.get("OPENROUTER_MODEL") ?? "openai/gpt-oss-120b:free").trim();
   const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
   const wanted = configured.length ? configured : DEFAULT_GROQ_MODELS;
-  // Checked while Gemini runs; the first Groq try starts after the hedge.
+  // Checked while Flash-Lite runs; the first Groq try starts after the hedge.
   const groqList = groqKey ? groqModels(groqKey, wanted) : Promise.resolve([]);
+  // Flash-Lite goes first: its free allowance is 500 requests a day against
+  // Flash's 20, so most chats are answered without touching Flash's quota.
+  // Groq's free models and OpenRouter follow, and Flash is held in reserve
+  // last: best answers, but the tightest free quota of the lot.
   const providers: Provider[] = [
-    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig, effort) },
+    ...(lite && lite !== model
+      ? [{ name: lite, run: (sig: AbortSignal) => callGemini(userPrompt, apiKey, lite, systemPrompt, sig, "low") }]
+      : []),
     ...(groqKey
       ? wanted.map((_, i) => ({
         name: `groq #${i + 1}`,
@@ -361,6 +373,15 @@ async function generate(
         },
       }))
       : []),
+    // One more free-tier try on a separate account, so it isn't capped by
+    // Groq's own daily limit.
+    ...(openRouterKey
+      ? [{
+        name: "openrouter",
+        run: (sig: AbortSignal) => callOpenRouter(userPrompt, openRouterKey, openRouterModel, systemPrompt, sig, opts.maxTokens),
+      }]
+      : []),
+    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig, effort) },
   ];
 
   const stop = new AbortController();
@@ -433,6 +454,9 @@ async function callGroq(
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      // gpt-oss and Qwen reason first; strict JSON mode makes Groq throw the
+      // whole answer away (json_validate_failed) if the reasoning ends the
+      // text early, so they answer freely and check() validates the JSON.
       ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/")
         ? {}
         : { response_format: { type: "json_object" } }),
@@ -472,6 +496,57 @@ async function callGroq(
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? "";
   if (!text) throw new Error("Empty response from Groq");
+  return text;
+}
+
+/** OpenRouter (OPENROUTER_API_KEY), the last free-tier try after Groq. Same
+ *  OpenAI-compatible shape as callGroq, on a `:free`-suffixed model id
+ *  (OPENROUTER_MODEL) so it never bills. OpenRouter rotates which models
+ *  carry `:free`, so if this one stops working, pick a current one from
+ *  https://openrouter.ai/models?max_price=0 and set OPENROUTER_MODEL. */
+async function callOpenRouter(
+  userPrompt: string,
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  signal: AbortSignal,
+  maxTokens = 4096,
+): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      // OpenRouter asks free-tier callers to identify the app; not required,
+      // but keeps this key out of their generic/unlabelled bucket.
+      "HTTP-Referer": "https://wynko.app",
+      "X-Title": "Wynko",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: maxTokens,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    if (res.status === 404 || /not found|no longer|no endpoints/i.test(errText)) {
+      alertOwner(
+        `ai-retired:openrouter:${model}`,
+        `OpenRouter no longer offers ${model} for free`,
+        "Wynky skips OpenRouter until this is fixed. Pick a current free model at https://openrouter.ai/models?max_price=0 and set the OPENROUTER_MODEL secret in Supabase.",
+      );
+    }
+    throw new Error(`OpenRouter API ${res.status}: ${errText.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
+  if (!text) throw new Error("Empty response from OpenRouter");
   return text;
 }
 
@@ -539,7 +614,7 @@ async function callGemini(
       alertOwner(
         `ai-retired:gemini:${model}`,
         `Google retired the Gemini model ${model}`,
-        "Wynky is answering with Groq only until this is fixed. Set the GEMINI_MODEL secret in Supabase (or the default in ai-generate-schedule) to a current Gemini model.",
+        "Wynky skips this model until it is fixed. Set the GEMINI_MODEL (main) or GEMINI_LITE_MODEL (backup) secret in Supabase, or the default in ai-generate-schedule, to a current Gemini model.",
       );
     }
     throw new GeminiError(res.status, `Gemini API ${res.status}: ${errText}`);
