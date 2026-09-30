@@ -5,11 +5,14 @@ import { useEffect, useState } from 'react'
    the bundle's version now and then and offers a reload when it changed.
    The desktop app's X button only hides it to the tray, so when the window
    comes back after being hidden a while, it reloads on its own (the student
-   has just returned, so nothing is in progress). */
+   has just returned, so nothing is in progress). A window that stays open
+   reloads on its own once it has been idle for IDLE_MS; until then the bar
+   lets the student update right away. */
 
 const BUNDLE = '/home-app-dist/home-app.js'
-const CHECK_MS = 10 * 60 * 1000
+const CHECK_MS = 5 * 60 * 1000
 const AWAY_MS = 2 * 60 * 1000
+const IDLE_MS = 5 * 60 * 1000
 
 async function bundleVersion(): Promise<string | null> {
   try {
@@ -29,17 +32,26 @@ export default function UpdateNotice() {
     let base: string | null = null
     let stopped = false
     let hiddenAt: number | null = null
+    let changed = false
+    let lastInput = Date.now()
+    const idle = () => Date.now() - lastInput >= IDLE_MS
     const check = async (reloadIfNew = false) => {
       const now = await bundleVersion()
       if (stopped || !now) return
       if (base === null) base = now
       else if (now !== base) {
-        if (reloadIfNew) window.location.reload()
+        changed = true
+        if (reloadIfNew || idle()) window.location.reload()
         else setReady(true)
       }
     }
     void check()
     const timer = window.setInterval(() => { void check() }, CHECK_MS)
+    // Once a new version is known, reload as soon as the student goes idle.
+    const idleTimer = window.setInterval(() => { if (changed && idle()) window.location.reload() }, 30_000)
+    const onInput = () => { lastInput = Date.now() }
+    const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
+    inputs.forEach(e => window.addEventListener(e, onInput, { passive: true }))
     const onFocus = () => { void check() }
     const onVisible = () => {
       if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
@@ -52,6 +64,8 @@ export default function UpdateNotice() {
     return () => {
       stopped = true
       window.clearInterval(timer)
+      window.clearInterval(idleTimer)
+      inputs.forEach(e => window.removeEventListener(e, onInput))
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisible)
     }
