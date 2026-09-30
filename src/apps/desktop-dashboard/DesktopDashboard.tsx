@@ -16,6 +16,8 @@ import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
 import WynkyChat from './wynky/WynkyChat'
 import WynkyMemorySettings from './wynky/WynkyMemorySettings'
+import { sb } from '../_shared/supabaseClient'
+import { enforceCommunitySchedule, releaseCommunitySchedule } from './lib/communityEnforce'
 import type { AiSlot } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -4736,7 +4738,7 @@ function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCr
             </div>
             <div className="text-[13px] text-wk-ink-400 leading-relaxed">
               {choice === 'accepted'
-                ? 'This is now your study schedule. It also shows up in Schedules and Today’s Study Plan.'
+                ? 'This is now your study schedule. Focus Lock enforces its blocks, and it shows up in Schedules and Today’s Study Plan.'
                 : choice === 'rejected'
                   ? 'You’re not following this community’s schedule. You can change your mind any time.'
                   : 'Your WynkoHead has created a study schedule for this community.'}
@@ -10643,15 +10645,41 @@ export default function DesktopDashboard() {
     await communitySchedulesQ.refresh()
     return true
   }
+  // Accepting also makes Focus Lock enforce the week (communityEnforce.ts);
+  // rejecting or leaving stops it and switches the member's own schedules back on.
+  async function currentUserId(): Promise<string | null> {
+    const { data } = await sb.auth.getUser()
+    return data.user?.id ?? null
+  }
   async function acceptCommunitySchedule(id: string) {
     const row = scheduleRowFor(id)
     if (!row) return
     if (!followingId) ownScheduleBackup.current = schedule
-    if (await decideSchedule(id, 'accepted')) applyCommunitySchedule(row)
+    if (!(await decideSchedule(id, 'accepted'))) return
+    applyCommunitySchedule(row)
+    try {
+      const uid = await currentUserId()
+      if (uid) await enforceCommunitySchedule(sb, uid, row.name, normalizeWeek(row.week))
+    } catch (e) {
+      setCommunityNotice(`Schedule accepted, but Focus Lock couldn\u2019t be set up for it: ${(e as Error).message}`)
+    }
+  }
+  async function stopEnforcingCommunity(id: string) {
+    const name = scheduleRowFor(id)?.name
+    if (!name) return
+    try {
+      const uid = await currentUserId()
+      if (uid) await releaseCommunitySchedule(sb, uid, name)
+    } catch (e) {
+      setCommunityNotice((e as Error).message)
+    }
   }
   async function rejectCommunitySchedule(id: string) {
     const wasFollowing = followingId === id
-    if (await decideSchedule(id, 'rejected') && wasFollowing) revertToOwnSchedule()
+    if (!(await decideSchedule(id, 'rejected'))) return
+    if (wasFollowing) revertToOwnSchedule()
+    // Also after a re-publish, which resets the choice while the old week is still enforced.
+    await stopEnforcingCommunity(id)
   }
   async function leaveCommunityById(id: string) {
     try {
@@ -10661,6 +10689,7 @@ export default function DesktopDashboard() {
       return
     }
     if (followingId === id) revertToOwnSchedule()
+    await stopEnforcingCommunity(id)
     setActiveCommunity(null)
     await Promise.all([myCommunitiesQ.refresh(), communitySchedulesQ.refresh()])
   }
