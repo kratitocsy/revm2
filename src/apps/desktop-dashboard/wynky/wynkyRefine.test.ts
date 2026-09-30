@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateSchedule } from '../../_shared/scheduleGenerator';
-import { chatPlan, checkRefined, checkRefinedWeek, draftSlots, planForChat, recentChat, standingRequests, toResult, type RefineContext } from './wynkyRefine';
+import { chatPlan, checkRefined, droppedRules, memoryLines, checkRefinedWeek, draftSlots, planForChat, recentChat, standingRequests, toResult, type RefineContext } from './wynkyRefine';
 import { weakSubjects } from './wynkyPlanner';
 
 const subjects = ['Physics', 'Chemistry', 'Maths'];
@@ -177,3 +177,19 @@ describe('chatPlan', () => {
     expect(planForChat(null, draft, all).days[0].day).toBe('all');
   });
 });
+
+describe('memoryLines', () => {
+  it('puts memory first and drops repeats ignoring case', () => {
+    expect(memoryLines(['Chemistry every day', 'exam in April'], ['chemistry every day ', 'no maths after 9 pm'], 40))
+      .toEqual(['Chemistry every day', 'exam in April', 'no maths after 9 pm'])
+  })
+  it('caps the list', () => {
+    expect(memoryLines(['a', 'b', 'c'], ['d'], 2)).toEqual(['a', 'b'])
+  })
+})
+
+describe('droppedRules', () => {
+  it('returns rules no longer followed', () => {
+    expect(droppedRules(['Chemistry every day', '2 subjects a day'], ['2 Subjects a day'])).toEqual(['Chemistry every day'])
+  })
+})

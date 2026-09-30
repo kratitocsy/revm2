@@ -898,3 +898,51 @@ export async function listPickableApps(): Promise<PickableApp[]> {
   }
   return [];
 }
+
+// ── What Wynky remembers (migration 0101) ─────────────────────────────────
+
+export interface MemoryItem { id: number; fact: string; kind: 'fact' | 'rule'; created_at: string }
+
+const memoryKey = (fact: string) => fact.trim().toLowerCase();
+
+/** The student's remembered facts and rules, newest first. Empty if the
+ *  table isn't there yet or can't be read; the chat works without it. */
+export async function loadMemory(sb: SupaLike, userId: string): Promise<MemoryItem[]> {
+  const { data, error } = await sb.from('wynky_memory')
+    .select('id, fact, kind, created_at')
+    .eq('user_id', userId)
+    .order('id', { ascending: false })
+    .limit(60);
+  if (error) return [];
+  return (data || []) as MemoryItem[];
+}
+
+/** Saves new facts and rules (ones already remembered are skipped) and logs
+ *  each to wynky_events as field 'memory', which the archive job moves to R2. */
+export async function rememberFacts(sb: SupaLike, userId: string, cohort: { examKey: string; dayType: string | null }, items: { fact: string; kind: 'fact' | 'rule' }[]): Promise<void> {
+  const seen = new Set<string>();
+  const rows = items
+    .map(i => ({ fact: i.fact.trim().slice(0, 300), kind: i.kind }))
+    .filter(i => i.fact && !seen.has(memoryKey(i.fact)) && seen.add(memoryKey(i.fact)));
+  if (!rows.length) return;
+  const { error } = await sb.from('wynky_memory')
+    .upsert(rows.map(r => ({ user_id: userId, ...r })), { onConflict: 'user_id,fact_key', ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  await recordEvents(sb, userId, cohort, rows.map(r => ({ field: 'memory', value: r.fact, multi: true, action: 'requested' as const })));
+}
+
+/** Forgets facts (matched ignoring case and spacing) and logs each as
+ *  removed. A 'note' removal is logged too, so a request typed before the
+ *  memory table existed stops being sent as well. */
+export async function forgetFacts(sb: SupaLike, userId: string, cohort: { examKey: string; dayType: string | null }, facts: string[]): Promise<void> {
+  const keys = [...new Set(facts.map(memoryKey).filter(Boolean))];
+  if (!keys.length) return;
+  const { error } = await sb.from('wynky_memory').delete().eq('user_id', userId).in('fact_key', keys);
+  // Before migration 0101 there's no table; the 'note' removal below still applies.
+  if (error && !/does not exist|could not find the table|schema cache/i.test(error.message)) throw new Error(error.message);
+  const values = [...new Set(facts.map(f => f.trim().slice(0, 300)).filter(Boolean))];
+  await recordEvents(sb, userId, cohort, values.flatMap(v => [
+    { field: 'memory', value: v, multi: true, action: 'removed' as const },
+    { field: 'note', value: v, action: 'removed' as const },
+  ]));
+}

@@ -88,6 +88,28 @@ export function standingRequests(events: { field: string; value: string; action:
   return out;
 }
 
+/** What the chat sends as "remembered": the memory table first (newest
+ *  first), then typed requests from before it existed, each once. */
+export function memoryLines(memory: string[], notes: string[], max = 40): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of [...memory, ...notes]) {
+    const key = v.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(v.trim());
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Rules the AI stopped following since the last message, so they're
+ *  forgotten rather than kept in memory. */
+export function droppedRules(before: string[], after: string[]): string[] {
+  const kept = new Set(after.map(r => r.trim().toLowerCase()));
+  return before.filter(r => r.trim() && !kept.has(r.trim().toLowerCase()));
+}
+
 /** Returns the refined slots with subjects matched to the student's own
  *  subject names, or the reason the answer can't be used. */
 export function checkRefined(slots: unknown, draft: GeneratorResult, ctx: RefineContext): { ok: true; slots: RefinedSlot[] } | { ok: false; reason: string } {
