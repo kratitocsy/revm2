@@ -210,7 +210,7 @@ const HEDGE_AFTER_MS = 2_000;
 // CHAT_HEDGE_MS, so a stuck Google doesn't leave the student waiting.
 // WynkyChat.tsx waits CHAT_TIMEOUT_MS, just above the budget.
 const CHAT_BUDGET_MS = 24_000;
-const CHAT_HEDGE_MS = 12_000;
+const CHAT_HEDGE_MS = 6_000;
 // Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
 // qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
 // can go at short notice. groqModels() swaps a retired one for another
