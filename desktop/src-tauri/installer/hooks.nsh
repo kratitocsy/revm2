@@ -45,9 +45,13 @@
     ; launch path - Start Menu, Desktop, taskbar pin - go through the
     ; elevated task instead. IconFile keeps the app's real icon even
     ; though the shortcut target is now schtasks.exe.
-    CreateShortCut "$SMPROGRAMS\RevM2.lnk" "$SYSDIR\schtasks.exe" \
+    ; Shortcuts from the pre-rename builds (named RevM2) would otherwise be
+    ; left behind after an upgrade.
+    Delete "$SMPROGRAMS\RevM2.lnk"
+    Delete "$DESKTOP\RevM2.lnk"
+    CreateShortCut "$SMPROGRAMS\Wynko.lnk" "$SYSDIR\schtasks.exe" \
         '/run /tn "RevM2DesktopElevated"' "$INSTDIR\revm2-desktop.exe" 0
-    CreateShortCut "$DESKTOP\RevM2.lnk" "$SYSDIR\schtasks.exe" \
+    CreateShortCut "$DESKTOP\Wynko.lnk" "$SYSDIR\schtasks.exe" \
         '/run /tn "RevM2DesktopElevated"' "$INSTDIR\revm2-desktop.exe" 0
 !macroend
 
@@ -61,7 +65,7 @@
     IfFileExists "$COMMONPROGRAMDATA\RevM2\session.lock" 0 +4
         MessageBox MB_OK|MB_ICONSTOP \
             "A focus session is currently active.$\r$\n$\r$\n\
-            RevM2 can't be uninstalled until the session ends. Open the \
+            Wynko can't be uninstalled until the session ends. Open the \
             app and use its stop-early flow if this is urgent."
         Abort
 !macroend
@@ -71,5 +75,7 @@
     nsExec::ExecToLog 'schtasks /delete /tn "RevM2DesktopElevated" /f'
     Delete "$SMPROGRAMS\RevM2.lnk"
     Delete "$DESKTOP\RevM2.lnk"
+    Delete "$SMPROGRAMS\Wynko.lnk"
+    Delete "$DESKTOP\Wynko.lnk"
     RMDir /r "$COMMONPROGRAMDATA\RevM2"
 !macroend
