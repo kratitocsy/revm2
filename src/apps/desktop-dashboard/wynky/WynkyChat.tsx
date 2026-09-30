@@ -16,7 +16,7 @@ import {
   parseStudyMinutes, clockOptions, parseClock, fmtClock, fmtHours, siteFromText, filterOptions, clearMatch,
   blockOptions, parseBusyText, fmtBusy, formatRecommendedPlan, mentionsWeek, wantsWeeklyVariation, formatWeeklyPlan,
   formatDayOverrides, repeatWeek, WEEK_ORDER, DAY_NAMES, planDays, dayLabel, repeatFromText, mentionedDays,
-  wantsDaysOff, mentionsWeekB, type ChatOption, type Repeat,
+  wantsDaysOff, mentionsWeekB, planTimelineDays, type ChatOption, type Repeat,
 } from './wynkyChatFlow'
 import {
   rank, best, preselect, isSettled, latestOwn, sourceLabel, blockMinutesPriors, sitePriors, busyPriors, needsBusyQuestion,
@@ -24,6 +24,8 @@ import {
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
 import PlanMessage from './PlanMessage'
+import ScheduleTables from './ScheduleTables'
+import type { Day as TimelineDay, TimelineSettings } from './scheduleTimeline'
 import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, memoryLines, droppedRules, type ChatSettings, type ChatDay } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
@@ -72,7 +74,10 @@ const MULTI_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'busy', 'd
 const FILTER_STEPS: Step[] = ['subjects', 'sites', 'channels', 'apps', 'hours', 'wake', 'sleep']
 
 // 'divider' separates earlier chats (past: true) from this one.
-interface Msg { id: number; from: 'bot' | 'user' | 'divider'; text: string; past?: boolean }
+/** `sched` is a plan shown as the day-wise timetable: `view` is the message's words without
+ *  the plan lines (`text` keeps them, for the history and the AI). Not saved with the chat. */
+interface Sched { view: string; days: TimelineDay[]; settings: TimelineSettings }
+interface Msg { id: number; from: 'bot' | 'user' | 'divider'; text: string; past?: boolean; sched?: Sched }
 // How many earlier messages the chat shows when it opens (the table keeps 300).
 const HISTORY_SHOWN = 60
 // Set-up questions a typed full request can skip straight past.
@@ -425,9 +430,9 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       window.alert("Couldn't clear your history just now. Please try again.")
     }
   }
-  function say(text: string) {
+  function say(text: string, sched?: Sched) {
     const id = nextId.current++
-    setMessages(m => [...m, { id, from: 'bot', text }])
+    setMessages(m => [...m, { id, from: 'bot', text, sched }])
     remember('bot', text)
   }
   function echo(text: string) {
@@ -435,11 +440,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setMessages(m => [...m, { id, from: 'user', text }])
     remember('user', text)
   }
-  function ask(next: Step, text: string, initialPicked: string[] = []) {
+  function ask(next: Step, text: string, initialPicked: string[] = [], sched?: Sched) {
     setStep(next)
     setPicked(initialPicked)
     setInput('')
-    say(text)
+    say(text, sched)
   }
   function freeTimeLists() {
     const tags = profileRef.current?.known.distractionTags || []
@@ -711,7 +716,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
    *  (a varied week, days off, repeat every 2 weeks, a day-specific set-up).
    *  Values not passed come from state; pass the ones just changed, since
    *  state set in the same handler isn't visible yet. */
-  function showPlan(v: Partial<{ single: GeneratorResult | null; week: Record<number, GeneratorResult> | null; days: number[]; rep: Repeat; overrides: DayOverrides; busy: string[] }> = {}, head = '') {
+  function showPlan(v: Partial<{ single: GeneratorResult | null; week: Record<number, GeneratorResult> | null; days: number[]; rep: Repeat; overrides: DayOverrides; busy: string[]; wake: string | null; sleep: string | null }> = {}, head = '') {
     const single = v.single !== undefined ? v.single : ruleResult
     const week = v.week !== undefined ? v.week : weekResult
     const days = v.days ?? activeDays
@@ -720,10 +725,27 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     const busy = busyWindows(v.busy ?? draft.busy)
     if (!week && !single) return
     const byDay = week || rep !== 'weekly' || days.length < 7 || Object.keys(overrides).length > 0
-    if (!byDay && single) { ask('preview', head + formatRecommendedPlan(single, busy)); return }
-    const shownWeek = week ?? repeatWeek(single!)
-    const extra = formatDayOverrides(liveOverrides(overrides, shownWeek))
-    ask('preview', head + formatWeeklyPlan(shownWeek, { activeDays: days, repeat: rep, busy }) + (extra ? `\n\n${extra}` : ''))
+    const shownWeek = byDay ? (week ?? repeatWeek(single!)) : null
+    const extra = shownWeek ? formatDayOverrides(liveOverrides(overrides, shownWeek)) : ''
+    const opts = { activeDays: days, repeat: rep, busy }
+    const wordsAndPlan = (tables: boolean) => shownWeek
+      ? head + formatWeeklyPlan(shownWeek, { ...opts, tables }) + (extra ? `\n\n${extra}` : '')
+      : head + formatRecommendedPlan(single!, busy, { tables })
+    // The plan is shown as the day-wise timetable; the message text keeps the
+    // plan lines too, for the history and for what the AI reads back.
+    const agreed = chatSettingsRef.current
+    ask('preview', wordsAndPlan(true), [], {
+      view: wordsAndPlan(false),
+      days: planTimelineDays(shownWeek, shownWeek ? null : single, days),
+      settings: {
+        wake: (v.wake !== undefined ? v.wake : draft.wakeTime) ?? undefined,
+        sleep: (v.sleep !== undefined ? v.sleep : draft.sleepTime) ?? undefined,
+        busy: busy.map(b => `${b.start}-${b.end}`),
+        active_days: days,
+        lunch: agreed?.lunch,
+        dinner: agreed?.dinner,
+      },
+    })
   }
 
   /** The plan as one result per day, for anything that works day by day. */
@@ -977,7 +999,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setRuleResult(shown)
     setWeekResult(week)
     setPlainResult(week || shown === result ? null : result)
-    showPlan({ single: shown, week, days: shape.days, rep: shape.rep, busy: d.busy }, head)
+    showPlan({ single: shown, week, days: shape.days, rep: shape.rep, busy: d.busy, wake: d.wakeTime, sleep: d.sleepTime }, head)
   }
 
   /** A typed change to named days only ("move Tuesday Physics to 5 pm",
@@ -1122,7 +1144,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
         setRuleResult(start)
         setWeekResult(null)
         setPlainResult(null)
-        showPlan({ single: start, week: null, busy: d.busy }, `I couldn't read that just now (${reason}). Here's a starting plan; please send your request again.\n\n`)
+        showPlan({ single: start, week: null, busy: d.busy, wake: d.wakeTime, sleep: d.sleepTime }, `I couldn't read that just now (${reason}). Here's a starting plan; please send your request again.\n\n`)
         return
       }
       ask('preview', `I couldn't do that just now (${reason}). Your plan is unchanged; please try again in a moment.`)
@@ -1160,7 +1182,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       setPlainResult(null)
       setActiveDays(days)
       setRepeat(rep)
-      showPlan({ single: start, week: null, days, rep, busy: next.busy }, `${data.reply}\n\n`)
+      showPlan({ single: start, week: null, days, rep, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${data.reply}\n\n`)
       return
     }
     if (!data.days?.length) {
@@ -1181,7 +1203,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       setRuleResult(start)
       setWeekResult(null)
       setPlainResult(null)
-      showPlan({ single: start, week: null, busy: next.busy }, `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so here's a starting plan instead. Tell me what to change.\n\n`)
+      showPlan({ single: start, week: null, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so here's a starting plan instead. Tell me what to change.\n\n`)
       return
     }
     if (!plan.ok) {
@@ -1195,7 +1217,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setPlainResult(null)
     setActiveDays(plan.activeDays)
     setRepeat(rep)
-    showPlan({ single, week: plan.week, days: plan.activeDays, rep, busy: next.busy }, `${data.reply}\n\n`)
+    showPlan({ single, week: plan.week, days: plan.activeDays, rep, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${data.reply}\n\n`)
   }
 
   // ── Options for the current question ──────────────────────────────────
@@ -1849,9 +1871,14 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
           ) : m.from === 'bot' ? (
             <div key={m.id} className="flex items-end gap-2.5">
               <MascotAvatar size={34} />
-              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
+              <div className={`${m.sched ? 'max-w-[92%] min-w-0' : 'max-w-[80%]'} px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border`}
                 style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
-                <PlanMessage text={m.text} />
+                {m.sched ? (
+                  <>
+                    <PlanMessage text={m.sched.view} />
+                    <ScheduleTables key={m.id} days={m.sched.days} settings={m.sched.settings} />
+                  </>
+                ) : <PlanMessage text={m.text} />}
               </div>
             </div>
           ) : (

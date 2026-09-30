@@ -203,6 +203,9 @@ export interface ChatSettings {
   sleep?: string;
   busy?: string[];
   study_windows?: string[];
+  /** "HH:MM-HH:MM"; the plan keeps study out of these. */
+  lunch?: string;
+  dinner?: string;
   week_shape?: 'same' | 'vary' | 'ab';
   repeat?: 'weekly' | 'every2' | 'ab';
   active_days?: number[];
