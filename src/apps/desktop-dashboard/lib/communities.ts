@@ -11,7 +11,7 @@ import { sb } from '../../_shared/supabaseClient';
    access control is server-side (RLS + security-definer checks).
    ============================================================ */
 
-export type CommunityJoinStatus = 'joined' | 'requested' | 'already_member' | 'full' | 'invalid';
+export type CommunityJoinStatus = 'joined' | 'requested' | 'already_member' | 'full' | 'invalid' | 'password_required' | 'wrong_password';
 export type ScheduleChoice = 'accepted' | 'rejected';
 export type WynkoHeadApplication = 'none' | 'pending' | 'verified' | 'rejected';
 
@@ -41,6 +41,8 @@ export interface DiscoverCommunity {
   head_name: string;
   join_requires_approval: boolean;
   requested: boolean;
+  /** Needs the WynkoHead's password to join (migration 0103). */
+  is_private?: boolean;
 }
 
 export interface CommunityDetailData {
@@ -177,9 +179,12 @@ export function parseInviteInput(input: string): string {
   }
 }
 
-export async function joinCommunity(opts: { groupId?: string; token?: string; note?: string }): Promise<{ status: CommunityJoinStatus; groupId: string | null }> {
+export async function joinCommunity(opts: { groupId?: string; token?: string; note?: string; password?: string }): Promise<{ status: CommunityJoinStatus; groupId: string | null }> {
   const rows = await call<{ status: CommunityJoinStatus; group_id: string | null }[]>(
-    sb.rpc('rpc_join_community', { p_group_id: opts.groupId ?? null, p_token: opts.token ?? null, p_note: opts.note ?? null }),
+    sb.rpc('rpc_join_community', {
+      p_group_id: opts.groupId ?? null, p_token: opts.token ?? null, p_note: opts.note ?? null,
+      ...(opts.password ? { p_password: opts.password } : {}),
+    }),
     'Could not join the community',
   );
   const r = rows?.[0];
@@ -241,6 +246,16 @@ export const decideJoinRequest = (requestId: string, approve: boolean) =>
 export async function updateCommunitySettings(groupId: string, patch: { name?: string; description?: string; join_requires_approval?: boolean }) {
   const { error } = await sb.from('study_groups').update(patch).eq('id', groupId);
   if (error) throw new Error(messageOf(error, 'Could not save community settings'));
+}
+
+/** Public = anyone joins instantly; private = joining needs this password.
+ *  Private with no password keeps the current one. */
+export const setCommunityAccess = (groupId: string, isPrivate: boolean, password?: string) =>
+  call<string>(sb.rpc('rpc_set_community_access', { p_group_id: groupId, p_private: isPrivate, p_password: password || null }), 'Could not change who can join');
+
+export async function fetchCommunityIsPrivate(groupId: string): Promise<boolean> {
+  const { data } = await sb.from('study_groups').select('visibility').eq('id', groupId).maybeSingle();
+  return !!data && data.visibility !== 'public';
 }
 
 export async function postAnnouncement(groupId: string, a: { title: string; message: string; pinned: boolean; important: boolean }) {

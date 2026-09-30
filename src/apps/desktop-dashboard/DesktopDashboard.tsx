@@ -32,7 +32,7 @@ import {
   useLoader, useRealtimeRefresh, fetchMyCommunities, fetchDiscoverCommunities, fetchMyCommunitySchedules, fetchMyWynkoHeadStatus,
   joinCommunity, leaveCommunity, setHomeCommunity, parseInviteInput, fetchCommunityDetail, fetchAnnouncements, setScheduleChoice,
   applyAsWynkoHead, createCommunity, publishCommunitySchedule, loadScheduleDraft, saveScheduleDraft, fetchHeadOverview,
-  fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, postAnnouncement, deleteAnnouncement,
+  fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, setCommunityAccess, fetchCommunityIsPrivate, postAnnouncement, deleteAnnouncement,
   communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout, MIN_PAYOUT_INR, setMyDateOfBirth,
   fetchMonetizedCommunityIds, setCommunityMonetization, transferCommunityOwnership, fetchMyHomeCommunity,
   fetchReferralSummary, referralLink, type ReferralSummary,
@@ -3695,6 +3695,8 @@ function joinStatusMessage(status: string): string {
   if (status === 'requested') return '✓ Request sent — you\u2019ll join once the WynkoHead approves it.'
   if (status === 'already_member') return 'You’re already in this community.'
   if (status === 'full') return 'This community is full.'
+  if (status === 'password_required') return 'This community is private. Enter its password to join.'
+  if (status === 'wrong_password') return 'That password isn\u2019t right.'
   return 'That invite link or code isn’t valid.'
 }
 
@@ -3719,6 +3721,9 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
   const [showDiscover, setShowDiscover] = useState(false)
   const discoverQ = useLoader(showDiscover ? fetchDiscoverCommunities : null, [] as DiscoverCommunity[], [showDiscover], 0)
   const [discoverMsg, setDiscoverMsg] = useState<Record<string, string>>({})
+  // Private community being joined from Discover: its id and the typed password.
+  const [pwFor, setPwFor] = useState<string | null>(null)
+  const [pw, setPw] = useState('')
   const [discoverSearch, setDiscoverSearch] = useState('')
   const discoverIdsKey = discoverQ.data.map(c => c.id).join(',')
   const discoverMonetizedQ = useLoader(discoverIdsKey ? () => fetchMonetizedCommunityIds(discoverIdsKey.split(',')) : null, new Set<string>(), [discoverIdsKey], 0)
@@ -3787,11 +3792,14 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
 
   async function joinFromDiscover(c: DiscoverCommunity) {
     if (busy) return
+    if (c.is_private && pwFor !== c.id) { setPwFor(c.id); setPw(''); return }
+    if (c.is_private && !pw.trim()) return
     setBusy(true)
     try {
-      const r = await joinCommunity({ groupId: c.id })
+      const r = await joinCommunity({ groupId: c.id, ...(c.is_private ? { password: pw } : {}) })
       setDiscoverMsg(m => ({ ...m, [c.id]: joinStatusMessage(r.status) }))
-      if (r.status === 'joined') await onRefresh()
+      if (r.status === 'password_required') { setPwFor(c.id); setPw('') }
+      if (r.status === 'joined') { setPwFor(null); setPw(''); await onRefresh() }
       await discoverQ.refresh()
     } catch (e) {
       setDiscoverMsg(m => ({ ...m, [c.id]: (e as Error).message }))
@@ -4084,7 +4092,7 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
               <div className="text-2xl mb-2">🧭</div>
               <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.2em] mb-0.5">DISCOVER</div>
               <div className="text-lg font-bold text-white">Communities you can join</div>
-              <div className="text-wk-ink-500 text-[12px] mt-1">Run by verified WynkoHeads. Joining or a join request is decided by that community's WynkoHead.</div>
+              <div className="text-wk-ink-500 text-[12px] mt-1">Public communities are free to join. Private ones 🔒 need the password from their WynkoHead.</div>
             </div>
             <div className="relative mb-4">
               <svg viewBox="0 0 24 24" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-wk-ink-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
@@ -4111,14 +4119,29 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
                       <div className="text-sm font-semibold text-wk-ink-100 flex items-center gap-1.5 min-w-0">
                         <span className="truncate">{c.name}</span>{discoverMonetizedQ.data.has(c.id) && <VerifiedTick size={14} />}
                       </div>
-                      <div className="text-[11px] text-wk-ink-500 truncate">{fmt(c.member_count)} members · by {c.head_name}</div>
+                      <div className="text-[11px] text-wk-ink-500 truncate">{c.is_private ? '🔒 Private · ' : ''}{fmt(c.member_count)} members · by {c.head_name}</div>
                     </div>
-                    <button onClick={() => void joinFromDiscover(c)} disabled={busy || c.requested}
-                      className="px-4 py-1.5 rounded-lg text-xs font-semibold text-wk-black-950 flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
-                      style={{ background: '#FF8A3D' }}>
-                      {c.requested ? 'Requested' : c.join_requires_approval ? 'Request' : 'Join'}
-                    </button>
+                    {pwFor !== c.id && (
+                      <button onClick={() => void joinFromDiscover(c)} disabled={busy || c.requested}
+                        className="px-4 py-1.5 rounded-lg text-xs font-semibold text-wk-black-950 flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+                        style={{ background: '#FF8A3D' }}>
+                        {c.requested ? 'Requested' : c.join_requires_approval ? 'Request' : 'Join'}
+                      </button>
+                    )}
                   </div>
+                  {pwFor === c.id && (
+                    <div className="flex items-center gap-2 mt-2.5">
+                      <input type="password" autoFocus value={pw} onChange={e => setPw(e.target.value)} maxLength={64}
+                        onKeyDown={e => { if (e.key === 'Enter') void joinFromDiscover(c) }}
+                        placeholder="Community password" aria-label={`Password for ${c.name}`}
+                        className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border bg-transparent text-[13px] text-wk-ink-200 outline-none placeholder-wk-ink-600 focus:border-wk-orange-500/50"
+                        style={{ borderColor: '#3A3A3A' }} />
+                      <button onClick={() => void joinFromDiscover(c)} disabled={busy || !pw.trim()}
+                        className="px-4 py-1.5 rounded-lg text-xs font-semibold text-wk-black-950 flex-shrink-0 hover:opacity-90 disabled:opacity-50"
+                        style={{ background: '#FF8A3D' }}>Join</button>
+                      <button onClick={() => { setPwFor(null); setPw('') }} className="text-[12px] text-wk-ink-500 hover:text-wk-ink-200">Cancel</button>
+                    </div>
+                  )}
                   {discoverMsg[c.id] && <div className="text-[11px] text-emerald-400 mt-2">{discoverMsg[c.id]}</div>}
                 </div>
               ))}
@@ -4972,6 +4995,65 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
 // earnings and payouts use the existing RevHead ledger/payout backend.
 type HeadTab = 'overview' | 'schedule' | 'announcements' | 'analytics' | 'earnings' | 'manage'
 type EarningsRange = 7 | 30 | 90
+
+// Public: anyone joins instantly. Private: joining needs the password set here
+// (the invite link still lets people in directly). Migration 0103.
+function CommunityAccessControl({ groupId }: { groupId: string }) {
+  const [isPrivate, setIsPrivate] = useState<boolean | null>(null)
+  const [choice, setChoice] = useState<'public' | 'private'>('public')
+  const [password, setPassword] = useState('')
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    let off = false
+    void fetchCommunityIsPrivate(groupId).then(p => { if (!off) { setIsPrivate(p); setChoice(p ? 'private' : 'public') } })
+    return () => { off = true }
+  }, [groupId])
+
+  const needsPassword = choice === 'private' && !isPrivate
+  const pwOk = password.length >= 4 && password.length <= 64
+  const changed = (choice === 'private') !== isPrivate || (choice === 'private' && password.length > 0)
+  async function save() {
+    setSaving(true); setMsg(null)
+    try {
+      await setCommunityAccess(groupId, choice === 'private', choice === 'private' ? password : undefined)
+      setIsPrivate(choice === 'private'); setPassword('')
+      setMsg({ ok: true, text: choice === 'private' ? 'Private: students need the password to join.' : 'Public: anyone can join instantly.' })
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border px-4 py-3.5" style={CM_ROW}>
+      <div className="text-sm font-semibold text-wk-ink-100">Who can join</div>
+      <div className="flex gap-2 mt-2.5">
+        {(['public', 'private'] as const).map(v => (
+          <button key={v} type="button" onClick={() => { setChoice(v); setMsg(null) }} disabled={isPrivate === null}
+            className="flex-1 px-3 py-2 rounded-lg border text-left transition-colors"
+            style={choice === v ? { borderColor: '#FF8A3D', background: 'rgba(255,138,61,0.12)' } : { borderColor: '#3A3A3A' }}>
+            <div className="text-[13px] font-semibold text-wk-ink-100">{v === 'public' ? 'Public' : '🔒 Private'}</div>
+            <div className="text-[11px] text-wk-ink-500 mt-0.5">{v === 'public' ? 'Anyone joins instantly' : 'Joining needs your password'}</div>
+          </button>
+        ))}
+      </div>
+      {choice === 'private' && (
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} maxLength={64}
+          placeholder={isPrivate ? 'New password (leave empty to keep the current one)' : 'Set a password (4-64 characters)'}
+          className={`${HEAD_INPUT} mt-2.5`} />
+      )}
+      <div className="flex items-center justify-end gap-3 mt-2.5">
+        {msg && <span className={`text-[12px] ${msg.ok ? 'text-emerald-400' : 'text-amber-300'}`}>{msg.text}</span>}
+        <button onClick={() => void save()} disabled={saving || !changed || ((needsPassword || password.length > 0) && !pwOk)}
+          className="px-5 py-2 rounded-xl text-sm font-semibold text-wk-black-950 enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: '#FF8A3D' }}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+      <div className="text-[11px] text-wk-ink-500 mt-2">Your invite link always lets people in directly.</div>
+    </div>
+  )
+}
 
 interface HeadCommunitySettings {
   name: string
@@ -6019,24 +6101,13 @@ function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChan
             <Ico n="copy" cls="w-4 h-4" /> {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
-        <div className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5" style={CM_ROW}>
-          <div>
-            <div className="text-sm font-semibold text-wk-ink-100">Approve new students manually</div>
-            <div className="text-[12px] text-wk-ink-500 mt-0.5">Students who use your link wait for your approval before they join.</div>
-          </div>
-          <button role="switch" aria-checked={settings.requireApproval} aria-label="Approve new students manually"
-            onClick={() => { void onChange({ requireApproval: !settings.requireApproval }).then(err => { if (err) setSaveError(err) }) }}
-            className="relative w-11 h-6 rounded-full flex-shrink-0 transition-colors"
-            style={{ background: settings.requireApproval ? '#FF8A3D' : 'rgba(90,86,80,0.5)' }}>
-            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: settings.requireApproval ? 22 : 2 }} />
-          </button>
-        </div>
+        <CommunityAccessControl groupId={groupId} />
       </div>
 
       <div className="p-5 rounded-2xl border" style={CM_CARD}>
-        <CmCardTitle icon="check" title="Join Requests" sub={settings.requireApproval || pending.length > 0 ? `${pending.length} waiting for approval` : 'Manual approval is off'} />
-        {!settings.requireApproval && pending.length === 0 ? (
-          <div className="text-[13px] text-wk-ink-500 py-2">New students join instantly. Turn on manual approval above to review them first.</div>
+        <CmCardTitle icon="check" title="Join Requests" sub={pending.length > 0 ? `${pending.length} waiting for approval` : 'None waiting'} />
+        {pending.length === 0 ? (
+          <div className="text-[13px] text-wk-ink-500 py-2">Students join instantly: anyone for a public community, with the password for a private one.</div>
         ) : pending.length === 0 ? (
           <div className="text-[13px] text-wk-ink-500 py-2">No pending requests.</div>
         ) : (
