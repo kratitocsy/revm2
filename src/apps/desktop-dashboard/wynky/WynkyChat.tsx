@@ -24,6 +24,8 @@ import {
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
 import PlanMessage from './PlanMessage'
+import { ScheduleTables } from './ScheduleTables'
+import './schedule-tables.css'
 import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, memoryLines, droppedRules, type ChatSettings, type ChatDay } from './wynkyRefine'
 import type { GeneratorResult } from '../../_shared/scheduleGenerator'
 
@@ -373,6 +375,8 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   // Set once signed in; every message after that is saved to the student's history.
   const uidRef = useRef<string | null>(null)
   const [hasHistory, setHasHistory] = useState(false)
+  const [latestPlanMsgId, setLatestPlanMsgId] = useState<number | null>(null)
+  const [latestPlanDays, setLatestPlanDays] = useState<ChatDay[]>([])
   // History writes run one after another, so saved order matches chat order.
   const writeChain = useRef<Promise<unknown>>(Promise.resolve())
 
@@ -720,8 +724,18 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     const busy = busyWindows(v.busy ?? draft.busy)
     if (!week && !single) return
     const byDay = week || rep !== 'weekly' || days.length < 7 || Object.keys(overrides).length > 0
-    if (!byDay && single) { ask('preview', head + formatRecommendedPlan(single, busy)); return }
     const shownWeek = week ?? repeatWeek(single!)
+    // Build ChatDay[] for ScheduleTables from the resolved week plan.
+    const planDaysForTable: ChatDay[] = days.map(day => ({
+      day,
+      slots: (shownWeek[day]?.blocks ?? [])
+        .filter(b => b.kind === 'study')
+        .map(b => ({ start_time: b.start, end_time: b.end, subject: b.subject ?? '' })),
+    }))
+    const planMsgId = nextId.current
+    setLatestPlanMsgId(planMsgId)
+    setLatestPlanDays(planDaysForTable)
+    if (!byDay && single) { ask('preview', head + formatRecommendedPlan(single, busy)); return }
     const extra = formatDayOverrides(liveOverrides(overrides, shownWeek))
     ask('preview', head + formatWeeklyPlan(shownWeek, { activeDays: days, repeat: rep, busy }) + (extra ? `\n\n${extra}` : ''))
   }
@@ -1852,6 +1866,19 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
               <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-[13px] text-wk-ink-200 leading-relaxed whitespace-pre-wrap break-words border"
                 style={{ background: 'rgba(22,22,24,0.85)', borderColor: '#26262A' }}>
                 <PlanMessage text={m.text} />
+                {m.id === latestPlanMsgId && latestPlanDays.length > 0 && (
+                  <ScheduleTables
+                    days={latestPlanDays}
+                    settings={{
+                      wake: draft.wakeTime ?? undefined,
+                      sleep: draft.sleepTime ?? undefined,
+                      busy: draft.busy.filter(b => b !== 'NOTHING_FIXED'),
+                      active_days: activeDays,
+                      lunch: chatSettingsRef.current?.lunch,
+                      dinner: chatSettingsRef.current?.dinner,
+                    }}
+                  />
+                )}
               </div>
             </div>
           ) : (

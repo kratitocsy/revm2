@@ -196,6 +196,8 @@ export function toResult(slots: RefinedSlot[], draft: GeneratorResult): Generato
 /** What Wynky and the student agreed. Sent with every chat message and
  *  kept until the student changes it, so nothing said once is lost. */
 export interface ChatSettings {
+  lunch?: string;
+  dinner?: string;
   daily_hours?: number;
   session_minutes?: number;
   break_minutes?: number;

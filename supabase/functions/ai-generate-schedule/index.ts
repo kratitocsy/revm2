@@ -144,7 +144,7 @@ smart friend: short, warm, clear, in the student's language style. Never robotic
 
 You get:
 - SETTINGS: what you and the student have agreed so far (hours a day, session length, break length, wake, sleep,
-  busy times, preferred study windows, week shape, rules in the student's own words). These stay true until the
+  busy times, preferred study windows, lunch and dinner times, week shape, rules in the student's own words). These stay true until the
   student changes them. Never silently drop or change one.
 - CURRENT PLAN: the timetable the student is looking at now.
 - RECENT CHAT and the STUDENT'S MESSAGE NOW.
@@ -165,6 +165,9 @@ What to do with each message:
    - Breaks between sessions follow break_minutes; nothing inside busy times; nothing before wake or after sleep.
    - Every rule is followed on every day (e.g. "2 subjects a day" means exactly 2 different subjects each day).
    - Use only subject names from SUBJECTS, copied exactly.
+   - Keep lunch and dinner windows free of study sessions. If SETTINGS has no lunch or dinner
+     time yet, still build the plan, then ask once in your reply "When do you usually have
+     lunch and dinner?" and save the answer to settings.
 4. If the message is only a question or chat, answer it and leave the plan out. If something is truly unclear
    and guessing would likely be wrong, ask ONE short question and leave the plan out. Otherwise don't ask; decide
    and say what you assumed.
@@ -179,7 +182,7 @@ Days: 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat. active_days = days with study (
 
 Return ONLY raw JSON, no markdown:
 {"reply":"...","settings":{"daily_hours":number,"session_minutes":number,"break_minutes":number,"wake":"HH:MM","sleep":"HH:MM",
-"busy":["HH:MM-HH:MM"],"study_windows":["HH:MM-HH:MM"],"week_shape":"same|vary|ab","repeat":"weekly|every2|ab",
+"busy":["HH:MM-HH:MM"],"study_windows":["HH:MM-HH:MM"],"lunch":"HH:MM-HH:MM","dinner":"HH:MM-HH:MM","week_shape":"same|vary|ab","repeat":"weekly|every2|ab",
 "active_days":[0,1,2,3,4,5,6],"rules":["..."]},
 "days":[{"day":"all" or 0-13,"slots":[["HH:MM","HH:MM","Subject"]]}],
 "remember":["..."],"forget":["..."]}
@@ -430,7 +433,9 @@ async function callGroq(
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      response_format: { type: "json_object" },
+      ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/")
+        ? {}
+        : { response_format: { type: "json_object" } }),
       // Groq's free tier allows 8,000 tokens a minute per model; a week's
       // plan is well under 4096, and a smaller cap keeps each request
       // inside that allowance.
@@ -442,6 +447,14 @@ async function callGroq(
   });
   if (!res.ok) {
     const errText = await res.text();
+    // Groq attaches the model's text to a JSON-validation 400. If it is usable,
+    // hand it to check()/extractJson() instead of throwing the answer away.
+    if (res.status === 400 && /json_validate_failed/.test(errText)) {
+      try {
+        const salvaged = JSON.parse(errText)?.error?.failed_generation;
+        if (typeof salvaged === "string" && salvaged.trim()) return salvaged;
+      } catch { /* fall through to the normal error */ }
+    }
     // Retired, or taken off the free tier (Groq answers 402/403 or names
     // billing or the plan): stop using it and let groqModels() pick a free,
     // live stand-in from the next request on. A 429 is only the per-minute
@@ -651,6 +664,8 @@ function cleanSettings(v: unknown): Record<string, unknown> {
     sleep: typeof o.sleep === "string" && HHMM.test(o.sleep) ? o.sleep : undefined,
     busy: ranges(o.busy),
     study_windows: ranges(o.study_windows),
+    lunch: typeof o.lunch === "string" && RANGE.test(o.lunch) ? o.lunch : undefined,
+    dinner: typeof o.dinner === "string" && RANGE.test(o.dinner) ? o.dinner : undefined,
     week_shape: ["same", "vary", "ab"].includes(o.week_shape as string) ? o.week_shape : undefined,
     repeat: ["weekly", "every2", "ab"].includes(o.repeat as string) ? o.repeat : undefined,
     active_days: Array.isArray(o.active_days)
@@ -733,7 +748,11 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
 
   let soft: string | null = null;
   const target = typeof settings.daily_hours === "number" ? Math.round(settings.daily_hours * 60) : 0;
-  const busy = (settings.busy as string[]) || [];
+  const busy = [
+    ...((settings.busy as string[]) || []),
+    ...(typeof settings.lunch === "string" ? [settings.lunch] : []),
+    ...(typeof settings.dinner === "string" ? [settings.dinner] : []),
+  ];
   for (const d of days) {
     if (!d.slots.length) continue;
     const label = d.day === "all" ? "each day" : dayName(d.day);
