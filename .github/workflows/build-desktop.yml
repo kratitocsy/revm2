@@ -37,7 +37,8 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: revm2-desktop-windows
-          path: |
-            desktop/src-tauri/target/release/bundle/**
-            desktop/src-tauri/target/release/revm2-desktop.exe
+          # Only the NSIS setup (Wynko_<version>_x64-setup.exe): it carries the
+          # installer hooks (elevated task, removal of the old revm2-desktop
+          # install). The .msi and the bare exe skip those, so they're left out.
+          name: wynko-desktop-windows
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
