@@ -177,7 +177,12 @@ What to do with each message:
    and say what you assumed.
 5. "reply": 1-3 short sentences saying what you changed and any assumption or problem. Don't list the timetable;
    the app shows it.
-6. "remember": new lasting facts about the student worth keeping for future chats ("works on Wynko 1:30-5 pm",
+6. "allow": only when the student names YouTube channels or apps to allow for a subject ("Physics Wallah for
+   physics", "keep VS Code open for coding"): [{"subject":"Physics","channels":["Physics Wallah"],"apps":["VS Code"]}].
+   Channel names are as the student said them; the app looks up the real channel. For apps, copy the name from
+   DEVICE APPS exactly; if DEVICE APPS is "not available" or the app isn't in it, leave it out and say in reply
+   that apps can be picked in the Wynko desktop app. Leave "allow" out when nothing was named.
+7. "remember": new lasting facts about the student worth keeping for future chats ("works on Wynko 1:30-5 pm",
    "exam in April"), short, in plain words. "forget": earlier facts or rules the student says are no longer true.
 
 Week shape: "same" = one plan every active day; "vary" = each day can differ (give every active day);
@@ -189,6 +194,7 @@ Return ONLY raw JSON, no markdown:
 "busy":["HH:MM-HH:MM"],"study_windows":["HH:MM-HH:MM"],"lunch":"HH:MM-HH:MM","dinner":"HH:MM-HH:MM","named_blocks":[{"range":"HH:MM-HH:MM","label":"..."}],"week_shape":"same|vary|ab","repeat":"weekly|every2|ab",
 "active_days":[0,1,2,3,4,5,6],"rules":["..."]},
 "days":[{"day":"all" or 0-13,"slots":[["HH:MM","HH:MM","Subject"]]}],
+"allow":[{"subject":"...","channels":["..."],"apps":["..."]}],
 "remember":["..."],"forget":["..."]}
 
 "days" is left out (or []) when the plan doesn't change. With week_shape "same" give one entry with day "all".
@@ -806,6 +812,14 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
   if (!reply) return fail("no reply");
   const settings = cleanSettings(out.settings);
   const bySubject = new Map(subjects.map((x) => [x.toLowerCase(), x]));
+  // Channels and apps the student named, per subject; the app resolves them.
+  const allow = (Array.isArray(out.allow) ? out.allow : []).slice(0, 10).flatMap((a) => {
+    const r = a && typeof a === "object" ? a as Record<string, unknown> : {};
+    const subject = typeof r.subject === "string" ? bySubject.get(r.subject.trim().toLowerCase()) : undefined;
+    const channels = strList(r.channels, 6).map((c) => c.slice(0, 60));
+    const apps = strList(r.apps, 8).map((c) => c.slice(0, 60));
+    return subject && (channels.length || apps.length) ? [{ subject, channels, apps }] : [];
+  });
   const days: ChatDay[] = [];
   const seen = new Set<string>();
   for (const raw of chatDays(out.days).slice(0, 14)) {
@@ -854,7 +868,7 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
   return {
     error: null,
     soft,
-    value: { reply, settings, days, remember: strList(out.remember, 8).map((r) => r.slice(0, 200)), forget: strList(out.forget, 8).map((r) => r.slice(0, 200)) },
+    value: { reply, settings, days, allow, remember: strList(out.remember, 8).map((r) => r.slice(0, 200)), forget: strList(out.forget, 8).map((r) => r.slice(0, 200)) },
   };
 }
 
@@ -904,6 +918,7 @@ Deno.serve(async (req: Request) => {
       const prompt = `SUBJECTS: ${subjectNames.join(", ")}
 WEAK SUBJECTS (least studied lately): ${strList(body.weak, 20).join(", ") || "none known"}
 TODAY: ${str(body.today, 12) || "unknown"}
+DEVICE APPS: ${strList(body.device_apps, 80).map((a) => a.slice(0, 60)).join(", ") || "not available"}
 
 SETTINGS: ${JSON.stringify(cleanSettings(body.settings))}
 

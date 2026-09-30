@@ -174,6 +174,9 @@ function normalizeAllow(saved: Record<string, SubjectAllowlist>): Record<string,
   return out
 }
 
+/** Channels and apps the AI chat was asked to allow for a subject. */
+interface AllowRequest { subject: string; channels: string[]; apps: string[] }
+
 function withAllow(d: Draft, subject: string, patch: Partial<SubjectAllowlist>): Draft {
   return { ...d, allow: { ...d.allow, [subject]: { ...(d.allow[subject] || emptyAllow()), ...patch } } }
 }
@@ -1121,6 +1124,46 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     ].filter((x): x is string => !!x)
   }
 
+  /** Looks up the channels and matches the apps the AI was asked to allow,
+   *  and returns the draft with them added plus a line on what was not found. */
+  async function applyAllow(d: Draft, reqs: AllowRequest[], apps: PickableApp[] | null): Promise<{ draft: Draft; notes: string[] }> {
+    let out = d
+    const notes: string[] = []
+    const missingChannels: string[] = []
+    const missingApps: string[] = []
+    for (const r of reqs) {
+      if (!planSubjects(d).includes(r.subject)) continue
+      const cur = out.allow[r.subject] || emptyAllow()
+      const found = await Promise.all((r.channels || []).map(q => resolveChannelSeed(REVM2_CONFIG.SUPABASE_URL, REVM2_CONFIG.SUPABASE_ANON, q).catch(() => null)))
+      const channels = [...(cur.channels || [])]
+      found.forEach((m, i) => {
+        if (!m) { missingChannels.push(r.channels[i]); return }
+        const id = channelPickId(m)
+        if (!channels.some(c => c.id === id)) channels.push({ id, label: m.title })
+        void setChannelPick(sb as any, {
+          examKey: examFamilyKey(exam), subjectKey: subjectKey(r.subject),
+          channelId: id, channelLabel: m.title, picked: true,
+        }).catch(() => {})
+      })
+      const appIds = [...cur.apps]
+      for (const a of r.apps || []) {
+        const hit = (apps || []).find(x => x.label.toLowerCase() === a.toLowerCase())
+        if (hit) { if (!appIds.includes(hit.id)) appIds.push(hit.id) } else missingApps.push(a)
+      }
+      const sites = channels.length && !cur.sites.some(isYoutubeSite) ? [...cur.sites, 'youtube.com'] : cur.sites
+      out = withAllow(out, r.subject, { sites, channels, apps: appIds })
+    }
+    if (out !== d) {
+      const p = profileRef.current
+      if (p) void rememberAllowlists(sb as any, p.uid, allowFor(out)).catch(() => {})
+    }
+    if (missingChannels.length) notes.push(`I couldn't find a YouTube channel called ${missingChannels.join(', ')}.`)
+    if (missingApps.length) notes.push(appPickerAvailable()
+      ? `I couldn't find ${missingApps.join(', ')} among your open apps. Open it and ask again.`
+      : `Apps can only be picked in the Wynko desktop app, so I left out ${missingApps.join(', ')}.`)
+    return { draft: out, notes }
+  }
+
   /** One message to the AI chat. It answers in its own words and, unless it
    *  only replies or asks something back, returns the whole updated plan and
    *  the settings it followed; both are kept for the next message.
@@ -1135,7 +1178,10 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     const seq = ++refineSeq.current
     const settings = chatSettings(d, shape)
     setTyping(true)
-    let data: { reply: string; settings: ChatSettings; days: ChatDay[]; remember: string[]; forget: string[] }
+    let data: { reply: string; settings: ChatSettings; days: ChatDay[]; allow?: AllowRequest[]; remember: string[]; forget: string[] }
+    // The apps the student could pick, so the AI names real ones (desktop app only).
+    let apps = deviceApps
+    if (!apps && appPickerAvailable()) { try { apps = await listPickableApps(); setDeviceApps(apps) } catch { apps = null } }
     try {
       const { data: { session } } = await sb.auth.getSession()
       if (!session) throw new Error('Not signed in.')
@@ -1152,6 +1198,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
             history: recentChat(messagesRef.current, text, 16, 9000),
             facts: studentFacts(p.known), learned: learnedLines(), standing_requests: memoryLines(p.memory.map(m => m.fact), standingRequests(p.events, 40)),
             today: DAY_NAMES[new Date().getDay()],
+            device_apps: (apps || []).map(a => a.label).slice(0, 80),
           }),
         })
         const json = await res.json()
@@ -1181,7 +1228,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     // (and learns from on Confirm) in the draft.
     const s = { ...settings, ...data.settings }
     chatSettingsRef.current = s
-    const next: Draft = {
+    let next: Draft = {
       ...d,
       dailyMinutes: s.daily_hours ? Math.round(s.daily_hours * 60) : d.dailyMinutes,
       blockMinutes: s.session_minutes ?? d.blockMinutes,
@@ -1194,6 +1241,15 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     // Wake, sleep, busy times and hours the student has given are learned now,
     // not only on Confirm, so Wynky doesn't ask them again next time.
     learnAgreed(next)
+    // Channels and apps the student named: looked up for real, then kept
+    // in the subject's allowlist like the ones picked in the set-up.
+    let reply = data.reply
+    if (data.allow?.length) {
+      const r = await applyAllow(next, data.allow, apps)
+      if (seq !== refineSeq.current) return
+      next = r.draft
+      if (r.notes.length) reply = `${reply}\n\n${r.notes.join(' ')}`
+    }
     // Facts and rules the AI picked up go straight into what Wynky
     // remembers; ones the student took back, and rules the AI stopped
     // following, are forgotten.
@@ -1210,13 +1266,13 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       setPlainResult(null)
       setActiveDays(days)
       setRepeat(rep)
-      showPlan({ single: start, week: null, days, rep, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${data.reply}\n\n`)
+      showPlan({ single: start, week: null, days, rep, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${reply}\n\n`)
       return
     }
     if (!data.days?.length) {
       setActiveDays(days)
       setRepeat(rep)
-      ask('preview', data.reply)
+      ask('preview', reply)
       return
     }
     // Sleep blocks for the (possibly new) wake and sleep times.
@@ -1231,11 +1287,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
       setRuleResult(start)
       setWeekResult(null)
       setPlainResult(null)
-      showPlan({ single: start, week: null, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so here's a starting plan instead. Tell me what to change.\n\n`)
+      showPlan({ single: start, week: null, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so here's a starting plan instead. Tell me what to change.\n\n`)
       return
     }
     if (!plan.ok) {
-      ask('preview', `${data.reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so I kept your current one. Try asking again.`)
+      ask('preview', `${reply}\n\nBut the plan I made didn't pass my checks (${plan.reason}), so I kept your current one. Try asking again.`)
       return
     }
     const today = new Date().getDay()
@@ -1245,7 +1301,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     setPlainResult(null)
     setActiveDays(plan.activeDays)
     setRepeat(rep)
-    showPlan({ single, week: plan.week, days: plan.activeDays, rep, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${data.reply}\n\n`)
+    showPlan({ single, week: plan.week, days: plan.activeDays, rep, busy: next.busy, wake: next.wakeTime, sleep: next.sleepTime }, `${reply}\n\n`)
   }
 
   // ── Options for the current question ──────────────────────────────────
