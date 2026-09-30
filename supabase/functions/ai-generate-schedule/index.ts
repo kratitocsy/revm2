@@ -199,8 +199,11 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // "503", so waiting for it in turn used to use up the whole wait. With a
 // 6s hedge Groq only started at 12s and timed out too, so providers now
 // start 2s apart: Gemini 0s, then each Groq model in turn (2s, 4s, 6s).
-// A second Gemini model was dropped: when Google is busy both usually are,
-// and each Groq model has its own free-tier limit, so a rate-limited one
+// Gemini Flash-Lite runs second (GEMINI_LITE_MODEL): the free tier gives
+// Flash only 20 requests a day but Flash-Lite 500, so it keeps answers on
+// Gemini after Flash's daily quota is used. It was dropped once because
+// Google's busy spells hit both models, which still holds, so Groq follows
+// it; each Groq model has its own free-tier limit, so a rate-limited one
 // doesn't block the next.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
@@ -339,6 +342,7 @@ async function generate(
   const hedgeMs = opts.hedgeMs ?? HEDGE_AFTER_MS;
   const effort = opts.effort ?? "low";
   const groqKey = Deno.env.get("GROQ_API_KEY");
+  const lite = (Deno.env.get("GEMINI_LITE_MODEL") ?? "gemini-3.5-flash-lite").trim();
   const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
   const wanted = configured.length ? configured : DEFAULT_GROQ_MODELS;
@@ -346,6 +350,12 @@ async function generate(
   const groqList = groqKey ? groqModels(groqKey, wanted) : Promise.resolve([]);
   const providers: Provider[] = [
     { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig, effort) },
+    // Gemini Flash-Lite has its own, much bigger free allowance (500 requests
+    // a day against Flash's 20), so when Flash is out of quota or overloaded
+    // the answer still comes from Gemini before Groq is tried.
+    ...(lite && lite !== model
+      ? [{ name: lite, run: (sig: AbortSignal) => callGemini(userPrompt, apiKey, lite, systemPrompt, sig, "low") }]
+      : []),
     ...(groqKey
       ? wanted.map((_, i) => ({
         name: `groq #${i + 1}`,
@@ -526,7 +536,7 @@ async function callGemini(
       alertOwner(
         `ai-retired:gemini:${model}`,
         `Google retired the Gemini model ${model}`,
-        "Wynky is answering with Groq only until this is fixed. Set the GEMINI_MODEL secret in Supabase (or the default in ai-generate-schedule) to a current Gemini model.",
+        "Wynky skips this model until it is fixed. Set the GEMINI_MODEL (main) or GEMINI_LITE_MODEL (backup) secret in Supabase, or the default in ai-generate-schedule, to a current Gemini model.",
       );
     }
     throw new GeminiError(res.status, `Gemini API ${res.status}: ${errText}`);
