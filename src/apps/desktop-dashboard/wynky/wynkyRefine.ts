@@ -70,15 +70,18 @@ export function recentChat(messages: { from: string; text: string }[], requestNo
   return out
 }
 
-/** Earlier typed requests, newest first, without repeats. */
+/** Earlier typed requests, newest first, without repeats or ones taken back. */
 export function standingRequests(events: { field: string; value: string; action: string; at: string }[], max = 5): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const e of [...events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))) {
-    if (e.field !== 'note' || e.action !== 'requested') continue;
+    if (e.field !== 'note') continue;
     const key = e.value.trim().toLowerCase();
     if (!key || seen.has(key)) continue;
     seen.add(key);
+    // The newest event for a request decides: 'removed' means the student
+    // said it no longer holds.
+    if (e.action !== 'requested') continue;
     out.push(e.value.trim());
     if (out.length >= max) break;
   }
@@ -164,4 +167,72 @@ export function toResult(slots: RefinedSlot[], draft: GeneratorResult): Generato
   const sleep = draft.blocks.filter(b => b.kind === 'sleep');
   const placed = slots.reduce((sum, x) => sum + toMin(x.end_time) - toMin(x.start_time), 0);
   return { ...draft, blocks: [...blocks, ...sleep], placedStudyMinutes: placed };
+}
+
+// ── Wynky chat (ai-generate-schedule "chat" mode) ─────────────────────────
+
+/** What Wynky and the student agreed. Sent with every chat message and
+ *  kept until the student changes it, so nothing said once is lost. */
+export interface ChatSettings {
+  daily_hours?: number;
+  session_minutes?: number;
+  break_minutes?: number;
+  wake?: string;
+  sleep?: string;
+  busy?: string[];
+  study_windows?: string[];
+  week_shape?: 'same' | 'vary' | 'ab';
+  repeat?: 'weekly' | 'every2' | 'ab';
+  active_days?: number[];
+  rules?: string[];
+}
+
+export interface ChatDay { day: number | 'all'; slots: RefinedSlot[] }
+
+/** The plan the student is looking at, the way the chat mode reads it. */
+export function planForChat(week: Record<number, GeneratorResult> | null, single: GeneratorResult | null, activeDays: number[]): { days: ChatDay[] } {
+  if (!week) return { days: single ? [{ day: 'all', slots: draftSlots(single) }] : [] };
+  const days = Object.keys(week).map(Number).sort((a, b) => a - b)
+    .filter(day => activeDays.includes(day % 7))
+    .map(day => ({ day, slots: draftSlots(week[day]) }));
+  return { days };
+}
+
+/** "24:00" (midnight as an end time) as the last minute of the day, which
+ *  the rest of the app can store and compare. */
+const endOfDay = (t: string) => (t === '24:00' ? '23:59' : t);
+
+/** Turns the chat answer's days into the plan to show: one day for every
+ *  active day ('all'), or a week that starts from the current one with the
+ *  answered days replaced. A day answered with no sessions becomes a day off.
+ *  Returns null (with the reason) when a day doesn't pass the checks. */
+export function chatPlan(
+  days: ChatDay[],
+  current: Record<number, GeneratorResult> | null,
+  base: GeneratorResult,
+  ctx: RefineContext,
+  activeDays: number[],
+): { ok: true; single: GeneratorResult | null; week: Record<number, GeneratorResult> | null; activeDays: number[] } | { ok: false; reason: string } {
+  const fix = (slots: RefinedSlot[]) => slots.map(x => ({ ...x, start_time: endOfDay(x.start_time), end_time: endOfDay(x.end_time) }));
+  const all = days.find(d => d.day === 'all');
+  if (all) {
+    const check = checkRefined(fix(all.slots), base, { ...ctx, requestNow: true });
+    if (!check.ok) return check;
+    return { ok: true, single: toResult(check.slots, base), week: null, activeDays };
+  }
+  const week: Record<number, GeneratorResult> = { ...(current ?? Object.fromEntries(activeDays.map(day => [day, base]))) };
+  let active = [...activeDays];
+  for (const d of days) {
+    const day = d.day as number;
+    if (!d.slots.length) {
+      delete week[day];
+      if (day < 7) active = active.filter(x => x !== day);
+      continue;
+    }
+    const check = checkRefined(fix(d.slots), base, { ...ctx, requestNow: true });
+    if (!check.ok) return { ok: false, reason: `${day}: ${check.reason}` };
+    week[day] = toResult(check.slots, base);
+    if (day < 7 && !active.includes(day)) active.push(day);
+  }
+  return { ok: true, single: null, week, activeDays: active.sort((a, b) => a - b) };
 }

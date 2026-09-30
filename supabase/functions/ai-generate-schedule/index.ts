@@ -10,6 +10,10 @@
 //              (Study DNA, busy times, weak subjects, the student's
 //              requests) and the AI returns an improved version of the
 //              same day. The student's own requests rank above everything.
+//   "chat"   — Wynky's chat after set-up: the AI reads the whole
+//              conversation, the current plan and the settings it agreed
+//              with the student, answers in its own words and returns the
+//              full updated plan plus those settings (see CHAT_PROMPT).
 //
 // Google is sometimes busy or slow, so each call races the Gemini model
 // against — if GROQ_API_KEY is set — several models on Groq's free API (a
@@ -134,6 +138,56 @@ Return ONLY raw JSON, no markdown:
 Rules for each day's slots: study blocks only (no sleep, no breaks), 24-hour HH:MM, end_time later than
 start_time on the same day, chronological, no overlaps, subject copied exactly from SUBJECTS.`;
 
+const CHAT_PROMPT = `You are Wynky, the study-planning assistant inside Wynko, an app for Indian exam students (JEE, NEET,
+boards and others). You chat with ONE student and keep their study timetable up to date. Talk like a helpful,
+smart friend: short, warm, clear, in the student's language style. Never robotic.
+
+You get:
+- SETTINGS: what you and the student have agreed so far (hours a day, session length, break length, wake, sleep,
+  busy times, preferred study windows, week shape, rules in the student's own words). These stay true until the
+  student changes them. Never silently drop or change one.
+- CURRENT PLAN: the timetable the student is looking at now.
+- RECENT CHAT and the STUDENT'S MESSAGE NOW.
+- WHAT WYNKY HAS LEARNED: the student's usual choices, facts remembered from earlier chats, what similar students
+  pick, Study DNA. Use these for anything the student hasn't said; the student's own words always win.
+
+What to do with each message:
+1. Work out what the student wants, reading it together with the chat (words like "it", "that", "again", "same"
+   refer to earlier messages and the current plan).
+2. Update SETTINGS with everything the student said or clearly implied (e.g. "11 hrs" -> daily_hours 11,
+   "every session 90 minutes" -> session_minutes 90, "9 am to 1 pm is my prime focus" -> a study window,
+   "Chemistry every day, 2 subjects a day" -> rules). Keep all earlier settings unless the student changed them.
+3. Build the COMPLETE plan that follows ALL settings at once. Change only what the student asked; keep the rest of
+   the current plan. Check before answering:
+   - Every active day's study total is within 15 minutes of daily_hours (unless a rule says otherwise for a day).
+     If the free time really can't fit daily_hours, lower daily_hours to what fits and say so in reply.
+   - Sessions are session_minutes long (the last one in a window may be shorter).
+   - Breaks between sessions follow break_minutes; nothing inside busy times; nothing before wake or after sleep.
+   - Every rule is followed on every day (e.g. "2 subjects a day" means exactly 2 different subjects each day).
+   - Use only subject names from SUBJECTS, copied exactly.
+4. If the message is only a question or chat, answer it and leave the plan out. If something is truly unclear
+   and guessing would likely be wrong, ask ONE short question and leave the plan out. Otherwise don't ask; decide
+   and say what you assumed.
+5. "reply": 1-3 short sentences saying what you changed and any assumption or problem. Don't list the timetable;
+   the app shows it.
+6. "remember": new lasting facts about the student worth keeping for future chats ("works on Wynko 1:30-5 pm",
+   "exam in April"), short, in plain words. "forget": earlier facts or rules the student says are no longer true.
+
+Week shape: "same" = one plan every active day; "vary" = each day can differ (give every active day);
+"ab" = Week A (days 0-6) and Week B (days 7-13) alternate. repeat: "weekly", "every2" (every other week) or "ab".
+Days: 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat. active_days = days with study (others are days off).
+
+Return ONLY raw JSON, no markdown:
+{"reply":"...","settings":{"daily_hours":number,"session_minutes":number,"break_minutes":number,"wake":"HH:MM","sleep":"HH:MM",
+"busy":["HH:MM-HH:MM"],"study_windows":["HH:MM-HH:MM"],"week_shape":"same|vary|ab","repeat":"weekly|every2|ab",
+"active_days":[0,1,2,3,4,5,6],"rules":["..."]},
+"days":[{"day":"all" or 0-13,"slots":[["HH:MM","HH:MM","Subject"]]}],
+"remember":["..."],"forget":["..."]}
+
+"days" is left out (or []) when the plan doesn't change. With week_shape "same" give one entry with day "all".
+Slots: study sessions only (no breaks, no sleep), 24-hour HH:MM, chronological, no overlaps, end later than start
+on the same day; use "24:00" for midnight as an end time.`;
+
 // Statuses that mean "busy or briefly broken, try again", not "bad request".
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
@@ -150,6 +204,13 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 // doesn't block the next.
 const TOTAL_BUDGET_MS = 15_000;
 const HEDGE_AFTER_MS = 2_000;
+// Wynky's chat thinks harder (the whole conversation and a full week at
+// once), so it gets a longer budget. Gemini Flash answers it alone: Groq
+// starts only when Gemini fails, or if Gemini still hasn't answered after
+// CHAT_HEDGE_MS, so a stuck Google doesn't leave the student waiting.
+// WynkyChat.tsx waits CHAT_TIMEOUT_MS, just above the budget.
+const CHAT_BUDGET_MS = 24_000;
+const CHAT_HEDGE_MS = 6_000;
 // Checked 2026-09-29: qwen/qwen3-32b shut down 2026-07-17 and
 // qwen/qwen3.6-27b 2026-09-14. Groq marks Qwen models "preview", so they
 // can go at short notice. groqModels() swaps a retired one for another
@@ -164,6 +225,12 @@ const NOT_CHAT = /whisper|tts|guard|playai|orpheus|distil|compound|allam|vision/
 const FAMILY_ORDER = [/gpt-oss/, /qwen/, /llama/, /kimi/];
 
 let groqLive: { at: number; ids: string[] } | null = null;
+// Models Groq refused for good on a request (retired, or no longer on the
+// free tier), skipped by this function instance for a day and replaced by
+// groqModels() like a retired one.
+const groqBlocked = new Map<string, number>();
+const BLOCK_MS = 86_400_000;
+const isBlocked = (m: string) => (groqBlocked.get(m) ?? 0) > Date.now();
 
 /** Adds a red banner to Owner Control (migration 0100). An open alert with
  *  the same key isn't added twice, so this is safe to call per request. */
@@ -180,11 +247,11 @@ function alertOwner(key: string, title: string, body: string) {
   (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(done);
 }
 
-function alertRetiredGroq(model: string, standIn?: string) {
+function alertRetiredGroq(model: string, standIn?: string, why: "retired" | "paid" = "retired") {
   alertOwner(
-    `ai-retired:groq:${model}`,
-    `Groq retired the AI model ${model}`,
-    `${standIn ? `Wynky switched to ${standIn} on its own, so students aren't affected. ` : ""}` +
+    `ai-${why}:groq:${model}`,
+    why === "paid" ? `Groq no longer offers ${model} on the free tier` : `Groq retired the AI model ${model}`,
+    `${standIn ? `Wynky switched to ${standIn} on its own, so students aren't affected. ` : "Wynky moves to another free Groq model on its own from the next request. "}` +
       `Update DEFAULT_GROQ_MODELS in supabase/functions/ai-generate-schedule/index.ts to a current Groq model so this stays fixed.`,
   );
 }
@@ -211,26 +278,30 @@ async function liveGroqModels(apiKey: string): Promise<string[] | null> {
   }
 }
 
-/** The configured Groq models, with any Groq has retired swapped for other
- *  live chat models so the race keeps the same number of tries. */
+/** The configured Groq models, with any Groq has retired (gone from its
+ *  model list) or refused (retired or no longer free, see callGroq)
+ *  swapped for other live chat models the account can use, so the race
+ *  keeps the same number of tries. */
 async function groqModels(apiKey: string, wanted: string[]): Promise<string[]> {
   const live = await liveGroqModels(apiKey);
-  if (!live) return wanted;
-  const kept = wanted.filter((m) => live.includes(m));
-  const retired = wanted.filter((m) => !live.includes(m));
+  const usable = (m: string) => !isBlocked(m) && (!live || live.includes(m));
+  const kept = wanted.filter(usable);
+  const retired = wanted.filter((m) => !usable(m));
   if (!retired.length) return wanted;
+  if (!live) return kept;
   const family = (id: string) => {
     const i = FAMILY_ORDER.findIndex((re) => re.test(id));
     return i < 0 ? FAMILY_ORDER.length : i;
   };
   const standIns = live
-    .filter((id) => !kept.includes(id) && !NOT_CHAT.test(id))
+    .filter((id) => !kept.includes(id) && !NOT_CHAT.test(id) && !isBlocked(id))
     .sort((a, b) => family(a) - family(b))
     .slice(0, retired.length);
   console.warn(
     `ai-generate-schedule: ${RETIRED_TAG}: groq ${retired.join(", ")}; using ${standIns.join(", ") || "nothing"} instead`,
   );
-  retired.forEach((m, i) => alertRetiredGroq(m, standIns[i]));
+  // Refused models were alerted when refused; only newly missing ones here.
+  retired.forEach((m, i) => { if (!isBlocked(m)) alertRetiredGroq(m, standIns[i]); });
   return [...kept, ...standIns];
 }
 
@@ -241,6 +312,14 @@ class GeminiError extends Error {
 }
 
 type Provider = { name: string; run: (signal: AbortSignal) => Promise<string> };
+
+/** Per-call tuning. Wynky's chat thinks harder and may take longer than a
+ *  one-shot plan polish. */
+type GenOpts = { budgetMs?: number; hedgeMs?: number; effort?: "low" | "medium"; maxTokens?: number };
+// A check result starting with this is a usable-but-imperfect answer (e.g.
+// a day a little short of the agreed hours): the race goes on for a better
+// one, but if none comes the best of these is used instead of an error.
+const SOFT = "soft:";
 
 /** Races the Gemini model and — only if GROQ_API_KEY is set — several
  *  Groq models (GROQ_MODELS, comma-separated, or the defaults above). Each
@@ -254,7 +333,11 @@ async function generate(
   model: string,
   systemPrompt = SYSTEM_PROMPT,
   check: (text: string) => string | null = () => null,
+  opts: GenOpts = {},
 ): Promise<string> {
+  const budgetMs = opts.budgetMs ?? TOTAL_BUDGET_MS;
+  const hedgeMs = opts.hedgeMs ?? HEDGE_AFTER_MS;
+  const effort = opts.effort ?? "low";
   const groqKey = Deno.env.get("GROQ_API_KEY");
   const configured = (Deno.env.get("GROQ_MODELS") ?? Deno.env.get("GROQ_MODEL") ?? "")
     .split(",").map((m) => m.trim()).filter(Boolean);
@@ -262,27 +345,28 @@ async function generate(
   // Checked while Gemini runs; the first Groq try starts after the hedge.
   const groqList = groqKey ? groqModels(groqKey, wanted) : Promise.resolve([]);
   const providers: Provider[] = [
-    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig) },
+    { name: model, run: (sig) => callGemini(userPrompt, apiKey, model, systemPrompt, sig, effort) },
     ...(groqKey
       ? wanted.map((_, i) => ({
         name: `groq #${i + 1}`,
         run: async (sig: AbortSignal) => {
           const m = (await groqList)[i];
           if (!m) throw new Error("Groq API: no live model for this slot");
-          return callGroq(userPrompt, groqKey, m, systemPrompt, sig);
+          return callGroq(userPrompt, groqKey, m, systemPrompt, sig, effort, opts.maxTokens);
         },
       }))
       : []),
   ];
 
   const stop = new AbortController();
-  const budget = AbortSignal.timeout(TOTAL_BUDGET_MS);
+  const budget = AbortSignal.timeout(budgetMs);
   const signal = AbortSignal.any([stop.signal, budget]);
   return await new Promise<string>((resolve, reject) => {
     let next = 0;
     let running = 0;
     let done = false;
     let lastErr: unknown = null;
+    let soft: string | null = null;
     let hedge: ReturnType<typeof setTimeout> | undefined;
     const finish = (settle: () => void) => {
       if (done) return;
@@ -298,6 +382,7 @@ async function generate(
       running++;
       p.run(signal).then((text) => {
         const bad = check(text);
+        if (bad?.startsWith(SOFT)) soft = text;
         if (bad) throw new Error(`unusable answer: ${bad}`);
         return text;
       }).then(
@@ -308,10 +393,13 @@ async function generate(
           lastErr = e;
           console.warn(`ai-generate-schedule: ${p.name} failed (${e instanceof Error ? e.message.slice(0, 120) : e})`);
           if (next < providers.length && !budget.aborted) launch();
-          else if (running === 0) finish(() => reject(lastErr instanceof Error ? lastErr : new Error("Gemini failed")));
+          else if (running === 0) {
+            const best = soft;
+            finish(() => (best ? resolve(best) : reject(lastErr instanceof Error ? lastErr : new Error("Gemini failed"))));
+          }
         },
       );
-      if (next < providers.length) hedge = setTimeout(launch, HEDGE_AFTER_MS);
+      if (next < providers.length) hedge = setTimeout(launch, hedgeMs);
     };
     launch();
   });
@@ -327,6 +415,8 @@ async function callGroq(
   model: string,
   systemPrompt: string,
   signal: AbortSignal,
+  effort: "low" | "medium" = "low",
+  maxTokens = 4096,
 ): Promise<string> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -342,18 +432,26 @@ async function callGroq(
       // Groq's free tier allows 8,000 tokens a minute per model; a week's
       // plan is well under 4096, and a smaller cap keeps each request
       // inside that allowance.
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       // gpt-oss and Qwen 3.8 reason at "medium" by default, which is most
-      // of their wait.
-      ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/") ? { reasoning_effort: "low" } : {}),
+      // of their wait. Wynky's chat asks gpt-oss for "medium"; Qwen stays
+      // at "low", the setting it has been run with.
+      ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/") ? { reasoning_effort: model.startsWith("qwen/") ? "low" : effort } : {}),
     }),
   });
   if (!res.ok) {
     const errText = await res.text();
-    if (res.status === 404 || /model_not_found|decommissioned/.test(errText)) {
+    // Retired, or taken off the free tier (Groq answers 402/403 or names
+    // billing or the plan): stop using it and let groqModels() pick a free,
+    // live stand-in from the next request on. A 429 is only the per-minute
+    // limit and passes.
+    const retired = res.status === 404 || /model_not_found|decommissioned|does not exist/i.test(errText);
+    const paid = res.status === 402 || res.status === 403 || /\b(billing|upgrade|paid|plan|permission)\b/i.test(errText);
+    if (res.status !== 429 && res.status < 500 && (retired || paid)) {
+      groqBlocked.set(model, Date.now() + BLOCK_MS);
       groqLive = null; // re-check Groq's list on the next request
-      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model}`);
-      alertRetiredGroq(model);
+      console.warn(`ai-generate-schedule: ${RETIRED_TAG}: groq ${model} (${retired ? "retired" : "not free"})`);
+      alertRetiredGroq(model, undefined, retired ? "retired" : "paid");
     }
     throw new Error(`Groq API ${res.status} (${model}): ${errText.slice(0, 300)}`);
   }
@@ -369,6 +467,7 @@ async function callGemini(
   model: string,
   systemPrompt: string,
   signal: AbortSignal,
+  effort: "low" | "medium" = "low",
 ): Promise<string> {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -396,7 +495,7 @@ async function callGemini(
         // Plans don't need deep reasoning, and thinking is most of the
         // wait. Gemini 3 models take thinkingLevel; older ones would
         // reject it, so it's only sent to them.
-        ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+        ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: effort } } : {}),
       },
       safetySettings: [
         {
@@ -528,6 +627,106 @@ function validateRefinedWeek(out: Record<string, unknown>, subjects: string[]): 
 const str = (v: unknown, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
 const strList = (v: unknown, max = 10) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, max).map((x) => str(x)) : []);
 
+// ── Wynky chat ─────────────────────────────────────────────────────────
+
+const RANGE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const minOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const numIn = (v: unknown, lo: number, hi: number) => (typeof v === "number" && v >= lo && v <= hi ? v : undefined);
+const dayName = (d: number) => (d >= 7 ? `Week B ${DAY_NAMES[d - 7]}` : DAY_NAMES[d]);
+
+type ChatSlot = { start_time: string; end_time: string; subject: string };
+type ChatDay = { day: number | "all"; slots: ChatSlot[] };
+
+/** The settings Wynky and the student agreed, with anything malformed dropped. */
+function cleanSettings(v: unknown): Record<string, unknown> {
+  const o = v && typeof v === "object" ? v as Record<string, unknown> : {};
+  const ranges = (x: unknown) => strList(x, 10).filter((r) => RANGE.test(r));
+  const out: Record<string, unknown> = {
+    daily_hours: numIn(o.daily_hours, 0.5, 16),
+    session_minutes: numIn(o.session_minutes, 15, 240),
+    break_minutes: numIn(o.break_minutes, 0, 60),
+    wake: typeof o.wake === "string" && HHMM.test(o.wake) ? o.wake : undefined,
+    sleep: typeof o.sleep === "string" && HHMM.test(o.sleep) ? o.sleep : undefined,
+    busy: ranges(o.busy),
+    study_windows: ranges(o.study_windows),
+    week_shape: ["same", "vary", "ab"].includes(o.week_shape as string) ? o.week_shape : undefined,
+    repeat: ["weekly", "every2", "ab"].includes(o.repeat as string) ? o.repeat : undefined,
+    active_days: Array.isArray(o.active_days)
+      ? [...new Set(o.active_days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+      : undefined,
+    rules: strList(o.rules, 15).map((r) => r.slice(0, 200)),
+  };
+  return Object.fromEntries(Object.entries(out).filter(([, x]) => x !== undefined));
+}
+
+/** The plan the student is looking at, one line per day, for the prompt. */
+function planText(v: unknown): string {
+  const o = v && typeof v === "object" ? v as Record<string, unknown> : {};
+  const days = (Array.isArray(o.days) ? o.days : []).slice(0, 14) as Record<string, unknown>[];
+  const lines = days.map((d) => {
+    const slots = (Array.isArray(d.slots) ? d.slots : []).slice(0, 20) as Record<string, unknown>[];
+    const label = d.day === "all" ? "Every active day" : Number.isInteger(d.day) ? dayName(d.day as number) : "?";
+    return `${label}: ${slots.map((x) => `${str(x.start_time, 5)}-${str(x.end_time, 5)} ${str(x.subject, 60)}`).join("; ") || "day off"}`;
+  });
+  return lines.join("\n") || "none yet";
+}
+
+/** Checks the chat answer. A broken plan is an error (the race moves on);
+ *  a plan that works but misses an agreed setting is "soft" (kept as a
+ *  fallback while a better answer is awaited). */
+function checkChat(out: Record<string, unknown>, subjects: string[]):
+  { error: string | null; soft: string | null; value: Record<string, unknown> } {
+  const fail = (error: string) => ({ error, soft: null, value: {} });
+  const reply = str(out.reply, 600).trim();
+  if (!reply) return fail("no reply");
+  const settings = cleanSettings(out.settings);
+  const bySubject = new Map(subjects.map((x) => [x.toLowerCase(), x]));
+  const days: ChatDay[] = [];
+  const seen = new Set<string>();
+  for (const raw of (Array.isArray(out.days) ? out.days : []).slice(0, 14) as Record<string, unknown>[]) {
+    const day = raw?.day === "all" ? "all" : Number.isInteger(raw?.day) && (raw.day as number) >= 0 && (raw.day as number) <= 13 ? raw.day as number : null;
+    if (day === null) return fail(`Invalid day: ${raw?.day}`);
+    if (seen.has(String(day))) return fail(`Duplicate day: ${day}`);
+    seen.add(String(day));
+    const slots: ChatSlot[] = [];
+    for (const x of (Array.isArray(raw.slots) ? raw.slots : []) as unknown[]) {
+      const [a, b, c] = Array.isArray(x) ? x : [(x as Record<string, unknown>)?.start_time, (x as Record<string, unknown>)?.end_time, (x as Record<string, unknown>)?.subject];
+      const subject = typeof c === "string" ? bySubject.get(c.trim().toLowerCase()) : undefined;
+      slots.push({ start_time: String(a), end_time: String(b), subject: subject ?? String(c) });
+    }
+    // An active day needs sessions; an empty list means that day is off.
+    if (slots.length) {
+      const err = slotsError(slots, subjects);
+      if (err) return fail(`${day === "all" ? "Plan" : dayName(day)}: ${err}`);
+    }
+    days.push({ day, slots });
+  }
+  if (seen.has("all") && days.length > 1) return fail("Mixed 'all' with single days");
+
+  let soft: string | null = null;
+  const target = typeof settings.daily_hours === "number" ? Math.round(settings.daily_hours * 60) : 0;
+  const busy = (settings.busy as string[]) || [];
+  for (const d of days) {
+    if (!d.slots.length) continue;
+    const label = d.day === "all" ? "each day" : dayName(d.day);
+    const total = d.slots.reduce((n, x) => n + minOf(x.end_time) - minOf(x.start_time), 0);
+    if (target && Math.abs(total - target) > Math.max(20, target * 0.1)) {
+      soft ??= `${label} has ${total} min of study, agreed ${target}`;
+    }
+    for (const r of busy) {
+      const [bs, be] = r.split("-").map(minOf);
+      const end = be <= bs ? 1440 : be;
+      if (d.slots.some((x) => minOf(x.start_time) < end && minOf(x.end_time) > bs)) soft ??= `${label} has study during busy ${r}`;
+    }
+  }
+  return {
+    error: null,
+    soft,
+    value: { reply, settings, days, remember: strList(out.remember, 8).map((r) => r.slice(0, 200)), forget: strList(out.forget, 8).map((r) => r.slice(0, 200)) },
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });
@@ -559,6 +758,57 @@ Deno.serve(async (req: Request) => {
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) return json({ error: "AI not configured" }, 500);
     const model = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash";
+
+    if (mode === "chat") {
+      const subjectNames = strList(subjects, 20);
+      if (!subjectNames.length) return json({ error: "subjects are required" }, 400);
+      const message = str(body.message, 1500).trim();
+      if (!message) return json({ error: "message is required" }, 400);
+      const chat = (Array.isArray(body.history) ? body.history : []).slice(-16)
+        .filter((m: Record<string, unknown>) => m && (m.sender === "user" || m.sender === "bot") && typeof m.text === "string")
+        .map((m: Record<string, unknown>) =>
+          `${m.sender === "user" ? "Student" : "Wynky"}: ${str(m.text, m.sender === "user" ? 500 : 700).replace(/\s*\n\s*/g, " / ")}`);
+      const learned = [...strList(body.facts, 12), ...strList(body.learned, 12)];
+      const remembered = strList(body.standing_requests, 15);
+      const prompt = `SUBJECTS: ${subjectNames.join(", ")}
+WEAK SUBJECTS (least studied lately): ${strList(body.weak, 20).join(", ") || "none known"}
+TODAY: ${str(body.today, 12) || "unknown"}
+
+SETTINGS: ${JSON.stringify(cleanSettings(body.settings))}
+
+CURRENT PLAN:
+${planText(body.plan)}
+
+WHAT WYNKY HAS LEARNED:
+${learned.map((f) => `- ${f}`).join("\n") || "- nothing yet"}
+REMEMBERED FROM EARLIER CHATS: ${remembered.length ? remembered.map((r) => `"${r}"`).join("; ") : "nothing"}
+
+RECENT CHAT (oldest first; "Wynky" is you):
+${chat.join("\n") || "none"}
+
+STUDENT'S MESSAGE NOW: ${message}`;
+      const rawText = await generate(prompt, apiKey, model, CHAT_PROMPT, (text) => {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = extractJson(text) as Record<string, unknown>;
+        } catch {
+          return "not JSON";
+        }
+        const r = checkChat(parsed, subjectNames);
+        return r.error ?? (r.soft ? `${SOFT} ${r.soft}` : null);
+      }, { budgetMs: CHAT_BUDGET_MS, hedgeMs: CHAT_HEDGE_MS, effort: "medium", maxTokens: 3000 });
+      let out: Record<string, unknown>;
+      try {
+        out = extractJson(rawText) as Record<string, unknown>;
+      } catch {
+        console.error("ai-generate-schedule: chat output not JSON:", rawText.slice(0, 300));
+        return json({ error: "The AI's answer was cut off." }, 500);
+      }
+      const r = checkChat(out, subjectNames);
+      if (r.error) return json({ error: `AI returned an invalid plan: ${r.error}` }, 500);
+      if (r.soft) console.warn(`ai-generate-schedule: chat answer used with a miss (${r.soft})`);
+      return json({ success: true, mode: "chat", ...r.value, miss: r.soft });
+    }
 
     if (mode === "refine" || mode === "refine_week") {
       const subjectNames = strList(subjects, 20);
