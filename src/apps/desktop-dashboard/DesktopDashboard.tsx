@@ -16,7 +16,10 @@ import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
 import WynkyChat from './wynky/WynkyChat'
 import WynkyMemorySettings from './wynky/WynkyMemorySettings'
-import type { AiSlot } from './wynky/wynkyPlanner'
+import { sb } from '../_shared/supabaseClient'
+import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
+import CommunityFocusSetup from './CommunityFocusSetup'
+import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
   usePomodoroSettings, getPomodoroSettings, pomodoroSummaryLabel, POMODORO_LIMITS,
@@ -4736,7 +4739,7 @@ function CommunityScheduleTab({ week, head, by, choice, onAccept, onReject, onCr
             </div>
             <div className="text-[13px] text-wk-ink-400 leading-relaxed">
               {choice === 'accepted'
-                ? 'This is now your study schedule. It also shows up in Schedules and Today’s Study Plan.'
+                ? 'This is now your study schedule. Focus Lock enforces its blocks, and it shows up in Schedules and Today’s Study Plan.'
                 : choice === 'rejected'
                   ? 'You’re not following this community’s schedule. You can change your mind any time.'
                   : 'Your WynkoHead has created a study schedule for this community.'}
@@ -10446,6 +10449,7 @@ export default function DesktopDashboard() {
   const [headUnits, setHeadUnits] = useState<StudyUnit[]>([])
   const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null)
   const [communityNotice, setCommunityNotice] = useState<string | null>(null)
+  const [focusSetup, setFocusSetup] = useState<{ row: CommunityScheduleRow; subjects: string[]; initial: Record<string, SubjectAllowlist> } | null>(null)
   const [userAvatar, setUserAvatar] = useState<string>(avatar7)
   const [avatarTouched, setAvatarTouched] = useState(false)
 
@@ -10643,15 +10647,51 @@ export default function DesktopDashboard() {
     await communitySchedulesQ.refresh()
     return true
   }
+  // Accepted weeks are enforced by Focus Lock (communityEnforce.ts);
+  // rejecting or leaving stops it and switches the member's own schedules back on.
+  async function currentUserId(): Promise<string | null> {
+    const { data } = await sb.auth.getUser()
+    return data.user?.id ?? null
+  }
+  // Accepting first asks, per subject, what stays allowed (pre-filled from
+  // the member's Wynky set-up); the schedule is accepted and enforced on confirm.
   async function acceptCommunitySchedule(id: string) {
     const row = scheduleRowFor(id)
     if (!row) return
+    const week = normalizeWeek(row.week)
+    const subjects = communitySubjects(week)
+    const uid = await currentUserId()
+    if (!uid || !subjects.length) { await finishAccept(row, undefined); return }
+    const initial = await savedAllowlists(sb, uid).catch(() => ({}))
+    setFocusSetup({ row, subjects, initial })
+  }
+  async function finishAccept(row: CommunityScheduleRow, chosen: Record<string, SubjectAllowlist> | undefined) {
     if (!followingId) ownScheduleBackup.current = schedule
-    if (await decideSchedule(id, 'accepted')) applyCommunitySchedule(row)
+    if (!(await decideSchedule(row.group_id, 'accepted'))) return
+    applyCommunitySchedule(row)
+    try {
+      const uid = await currentUserId()
+      if (uid) await enforceCommunitySchedule(sb, uid, row.name, normalizeWeek(row.week), chosen)
+    } catch (e) {
+      setCommunityNotice(`Schedule accepted, but Focus Lock couldn\u2019t be set up for it: ${(e as Error).message}`)
+    }
+  }
+  async function stopEnforcingCommunity(id: string) {
+    const name = scheduleRowFor(id)?.name
+    if (!name) return
+    try {
+      const uid = await currentUserId()
+      if (uid) await releaseCommunitySchedule(sb, uid, name)
+    } catch (e) {
+      setCommunityNotice((e as Error).message)
+    }
   }
   async function rejectCommunitySchedule(id: string) {
     const wasFollowing = followingId === id
-    if (await decideSchedule(id, 'rejected') && wasFollowing) revertToOwnSchedule()
+    if (!(await decideSchedule(id, 'rejected'))) return
+    if (wasFollowing) revertToOwnSchedule()
+    // Also after a re-publish, which resets the choice while the old week is still enforced.
+    await stopEnforcingCommunity(id)
   }
   async function leaveCommunityById(id: string) {
     try {
@@ -10661,6 +10701,7 @@ export default function DesktopDashboard() {
       return
     }
     if (followingId === id) revertToOwnSchedule()
+    await stopEnforcingCommunity(id)
     setActiveCommunity(null)
     await Promise.all([myCommunitiesQ.refresh(), communitySchedulesQ.refresh()])
   }
@@ -10974,6 +11015,11 @@ export default function DesktopDashboard() {
           onAccept={() => { void acceptCommunitySchedule(scheduleNotif.id) }}
           onCreateOwn={() => { void rejectCommunitySchedule(scheduleNotif.id); handleNav('schedules') }}
           onDismiss={dismissScheduleNotif} />
+      )}
+      {focusSetup && (
+        <CommunityFocusSetup communityName={focusSetup.row.name} subjects={focusSetup.subjects} initial={focusSetup.initial}
+          onCancel={() => setFocusSetup(null)}
+          onConfirm={async chosen => { await finishAccept(focusSetup.row, chosen); setFocusSetup(null) }} />
       )}
       {communityNotice && (
         <div role="status" className="fixed bottom-5 right-5 z-[80] max-w-[360px] rounded-xl border px-4 py-3 flex items-start gap-3 text-[13px] text-wk-ink-200"
