@@ -352,7 +352,9 @@ async function generate(
         run: async (sig: AbortSignal) => {
           const m = (await groqList)[i];
           if (!m) throw new Error("Groq API: no live model for this slot");
-          return callGroq(userPrompt, groqKey, m, systemPrompt, sig, effort, opts.maxTokens);
+          // Groq's reasoning counts toward max_tokens; at "medium" it can use
+          // them all and leave cut-off JSON, so Groq always reasons at "low".
+          return callGroq(userPrompt, groqKey, m, systemPrompt, sig, "low", opts.maxTokens);
         },
       }))
       : []),
@@ -391,7 +393,7 @@ async function generate(
           running--;
           if (done) return;
           lastErr = e;
-          console.warn(`ai-generate-schedule: ${p.name} failed (${e instanceof Error ? e.message.slice(0, 120) : e})`);
+          console.warn(`ai-generate-schedule: ${p.name} failed (${e instanceof Error ? e.message.replace(/\s+/g, " ").slice(0, 400) : e})`);
           if (next < providers.length && !budget.aborted) launch();
           else if (running === 0) {
             const best = soft;
@@ -434,8 +436,7 @@ async function callGroq(
       // inside that allowance.
       max_tokens: maxTokens,
       // gpt-oss and Qwen 3.8 reason at "medium" by default, which is most
-      // of their wait. Wynky's chat asks gpt-oss for "medium"; Qwen stays
-      // at "low", the setting it has been run with.
+      // of their wait. Qwen always runs at "low".
       ...(model.startsWith("openai/gpt-oss") || model.startsWith("qwen/") ? { reasoning_effort: model.startsWith("qwen/") ? "low" : effort } : {}),
     }),
   });
@@ -672,6 +673,30 @@ function planText(v: unknown): string {
   return lines.join("\n") || "none yet";
 }
 
+// Models don't always follow the answer format exactly; these accept the
+// common variations (days as an object or by name, "7:5" for "07:05").
+function chatDays(v: unknown): Record<string, unknown>[] {
+  if (Array.isArray(v)) return v as Record<string, unknown>[];
+  if (v && typeof v === "object") return Object.entries(v as Record<string, unknown>).map(([day, slots]) => ({ day, slots }));
+  return [];
+}
+function chatDayKey(v: unknown): number | "all" | null {
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "all" || t === "every day" || t === "everyday" || t === "daily") return "all";
+    if (/^\d{1,2}$/.test(t)) v = Number(t);
+    else {
+      const i = DAY_NAMES.findIndex((n) => t.startsWith(n.toLowerCase().slice(0, 3)));
+      return i >= 0 ? i : null;
+    }
+  }
+  return Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 13 ? v as number : null;
+}
+function chatTime(v: unknown): string {
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(String(v).trim());
+  return m ? `${m[1].padStart(2, "0")}:${m[2].padStart(2, "0")}` : String(v);
+}
+
 /** Checks the chat answer. A broken plan is an error (the race moves on);
  *  a plan that works but misses an agreed setting is "soft" (kept as a
  *  fallback while a better answer is awaited). */
@@ -684,8 +709,8 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
   const bySubject = new Map(subjects.map((x) => [x.toLowerCase(), x]));
   const days: ChatDay[] = [];
   const seen = new Set<string>();
-  for (const raw of (Array.isArray(out.days) ? out.days : []).slice(0, 14) as Record<string, unknown>[]) {
-    const day = raw?.day === "all" ? "all" : Number.isInteger(raw?.day) && (raw.day as number) >= 0 && (raw.day as number) <= 13 ? raw.day as number : null;
+  for (const raw of chatDays(out.days).slice(0, 14)) {
+    const day = chatDayKey(raw?.day);
     if (day === null) return fail(`Invalid day: ${raw?.day}`);
     if (seen.has(String(day))) return fail(`Duplicate day: ${day}`);
     seen.add(String(day));
@@ -693,7 +718,9 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
     for (const x of (Array.isArray(raw.slots) ? raw.slots : []) as unknown[]) {
       const [a, b, c] = Array.isArray(x) ? x : [(x as Record<string, unknown>)?.start_time, (x as Record<string, unknown>)?.end_time, (x as Record<string, unknown>)?.subject];
       const subject = typeof c === "string" ? bySubject.get(c.trim().toLowerCase()) : undefined;
-      slots.push({ start_time: String(a), end_time: String(b), subject: subject ?? String(c) });
+      // "00:00" as an end is midnight, the end of the day.
+      const end = chatTime(b);
+      slots.push({ start_time: chatTime(a), end_time: end === "00:00" ? "24:00" : end, subject: subject ?? String(c) });
     }
     // An active day needs sessions; an empty list means that day is off.
     if (slots.length) {
@@ -796,7 +823,7 @@ STUDENT'S MESSAGE NOW: ${message}`;
         }
         const r = checkChat(parsed, subjectNames);
         return r.error ?? (r.soft ? `${SOFT} ${r.soft}` : null);
-      }, { budgetMs: CHAT_BUDGET_MS, hedgeMs: CHAT_HEDGE_MS, effort: "medium", maxTokens: 3000 });
+      }, { budgetMs: CHAT_BUDGET_MS, hedgeMs: CHAT_HEDGE_MS, effort: "medium", maxTokens: 4096 });
       let out: Record<string, unknown>;
       try {
         out = extractJson(rawText) as Record<string, unknown>;
