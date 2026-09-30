@@ -909,7 +909,7 @@ Deno.serve(async (req: Request) => {
       if (!subjectNames.length) return json({ error: "subjects are required" }, 400);
       const message = str(body.message, 1500).trim();
       if (!message) return json({ error: "message is required" }, 400);
-      const chat = (Array.isArray(body.history) ? body.history : []).slice(-16)
+      const chat = (Array.isArray(body.history) ? body.history : []).slice(-26)
         .filter((m: Record<string, unknown>) => m && (m.sender === "user" || m.sender === "bot") && typeof m.text === "string")
         .map((m: Record<string, unknown>) =>
           `${m.sender === "user" ? "Student" : "Wynky"}: ${str(m.text, m.sender === "user" ? 500 : 700).replace(/\s*\n\s*/g, " / ")}`);
