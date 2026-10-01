@@ -4,6 +4,16 @@
   "outputDirectory": ".",
   "redirects": [
     {
+      "source": "/waitlist",
+      "destination": "/login",
+      "permanent": false
+    },
+    {
+      "source": "/waitlist.html",
+      "destination": "/login",
+      "permanent": false
+    },
+    {
       "source": "/index.html",
       "destination": "/",
       "permanent": true
