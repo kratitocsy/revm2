@@ -20,7 +20,7 @@ import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
 import { autoConnectExtension } from './lib/extensionConnect'
-import { blockedMessage, clockLabel, freePausesLeft, spendFreePause, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
+import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, blockedMessage, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
 import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -52,7 +52,7 @@ import {
 } from './lib/studyPlanStore'
 import { dateKey, itemsForDate, parseDateKey, reconcileScheduleTasks, removeScheduleOccurrence, shiftDateKey, tasksForDate, weekKeysFor } from './lib/planCalendar'
 import { logStudyTime, flushStudyTimeQueue, QUICK_TIMER_SUBJECT } from '../_shared/studyTimeLog'
-import { PAUSE_REFLECTION_MIN_WORDS, countReflectionWords, isPauseUnlocked } from './lib/pauseReflection'
+import { PAUSE_REFLECTION_MIN_CHARS, countReflectionChars, isPauseUnlocked } from './lib/pauseReflection'
 import { useNotifications, notificationHref, notificationIcon, timeAgo, type AppNotification } from './lib/notifications'
 import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
@@ -2328,11 +2328,12 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     return rank(a) - rank(b)
   })
 
-  async function handleStartTask(taskId: string) {
+  async function handleStartTask(taskId: string, opts?: { resume?: boolean }) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-    if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); return }
+    if (gate.restricted && !gate.inside) { clearFreePause(); setWindowNote(blockedMessage(gate)); return }
     setWindowNote(null)
+    clearFreePause()
     if (running && activeTaskId && activeTaskId !== taskId) {
       // Only one live study_sessions row per user - starting a different
       // task means stopping (and logging) whatever was running before.
@@ -2350,8 +2351,21 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
     }
     // Starting inside a schedule block takes the member straight to their home community's study room.
-    if (gate.inside) onStartedInWindow?.()
+    if (gate.inside && !opts?.resume) onStartedInWindow?.()
   }
+
+  // A free pause lasts 20 minutes, then the timer picks up again by itself.
+  const resumeAfterFreePauseRef = useRef<() => void>(() => {})
+  resumeAfterFreePauseRef.current = () => {
+    const until = freePauseUntil()
+    if (until === null || Date.now() < until) return
+    clearFreePause()
+    if (activeTaskId && !running) void handleStartTask(activeTaskId, { resume: true })
+  }
+  useEffect(() => {
+    const t = setInterval(() => resumeAfterFreePauseRef.current(), 5000)
+    return () => clearInterval(t)
+  }, [])
 
   async function handlePauseTask(taskId: string) {
     if (activeTaskId !== taskId || !running) return
@@ -2373,7 +2387,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 
   // Gate in front of handlePauseTask: every "Pause" control opens the reflection
   // modal instead of pausing immediately. The timer keeps running underneath -
-  // handlePauseTask only actually fires once the user unlocks it (150+ words) and
+  // handlePauseTask only actually fires once the user unlocks it (150+ characters) and
   // clicks "Unlock Pause"; "Keep Studying" / close just dismiss with no side effect.
   function requestPause(taskId: string) {
     if (activeTaskId !== taskId || !running) return
@@ -2570,7 +2584,9 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
               ? { background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }
               : { background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.3)', color: '#34D399' }}>
             {windowNote
-              ?? (gate.inside
+              ?? (freePauseUntil() && !running
+                ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
+                : gate.inside
                 ? `Schedule block live: ${gate.inside.slot.subject ?? 'Study'} until ${clockLabel(gate.inside.slot.end)}. Start the timer now.`
                 : blockedMessage(gate))}
           </div>
@@ -2716,7 +2732,7 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
           onClose={() => setPendingPauseTaskId(null)}
           onUnlock={() => { const id = pendingPauseTaskId; setPendingPauseTaskId(null); handlePauseTask(id) }}
           freeLeft={gate.inside ? freePausesLeft(gate.inside.schedule.id) : 0}
-          onFreePause={() => { const id = pendingPauseTaskId; if (gate.inside) spendFreePause(gate.inside.schedule.id); setPendingPauseTaskId(null); handlePauseTask(id) }} />
+          onFreePause={() => { const id = pendingPauseTaskId; if (gate.inside) beginFreePause(gate.inside.schedule.id); setPendingPauseTaskId(null); handlePauseTask(id) }} />
       )}
     </div>
   )
@@ -2733,7 +2749,7 @@ function PauseReflectionModal({ onClose, onUnlock, freeLeft = 0, onFreePause }: 
   freeLeft?: number; onFreePause?: () => void
 }) {
   const [text, setText] = useState('')
-  const wordCount = countReflectionWords(text)
+  const charCount = countReflectionChars(text)
   const unlocked = isPauseUnlocked(text)
 
   useEffect(() => {
@@ -2770,19 +2786,19 @@ function PauseReflectionModal({ onClose, onUnlock, freeLeft = 0, onFreePause }: 
           {freeLeft > 0 && onFreePause && (
             <div className="mt-4 w-full rounded-xl border px-4 py-3 text-left" style={{ background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.35)' }}>
               <div className="text-[13px] font-semibold text-[#FFF7E6]">Free pause: {freeLeft} of {FREE_PAUSES_PER_SCHEDULE} left for this schedule today</div>
-              <div className="mt-0.5 text-[12px] text-wk-ink-400">After that, pausing needs the {PAUSE_REFLECTION_MIN_WORDS}-word code below.</div>
+              <div className="mt-0.5 text-[12px] text-wk-ink-400">Each one lasts {FREE_PAUSE_MINUTES} minutes, then the timer resumes. After both are used, pausing needs the {PAUSE_REFLECTION_MIN_CHARS}-character code below.</div>
               <button onClick={onFreePause}
                 className="mt-2.5 h-10 w-full rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                 style={{ background: '#34D399', color: '#04140F' }}>
-                Use a free pause
+                Use a free pause ({FREE_PAUSE_MINUTES} min)
               </button>
             </div>
           )}
           <p className="mt-3 text-[13px] text-wk-ink-200">
-            Type <span className="font-semibold" style={{ color: '#CFC8BB' }}>{PAUSE_REFLECTION_MIN_WORDS} words</span> — anything on your mind.
+            Type <span className="font-semibold" style={{ color: '#CFC8BB' }}>{PAUSE_REFLECTION_MIN_CHARS} characters</span> — anything on your mind.
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-wk-ink-500">
-            It can be what you were studying, why you want to pause, what you're thinking about — or just random words.
+            It can be what you were studying, why you want to pause, what you're thinking about — or just random letters.
           </p>
         </div>
 
@@ -2793,7 +2809,7 @@ function PauseReflectionModal({ onClose, onUnlock, freeLeft = 0, onFreePause }: 
               <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .8 1.7v.5h5.6v-.5c0-.7.3-1.3.8-1.7A6 6 0 0 0 12 3Z" />
             </svg>
             <div className="text-[12px] leading-snug">
-              <span className="font-semibold text-wk-ink-200">Yes, random words are allowed. </span>
+              <span className="font-semibold text-wk-ink-200">Yes, random letters are allowed. </span>
               <span className="text-wk-ink-500">This isn't an essay.</span>
             </div>
           </div>
@@ -2803,13 +2819,13 @@ function PauseReflectionModal({ onClose, onUnlock, freeLeft = 0, onFreePause }: 
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
-            placeholder={`Start typing... (min. ${PAUSE_REFLECTION_MIN_WORDS} words)`}
+            placeholder={`Start typing... (min. ${PAUSE_REFLECTION_MIN_CHARS} characters)`}
             rows={5}
             autoFocus
             className="w-full resize-none rounded-xl border px-3.5 py-3 text-[13px] text-wk-ink-100 placeholder:text-wk-ink-600 focus:outline-none transition-colors"
             style={{ background: 'rgba(11,11,13,0.6)', borderColor: unlocked ? '#CFC8BB' : '#26262A' }} />
           <div className="mt-1.5 text-right text-[11px]" style={{ color: unlocked ? '#34D399' : '#7A756D' }}>
-            {wordCount} / {PAUSE_REFLECTION_MIN_WORDS} words
+            {charCount} / {PAUSE_REFLECTION_MIN_CHARS} characters
           </div>
         </div>
 
@@ -6529,7 +6545,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   }, [isRealRoom])
   const [chatError, setChatError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
-  // Pause barrier (same 150-word reflection as Focus Lock): any action that
+  // Pause barrier (same 150-character reflection as Focus Lock): any action that
   // stops a running room timer - Pause, "Pause & Open Chat", switching task,
   // Reset - waits here until the reflection is unlocked. Never saved.
   const [pausePrompt, setPausePrompt] = useState<{ run: () => void } | null>(null)
@@ -6663,8 +6679,9 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       afterPauseBarrier(() => void pauseFocus())
       return
     }
-    if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); return }
+    if (gate.restricted && !gate.inside) { clearFreePause(); setWindowNote(blockedMessage(gate)); return }
     setWindowNote(null)
+    clearFreePause()
     togglingRef.current = true
     try {
       if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
@@ -6681,6 +6698,19 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       togglingRef.current = false
     }
   }
+
+  // A free pause lasts 20 minutes, then the timer picks up again by itself.
+  const resumeAfterFreePauseRef = useRef<() => void>(() => {})
+  resumeAfterFreePauseRef.current = () => {
+    const until = freePauseUntil()
+    if (until === null || Date.now() < until) return
+    if (!focusRunningRef.current && selectedTask) void toggleFocus()
+    else clearFreePause()
+  }
+  useEffect(() => {
+    const t = setInterval(() => resumeAfterFreePauseRef.current(), 5000)
+    return () => clearInterval(t)
+  }, [])
 
   function selectTask(id: string) {
     if (id === selectedTaskId) return
@@ -6835,10 +6865,12 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
               onReset={resetSelectedTask}
               onOpenFocusLock={() => onNavigate('focus')}
             />
-            {gate.restricted && (windowNote || !gate.inside) && (
+            {gate.restricted && (windowNote || !gate.inside || (freePauseUntil() && !focusRunning)) && (
               <div className="mt-3 rounded-xl border px-4 py-2.5 text-[13px]"
                 style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }}>
-                {windowNote ?? blockedMessage(gate)}
+                {windowNote ?? (freePauseUntil() && !focusRunning
+                  ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
+                  : blockedMessage(gate))}
               </div>
             )}
           </div>
@@ -6987,7 +7019,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
           onClose={() => setPausePrompt(null)}
           onUnlock={() => { const p = pausePrompt; setPausePrompt(null); p.run() }}
           freeLeft={gate.inside ? freePausesLeft(gate.inside.schedule.id) : 0}
-          onFreePause={() => { const p = pausePrompt; if (gate.inside) spendFreePause(gate.inside.schedule.id); setPausePrompt(null); p.run() }} />
+          onFreePause={() => { const p = pausePrompt; if (gate.inside) beginFreePause(gate.inside.schedule.id); setPausePrompt(null); p.run() }} />
       )}
     </div>
   )

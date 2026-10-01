@@ -2,7 +2,7 @@
 //
 // On a day one of the member's active Focus Lock schedules runs, the timer can
 // only be started inside one of that schedule's blocks, and pausing inside a
-// block gets 2 free pauses per schedule per day before the 150-word gate
+// block gets 2 free pauses per schedule per day before the 150-character gate
 // (pauseReflection.ts) applies. On a day no schedule runs, or for someone with
 // no schedule at all, nothing here restricts anything.
 //
@@ -139,7 +139,30 @@ export function spendFreePause(scheduleId: string, now: Date = new Date()): void
   try {
     const used = parseInt(localStorage.getItem(pauseKey(scheduleId, now)) || '0', 10) || 0;
     localStorage.setItem(pauseKey(scheduleId, now), String(used + 1));
-  } catch { /* the 150-word gate still applies once storage is gone */ }
+  } catch { /* the 150-character gate still applies once storage is gone */ }
+}
+
+// A free pause lasts FREE_PAUSE_MINUTES, then the timer resumes by itself.
+// The end time is kept here so it survives leaving the page.
+export const FREE_PAUSE_MINUTES = 20;
+const UNTIL_KEY = 'wynko.freePauseUntil';
+
+/** Uses one of the schedule's free pauses and starts its 20-minute clock. */
+export function beginFreePause(scheduleId: string, now: Date = new Date()): void {
+  spendFreePause(scheduleId, now);
+  try { localStorage.setItem(UNTIL_KEY, String(now.getTime() + FREE_PAUSE_MINUTES * 60_000)); } catch { /* no clock: the pause just stays until resumed */ }
+}
+
+/** When the running free pause ends (ms), or null when none is running. */
+export function freePauseUntil(): number | null {
+  try {
+    const v = parseInt(localStorage.getItem(UNTIL_KEY) || '', 10);
+    return Number.isFinite(v) ? v : null;
+  } catch { return null; }
+}
+
+export function clearFreePause(): void {
+  try { localStorage.removeItem(UNTIL_KEY); } catch { /* nothing to clear */ }
 }
 
 // ── Store: the member's active schedules, loaded once and shared ───────────
