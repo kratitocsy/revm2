@@ -14,6 +14,8 @@ fn main() {
                 "push_session_event",
                 "gate_protection_start",
                 "gate_protection_stop",
+                "get_token",
+                "save_token",
             ]),
         ),
     )

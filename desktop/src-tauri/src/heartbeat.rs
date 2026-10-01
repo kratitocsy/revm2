@@ -230,6 +230,8 @@ fn parse_since(url: &str) -> u64 {
 /// extension talks to this directly, same as it already talks to the
 /// RevM2 web API:
 ///   - POST /heartbeat        - existing "I'm alive" ping (see module docs)
+///   - GET  /pair             - hands the extension the desktop app's sync
+///     token so it links without a website visit (see pair_token.rs)
 ///   - GET  /session-events   - long-poll for an instant session start/end
 ///     signal from the desktop app (see session_bridge.rs)
 ///
@@ -279,6 +281,8 @@ pub fn spawn_heartbeat_server(
     state: Arc<HeartbeatState>,
     bridge: Arc<crate::session_bridge::SessionEventBus>,
     gate: Arc<crate::gate_guard::GateGuardState>,
+    pair: Arc<crate::pair_token::PairToken>,
+    auth: Arc<crate::native_poll::AuthState>,
 ) {
     std::thread::spawn(move || {
         let server = match tiny_http::Server::http(("127.0.0.1", HEARTBEAT_PORT)) {
@@ -297,9 +301,58 @@ pub fn spawn_heartbeat_server(
             let state = state.clone();
             let bridge = bridge.clone();
             let gate = gate.clone();
+            let pair = pair.clone();
+            let auth = auth.clone();
             std::thread::spawn(move || {
                 let url = request.url().to_string();
                 let path = url.split('?').next().unwrap_or("");
+
+                // Direct extension pairing - see pair_token.rs for why only
+                // an extension can read this. Handled before the shared
+                // OPTIONS answer below, whose "*" must never cover /pair.
+                if path == "/pair" {
+                    let Some(origin) = crate::pair_token::check_pair_request(&request) else {
+                        let _ = request.respond(tiny_http::Response::empty(403));
+                        return;
+                    };
+                    let allow_origin = origin.map(|o| {
+                        tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], o.as_bytes()).unwrap()
+                    });
+                    if request.method() == &tiny_http::Method::Options {
+                        let mut resp = tiny_http::Response::empty(204)
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET"[..]).unwrap())
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"X-Wynko-Pair"[..]).unwrap());
+                        if let Some(h) = allow_origin {
+                            resp = resp.with_header(h);
+                        }
+                        let _ = request.respond(resp);
+                        return;
+                    }
+                    if request.method() != &tiny_http::Method::Get {
+                        let _ = request.respond(tiny_http::Response::empty(405));
+                        return;
+                    }
+                    // 204 until the desktop app has a token for the signed-in
+                    // account; the extension simply asks again on its next sync.
+                    let Some(token) = crate::pair_token::token_for_current_user(&pair, &auth) else {
+                        let mut resp = tiny_http::Response::empty(204);
+                        if let Some(h) = allow_origin {
+                            resp = resp.with_header(h);
+                        }
+                        let _ = request.respond(resp);
+                        return;
+                    };
+                    let json = serde_json::to_string(&serde_json::json!({ "token": token }))
+                        .unwrap_or_else(|_| "{}".to_string());
+                    let mut resp = tiny_http::Response::from_string(json)
+                        .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap())
+                        .with_header(tiny_http::Header::from_bytes(&b"Cache-Control"[..], &b"no-store"[..]).unwrap());
+                    if let Some(h) = allow_origin {
+                        resp = resp.with_header(h);
+                    }
+                    let _ = request.respond(resp);
+                    return;
+                }
 
                 // Every browser-issued CORS preflight is an OPTIONS request,
                 // regardless of which route it's for - answer it the same

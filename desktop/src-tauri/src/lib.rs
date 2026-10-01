@@ -3,6 +3,7 @@ mod browser_guard;
 mod gate_guard;
 mod heartbeat;
 mod native_poll;
+mod pair_token;
 mod session_bridge;
 mod taskmgr_backstop;
 mod taskmgr_guard;
@@ -931,7 +932,15 @@ pub fn run() {
     // active, so by the time a session actually starts we already have a
     // fresh signal instead of waiting on the first heartbeat after the
     // fact.
-    heartbeat::spawn_heartbeat_server(heartbeat_state.clone(), session_bridge.clone(), gate_guard_state.clone());
+    // The desktop app's sync token, which /pair hands to the extension.
+    let pair_state = Arc::new(pair_token::PairToken::new());
+    heartbeat::spawn_heartbeat_server(
+        heartbeat_state.clone(),
+        session_bridge.clone(),
+        gate_guard_state.clone(),
+        pair_state.clone(),
+        auth_state.clone(),
+    );
 
     tauri::Builder::default()
         // Must be registered before any other plugin (tauri-plugin-single-
@@ -983,6 +992,7 @@ pub fn run() {
         .manage(LastSyncState(last_sync.clone()))
         .manage(BackstopFireAt(backstop_fire_at.clone()))
         .manage(auth_state.clone())
+        .manage(pair_state.clone())
         .setup(move |app| {
             gate_guard_state.spawn_watchers(app.handle().clone());
 
@@ -997,6 +1007,8 @@ pub fn run() {
                     let _ = window.show();
                 }
             }
+
+            pair_state.load(app.handle());
 
             if let Ok(store) = app.store(BLOCKED_APPS_STORE) {
                 if let Some(apps) = store
@@ -1237,6 +1249,8 @@ pub fn run() {
             set_blocked_apps,
             set_taskmgr_disabled,
             sync_native_auth,
+            pair_token::get_token,
+            pair_token::save_token,
             gate_guard::gate_protection_start,
             gate_guard::gate_protection_stop
         ])

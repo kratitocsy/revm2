@@ -26,6 +26,8 @@
     "allow-get-blocked-apps",
     "allow-set-blocked-apps",
     "allow-gate-protection-start",
-    "allow-gate-protection-stop"
+    "allow-gate-protection-stop",
+    "allow-get-token",
+    "allow-save-token"
   ]
 }
