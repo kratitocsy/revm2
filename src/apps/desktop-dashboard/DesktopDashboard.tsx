@@ -20,6 +20,7 @@ import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
 import { autoConnectExtension } from './lib/extensionConnect'
+import { blockedMessage, clockLabel, freePausesLeft, spendFreePause, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
 import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -2099,7 +2100,7 @@ Add a quick note for this session."
   )
 }
 
-function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled, onTaskRemoved }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void; onTaskRemoved?: (task: StudyTask) => void }) {
+function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoStartTask, onAutoStartHandled, onTaskRemoved, onStartedInWindow }: { units: StudyUnit[]; schedule: ScheduleItem[][]; todayIdx: number; onNavigate: (id: string) => void; profile?: ProfileInfo; autoStartTask?: { subject: string; topic: string } | null; onAutoStartHandled?: () => void; onTaskRemoved?: (task: StudyTask) => void; onStartedInWindow?: () => void }) {
   // The user's saved Pomodoro configuration (25/5/Repeat until they change it). Same store the
   // Study Room reads, so a change here is the new default everywhere.
   const { settings: pomo, save: savePomo } = usePomodoroSettings()
@@ -2121,6 +2122,9 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   // The task id is captured at click-time so "Unlock Pause" pauses the right task
   // even if activeTask/activeTaskId were to change while the modal is open.
   const [pendingPauseTaskId, setPendingPauseTaskId] = useState<string | null>(null)
+  // Schedule window: on a day a schedule runs, the timer starts only inside its blocks (lib/scheduleWindow.ts).
+  const gate = useWindowGate()
+  const [windowNote, setWindowNote] = useState<string | null>(null)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Latest values for the 1s interval below, which is created once per run and would otherwise see stale ones.
@@ -2327,6 +2331,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   async function handleStartTask(taskId: string) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
+    if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); return }
+    setWindowNote(null)
     if (running && activeTaskId && activeTaskId !== taskId) {
       // Only one live study_sessions row per user - starting a different
       // task means stopping (and logging) whatever was running before.
@@ -2343,6 +2349,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
     if (!startingBreak) {
       try { await startRemoteSession(task.subject) } catch { /* hook already falls back to a local-only clock */ }
     }
+    // Starting inside a schedule block takes the member straight to their home community's study room.
+    if (gate.inside) onStartedInWindow?.()
   }
 
   async function handlePauseTask(taskId: string) {
@@ -2444,10 +2452,12 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0, planDate: todayKey }
       setTasks(prev => [task, ...prev])
       setViewDate(todayKey)
+      if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); onAutoStartHandled?.(); return }
       if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
       setActiveTaskId(task.id)
       setRunning(true)
       startRemoteSession(task.subject).catch(() => { /* hook already falls back to a local-only clock */ })
+      if (gate.inside) onStartedInWindow?.()
     }
     onAutoStartHandled?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2553,6 +2563,18 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
           </div>
           <UserAvatar size={32} />
         </header>
+
+        {gate.restricted && (
+          <div className="relative z-10 px-5 sm:px-8 py-2.5 text-[13px] border-b flex-shrink-0"
+            style={windowNote || !gate.inside
+              ? { background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }
+              : { background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.3)', color: '#34D399' }}>
+            {windowNote
+              ?? (gate.inside
+                ? `Schedule block live: ${gate.inside.slot.subject ?? 'Study'} until ${clockLabel(gate.inside.slot.end)}. Start the timer now.`
+                : blockedMessage(gate))}
+          </div>
+        )}
 
         <main className="relative z-10 flex-1 overflow-y-auto px-5 sm:px-8 py-8">
           <div className="max-w-6xl mx-auto flex flex-col gap-8">
@@ -2692,7 +2714,9 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       {pendingPauseTaskId && (
         <PauseReflectionModal
           onClose={() => setPendingPauseTaskId(null)}
-          onUnlock={() => { const id = pendingPauseTaskId; setPendingPauseTaskId(null); handlePauseTask(id) }} />
+          onUnlock={() => { const id = pendingPauseTaskId; setPendingPauseTaskId(null); handlePauseTask(id) }}
+          freeLeft={gate.inside ? freePausesLeft(gate.inside.schedule.id) : 0}
+          onFreePause={() => { const id = pendingPauseTaskId; if (gate.inside) spendFreePause(gate.inside.schedule.id); setPendingPauseTaskId(null); handlePauseTask(id) }} />
       )}
     </div>
   )
@@ -2703,7 +2727,11 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
 // timer itself - it just gates the actual pause behind a short "why am I
 // pausing" reflection, so a break is a deliberate choice rather than a reflex tap.
 // The typed text stays in this component only - never saved (see pauseReflection.ts).
-function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
+function PauseReflectionModal({ onClose, onUnlock, freeLeft = 0, onFreePause }: {
+  onClose: () => void; onUnlock: () => void
+  /** Free pauses left in the schedule block that is running (0 outside a schedule). */
+  freeLeft?: number; onFreePause?: () => void
+}) {
   const [text, setText] = useState('')
   const wordCount = countReflectionWords(text)
   const unlocked = isPauseUnlocked(text)
@@ -2739,6 +2767,17 @@ function PauseReflectionModal({ onClose, onUnlock }: { onClose: () => void; onUn
           </div>
           <h2 className="mt-4 text-xl font-bold text-[#FFF7E6]">Before you pause…</h2>
           <p className="mt-2 text-[13px] text-wk-ink-400">Take a moment before breaking your focus.</p>
+          {freeLeft > 0 && onFreePause && (
+            <div className="mt-4 w-full rounded-xl border px-4 py-3 text-left" style={{ background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.35)' }}>
+              <div className="text-[13px] font-semibold text-[#FFF7E6]">Free pause: {freeLeft} of {FREE_PAUSES_PER_SCHEDULE} left for this schedule today</div>
+              <div className="mt-0.5 text-[12px] text-wk-ink-400">After that, pausing needs the {PAUSE_REFLECTION_MIN_WORDS}-word code below.</div>
+              <button onClick={onFreePause}
+                className="mt-2.5 h-10 w-full rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+                style={{ background: '#34D399', color: '#04140F' }}>
+                Use a free pause
+              </button>
+            </div>
+          )}
           <p className="mt-3 text-[13px] text-wk-ink-200">
             Type <span className="font-semibold" style={{ color: '#CFC8BB' }}>{PAUSE_REFLECTION_MIN_WORDS} words</span> — anything on your mind.
           </p>
@@ -6494,6 +6533,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   // stops a running room timer - Pause, "Pause & Open Chat", switching task,
   // Reset - waits here until the reflection is unlocked. Never saved.
   const [pausePrompt, setPausePrompt] = useState<{ run: () => void } | null>(null)
+  const gate = useWindowGate()
+  const [windowNote, setWindowNote] = useState<string | null>(null)
 
   // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
   // reassigned every render so the interval below always calls the current start/stop closures.
@@ -6622,6 +6663,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       afterPauseBarrier(() => void pauseFocus())
       return
     }
+    if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); return }
+    setWindowNote(null)
     togglingRef.current = true
     try {
       if (selectedTask.mode === 'pomodoro' && selectedTask.pomodoroRemaining <= 0) {
@@ -6792,6 +6835,12 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
               onReset={resetSelectedTask}
               onOpenFocusLock={() => onNavigate('focus')}
             />
+            {gate.restricted && (windowNote || !gate.inside) && (
+              <div className="mt-3 rounded-xl border px-4 py-2.5 text-[13px]"
+                style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }}>
+                {windowNote ?? blockedMessage(gate)}
+              </div>
+            )}
           </div>
 
           {/* Tabs */}
@@ -6936,7 +6985,9 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       {pausePrompt && (
         <PauseReflectionModal
           onClose={() => setPausePrompt(null)}
-          onUnlock={() => { const p = pausePrompt; setPausePrompt(null); p.run() }} />
+          onUnlock={() => { const p = pausePrompt; setPausePrompt(null); p.run() }}
+          freeLeft={gate.inside ? freePausesLeft(gate.inside.schedule.id) : 0}
+          onFreePause={() => { const p = pausePrompt; if (gate.inside) spendFreePause(gate.inside.schedule.id); setPausePrompt(null); p.run() }} />
       )}
     </div>
   )
@@ -10616,6 +10667,9 @@ export default function DesktopDashboard() {
 
   // ── Communities (lib/communities.ts, migration 0071) ──
   const signedIn = authState === 'ready'
+  // The member's active schedules, for the timer's start window (lib/scheduleWindow.ts).
+  const [windowUserId, setWindowUserId] = useState<string | null>(null)
+  useWindowSchedulesLoader(sb, windowUserId)
   const myCommunitiesQ = useLoader(signedIn ? fetchMyCommunities : null, [] as MyCommunity[], [signedIn])
   const communitySchedulesQ = useLoader(signedIn ? fetchMyCommunitySchedules : null, [] as CommunityScheduleRow[], [signedIn])
   // A WynkoHead publishing shows up for their students right away (RLS limits
@@ -10670,7 +10724,11 @@ export default function DesktopDashboard() {
   // blocks reach it (lib/extensionConnect.ts).
   useEffect(() => {
     if (authState !== 'ready') return
-    void sb.auth.getUser().then(({ data }) => { if (data.user) void autoConnectExtension(data.user.id) })
+    void sb.auth.getUser().then(({ data }) => {
+      if (!data.user) return
+      setWindowUserId(data.user.id)
+      void autoConnectExtension(data.user.id)
+    })
   }, [authState])
   // Invite links (roomInviteLink): home.html?room=<id> opens that room's Join
   // flow once signed in, then the parameter is dropped from the address bar.
@@ -10786,6 +10844,18 @@ export default function DesktopDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule, planStore.status, planStore.week, activeNav])
 
+  // Starting the timer inside a schedule block lands the member in their home community's study room.
+  // Waits a beat so the Focus Lock plan snapshot (read when the room opens) already says "running".
+  function openHomeCommunityRoom() {
+    const home = communities.find(c => c.isHome)
+    if (!home) return
+    setTimeout(() => {
+      setActiveCommunity(home)
+      setActiveRoom(communityStudyRoom(home))
+      setActiveNav('studyrooms')
+    }, 500)
+  }
+
   function handleNav(id: string) {
     if (id === 'focus') reconcilePlanWithSchedule() // Focus Lock reads the plan when it mounts
     setActiveNav(id)
@@ -10851,6 +10921,7 @@ export default function DesktopDashboard() {
     try {
       const uid = await currentUserId()
       if (uid) await enforceCommunitySchedule(sb, uid, row.name, normalizeWeek(row.week), chosen)
+      if (uid) void refreshWindowSchedules(sb, uid)
     } catch (e) {
       setCommunityNotice(`Schedule accepted, but Focus Lock couldn\u2019t be set up for it: ${(e as Error).message}`)
     }
@@ -10861,6 +10932,7 @@ export default function DesktopDashboard() {
     try {
       const uid = await currentUserId()
       if (uid) await releaseCommunitySchedule(sb, uid, name)
+      if (uid) void refreshWindowSchedules(sb, uid)
     } catch (e) {
       setCommunityNotice((e as Error).message)
     }
@@ -11065,7 +11137,7 @@ export default function DesktopDashboard() {
 
   function renderPage() {
     if (activeNav === 'focus') {
-      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} onTaskRemoved={handleFocusTaskRemoved} />
+      return <FocusLockPage units={sharedUnits} schedule={schedule} todayIdx={todayIdx} onNavigate={handleNav} profile={profile} autoStartTask={autoStartTask} onAutoStartHandled={() => setAutoStartTask(null)} onTaskRemoved={handleFocusTaskRemoved} onStartedInWindow={openHomeCommunityRoom} />
     }
     // Quick Timer is intentionally separate from FocusLockPage - its own
     // page, own localStorage key, no shared state with Focus Lock at all.
