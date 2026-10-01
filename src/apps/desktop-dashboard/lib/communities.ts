@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sb } from '../../_shared/supabaseClient';
+import { cleanupUnsavedAttachmentFiles } from './communityVault';
 
 /* ============================================================
    Communities data (desktop dashboard "Community" module).
@@ -258,11 +259,14 @@ export async function fetchCommunityIsPrivate(groupId: string): Promise<boolean>
   return !!data && data.visibility !== 'public';
 }
 
-export async function postAnnouncement(groupId: string, a: { title: string; message: string; pinned: boolean; important: boolean }) {
-  const { error } = await sb.from('community_announcements').insert({ group_id: groupId, ...a });
-  if (error) throw new Error(messageOf(error, 'Could not post the announcement'));
+/** Returns the new announcement's id (attachments are uploaded against it). */
+export async function postAnnouncement(groupId: string, a: { title: string; message: string; pinned: boolean; important: boolean }): Promise<string> {
+  const { data, error } = await sb.from('community_announcements').insert({ group_id: groupId, ...a }).select('id').single();
+  if (error || !data) throw new Error(messageOf(error, 'Could not post the announcement'));
+  return (data as { id: string }).id;
 }
 export async function deleteAnnouncement(id: string) {
+  await cleanupUnsavedAttachmentFiles(id).catch(() => {}); // "just sent" files go with the announcement
   const { error } = await sb.from('community_announcements').delete().eq('id', id);
   if (error) throw new Error(messageOf(error, 'Could not delete the announcement'));
 }

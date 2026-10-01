@@ -14,6 +14,8 @@ import avatar10 from './imports/avatar-10.png'
 import avatar11 from './imports/avatar-11.png'
 import avatar12 from './imports/avatar-12.png'
 import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } from './lib/useHomeData'
+import { fetchAnnouncementAttachments, groupByAnnouncement, type VaultItem } from './lib/communityVault'
+import { AttachmentChips, AttachmentPicker, CommunityVaultTab, uploadPending, type PendingAttachment } from './CommunityVault'
 import WynkyChat from './wynky/WynkyChat'
 import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import { sb } from '../_shared/supabaseClient'
@@ -4312,7 +4314,7 @@ function RequiredHomeCommunityPicker({ communities, currentId, onPicked }: {
 // decision on the WynkoHead's published schedule lives in the App root (it has
 // to write the student's actual schedule) and is saved per user
 // (community_schedule_choices) via rpc_set_schedule_choice.
-type CommunityStudentTab = 'home' | 'schedule' | 'progress' | 'announcements'
+type CommunityStudentTab = 'home' | 'schedule' | 'progress' | 'announcements' | 'vault'
 type CommunityScheduleChoice = ScheduleChoice
 
 // What the community page renders, built from community_detail +
@@ -4537,6 +4539,9 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
   const detailQ = useLoader(() => fetchCommunityDetail(community.id), null as CommunityDetailData | null, [community.id])
   const annQ = useLoader(() => fetchAnnouncements(community.id), [] as CommunityAnnouncementRow[], [community.id])
   useRealtimeRefresh('community_announcements', `group_id=eq.${community.id}`, () => { void annQ.refresh() })
+  const attQ = useLoader(() => fetchAnnouncementAttachments(community.id), [] as VaultItem[], [community.id])
+  useRealtimeRefresh('group_materials', `group_id=eq.${community.id}`, () => { void attQ.refresh() })
+  const attachments = useMemo(() => groupByAnnouncement(attQ.data), [attQ.data])
   const detail = useMemo(() => (detailQ.data ? toCommunityDetail(detailQ.data, annQ.data) : null), [detailQ.data, annQ.data])
   const [tab, setTab] = useState<CommunityStudentTab>('home')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -4547,6 +4552,7 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
     { id: 'schedule', label: 'Schedule', icon: 'calendar' },
     { id: 'progress', label: 'My Progress', icon: 'progress' },
     { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
+    { id: 'vault', label: 'Vault', icon: 'library' },
   ]
 
   const studyingNow = detail?.studyingNow ?? community.studyingNow ?? 0
@@ -4674,8 +4680,10 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
               )
             ) : tab === 'progress' ? (
               <CommunityProgressTab detail={detail} />
+            ) : tab === 'vault' ? (
+              <CommunityVaultTab groupId={community.id} isAdmin={false} viewerName={profile?.displayName ?? ''} communityName={community.name} />
             ) : (
-              <CommunityAnnouncementsTab detail={detail} />
+              <CommunityAnnouncementsTab detail={detail} attachments={attachments} viewerName={profile?.displayName ?? ''} />
             )}
           </div>
         </main>
@@ -5023,7 +5031,7 @@ function CommunityProgressTab({ detail }: { detail: CommunityDetail }) {
 }
 
 // ── Announcements tab: the WynkoHead's feed, pinned first then newest → oldest ──
-function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
+function CommunityAnnouncementsTab({ detail, attachments, viewerName }: { detail: CommunityDetail; attachments: Record<string, VaultItem[]>; viewerName: string }) {
   const feed = [...detail.announcements].sort((a, b) =>
     (Number(!!b.pinned) - Number(!!a.pinned)) || (b.postedAt - a.postedAt))
   if (feed.length === 0) {
@@ -5055,6 +5063,7 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
               </div>
               <div className="text-[15px] font-semibold text-wk-ink-100 mt-2.5 mb-1">{a.title}</div>
               <div className="text-[13px] text-wk-ink-400 leading-relaxed">{a.message}</div>
+              <AttachmentChips items={attachments[a.id] ?? []} viewerName={viewerName} />
             </div>
           </div>
         </div>
@@ -5074,7 +5083,7 @@ function CommunityAnnouncementsTab({ detail }: { detail: CommunityDetail }) {
 // (ScheduleNotificationCard) and announcements posted here appear in their
 // feed. Everything is Supabase-backed (lib/communities.ts, migration 0071);
 // earnings and payouts use the existing RevHead ledger/payout backend.
-type HeadTab = 'overview' | 'schedule' | 'announcements' | 'analytics' | 'earnings' | 'manage'
+type HeadTab = 'overview' | 'schedule' | 'announcements' | 'vault' | 'analytics' | 'earnings' | 'manage'
 type EarningsRange = 7 | 30 | 90
 
 // Public: anyone joins instantly. Private: joining needs the password set here
@@ -5237,6 +5246,10 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
   const annQ = useLoader(() => fetchAnnouncements(community.id), [] as CommunityAnnouncementRow[], [community.id])
   useRealtimeRefresh('community_announcements', `group_id=eq.${community.id}`, () => { void annQ.refresh() })
   const announcements = useMemo(() => annQ.data.map(toAnnouncement), [annQ.data])
+  const attQ = useLoader(() => fetchAnnouncementAttachments(community.id), [] as VaultItem[], [community.id])
+  useRealtimeRefresh('group_materials', `group_id=eq.${community.id}`, () => { void attQ.refresh() })
+  const attachments = useMemo(() => groupByAnnouncement(attQ.data), [attQ.data])
+  const viewerName = profile?.displayName || headName
 
   async function updateSettings(patch: Partial<HeadCommunitySettings>): Promise<string | null> {
     try {
@@ -5251,8 +5264,15 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
       return (e as Error).message
     }
   }
-  async function postAnn(a: { title: string; message: string; pinned: boolean; important: boolean }): Promise<string | null> {
-    try { await postAnnouncement(community.id, a); await annQ.refresh(); return null } catch (e) { return (e as Error).message }
+  // The announcement goes live first; attachments upload against its id. If some
+  // fail, the announcement stays posted and the head is told which files missed.
+  async function postAnn(a: { title: string; message: string; pinned: boolean; important: boolean }, files: PendingAttachment[], onStatus: (s: string) => void): Promise<{ posted: boolean; message: string | null }> {
+    let id: string
+    try { id = await postAnnouncement(community.id, a) } catch (e) { return { posted: false, message: (e as Error).message } }
+    let failed: string[] = []
+    if (files.length) failed = await uploadPending(community.id, id, files, onStatus)
+    await annQ.refresh(); await attQ.refresh()
+    return { posted: true, message: failed.length ? `Posted, but ${failed.length === 1 ? '1 attachment' : `${failed.length} attachments`} failed — ${failed.join(' · ')}` : null }
   }
   async function deleteAnn(id: string): Promise<string | null> {
     try { await deleteAnnouncement(id); await annQ.refresh(); return null } catch (e) { return (e as Error).message }
@@ -5266,6 +5286,7 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
     { id: 'overview', label: 'Overview', icon: 'home' },
     { id: 'schedule', label: 'Schedule', icon: 'calendar' },
     { id: 'announcements', label: 'Announcements', icon: 'megaphone' },
+    { id: 'vault', label: 'Vault', icon: 'library' },
     { id: 'analytics', label: 'Student Analytics', icon: 'progress' },
     { id: 'earnings', label: 'Earnings', icon: 'coin' },
     { id: 'manage', label: 'Manage Community', icon: 'cog' },
@@ -5334,8 +5355,9 @@ function WynkoHeadCommunityPage({ community, headName, profile, onNavigate, onBa
                 headUnits={headUnits} setHeadUnits={setHeadUnits} published={published} onPublish={onPublish} />
             )}
             {tab === 'announcements' && (
-              <HeadAnnouncementsTab headName={headName} announcements={announcements} onPost={postAnn} onDelete={deleteAnn} />
+              <HeadAnnouncementsTab headName={headName} announcements={announcements} attachments={attachments} viewerName={viewerName} onPost={postAnn} onDelete={deleteAnn} />
             )}
+            {tab === 'vault' && <CommunityVaultTab groupId={community.id} isAdmin viewerName={viewerName} communityName={community.name} />}
             {tab === 'analytics' && <HeadAnalyticsTab groupId={community.id} />}
             {tab === 'earnings' && (
               <>
@@ -5690,12 +5712,16 @@ function HeadScheduleTab({ members, headSchedule, setHeadSchedule, headUnits, se
 }
 
 // ── Announcements: post to the community, manage the feed ──
-function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
+function HeadAnnouncementsTab({ headName, announcements, attachments, viewerName, onPost, onDelete }: {
   headName: string
   announcements: CommunityAnnouncement[]
-  onPost: (a: { title: string; message: string; pinned: boolean; important: boolean }) => Promise<string | null>
+  attachments: Record<string, VaultItem[]>
+  viewerName: string
+  onPost: (a: { title: string; message: string; pinned: boolean; important: boolean }, files: PendingAttachment[], onStatus: (s: string) => void) => Promise<{ posted: boolean; message: string | null }>
   onDelete: (id: string) => Promise<string | null>
 }) {
+  const [files, setFiles] = useState<PendingAttachment[]>([])
+  const [status, setStatus] = useState<string | null>(null)
   const [postError, setPostError] = useState<string | null>(null)
   const [posting, setPosting] = useState(false)
   const [title, setTitle] = useState('')
@@ -5711,10 +5737,11 @@ function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
     if (!canPost || posting) return
     setPosting(true)
     setPostError(null)
-    const err = await onPost({ title: title.trim(), message: message.trim(), important, pinned })
-    setPosting(false)
-    if (err) { setPostError(err); return }
-    setTitle(''); setMessage(''); setImportant(false); setPinned(false)
+    const r = await onPost({ title: title.trim(), message: message.trim(), important, pinned }, files, setStatus)
+    setPosting(false); setStatus(null)
+    if (r.message) setPostError(r.message)
+    if (!r.posted) return // keep what they typed so they can retry
+    setTitle(''); setMessage(''); setImportant(false); setPinned(false); setFiles([])
   }
 
   const toggle = (on: boolean, set: (v: boolean) => void, label: string, icon: keyof typeof IP, accent: string) => (
@@ -5738,13 +5765,14 @@ function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
               {toggle(important, setImportant, 'Important', 'alert', '#F87171')}
               {toggle(pinned, setPinned, 'Pin to top', 'pin', '#CFC8BB')}
             </div>
-            {postError && <span className="text-[12px] text-amber-300">{postError}</span>}
             <button onClick={() => void post()} disabled={!canPost || posting}
               className="px-6 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 flex items-center gap-2 transition-all enabled:hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: '#FF8A3D', boxShadow: 'none' }}>
-              <Ico n="send" cls="w-4 h-4" /> Post Announcement
+              <Ico n="send" cls="w-4 h-4" /> {posting ? (status ?? 'Posting…') : 'Post Announcement'}
             </button>
           </div>
+          <AttachmentPicker files={files} onChange={setFiles} disabled={posting} />
+          {postError && <div className="text-[12px] text-amber-300 leading-relaxed">{postError}</div>}
         </div>
       </div>
 
@@ -5783,6 +5811,7 @@ function HeadAnnouncementsTab({ headName, announcements, onPost, onDelete }: {
               </div>
               <div className="text-[15px] font-semibold text-wk-ink-100 mt-2.5 mb-1">{a.title}</div>
               <div className="text-[13px] text-wk-ink-400 leading-relaxed whitespace-pre-wrap break-words">{a.message}</div>
+              <AttachmentChips items={attachments[a.id] ?? []} viewerName={viewerName} />
             </div>
           </div>
         </div>

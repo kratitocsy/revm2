@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^3.11.174",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
