@@ -429,7 +429,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <tr>
 <td><strong>Cloudflare</strong></td>
 <td>DNS, CDN, DDoS protection, security filtering, and chat storage (R2 bucket)</td>
-<td>IP address, request metadata; chat messages with Wynky AI assistant and between users (stored for training the Wynky AI model, then discarded after 90 days)</td>
+<td>IP address, request metadata; chat messages with Wynky AI assistant and between users (stored in R2 for Wynky AI training only with your separate, explicit opt-in consent, then auto-deleted after 90 days)</td>
 </tr>
 <tr>
 <td><strong>Vercel</strong></td>
@@ -458,7 +458,17 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 </tr>
 </tbody>
 </table>
-<p><strong>About chat data and AI training:</strong> Your conversations with the Wynky AI assistant and between users in study groups are stored in Cloudflare's R2 bucket. We use this data to improve the Wynky AI model's responses and capabilities. These chat messages are not stored in Supabase—they stay only in R2. After <strong>90 days</strong>, older chat data is automatically deleted. You can request earlier deletion of your chats by emailing founder@wynko.in. We do not share chat data with any third party for their own purposes; it is used only to train and improve Wynky.</p>
+<p><strong>About chat data and AI training — your consent matters:</strong> Your conversations with the Wynky AI assistant and between users in study groups may be stored in Cloudflare's R2 bucket for training and improving the Wynky AI model's responses and capabilities. Under India's Digital Personal Data Protection Act, this use of your data requires your <strong>separate, explicit consent</strong>, independent of your agreement to use Wynko.</p>
+<h3>AI Training — Your Consent and Choices</h3>
+<ul>
+<li><strong>Opt-in, not opt-out:</strong> You will be asked to specifically agree to AI training during signup and in your account settings. Simply using Wynko does not automatically mean your chats will be used for training.</li>
+<li><strong>Separate consent:</strong> This consent is separate from your general Wynko account consent. You are not required to agree to AI training in order to use Wynko's other features.</li>
+<li><strong>You can change your mind anytime:</strong> You can enable or disable AI training consent at any time in your settings, or by emailing founder@wynko.in. There is no penalty for changing your choice.</li>
+<li><strong>If you opt out:</strong> New chats will not be stored for training. Previously collected chats will be deleted within 30 days of opting out. Chats older than 90 days are automatically deleted regardless of consent status.</li>
+<li><strong>User-to-user chats:</strong> If you communicate with other users in study groups, all participants must individually consent to their own chats being used for training. Your consent does not cover their messages, and their consent does not cover yours.</li>
+<li><strong>Withdrawal of consent:</strong> When you withdraw consent, your chats that are more than 90 days old have already been deleted. Chats younger than 90 days will be deleted within 30 days.</li>
+</ul>
+<p><strong>Storage and deletion:</strong> Chat messages are not stored in Supabase—they stay only in Cloudflare's R2 bucket. After 90 days, all data is automatically deleted. We do not share chat data with any third party for their own purposes; it is used only to train and improve Wynky.</p>
 <p>We may also disclose data to courts, regulators, or law-enforcement where legally required, to professional advisers, and to a successor if Wynko is acquired or reorganised (we'll notify you first).</p>
 <p>Other users only see and hear what you choose to share: your display name and profile, your messages in chat rooms you join, your voice while you are unmuted in a voice room, your activity in shared groups, and your position on leaderboards you take part in.</p>
 <h2>7. International transfers</h2>
@@ -504,8 +514,8 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <td>12 months, or until deleted — messages you sent may remain visible to other room members in context</td>
 </tr>
 <tr>
-<td>Chats with Wynky AI assistant and in study groups</td>
-<td>90 days (stored in Cloudflare R2 for AI training, then automatically deleted)</td>
+<td>Chats with Wynky AI assistant and in study groups (for AI training)</td>
+<td>90 days maximum (stored in Cloudflare R2 only with your opt-in consent, then automatically deleted). Consent can be withdrawn anytime; chats are deleted within 30 days of withdrawal.</td>
 </tr>
 <tr>
 <td>Voice room audio</td>
