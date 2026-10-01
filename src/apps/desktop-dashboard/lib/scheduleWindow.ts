@@ -142,6 +142,29 @@ export function spendFreePause(scheduleId: string, now: Date = new Date()): void
   } catch { /* the 150-word gate still applies once storage is gone */ }
 }
 
+// A free pause lasts FREE_PAUSE_MINUTES, then the timer resumes by itself.
+// The end time is kept here so it survives leaving the page.
+export const FREE_PAUSE_MINUTES = 20;
+const UNTIL_KEY = 'wynko.freePauseUntil';
+
+/** Uses one of the schedule's free pauses and starts its 20-minute clock. */
+export function beginFreePause(scheduleId: string, now: Date = new Date()): void {
+  spendFreePause(scheduleId, now);
+  try { localStorage.setItem(UNTIL_KEY, String(now.getTime() + FREE_PAUSE_MINUTES * 60_000)); } catch { /* no clock: the pause just stays until resumed */ }
+}
+
+/** When the running free pause ends (ms), or null when none is running. */
+export function freePauseUntil(): number | null {
+  try {
+    const v = parseInt(localStorage.getItem(UNTIL_KEY) || '', 10);
+    return Number.isFinite(v) ? v : null;
+  } catch { return null; }
+}
+
+export function clearFreePause(): void {
+  try { localStorage.removeItem(UNTIL_KEY); } catch { /* nothing to clear */ }
+}
+
 // ── Store: the member's active schedules, loaded once and shared ───────────
 
 let current: WindowSchedule[] = [];

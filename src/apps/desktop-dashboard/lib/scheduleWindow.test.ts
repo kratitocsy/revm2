@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { blockedMessage, clockLabel, computeGate, freePausesLeft, spendFreePause, FREE_PAUSES_PER_SCHEDULE, type WindowSchedule } from './scheduleWindow';
+import { beginFreePause, blockedMessage, clearFreePause, clockLabel, computeGate, freePausesLeft, freePauseUntil, spendFreePause, FREE_PAUSES_PER_SCHEDULE, FREE_PAUSE_MINUTES, type WindowSchedule } from './scheduleWindow';
 
 // 2026-10-01 is a Thursday (day 4). All times India time.
 const at = (hhmm: string, date = '2026-10-01') => new Date(`${date}T${hhmm}:00+05:30`);
@@ -72,6 +72,7 @@ describe('free pauses', () => {
     (globalThis as any).localStorage = {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
     };
   });
 
@@ -84,6 +85,19 @@ describe('free pauses', () => {
     expect(freePausesLeft('s1', now)).toBe(0);
     expect(freePausesLeft('s2', now)).toBe(2);
     expect(freePausesLeft('s1', at('16:30', '2026-10-02'))).toBe(2);
+  });
+});
+
+describe('free pause clock', () => {
+  it('lasts 20 minutes and counts as a used pause', () => {
+    const now = at('16:30');
+    expect(freePauseUntil()).toBeNull();
+    beginFreePause('s9', now);
+    expect(freePauseUntil()).toBe(now.getTime() + FREE_PAUSE_MINUTES * 60_000);
+    expect(FREE_PAUSE_MINUTES).toBe(20);
+    expect(freePausesLeft('s9', now)).toBe(1);
+    clearFreePause();
+    expect(freePauseUntil()).toBeNull();
   });
 });
 
