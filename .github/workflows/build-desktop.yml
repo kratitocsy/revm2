@@ -11,6 +11,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write   # lets the last step refresh the public download
     defaults:
       run:
         working-directory: desktop
@@ -42,3 +44,20 @@ jobs:
           # install). The .msi and the bare exe skip those, so they're left out.
           name: wynko-desktop-windows
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+
+      # The public download link (downloads/index.html) points at this
+      # release asset, so it always serves the newest build from main.
+      # Branch runs only produce the artifact above.
+      - name: Publish the download
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd src-tauri/target/release/bundle/nsis
+          cp ./*-setup.exe Wynko-Setup.exe
+          gh release view desktop-latest >/dev/null 2>&1 || gh release create desktop-latest \
+            --title "Wynko for Windows (latest)" \
+            --notes "Newest Windows installer built from main. Download Wynko-Setup.exe." \
+            --latest=false
+          gh release upload desktop-latest Wynko-Setup.exe --clobber

@@ -2,7 +2,7 @@
 //
 // On a day one of the member's active Focus Lock schedules runs, the timer can
 // only be started inside one of that schedule's blocks, and pausing inside a
-// block gets 2 free pauses per schedule per day before the 150-word gate
+// block gets 2 free pauses per schedule per day before the 150-character gate
 // (pauseReflection.ts) applies. On a day no schedule runs, or for someone with
 // no schedule at all, nothing here restricts anything.
 //
@@ -139,7 +139,7 @@ export function spendFreePause(scheduleId: string, now: Date = new Date()): void
   try {
     const used = parseInt(localStorage.getItem(pauseKey(scheduleId, now)) || '0', 10) || 0;
     localStorage.setItem(pauseKey(scheduleId, now), String(used + 1));
-  } catch { /* the 150-word gate still applies once storage is gone */ }
+  } catch { /* the 150-character gate still applies once storage is gone */ }
 }
 
 // A free pause lasts FREE_PAUSE_MINUTES, then the timer resumes by itself.
