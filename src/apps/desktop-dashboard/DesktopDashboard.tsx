@@ -10664,6 +10664,8 @@ initStudyPlanSync()
 
 export default function DesktopDashboard() {
   const [activeNav, setActiveNav] = useState('home')
+  // The page the member was on last time, read once when the app opens (see the effect below).
+  const savedPageRef = useRef<string | null>((() => { try { return localStorage.getItem('wynko.lastPage') } catch { return null } })())
   const [sharedUnits, setSharedUnits] = useState<StudyUnit[]>([])
   const [schedule, setSchedule] = useState<ScheduleItem[][]>(Array.from({ length: 7 }, () => []))
   const [activeRoom, setActiveRoom] = useState<RoomData | null>(null)
@@ -10799,7 +10801,8 @@ export default function DesktopDashboard() {
     if (authState !== 'ready') return
     try {
       const url = new URL(window.location.href)
-      const page = url.searchParams.get('page')
+      // No page in the address and nothing else asking for attention (an invite link, say): pick up where the member left off.
+      const page = url.searchParams.get('page') ?? (url.search === '' ? savedPageRef.current : null)
       if (!page) return
       const tab = url.searchParams.get('tab')
       url.searchParams.delete('page')
@@ -10812,6 +10815,11 @@ export default function DesktopDashboard() {
       if (page === 'studyrooms' && (tab === 'rooms' || tab === 'communities')) setStudyRoomsTab(tab)
     } catch { /* no URL/history: nothing to do */ }
   }, [authState])
+  // Remember the page for next time. Quick Timer is left out: it is a side tool, not somewhere to land.
+  useEffect(() => {
+    if (authState !== 'ready' || activeNav === 'quicktimer') return
+    try { localStorage.setItem('wynko.lastPage', activeNav) } catch { /* storage blocked: the app just opens on Home */ }
+  }, [authState, activeNav])
   // A Quick Timer run keeps counting while you're elsewhere in the app; save
   // its time every minute (and finish it) from here while its page is closed.
   useEffect(() => {

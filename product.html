@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+/* Someone who is already signed in goes straight into the app instead of the
+   start page. Looks only for the saved Supabase session; home checks it for real
+   and sends anyone with an expired one to the login page. ?stay keeps this page open. */
+(function () {
+  try {
+    if (/[?&]stay\b/.test(location.search)) return;
+    var raw = localStorage.getItem('sb-dhzjtjekbvxxsauzhadl-auth-token');
+    if (!raw) return;
+    var s = JSON.parse(raw);
+    if (s && (s.refresh_token || (s.access_token && s.expires_at * 1000 > Date.now()))) location.replace('/home');
+  } catch (e) {}
+})();
+</script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Wynko — The World's First Study OS</title>
