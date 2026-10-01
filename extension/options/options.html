@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Wynko Focus Lock settings</title>
+<link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main class="wrap">
+    <h1>Wynko Focus Lock settings</h1>
+
+    <section class="card">
+      <h2>Account connection</h2>
+      <p class="hint">Paste the sync code from your Wynko web dashboard to link this browser to your account. This lets sessions started on the website apply here automatically, and reports verified sessions back for your Live Grid badge.</p>
+      <label class="field-label" for="api-base">API base URL</label>
+      <input id="api-base" class="input" type="text" placeholder="https://xxxx.supabase.co/functions/v1" />
+      <p class="hint">Where session sync calls go. Copy this exactly from the "Connect the extension" card on the Blocks page.</p>
+      <label class="field-label" for="web-base">Website URL</label>
+      <input id="web-base" class="input" type="text" placeholder="https://www.wynko.in" />
+      <p class="hint">Used only to open the emergency-unlock payment page in a new tab — a different address from the API base above.</p>
+      <label class="field-label" for="api-token">Sync token</label>
+      <input id="api-token" class="input" type="password" placeholder="Paste token from dashboard" />
+      <button id="save-settings-btn" class="btn btn-primary">Save connection</button>
+      <p class="save-status" id="settings-status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Content filtering</h2>
+      <p class="hint">Four layers, all toggled together, applying always rather than just during a session:</p>
+      <ul class="hint" style="margin:0 0 0.75rem 1.1rem;padding:0;">
+        <li>~25,000 known adult-content domains (exact match)</li>
+        <li>Adult-specific TLDs (.xxx/.porn/.adult/.sex)</li>
+        <li>Common adult-site domain-naming patterns (tube sites, cam sites, and Hindi/desi text-story sites like Antarvasna and its many clones/mirrors) - catches new or rotating domains the exact list doesn't have yet</li>
+        <li>Self-declared RTA "restricted to adults" tags, and a conservative page-text check for explicit terms - for story-style adult sites hosted on otherwise generic domains</li>
+      </ul>
+      <label class="field-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+        <input type="checkbox" id="block-adult-toggle" />
+        Block adult content
+      </label>
+      <p class="hint" id="adult-block-status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Saved blocks</h2>
+      <p class="hint">Named site lists you can start instantly from the popup.</p>
+      <div id="presets-list" class="presets-list"></div>
+    </section>
+  </main>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>

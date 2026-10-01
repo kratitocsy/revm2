@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0B0B0D;
+  color: #F5EFE3;
+  font-family: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.wrap { max-width: 560px; margin: 0 auto; padding: 40px 20px; }
+
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 24px; }
+h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+
+.card {
+  background: #161618;
+  border: 1px solid #26262A;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.hint { font-size: 12px; color: #9C968C; line-height: 1.5; margin: 0 0 14px; }
+
+.field-label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 6px; color: #CFC8BB; }
+
+.input {
+  width: 100%;
+  background: #1C1C1F;
+  border: 1px solid #26262A;
+  border-radius: 8px;
+  color: #F5EFE3;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.btn {
+  margin-top: 14px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary { background: #FF8A3D; color: #0B0B0D; }
+.btn-primary:hover { background: #FFA94D; }
+
+.save-status { font-size: 12px; color: #FFA94D; margin-top: 8px; min-height: 14px; }
+
+.presets-list { display: flex; flex-direction: column; gap: 8px; }
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1C1C1F;
+  border: 1px solid #26262A;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.preset-name { font-weight: 600; }
+.preset-mode {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #FFA94D;
+  background: #2B1B10;
+  border: 1px solid #5A3A20;
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-left: 6px;
+}
+.preset-sites { font-size: 11px; color: #9C968C; margin-top: 2px; }
+
+.delete-btn {
+  background: transparent;
+  border: 1px solid #3A1A15;
+  color: #E07A6B;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.empty { font-size: 12px; color: #7A756D; }

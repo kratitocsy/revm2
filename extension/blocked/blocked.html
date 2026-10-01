@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Blocked - Wynko</title>
+<link rel="stylesheet" href="blocked.css" />
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+
+  <nav class="topbar">
+    <div class="rm2-logo" data-size="small"></div>
+    <button id="mute-btn" class="mute-btn" type="button" title="Toggle voice line"></button>
+  </nav>
+
+  <main class="wrap">
+    <h1 id="block-title">This site is blocked.</h1>
+    <p class="sub" id="block-sub">You're mid focus session. It'll be reachable when the timer ends.</p>
+
+    <section class="gate-box" id="gate-box">
+      <button id="pause-cause-btn" class="pause-cause-btn" type="button">Pause for a Cause</button>
+      <p class="fine-print">Opens two ways out — a free 20-minute pause (once per session), or paying to end the session.</p>
+    </section>
+
+    <section class="unlock-choices hidden" id="unlock-choices">
+      <section class="unlock-box" id="unlock-box">
+        <p class="unlock-label">Type the code exactly for a 20-minute pause (once per session)</p>
+        <div class="code-window" id="code-window">
+          <div class="code-track" id="unlock-code" aria-hidden="true"></div>
+        </div>
+        <div class="code-slider-row">
+          <input
+            type="range"
+            id="code-slider"
+            class="code-slider"
+            min="0"
+            value="0"
+            step="1"
+            aria-label="Scroll through the code"
+          />
+        </div>
+        <input
+          id="unlock-input"
+          class="code-input"
+          type="text"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="Start typing to match the code above"
+        />
+        <div class="progress-track"><div class="progress-fill" id="unlock-progress"></div></div>
+        <button id="unlock-btn" class="unlock-btn" type="button" disabled>Unlock</button>
+        <p class="status" id="unlock-status"></p>
+      </section>
+
+      <div class="choice-divider">or</div>
+
+      <button id="emergency-unlock-btn" class="emergency-btn">
+        Emergency unlock &middot; &#8377;90 &mdash; ends this session
+      </button>
+      <p class="fine-print">The code pauses for 20 minutes and resumes automatically. Paying ends the session for good — both drop verified status for this session.</p>
+    </section>
+  </main>
+
+  <script src="rm2-brand.js"></script>
+  <script src="unlock.js" type="module"></script>
+</body>
+</html>
