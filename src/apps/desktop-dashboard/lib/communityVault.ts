@@ -7,8 +7,11 @@ import { sb } from '../../_shared/supabaseClient';
      pdf / image  -> rasterised to JPEG pages, stored through the existing
                      materials Cloudflare Worker (group_material_pages), read
                      page-by-page with short-lived view tokens.
-     doc / video / file -> stored as-is in the private 'community-files'
-                     Storage bucket, read through short-lived signed URLs.
+     doc / video / file -> stored as-is in Backblaze B2 through the same Worker
+                     (storage_path = 'b2:<key>'), streamed back with Range support.
+                     Rows from before that live in the private 'community-files'
+                     Storage bucket and are still read through signed URLs; if the
+                     Worker can't be reached the upload falls back to that bucket.
 
    in_vault = true  -> listed in the community's Vault.
    in_vault = false -> "just sent": only reachable from its announcement.
@@ -17,7 +20,12 @@ import { sb } from '../../_shared/supabaseClient';
 const MATERIALS_WORKER_URL = 'https://revm2-materials-proxy.kiaro2244.workers.dev';
 const RAW_BUCKET = 'community-files';
 
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // matches the bucket limit
+export const MAX_UPLOAD_BYTES = 90 * 1024 * 1024; // the Worker's cap (Cloudflare allows 100 MB bodies)
+const B2_PREFIX = 'b2:';
+
+export const isB2Path = (p: string | null | undefined): p is string => !!p && p.startsWith(B2_PREFIX);
+/** 'b2:<group>/<material>/file/<name>' -> '<material>' */
+export const b2MaterialId = (p: string): string => p.slice(B2_PREFIX.length).split('/')[1] ?? '';
 export const MAX_ATTACHMENTS_PER_ANNOUNCEMENT = 5;
 const PAGE_RENDER_SCALE = 2.0;
 const PAGE_MAX_DIM = 1800;
@@ -163,6 +171,30 @@ async function rasterizePdf(file: File, onProgress: (done: number, total: number
   return pages;
 }
 
+/** Stream one raw file to Backblaze through the Worker. Returns the B2 key, or null when the
+ *  Worker route isn't reachable (so the caller can fall back). Real failures throw. */
+async function uploadRawToWorker(groupId: string, materialId: string, file: File): Promise<string | null> {
+  const token = await accessToken();
+  const qs = new URLSearchParams({ group_id: groupId, material_id: materialId, name: file.name });
+  let res: Response;
+  try {
+    res = await fetch(`${MATERIALS_WORKER_URL}/upload-file?${qs}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+  } catch {
+    return null; // blocked/unreachable (an older Worker answers 404 without CORS headers, which lands here too)
+  }
+  if (res.status === 404 || res.status === 405) return null;
+  if (res.status === 413) throw new Error(`"${file.name}" is too large to upload.`);
+  if (res.status === 403) throw new Error('Only community admins can add files.');
+  if (!res.ok) throw new Error(`Upload to storage failed (${res.status}). Please try again.`);
+  const { key } = (await res.json()) as { key?: string };
+  if (!key) throw new Error('Upload to storage failed. Please try again.');
+  return key;
+}
+
 export interface UploadOptions {
   title?: string;
   inVault: boolean;
@@ -222,9 +254,16 @@ export async function uploadAttachment(groupId: string, file: File, opts: Upload
       await sb.from('group_materials').update({ status: 'ready' }).eq('id', materialId);
     } else {
       onStatus('Uploading…');
-      const path = `${groupId}/${materialId}/${safeObjectName(file.name)}`;
-      const { error } = await sb.storage.from(RAW_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-      if (error) throw new Error(errMsg(error, 'Upload failed'));
+      let path: string;
+      const b2Key = await uploadRawToWorker(groupId, materialId, file);
+      if (b2Key) {
+        path = B2_PREFIX + b2Key;
+      } else {
+        // Worker unreachable or not updated yet: keep working through Supabase Storage.
+        path = `${groupId}/${materialId}/${safeObjectName(file.name)}`;
+        const { error } = await sb.storage.from(RAW_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+        if (error) throw new Error(errMsg(error, 'Upload failed'));
+      }
       await sb.from('group_materials').update({ storage_path: path, status: 'ready' }).eq('id', materialId);
     }
     onStatus('Done.');
@@ -283,8 +322,20 @@ export async function mintPageUrl(materialId: string, pageNumber: number): Promi
   return `${MATERIALS_WORKER_URL}/view/${viewToken}`;
 }
 
-/** Short-lived signed URL for a raw file (docx / video / other). */
+/** URL for a raw file (docx / video / other). Backblaze files get a Worker view token (valid for
+ *  hours, Range-capable so video seeks); older rows use a Supabase signed URL. */
 export async function signedFileUrl(path: string, opts: { download?: string; seconds?: number } = {}): Promise<string> {
+  if (isB2Path(path)) {
+    const token = await accessToken();
+    const res = await fetch(`${MATERIALS_WORKER_URL}/mint-file`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ material_id: b2MaterialId(path), ...(opts.download ? { download: opts.download } : {}) }),
+    });
+    if (!res.ok) throw new Error('Could not open this file.');
+    const { token: viewToken } = (await res.json()) as { token: string };
+    return `${MATERIALS_WORKER_URL}/view/${viewToken}`;
+  }
   const { data, error } = await sb.storage.from(RAW_BUCKET)
     .createSignedUrl(path, opts.seconds ?? 300, opts.download ? { download: opts.download } : undefined);
   if (error || !data) throw new Error(errMsg(error, 'Could not open this file'));
@@ -294,10 +345,21 @@ export async function signedFileUrl(path: string, opts: { download?: string; sec
 /* ── manage ──────────────────────────────────────────────────────────────── */
 
 async function removeRaw(paths: string[]) {
-  if (paths.length) await sb.storage.from(RAW_BUCKET).remove(paths); // best effort
+  const legacy = paths.filter(p => !isB2Path(p));
+  if (legacy.length) await sb.storage.from(RAW_BUCKET).remove(legacy); // best effort
+}
+
+/** Remove everything stored in Backblaze for one material (pages and raw files). Best effort. */
+async function deleteFromB2(groupId: string, materialId: string): Promise<void> {
+  try {
+    const token = await accessToken();
+    const qs = new URLSearchParams({ group_id: groupId, material_id: materialId });
+    await fetch(`${MATERIALS_WORKER_URL}/delete?${qs}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  } catch { /* a leftover object is harmless; the row is what matters */ }
 }
 
 export async function deleteVaultItem(item: VaultItem): Promise<void> {
+  await deleteFromB2(item.group_id, item.id);
   if (item.storage_path) await removeRaw([item.storage_path]);
   const { error } = await sb.from('group_materials').delete().eq('id', item.id);
   if (error) throw new Error(errMsg(error, 'Could not delete this file'));
@@ -316,10 +378,12 @@ export async function renameVaultItem(id: string, title: string): Promise<void> 
   if (error) throw new Error(errMsg(error, 'Could not rename this file'));
 }
 
-/** Raw files of "just sent" attachments are removed from Storage before the
+/** Files of "just sent" attachments are removed from storage before the
  *  announcement (and, via trigger, those rows) is deleted. */
 export async function cleanupUnsavedAttachmentFiles(announcementId: string): Promise<void> {
-  const { data } = await sb.from('group_materials').select('storage_path')
-    .eq('announcement_id', announcementId).eq('in_vault', false).not('storage_path', 'is', null);
-  await removeRaw(((data ?? []) as { storage_path: string }[]).map(r => r.storage_path));
+  const { data } = await sb.from('group_materials').select('id, group_id, storage_path')
+    .eq('announcement_id', announcementId).eq('in_vault', false);
+  const rows = (data ?? []) as { id: string; group_id: string; storage_path: string | null }[];
+  await Promise.all(rows.map(r => deleteFromB2(r.group_id, r.id)));
+  await removeRaw(rows.map(r => r.storage_path).filter((p): p is string => !!p));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyFile, formatBytes, groupByAnnouncement, isMedia, safeObjectName, validateAttachment, MAX_UPLOAD_BYTES, type VaultItem } from './communityVault'
+import { b2MaterialId, classifyFile, formatBytes, groupByAnnouncement, isB2Path, isMedia, safeObjectName, validateAttachment, MAX_UPLOAD_BYTES, type VaultItem } from './communityVault'
 
 describe('classifyFile', () => {
   it('detects the supported kinds by mime or extension', () => {
@@ -46,5 +46,17 @@ describe('helpers', () => {
     const g = groupByAnnouncement([mk('1', 'a'), mk('2', 'a'), mk('3', null), mk('4', 'b')])
     expect(Object.keys(g).sort()).toEqual(['a', 'b'])
     expect(g.a.map(i => i.id)).toEqual(['1', '2'])
+  })
+})
+
+describe('Backblaze paths', () => {
+  it('tells Backblaze keys from legacy Supabase paths', () => {
+    expect(isB2Path('b2:g/m/file/a.mp4')).toBe(true)
+    expect(isB2Path('g/m/a.mp4')).toBe(false)
+    expect(isB2Path(null)).toBe(false)
+  })
+  it('extracts the material id from a key', () => {
+    expect(b2MaterialId('b2:group-1/mat-2/file/a.mp4')).toBe('mat-2')
+    expect(b2MaterialId('b2:broken')).toBe('')
   })
 })
