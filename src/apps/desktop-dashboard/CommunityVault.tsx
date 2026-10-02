@@ -72,6 +72,8 @@ function itemMeta(it: VaultItem): string {
 /* ============================================================
    Attachment picker (new announcement form)
    ============================================================ */
+const FILE_ACCEPT = 'image/*,video/*,.pdf,.doc,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword'
+
 export interface PendingAttachment { id: string; file: File; inVault: boolean }
 
 export function AttachmentPicker({ files, onChange, disabled }: {
@@ -81,9 +83,10 @@ export function AttachmentPicker({ files, onChange, disabled }: {
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
 
-  function add(list: FileList | null) {
-    if (!list) return
+  function add(list: FileList | File[] | null) {
+    if (!list || list.length === 0) return
     setError(null)
     const next = [...files]
     for (const f of Array.from(list)) {
@@ -97,15 +100,21 @@ export function AttachmentPicker({ files, onChange, disabled }: {
   }
 
   return (
-    <div>
+    <div
+      onDragOver={e => { if (disabled) return; e.preventDefault(); setDragging(true) }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={e => { e.preventDefault(); setDragging(false); if (!disabled) add(e.dataTransfer.files) }}
+      onPaste={e => { if (!disabled && e.clipboardData.files.length) { e.preventDefault(); add(e.clipboardData.files) } }}
+      className="rounded-xl transition-colors"
+      style={dragging ? { outline: `2px dashed ${ACCENT}`, outlineOffset: 4 } : undefined}>
       <div className="flex items-center gap-3 flex-wrap">
         <button type="button" disabled={disabled} onClick={() => inputRef.current?.click()}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors text-wk-ink-400 hover:text-wk-ink-200 disabled:opacity-40"
           style={{ borderColor: '#26262A' }}>
           <I n="clip" cls="w-3.5 h-3.5" /> Attach files
         </button>
-        <span className="text-[11px] text-wk-ink-600">PDF, DOCX, images, video · up to {MAX_UPLOAD_BYTES / 1024 / 1024} MB each</span>
-        <input ref={inputRef} type="file" multiple className="hidden" onChange={e => add(e.target.files)} />
+        <span className="text-[11px] text-wk-ink-600">PDF, DOCX, images, video · drag &amp; drop or paste · up to {MAX_UPLOAD_BYTES / 1024 / 1024} MB each</span>
+        <input ref={inputRef} type="file" multiple accept={FILE_ACCEPT} className="hidden" onChange={e => add(e.target.files)} />
       </div>
       {error && <div className="text-[12px] text-amber-300 mt-2">{error}</div>}
       {files.length > 0 && (
@@ -207,6 +216,7 @@ export function CommunityVaultTab({ groupId, isAdmin, viewerName, communityName 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
+  const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const items = useMemo(() => q.data
@@ -250,7 +260,10 @@ export function CommunityVaultTab({ groupId, isAdmin, viewerName, communityName 
 
   return (
     <div className="space-y-3.5">
-      <div className="p-5 rounded-2xl border" style={CARD}>
+      <div className="p-5 rounded-2xl border transition-colors" style={dragging ? { ...CARD, borderColor: ACCENT } : CARD}
+        onDragOver={e => { if (isAdmin && !busy) { e.preventDefault(); setDragging(true) } }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => { e.preventDefault(); setDragging(false); if (isAdmin && !busy) void upload(e.dataTransfer.files) }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ACCENT}1F`, border: `1px solid ${ACCENT}55`, color: ACCENT }}>
@@ -259,7 +272,7 @@ export function CommunityVaultTab({ groupId, isAdmin, viewerName, communityName 
             <div className="min-w-0">
               <div className="text-base font-bold text-wk-ink-100 leading-tight" style={{ fontFamily: 'Sora, sans-serif' }}>{communityName} Vault</div>
               <div className="text-[11px] text-wk-ink-500 leading-tight mt-0.5">
-                {isAdmin ? 'Everything you save here is open to every student, anytime.' : 'Notes, papers and media shared by your WynkoHead.'}
+                {isAdmin ? 'Everything you save here is open to every student, anytime. Drag files here to add them.' : 'Notes, papers and media shared by your WynkoHead.'}
               </div>
             </div>
           </div>
@@ -270,7 +283,7 @@ export function CommunityVaultTab({ groupId, isAdmin, viewerName, communityName 
                 style={{ background: ACCENT }}>
                 <I n="upload" /> {busy ? 'Uploading…' : 'Add to Vault'}
               </button>
-              <input ref={inputRef} type="file" multiple className="hidden" onChange={e => void upload(e.target.files)} />
+              <input ref={inputRef} type="file" multiple accept={FILE_ACCEPT} className="hidden" onChange={e => void upload(e.target.files)} />
             </>
           )}
         </div>
