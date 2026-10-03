@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import DesktopDashboard from './DesktopDashboard';
 import UpdateNotice from './UpdateNotice';
 import '../../styles/tailwind.build.css'; // shared Tailwind utilities
@@ -9,5 +10,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <DesktopDashboard />
     <UpdateNotice />
+    <SpeedInsights />
   </React.StrictMode>,
 );
