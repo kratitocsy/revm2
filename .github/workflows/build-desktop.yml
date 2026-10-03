@@ -13,6 +13,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write   # lets the last step refresh the public download
+      actions: write    # lets it redeploy the site so the page serves the new installer
     defaults:
       run:
         working-directory: desktop
@@ -61,3 +62,13 @@ jobs:
             --notes "Newest Windows installer built from main. Download Wynko-Setup.exe." \
             --latest=false
           gh release upload desktop-latest Wynko-Setup.exe --clobber
+
+      # pages.yml copies the release asset into the site at deploy time, so
+      # redeploy now or the page would keep serving the previous installer
+      # until the next push.
+      - name: Redeploy the site with the new installer
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main

@@ -52,6 +52,25 @@ jobs:
           npm run build:sidebars
           npm run build:mobile-home
           npm run build:desktop-dashboard
+      # The Windows installer is built by build-desktop.yml and published as a
+      # release asset. Copy the newest one into the site so the Download button
+      # on /downloads serves it directly from wynko.in (same as the extension
+      # zip). It is never committed. If the copy fails, point the button back at
+      # the release asset so the page never ships a dead link.
+      - name: Attach the Windows installer
+        shell: bash
+        run: |
+          URL=https://github.com/kratitocsy/revm2/releases/download/desktop-latest/Wynko-Setup.exe
+          OUT=downloads/Wynko-Setup-x64.exe
+          if curl -fL --retry 3 --retry-delay 5 -o "$OUT" "$URL" \
+             && [ "$(stat -c%s "$OUT")" -gt 1000000 ] \
+             && [ "$(head -c2 "$OUT")" = "MZ" ]; then
+            echo "Attached $(stat -c%s "$OUT") bytes"
+          else
+            echo "::warning::Could not fetch the installer; linking the button to the release instead."
+            rm -f "$OUT"
+            sed -i 's#href="Wynko-Setup-x64.exe" download="Wynko-Setup-x64.exe"#href="'"$URL"'"#' downloads/index.html
+          fi
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

@@ -7,3 +7,6 @@ release_notes.txt
 .env
 .env.*
 !.env.example
+
+# Copied in from the desktop-latest release at deploy time (pages.yml)
+downloads/Wynko-Setup-x64.exe
