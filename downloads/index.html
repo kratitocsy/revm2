@@ -20,9 +20,14 @@
   .btn{display:inline-block;background:var(--orange);color:#1a0d02;font-weight:600;border-radius:14px;padding:11px 20px;text-decoration:none;margin:0 8px 8px 0}
   ol{margin:6px 0 0;padding-left:20px;color:var(--text-2);font-size:14px}
   li{margin-bottom:4px}
-  .guide{margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
-  .guide h3{margin:0 0 4px;font-size:15px}
-  .guide p{margin:0 0 12px;font-size:13px}
+  .guide{margin-top:16px;padding:16px 16px 14px;border:1px solid rgba(255,82,70,.6);border-left-width:4px;border-radius:14px;background:rgba(255,82,70,.09)}
+  .guide.flash{animation:guideflash 1.4s ease-out 1}
+  @keyframes guideflash{0%,40%{box-shadow:0 0 0 4px rgba(255,82,70,.45)}100%{box-shadow:0 0 0 0 rgba(255,82,70,0)}}
+  .guide h3{margin:0 0 6px;font-size:15px;color:#FF6F61}
+  .guide p{margin:0 0 12px;font-size:13px;color:var(--text)}
+  .guide p b.red{color:#FF6F61}
+  .guide small{margin-top:12px}
+  @media (prefers-reduced-motion:reduce){.guide.flash{animation:none}}
   .guide a.shot{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--border);line-height:0;background:#fff}
   .guide img{width:100%;height:auto;display:block}
   small a{color:var(--orange);text-decoration:underline;text-underline-offset:2px}
@@ -40,9 +45,9 @@
     <p>Blocks distracting apps during your focus blocks and links your browser extension automatically.</p>
     <a class="btn" id="win-download" href="Wynko-Setup-x64.exe" download="Wynko-Setup-x64.exe">Download for Windows</a>
     <small>64-bit Windows 10 and 11 &middot; about 3.6&nbsp;MB &middot; <a href="https://github.com/kratitocsy/revm2/releases/download/desktop-latest/Wynko-Setup.exe">Download not starting? Use the GitHub link</a></small>
-    <div class="guide" id="smartscreen">
-      <h3>Windows says &ldquo;protected your PC&rdquo;? That&rsquo;s expected.</h3>
-      <p>The installer isn&rsquo;t code-signed yet, so Windows SmartScreen warns about it. Two clicks get you through: <b>More info</b>, then <b>Run anyway</b>.</p>
+    <div class="guide" id="smartscreen" role="note">
+      <h3>&#9888;&#65039; Windows may show &ldquo;Windows protected your PC&rdquo; &mdash; that&rsquo;s expected</h3>
+      <p>Wynko is a new app, so Windows doesn&rsquo;t recognise it yet. <b class="red">When more people download Wynko, this warning will go away.</b> Until then, do these two steps: click <b class="red">More info</b>, then <b class="red">Run anyway</b>.</p>
       <a class="shot" href="smartscreen-guide.webp" target="_blank" rel="noopener">
         <img src="smartscreen-guide.webp" width="1536" height="945" loading="lazy"
              alt="Step 1: on the blue &ldquo;Windows protected your PC&rdquo; screen, click More info. Step 2: then click Run anyway, next to Don&rsquo;t run.">
@@ -63,5 +68,15 @@
     <small>A Chrome Web Store version is coming.</small>
   </section>
 </main>
+<script>
+  // Show the SmartScreen steps right when the download starts; the download itself is not interrupted.
+  document.getElementById('win-download').addEventListener('click', function () {
+    var g = document.getElementById('smartscreen');
+    g.classList.remove('flash');
+    void g.offsetWidth;
+    g.classList.add('flash');
+    g.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+</script>
 </body>
 </html>
