@@ -4,6 +4,11 @@
   "outputDirectory": ".",
   "redirects": [
     {
+      "source": "/downloads/Wynko-Setup-x64.exe",
+      "destination": "https://github.com/kratitocsy/revm2/releases/download/desktop-latest/Wynko-Setup.exe",
+      "permanent": false
+    },
+    {
       "source": "/waitlist",
       "destination": "/login",
       "permanent": false
