@@ -63,7 +63,7 @@ pub type SharedBlockList = Arc<Mutex<BlockedApps>>;
 const NEVER_KILL_PREFIXES: &[&str] = &[
     "svchost", "system", "idle", "registry", "runtime", "dwm", "csrss",
     "wininit", "winlogon", "smss", "lsass", "services", "conhost",
-    "revm2-desktop", "explorer", "taskhost", "sihost", "ctfmon",
+    "revm2-desktop", "wynko-desktop", "wynko", "explorer", "taskhost", "sihost", "ctfmon",
     "fontdrvhost", "dllhost", "searchindexer", "searchapp", "searchhost",
     "shellexperiencehost", "startmenuexperiencehost", "applicationframehost",
     "textinputhost", "securityhealth", "systemsettings", "userinit",
@@ -119,7 +119,7 @@ pub fn list_running_apps() -> Vec<RunningApp> {
 
     let skip_prefixes = [
         "svchost", "system", "registry", "runtime", "dwm", "csrss", "wininit",
-        "smss", "lsass", "services", "conhost", "revm2-desktop", "msedgewebview2",
+        "smss", "lsass", "services", "conhost", "revm2-desktop", "wynko-desktop", "wynko", "msedgewebview2",
     ];
 
     let mut seen = std::collections::HashSet::new();

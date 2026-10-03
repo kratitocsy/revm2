@@ -169,7 +169,7 @@ chrome.alarms.create(HEARTBEAT_ALARM, { periodInMinutes: 0.5 });
 // them out of the RevM2 site itself (needed to end the session, pay for an
 // emergency unlock, etc.) or basic local dev testing.
 function alwaysAllowedDomains(settings) {
-  const out = new Set(["wynko.in", "www.wynko.in", "revm2.app", "revm-2-new.vercel.app", "localhost", "127.0.0.1"]);
+  const out = new Set(["wynko.in", "www.wynko.in", "localhost", "127.0.0.1"]);
   const fromUrl = (u) => {
     try {
       out.add(new URL(u).hostname.replace(/^www\./, ""));
@@ -221,7 +221,7 @@ function computeAllowHosts(sites, mode, settings, youtubeRules) {
   const ytExceptions = youtubeExceptionDomains(youtubeRules);
   // `always` (RevM2's own domains) is included here regardless of mode -
   // previously this only applied in whitelist mode, which meant someone
-  // could still accidentally (or a synced block could) put revm2.app on a
+  // could still accidentally (or a synced block could) put wynko.in on a
   // *blacklist* and lock themselves out of it. Now it's exempt either way.
   // `ytExceptions` is included regardless of mode for the same reason -
   // see the comment above.
@@ -394,7 +394,7 @@ async function applyBlockRules(sites, mode = "blacklist", youtubeRules) {
 // Priority 2 beats: the per-domain blacklist redirect rules (priority 1),
 // the whitelist catch-all (priority 1), and both adult-content static
 // rulesets (priority 1) - so RevM2's own site can never end up blocked by
-// any of those, even if someone typed revm2.app into a blacklist, or an
+// any of those, even if someone typed wynko.in into a blacklist, or an
 // adult-domain-pattern regex happened to false-positive on it. Called on
 // install/startup and whenever settings (apiBase/webBase) change, and left
 // in place across sessions - applyBlockRules()/clearBlockRules() never
