@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Wynko Focus Lock",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAts7U1YuSMHdAJZeMwO3b3E2qdL/KDRskC6xdnAorRQeuYmqxAWFWTRDtobC+FZGTByxvzNfa+kRCSuZDcOPC6K+SeTKjh7gVHFAPGh4SbDtlQaNHbLsEvLGMhOMgV0T8LThpAqxpnbnJxuovL47ZkbOemnRwScCqUcOy3BPrPvdDmh9+8QyB7AnkbF1vL7JHqlX1x4iIpbx9xaVy7u0oYpC1prNjQlXCn7WHRqmJcn41UYGZPC66xYvNr00d+XKvICSoDxizgDZ4+KpilZ2WldJqAhC8laUJzTGxvJuVrWsL2mAAEfjn1VeCElYqLn4hq2x8tkz1bOMcaM7Ha5AeLQIDAQAB",
   "description": "Blocks distracting sites during your Wynko focus sessions and syncs status with Wynko.",
   "icons": {
