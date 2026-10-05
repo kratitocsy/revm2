@@ -620,9 +620,40 @@ function toggleAppPick(name, checked){
 // Called after a block/session actually starts (or when the poller sees
 // one is already active) so the desktop app's own enforcement list
 // matches what this block specifies - a no-op in a plain browser tab.
+// Saved blocks hold friendly names ("Instagram", "VS Code") but the desktop
+// app can only close real process names ("Code.exe"). Names that don't line
+// up with a running process are sent to ai-resolve-apps, which picks matches
+// from this computer's own process list; unplaced names pass through as-is.
+// Each name is asked about once per page load.
+const resolvedAppNames = new Map();
+async function resolveDeviceApps(names){
+  try{
+    const running = ((await window.__TAURI__.core.invoke('list_running_apps'))||[]).map(a=>a.name);
+    const norm = s=>String(s).trim().toLowerCase().replace(/\.exe$/,'').replace(/[^a-z0-9]/g,'');
+    const lines = (e,p)=>!!e && !!p && (e===p || (e.length>=5 && p.startsWith(e)));
+    const unknown = names.filter(n=>!resolvedAppNames.has(n) && !running.some(r=>lines(norm(n),norm(r))));
+    if(unknown.length && running.length){
+      let matches = {};
+      try{
+        const { data: { session } } = await sb.auth.getSession();
+        if(session){
+          const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-resolve-apps`,{
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
+            body: JSON.stringify({ names: unknown, device_apps: running })
+          });
+          if(res.ok) matches = (await res.json()).matches || {};
+        }
+      }catch(e){ /* unresolved names stay as they are */ }
+      unknown.forEach(n=>resolvedAppNames.set(n, matches[n]||[]));
+    }
+    return [...new Set(names.flatMap(n=>[n, ...(resolvedAppNames.get(n)||[])]))];
+  }catch(e){ return names; }
+}
+
 async function syncBlockedAppsToDesktop(apps, mode){
   if(!isDesktopApp()) return;
-  try{ await window.__TAURI__.core.invoke('set_blocked_apps', {apps: apps||[], mode: mode==='whitelist' ? 'whitelist' : 'blacklist'}); }
+  try{ await window.__TAURI__.core.invoke('set_blocked_apps', {apps: await resolveDeviceApps(apps||[]), mode: mode==='whitelist' ? 'whitelist' : 'blacklist'}); }
   catch(e){ console.error('RM2 desktop invoke error (set_blocked_apps):', e); }
 }
 

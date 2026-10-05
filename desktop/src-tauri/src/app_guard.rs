@@ -212,6 +212,32 @@ pub fn kill_shell_processes() -> Vec<String> {
     killed.into_iter().collect()
 }
 
+/// Lower-cased process/app name with a trailing ".exe" and every
+/// non-alphanumeric character removed, so "Instagram", "instagram.exe"
+/// and "Insta-gram.EXE" all compare equal.
+fn normalize_app_name(name: &str) -> String {
+    let lower = name.trim().to_lowercase();
+    let stem = lower.strip_suffix(".exe").unwrap_or(&lower);
+    stem.chars().filter(|c| c.is_alphanumeric()).collect()
+}
+
+/// Whether a block-list entry refers to a running process. Entries come
+/// from the picker (exact process names) but also from presets, schedules
+/// and the AI planner, which store friendly names such as "Instagram" or
+/// "WhatsApp" - those never equal a real process name, so exact matching
+/// silently killed nothing. Matches on the normalized name, and also when
+/// a 5+ char entry is a prefix of the process stem ("whatsapp" ->
+/// "whatsapp.root.exe"), which keeps short entries like "go" from matching
+/// unrelated processes.
+fn app_entry_matches(entry: &str, process_name: &str) -> bool {
+    let e = normalize_app_name(entry);
+    let p = normalize_app_name(process_name);
+    if e.is_empty() || p.is_empty() {
+        return false;
+    }
+    e == p || (e.len() >= 5 && p.starts_with(&e))
+}
+
 fn kill_blacklisted(apps: &[String]) -> Vec<String> {
     if apps.is_empty() {
         return Vec::new();
@@ -235,7 +261,7 @@ fn kill_blacklisted(apps: &[String]) -> Vec<String> {
             continue;
         }
 
-        let matches = apps.iter().any(|b| b.eq_ignore_ascii_case(name));
+        let matches = apps.iter().any(|b| app_entry_matches(b, name));
         if matches {
             let ok = process.kill();
             if ok {
@@ -271,7 +297,7 @@ fn kill_not_whitelisted(allowed: &[String]) -> Vec<String> {
         let name = process.name(); // &str in sysinfo 0.30
         let lower = name.to_lowercase();
 
-        if allowed.iter().any(|a| a.eq_ignore_ascii_case(name)) {
+        if allowed.iter().any(|a| app_entry_matches(a, name)) {
             continue; // explicitly allowed
         }
         if NEVER_KILL_PREFIXES.iter().any(|p| lower.starts_with(p)) {
@@ -380,4 +406,24 @@ pub fn sync_and_relaunch_whitelisted(app: &AppHandle, allowed: &[String]) -> Vec
         // else: never seen running this app - no known path, can't relaunch.
     }
     relaunched
+}
+
+#[cfg(test)]
+mod tests {
+    use super::app_entry_matches;
+
+    #[test]
+    fn friendly_names_match_exe_names() {
+        assert!(app_entry_matches("Instagram", "Instagram.exe"));
+        assert!(app_entry_matches("instagram.exe", "Instagram.exe"));
+        assert!(app_entry_matches("WhatsApp", "WhatsApp.Root.exe"));
+        assert!(app_entry_matches("Steam", "steam.exe"));
+    }
+
+    #[test]
+    fn short_or_unrelated_entries_do_not_overmatch() {
+        assert!(!app_entry_matches("go", "google-chrome.exe"));
+        assert!(!app_entry_matches("Netflix", "Notepad.exe"));
+        assert!(!app_entry_matches("", "anything.exe"));
+    }
 }
