@@ -159,6 +159,9 @@ Deno.serve(async (req) => {
           unlimited: session.unlimited,
           mode: session.mode,
           youtubeRules: session.youtube_rules,
+          // null when not paused. The extension honours this (see
+          // reconcileRemotePause in background.js).
+          pausedUntil: session.paused_until ?? null,
         }
       : null,
     study: study

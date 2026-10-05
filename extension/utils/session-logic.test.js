@@ -11,6 +11,7 @@ import {
   resolveUnlimited,
   isRemoteSessionExpired,
   computeEndsAt,
+  resolveRemotePause,
 } from "./session-logic.js";
 
 test("isCurrentlyEnforcing", async (t) => {
@@ -106,5 +107,61 @@ test("computeEndsAt", async (t) => {
     const now = Date.parse("2026-01-01T00:00:00.000Z");
     const result = computeEndsAt(false, -10, now);
     assert.equal(result, new Date(now).toISOString());
+  });
+});
+
+test("resolveRemotePause", async (t) => {
+  const now = Date.parse("2026-01-01T00:00:00.000Z");
+  const future = new Date(now + 30 * 60_000).toISOString();
+  const futureMs = now + 30 * 60_000;
+  const past = new Date(now - 60_000).toISOString();
+
+  await t.test("a remote session that doesn't report pausedUntil changes nothing", () => {
+    const local = { active: true, pausedUntil: now + 60_000, remotePause: true };
+    assert.deepEqual(resolveRemotePause(local, { active: true }, now), { action: "none" });
+  });
+
+  await t.test("future remote pause on an enforcing session -> pause until then", () => {
+    assert.deepEqual(
+      resolveRemotePause({ active: true }, { pausedUntil: future }, now),
+      { action: "pause", until: futureMs },
+    );
+  });
+
+  await t.test("already paused locally at least as long -> nothing to do", () => {
+    const local = { active: true, pausedUntil: futureMs, remotePause: true };
+    assert.deepEqual(resolveRemotePause(local, { pausedUntil: future }, now), { action: "none" });
+  });
+
+  await t.test("the backend echo of a local code-unlock pause (a few seconds later) is not a new pause", () => {
+    const local = { active: true, pausedUntil: futureMs };
+    const echo = new Date(futureMs + 3_000).toISOString();
+    assert.deepEqual(resolveRemotePause(local, { pausedUntil: echo }, now), { action: "none" });
+  });
+
+  await t.test("remote pause longer than a local one extends it", () => {
+    const local = { active: true, pausedUntil: now + 60_000 };
+    assert.deepEqual(
+      resolveRemotePause(local, { pausedUntil: future }, now),
+      { action: "pause", until: futureMs },
+    );
+  });
+
+  await t.test("backend cleared a pause it set -> resume", () => {
+    const local = { active: true, pausedUntil: futureMs, remotePause: true };
+    assert.deepEqual(resolveRemotePause(local, { pausedUntil: null }, now), { action: "resume" });
+  });
+
+  await t.test("a pause started on this device is never lifted by the backend", () => {
+    const local = { active: true, pausedUntil: futureMs };
+    assert.deepEqual(resolveRemotePause(local, { pausedUntil: null }, now), { action: "none" });
+  });
+
+  await t.test("a lapsed remote pause is ignored", () => {
+    assert.deepEqual(resolveRemotePause({ active: true }, { pausedUntil: past }, now), { action: "none" });
+  });
+
+  await t.test("no local active session -> nothing to do", () => {
+    assert.deepEqual(resolveRemotePause(null, { pausedUntil: future }, now), { action: "none" });
   });
 });

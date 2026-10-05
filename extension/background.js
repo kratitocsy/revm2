@@ -12,6 +12,7 @@ import {
   resolveUnlimited,
   isRemoteSessionExpired,
   computeEndsAt,
+  resolveRemotePause,
 } from "./utils/session-logic.js";
 
 // Dynamic rule ID ranges - kept clear of each other and of any static rules
@@ -790,6 +791,32 @@ function updateBadge(session) {
 
 // ---------- Backend sync (picks up sessions started from the website) ----------
 
+// Applies a pause (or lifts one) that the BACKEND reports on the active
+// session - focus_lock_sessions.paused_until, surfaced by /session-status.
+// Enforcement here is entirely local (DNR rules + this device's storage), so
+// writing paused_until in the database used to do nothing until this existed.
+// Only pauses that came from the backend are ever lifted by it (see
+// resolveRemotePause), so the on-device code-unlock pause is unaffected.
+async function reconcileRemotePause(remoteSession) {
+  const local = await getSession();
+  const decision = resolveRemotePause(local, remoteSession);
+
+  if (decision.action === "pause") {
+    local.pausedUntil = decision.until;
+    local.remotePause = true;
+    await setSession(local);
+    await releaseEnforcement();
+    await chrome.alarms.create(RELOCK_ALARM, { when: decision.until });
+  } else if (decision.action === "resume") {
+    delete local.pausedUntil;
+    delete local.remotePause;
+    await setSession(local);
+    await chrome.alarms.clear(RELOCK_ALARM);
+    await applyBlockRules(local.sites, local.mode, local.youtubeRules);
+    redirectAlreadyOpenTabs(local.sites, local.mode, local.youtubeRules);
+  }
+}
+
 // Mirrors an externally-reported session state into local session state -
 // shared by the Edge Function poll below (syncWithBackend) and the
 // desktop app's local push (RM2_DESKTOP_SESSION_EVENT, see the
@@ -853,6 +880,10 @@ async function mirrorSessionState(remoteActive, remoteSession) {
       await setSession(local);
     }
   }
+
+  // Runs after a fresh start too, so a session that begins already paused
+  // on the backend doesn't enforce for a poll cycle first.
+  if (remoteActive && remoteSession) await reconcileRemotePause(remoteSession);
 }
 
 // ---------- Direct link with the desktop app ----------
@@ -1221,6 +1252,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const session = await getSession();
     if (session?.active) {
       delete session.pausedUntil; // pause window is over - back to normal enforcement
+      delete session.remotePause;
       await setSession(session);
       await applyBlockRules(session.sites, session.mode, session.youtubeRules);
       redirectAlreadyOpenTabs(session.sites, session.mode, session.youtubeRules);
