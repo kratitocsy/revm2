@@ -12,6 +12,7 @@ import {
   isRemoteSessionExpired,
   computeEndsAt,
   resolveRemotePause,
+  shouldRelock,
 } from "./session-logic.js";
 
 test("isCurrentlyEnforcing", async (t) => {
@@ -163,5 +164,23 @@ test("resolveRemotePause", async (t) => {
 
   await t.test("no local active session -> nothing to do", () => {
     assert.deepEqual(resolveRemotePause(null, { pausedUntil: future }, now), { action: "none" });
+  });
+});
+
+test("shouldRelock", async (t) => {
+  const now = Date.parse("2026-01-01T01:00:00.000Z");
+  await t.test("no session or inactive -> never re-locks", () => {
+    assert.equal(shouldRelock(null, now), false);
+    assert.equal(shouldRelock({ active: false }, now), false);
+  });
+  await t.test("timed session past its endsAt -> does not re-lock (the end-alarm race)", () => {
+    assert.equal(shouldRelock({ active: true, endsAt: "2026-01-01T01:00:00.000Z" }, now), false);
+    assert.equal(shouldRelock({ active: true, endsAt: "2026-01-01T00:59:00.000Z" }, now), false);
+  });
+  await t.test("timed session with time left -> re-locks", () => {
+    assert.equal(shouldRelock({ active: true, endsAt: "2026-01-01T01:30:00.000Z" }, now), true);
+  });
+  await t.test("unlimited session -> re-locks", () => {
+    assert.equal(shouldRelock({ active: true, unlimited: true, endsAt: null }, now), true);
   });
 });

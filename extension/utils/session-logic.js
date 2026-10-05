@@ -107,3 +107,18 @@ export function resolveRemotePause(local, remoteSession, now = Date.now()) {
   }
   return { action: "none" };
 }
+
+/**
+ * Whether the post-pause re-lock should actually put the block back. The
+ * re-lock alarm can fire at the very same moment as the session-end alarm
+ * (a pause that runs "until the session ends" lands exactly on endsAt), and
+ * the two handlers race: re-lock used to read the session just before
+ * endSession() cleared it, then re-apply the rules afterwards, leaving a
+ * block in place with no session behind it. Re-check right before applying:
+ * only an active session that hasn't reached its endsAt gets re-locked.
+ */
+export function shouldRelock(session, now = Date.now()) {
+  if (!session?.active) return false;
+  if (!session.unlimited && session.endsAt && now >= new Date(session.endsAt).getTime()) return false;
+  return true;
+}

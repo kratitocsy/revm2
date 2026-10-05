@@ -13,6 +13,7 @@ import {
   isRemoteSessionExpired,
   computeEndsAt,
   resolveRemotePause,
+  shouldRelock,
 } from "./utils/session-logic.js";
 
 // Dynamic rule ID ranges - kept clear of each other and of any static rules
@@ -648,6 +649,7 @@ async function endSession(reason) {
   await releaseEnforcement();
   await chrome.alarms.clear(END_ALARM);
   await chrome.alarms.clear(WARN_ALARM);
+  await chrome.alarms.clear(RELOCK_ALARM); // a pending re-lock must not outlive the session
 
   // Only a session that ran its full time gets the "done" notification -
   // ending it early or from the website is something the person just did
@@ -939,6 +941,14 @@ async function syncWithBackend() {
 
   const remoteSession = remote.data.session;
   await mirrorSessionState(!!remoteSession?.active, remoteSession);
+
+  // Orphan sweep: nothing active on the backend and nothing active locally,
+  // yet block rules may still be installed (e.g. left behind by the re-lock/
+  // end race above, or a worker killed mid-session). They would block sites
+  // "until the session ends" with no session to end. Clear them.
+  if (!remoteSession?.active && !(await getSession())?.active) {
+    await clearBlockRules();
+  }
 }
 
 // ---------- Desktop-app local bridge (instant, no Supabase involved) ----------
@@ -1251,7 +1261,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
   if (alarm.name === RELOCK_ALARM) {
     const session = await getSession();
-    if (session?.active) {
+    // shouldRelock re-checks the session is still live and not past endsAt -
+    // this alarm can fire at the same instant as END_ALARM (a pause "until
+    // the session ends"), and without the check it re-applied the rules
+    // after endSession() had already cleared them, orphaning the block.
+    if (shouldRelock(session)) {
       delete session.pausedUntil; // pause window is over - back to normal enforcement
       delete session.remotePause;
       await setSession(session);
