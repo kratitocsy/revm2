@@ -10,6 +10,10 @@
 //              (Study DNA, busy times, weak subjects, the student's
 //              requests) and the AI returns an improved version of the
 //              same day. The student's own requests rank above everything.
+//   "resolve_apps" — the desktop app sends friendly app names saved in a
+//              block ("Instagram", "VS Code") plus the process names running
+//              on this computer; the AI picks the matching processes. Only
+//              names from that running list are ever returned.
 //   "chat"   — Wynky's chat after set-up: the AI reads the whole
 //              conversation, the current plan and the settings it agreed
 //              with the student, answers in its own words and returns the
@@ -872,6 +876,16 @@ function checkChat(out: Record<string, unknown>, subjects: string[]):
   };
 }
 
+const RESOLVE_APPS_PROMPT = `You match app names a student typed to process names running on their Windows computer.
+Input: "names" (what the student called the apps) and "device_apps" (real process names, e.g. "Code.exe").
+Output ONLY JSON: {"matches":{"<name>":["<process name from device_apps>", ...]}}
+Rules:
+- Use process names copied exactly from device_apps. Never invent one.
+- A name may map to several processes (an app with helper processes).
+- If nothing in device_apps is clearly that app, leave the name out. Websites such as Instagram or YouTube
+  have no process of their own; do not map them to a browser.
+- Never map to system, shell, or security processes.`;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });
@@ -903,6 +917,37 @@ Deno.serve(async (req: Request) => {
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) return json({ error: "AI not configured" }, 500);
     const model = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash";
+
+    if (mode === "resolve_apps") {
+      const names = strList(body.names, 20).map((n) => n.slice(0, 80));
+      const deviceApps = strList(body.device_apps, 300).map((a) => a.slice(0, 80));
+      if (!names.length || !deviceApps.length) return json({ success: true, matches: {} });
+      const prompt = JSON.stringify({ names, device_apps: deviceApps });
+      const rawText = await generate(prompt, apiKey, model, RESOLVE_APPS_PROMPT, (text) => {
+        try {
+          extractJson(text);
+          return null;
+        } catch {
+          return "not JSON";
+        }
+      }, { budgetMs: CHAT_BUDGET_MS, hedgeMs: CHAT_HEDGE_MS });
+      let raw: Record<string, unknown> = {};
+      try {
+        raw = ((extractJson(rawText) as Record<string, unknown>).matches ?? {}) as Record<string, unknown>;
+      } catch {
+        return json({ success: true, matches: {} });
+      }
+      // Only names the client asked about, only processes it actually listed.
+      const deviceByLower = new Map(deviceApps.map((a) => [a.toLowerCase(), a]));
+      const matches: Record<string, string[]> = {};
+      for (const name of names) {
+        const picked = strList(raw[name], 10)
+          .map((x) => deviceByLower.get(x.toLowerCase()))
+          .filter((x): x is string => !!x);
+        if (picked.length) matches[name] = [...new Set(picked)];
+      }
+      return json({ success: true, matches });
+    }
 
     if (mode === "chat") {
       const subjectNames = strList(subjects, 20);

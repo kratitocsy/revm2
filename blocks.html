@@ -622,7 +622,7 @@ function toggleAppPick(name, checked){
 // matches what this block specifies - a no-op in a plain browser tab.
 // Saved blocks hold friendly names ("Instagram", "VS Code") but the desktop
 // app can only close real process names ("Code.exe"). Names that don't line
-// up with a running process are sent to ai-resolve-apps, which picks matches
+// up with a running process are sent to ai-generate-schedule (resolve_apps), which picks matches
 // from this computer's own process list; unplaced names pass through as-is.
 // Each name is asked about once per page load.
 const resolvedAppNames = new Map();
@@ -637,10 +637,10 @@ async function resolveDeviceApps(names){
       try{
         const { data: { session } } = await sb.auth.getSession();
         if(session){
-          const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-resolve-apps`,{
+          const res = await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/ai-generate-schedule`,{
             method:'POST',
             headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
-            body: JSON.stringify({ names: unknown, device_apps: running })
+            body: JSON.stringify({ mode: 'resolve_apps', names: unknown, device_apps: running })
           });
           if(res.ok) matches = (await res.json()).matches || {};
         }
