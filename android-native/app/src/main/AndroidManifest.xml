@@ -74,6 +74,9 @@
             </intent-filter>
         </receiver>
 
+        <!-- Fires at schedule slot boundaries to start/end the scheduled block -->
+        <receiver android:name=".locking.ScheduleReceiver" android:exported="false" />
+
         <!-- Device Admin (not Device Owner) — uninstall-resistance friction -->
         <receiver
             android:name=".locking.RevM2DeviceAdminReceiver"
@@ -107,6 +110,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Start/end scheduled focus blocks on the minute; the user can decline and blocks still run (inexact) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- No QUERY_ALL_PACKAGES (a restricted Play permission): the app picker only needs launchable apps,
          which the queries block above makes visible. -->

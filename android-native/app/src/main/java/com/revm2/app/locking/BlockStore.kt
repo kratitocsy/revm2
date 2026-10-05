@@ -27,6 +27,7 @@ object BlockStore {
     private const val KEY_UNLOCK_PHRASE = "unlock_phrase"
     private const val KEY_ENDS_AT = "ends_at_ms"  // 0 = no time limit
     private const val KEY_LOCK_SETTINGS = "lock_settings"
+    private const val KEY_DOMAINS_ALLOW_ONLY = "domains_allow_only"
     private const val KEY_TAMPERED = "tampered"
     private const val KEY_TAMPER_REASON = "tamper_reason"
 
@@ -95,6 +96,8 @@ object BlockStore {
         val lockSettings: Boolean = false,
         val tampered: Boolean = false,
         val tamperReason: String? = null,
+        /** true: only [domainList] (plus our own hosts) can be looked up; everything else is refused. */
+        val domainsAllowOnly: Boolean = false,
     ) {
         /** Seconds left, or null for an unlimited session. */
         fun remainingSeconds(nowMs: Long = System.currentTimeMillis()): Long? =
@@ -122,6 +125,7 @@ object BlockStore {
             lockSettings = p.getBoolean(KEY_LOCK_SETTINGS, false),
             tampered = p.getBoolean(KEY_TAMPERED, false),
             tamperReason = p.getString(KEY_TAMPER_REASON, null),
+            domainsAllowOnly = p.getBoolean(KEY_DOMAINS_ALLOW_ONLY, false),
         )
     }
 
@@ -135,6 +139,7 @@ object BlockStore {
         unlockPhrase: String?,
         endsAtMs: Long = 0L,
         lockSettings: Boolean = noEarlyUnlock,
+        domainsAllowOnly: Boolean = false,
     ) {
         prefs(ctx).edit()
             .putBoolean(KEY_SESSION_ACTIVE, true)
@@ -146,6 +151,7 @@ object BlockStore {
             .putString(KEY_UNLOCK_PHRASE, unlockPhrase)
             .putLong(KEY_ENDS_AT, endsAtMs)
             .putBoolean(KEY_LOCK_SETTINGS, lockSettings)
+            .putBoolean(KEY_DOMAINS_ALLOW_ONLY, domainsAllowOnly)
             .putBoolean(KEY_TAMPERED, false)
             .putString(KEY_TAMPER_REASON, null)
             .apply()
@@ -209,11 +215,18 @@ object BlockStore {
         }
     }
 
+    /** Hosts the app and the phone itself need even in an allow-only / block-everything session (sync, connectivity checks). */
+    private val ALWAYS_ALLOWED_DOMAINS = setOf(
+        "supabase.co", "wynko.in", "wynko.app", "connectivitycheck.gstatic.com", "clients3.google.com", "android.clients.google.com",
+    )
+
     fun isDomainBlockedForSession(s: Session, domain: String): Boolean {
         if (!s.active) return false
         val d = domain.lowercase().removeSuffix(".")
-        if (s.domainList.isNotEmpty() && DOH_DOMAINS.any { d == it || d.endsWith(".$it") }) return true
-        return s.domainList.any { d == it || d.endsWith(".$it") }
+        fun matches(list: Collection<String>) = list.any { d == it || d.endsWith(".$it") }
+        if (s.domainsAllowOnly) return !(matches(s.domainList) || matches(ALWAYS_ALLOWED_DOMAINS))
+        if (s.domainList.isNotEmpty() && matches(DOH_DOMAINS)) return true
+        return matches(s.domainList)
     }
 
     /** Packages that must never be blocked: our own app's launcher, the system UI (shade, nav), the on-screen

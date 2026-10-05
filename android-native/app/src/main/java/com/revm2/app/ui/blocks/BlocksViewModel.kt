@@ -42,7 +42,7 @@ class BlocksViewModel : ViewModel() {
         val active = FocusRepository.activeSession()
         // Keep on-device enforcement in step with the server row (covers a session started elsewhere or already ended).
         if (active != null && !LockingController.sessionState(ctx).active) enforce(ctx, active)
-        if (active == null && LockingController.sessionState(ctx).active) LockingController.endSession(ctx)
+        if (active == null && LockingController.sessionState(ctx).let { it.active && it.sessionId?.startsWith("sched-") != true }) LockingController.endSession(ctx)
         _state.update { it.copy(loading = false, presets = presets, active = active, remainingSeconds = remaining(active), error = null) }
     }
 
@@ -91,7 +91,7 @@ class BlocksViewModel : ViewModel() {
     fun clearError() = _state.update { it.copy(error = null) }
 
     private fun enforce(ctx: Context, s: FocusSession) = LockingController.startSession(
-        ctx, s.id, apps = s.apps, domains = s.sites, appsMode = s.appsMode, noEarlyUnlock = s.noEarlyUnlock,
+        ctx, s.id, apps = s.apps, domains = s.sites, appsMode = s.appsMode, noEarlyUnlock = s.noEarlyUnlock, domainsAllowOnly = s.mode == "whitelist",
         endsAtMs = s.endsAt?.let { Instant.parse(it).toEpochMilli() } ?: 0L,
     )
 

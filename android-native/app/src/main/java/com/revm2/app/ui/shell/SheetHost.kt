@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.revm2.app.schedule.*
 import com.revm2.app.ui.components.*
 import com.revm2.app.ui.sample.*
 import com.revm2.app.ui.theme.Jakarta
@@ -43,6 +44,8 @@ fun SheetHost(vm: AppViewModel) {
     when (vm.sheet) {
         null -> Unit
         SheetKind.Pause -> PauseSheet(vm)
+        SheetKind.FreePause -> FreePauseSheet(vm)
+        SheetKind.Gate -> GateSheet(vm)
         SheetKind.AddTask -> AddTaskSheet(vm)
         SheetKind.Pomodoro -> PomodoroSheet(vm)
         SheetKind.Notifications -> WkSheet({ vm.sheet = null }) {
@@ -62,22 +65,56 @@ fun SheetHost(vm: AppViewModel) {
     }
 }
 
-private fun wordCount(s: String) = s.trim().split(Regex("\\s+")).count { it.isNotEmpty() }
-
 @Composable
 private fun PauseSheet(vm: AppViewModel) {
     var text by remember { mutableStateOf("") }
-    val words = wordCount(text)
+    val chars = countReflectionChars(text)
     WkSheet({ vm.sheet = null }) {
         Icon3(); WkText("Before you pause…", 18, FontWeight.Bold, Wk.Ink100)
-        WkText("Take a moment before breaking your focus. Type 150 words — anything on your mind. Yes, random words are allowed. This isn't an essay.", 12, color = Wk.Ink400, lineHeight = 1.5f)
+        WkText("Take a moment before breaking your focus. Type at least $PAUSE_REFLECTION_MIN_CHARS characters — anything on your mind. Gibberish counts; spaces don't. This isn't an essay.", 12, color = Wk.Ink400, lineHeight = 1.5f)
         WkField(text, { text = it }, "Start typing…", singleLine = false, minLines = 5)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            WkText("$words / 150 words", 12, FontWeight.SemiBold, if (words >= 150) Wk.Green else Wk.Ink500, Modifier.weight(1f))
-            WkText("demo: fill sample", 11, color = Wk.Orange300, modifier = Modifier.tap { text = List(15) { "reading electrostatics notes again feeling a bit tired need water then back to" }.joinToString(" ") })
+            WkText("$chars / $PAUSE_REFLECTION_MIN_CHARS characters", 12, FontWeight.SemiBold, if (chars >= PAUSE_REFLECTION_MIN_CHARS) Wk.Green else Wk.Ink500, Modifier.weight(1f))
+            WkText("demo: fill sample", 11, color = Wk.Orange300, modifier = Modifier.tap { text = "reading electrostatics notes again feeling a bit tired need water then back to ".repeat(3) })
         }
-        PrimaryButton("Unlock Pause", { vm.confirmPause() }, Modifier.fillMaxWidth(), enabled = words >= 150, color = Wk.Cream50)
+        PrimaryButton("Unlock Pause", { vm.confirmPause() }, Modifier.fillMaxWidth(), enabled = isPauseUnlocked(text), color = Wk.Cream50)
         GhostButton("Keep Studying", { vm.sheet = null }, Modifier.fillMaxWidth(), height = 46)
+    }
+}
+
+@Composable
+private fun FreePauseSheet(vm: AppViewModel) {
+    var reflect by remember { mutableStateOf(false) }
+    if (reflect) { PauseSheet(vm); return }
+    WkSheet({ vm.sheet = null }) {
+        Icon3(); WkText("Take a free pause?", 18, FontWeight.Bold, Wk.Ink100)
+        WkText("You're inside a scheduled block. You have ${vm.freePausesLeft} free pause${if (vm.freePausesLeft == 1) "" else "s"} left today for this schedule. It lasts $FREE_PAUSE_MINUTES minutes, then your timer resumes by itself. Blocking stays on.", 12, color = Wk.Ink400, lineHeight = 1.5f)
+        PrimaryButton("Use a free pause", { vm.beginFreePause() }, Modifier.fillMaxWidth(), color = Wk.Cream50)
+        GhostButton("Pause with a reflection instead", { reflect = true }, Modifier.fillMaxWidth(), height = 46)
+        GhostButton("Keep Studying", { vm.sheet = null }, Modifier.fillMaxWidth(), height = 46)
+    }
+}
+
+private const val GATE_LENGTH = 500
+private const val GATE_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>/?~"
+
+/** The desktop's edit-lock gate: changing a schedule (pause / remove) needs a random 500-character code typed exactly. */
+@Composable
+private fun GateSheet(vm: AppViewModel) {
+    val code = remember { val r = java.security.SecureRandom(); String(CharArray(GATE_LENGTH) { GATE_CHARSET[r.nextInt(GATE_CHARSET.length)] }) }
+    var typed by remember { mutableStateOf("") }
+    val ok = typed == code
+    // Show the window of the code around what has been typed so far, like the desktop's scrolling code strip.
+    val from = (typed.length - 12).coerceAtLeast(0)
+    WkSheet({ vm.sheet = null; vm.gateAction = null }) {
+        Icon3(); WkText("Type the code to change this schedule", 18, FontWeight.Bold, Wk.Ink100)
+        WkText("Your schedule is locked against casual changes. Type the $GATE_LENGTH-character string below exactly. Copy and paste won't work.", 12, color = Wk.Ink400, lineHeight = 1.5f)
+        Box(Modifier.fillMaxWidth().wkSurface(Wk.Black850, Wk.Black600, 12.dp).padding(12.dp)) {
+            WkText(code.substring(from, (from + 40).coerceAtMost(code.length)), 16, FontWeight.SemiBold, Wk.Orange200, letterSpacingEm = 0.08f)
+        }
+        WkField(typed, { if (it.length <= GATE_LENGTH && code.startsWith(it)) typed = it }, "Type here")
+        WkText("${typed.length} / $GATE_LENGTH", 12, FontWeight.SemiBold, if (ok) Wk.Green else Wk.Ink500)
+        PrimaryButton("Unlock", { val a = vm.gateAction; vm.sheet = null; vm.gateAction = null; a?.invoke() }, Modifier.fillMaxWidth(), enabled = ok)
     }
 }
 

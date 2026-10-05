@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.revm2.app.locking.LockingController
+import com.revm2.app.schedule.blockedMessage
+import com.revm2.app.schedule.clockLabel
 import com.revm2.app.locking.UsageStats
 import com.revm2.app.ui.components.Disclosure
 import com.revm2.app.locking.BlockStore
@@ -95,6 +97,21 @@ fun FocusScreen(vm: AppViewModel) {
             }
         }
 
+        if (!full) {
+            val g = vm.gate
+            val pauseUntil = vm.freePauseUntilMs
+            val msg = when {
+                pauseUntil != null -> "Free pause · resumes in ${AppViewModel.fmt(((pauseUntil - System.currentTimeMillis()) / 1000).toInt().coerceAtLeast(0))}"
+                g.inside != null -> "In schedule block${g.inside.slot.subject?.let { ": $it" } ?: ""} · ends in ${g.inside.endsInMin} min"
+                g.restricted -> blockedMessage(g)
+                g.next != null -> "Next scheduled block: ${g.next.slot.subject?.let { "$it at " } ?: ""}${clockLabel(g.next.slot.start)}"
+                else -> null
+            }
+            if (msg != null) Row(
+                Modifier.fillMaxWidth().wkSurface(if (g.restricted && g.inside == null) Color(0x1FFF8A3D) else Wk.Black800, if (g.inside != null) Wk.Green.copy(alpha = 0.4f) else Wk.Orange600.copy(alpha = 0.4f), 14.dp).tap { vm.go(Dest.Schedules) }.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) { Icon(Icons.Filled.Schedule, null, tint = Wk.Orange300, modifier = Modifier.size(18.dp)); WkText(msg, 12, color = Wk.Ink100, modifier = Modifier.weight(1f), lineHeight = 1.4f) }
+        }
         Column(Modifier.fillMaxWidth().padding(top = if (full) 56.dp else 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             val progress = if (vm.mode == "pomodoro") 1f - vm.remaining.toFloat() / vm.phaseTotal else null
             TimerRing(vm.timerText, caption, if (full) 312 else 264, if (vm.mode == "pomodoro") 56 else 44, progress)
@@ -133,6 +150,7 @@ fun FocusScreen(vm: AppViewModel) {
                 PermLine("Silence blocked-app notifications", perms.notificationAccess) { disclosure = Disclosure.NotificationAccess }
                 PermLine("Keep running (battery: Unrestricted)", perms.batteryUnrestricted) { LockingController.requestBatteryUnrestricted(ctx) }
                 if (android.os.Build.VERSION.SDK_INT >= 33) PermLine("Session notification", perms.postNotifications) { notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+                PermLine("Exact schedule timing", LockingController.canScheduleExact(ctx)) { LockingController.requestExactAlarms(ctx) }
                 PermLine("Screen-time stats", perms.usageAccess) { disclosure = Disclosure.UsageAccess }
                 WkText("Strict (locked) sessions also close Settings until they end, so protection can't be switched off from inside the phone.", 11, color = Wk.Ink500, modifier = Modifier.padding(top = 4.dp), lineHeight = 1.4f)
             }

@@ -10,6 +10,8 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val a = intent.action
         if (a != Intent.ACTION_BOOT_COMPLETED && a != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        ScheduleEnforcer.evaluate(context)
+        ScheduleAlarms.rearm(context)
         if (BlockStore.current(context).active) GuardService.start(context)
     }
 }

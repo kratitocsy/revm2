@@ -281,3 +281,16 @@ stays out of the Play build (see the Advanced Lock APK download on the website).
 | App picker | `<queries>` for launchable apps instead of `QUERY_ALL_PACKAGES` | Avoids a restricted permission |
 
 Still outside the Play ceiling: killing apps, kiosk pinning and locking Settings against the user outside a session.
+
+### Schedules on the phone (Oct 2026)
+
+The native app follows the desktop's schedule rules (`schedule/ScheduleGate.kt` is a port of
+`src/apps/desktop-dashboard/lib/scheduleWindow.ts`):
+
+- Schedules, slots and the preset each slot enforces are read from the same Supabase tables as desktop and `schedule-tick`, and cached on the phone.
+- India-time clock, alternate-week parity, midnight-crossing blocks.
+- On a day a schedule runs the focus timer only starts inside one of its blocks.
+- Inside a block: 2 free 20-minute pauses per schedule per day, then the 150-character reflection (spaces don't count).
+- Pausing/removing a schedule needs the 500-character typed code.
+- On-device enforcement (`ScheduleEnforcer` + exact alarms + boot re-arm) mirrors `schedule-tick`: starts the slot's saved block once per slot per day, schedule wins over a running block, Sleep slots block everything (allow-only, empty list, locked), ending a block early does not relock that slot, the block ends with the slot. It never writes to the database, so it agrees with the server tick instead of racing it.
+- Not ported yet: creating/editing schedules (desktop/web only, behind the 500/250-character gates), study-timer auto-start from a slot's subject, schedule overrides.

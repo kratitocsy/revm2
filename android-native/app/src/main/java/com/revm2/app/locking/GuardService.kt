@@ -23,8 +23,11 @@ class GuardService : Service() {
     private val tick = object : Runnable {
         override fun run() {
             val s = BlockStore.current(this@GuardService)
-            if (!s.active) { stopSelf(); return }
-            notify(s)
+            // Slot boundaries are normally handled by the alarm; this is the safety net while a session runs.
+            ScheduleEnforcer.evaluate(this@GuardService)
+            val now = BlockStore.current(this@GuardService)
+            if (!now.active) { stopSelf(); return }
+            notify(now)
             handler.postDelayed(this, 30_000)
         }
     }
@@ -37,7 +40,7 @@ class GuardService : Service() {
         if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(NOTIF_ID, n)
         // Re-open the DNS tunnel after a reboot / process restart (consent was granted earlier, never prompt here).
-        if (android.net.VpnService.prepare(this) == null && s.domainList.isNotEmpty()) {
+        if (android.net.VpnService.prepare(this) == null && (s.domainList.isNotEmpty() || s.domainsAllowOnly)) {
             startService(Intent(this, RevM2VpnService::class.java).setAction(RevM2VpnService.ACTION_START))
         }
         handler.removeCallbacks(tick); handler.post(tick)

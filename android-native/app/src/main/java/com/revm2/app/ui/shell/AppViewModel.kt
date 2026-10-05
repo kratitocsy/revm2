@@ -5,19 +5,26 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.revm2.app.data.ScheduleRepository
+import com.revm2.app.locking.ScheduleAlarms
+import com.revm2.app.locking.ScheduleEnforcer
+import com.revm2.app.schedule.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class Dest { Home, Focus, Schedules, Rooms, Room, Comms, CommStudent, CommManage, Battle, Coins, Earn, Settings, More, Quick, BlockLists }
 
-enum class SheetKind { Pause, AddTask, Pomodoro, Notifications, Password, DeleteAccount, AiAssistant, Routine, Challenge }
+enum class SheetKind { FreePause, Gate, Pause, AddTask, Pomodoro, Notifications, Password, DeleteAccount, AiAssistant, Routine, Challenge }
 
 data class StudyTask(val id: String, val subject: String, val topic: String, val minutes: Int, val done: Boolean = false)
 
 /** Cross-screen state for the native app. Data is prototype sample data until wired to Supabase. */
-class AppViewModel : ViewModel() {
+class AppViewModel(app: Application) : AndroidViewModel(app) {
+    private val ctx get() = getApplication<Application>()
+
     // ── navigation ──
     var dest by mutableStateOf(Dest.Home); private set
     var drawerOpen by mutableStateOf(false)
@@ -66,14 +73,58 @@ class AppViewModel : ViewModel() {
     val phaseTotal get() = if (phase == "focus") pomoFocus * 60 else pomoBreak * 60
     val timerText: String get() = fmt(if (mode == "pomodoro") remaining else elapsed, hours = mode != "pomodoro")
 
-    init {
+    // ── schedules (same rules as the desktop app; see schedule/ScheduleGate.kt) ──
+    var schedules by mutableStateOf<List<StoredSchedule>>(ScheduleStore.load(getApplication()))
+        private set
+    var schedulesError by mutableStateOf<String?>(null)
+    var gate by mutableStateOf(computeGate(ScheduleStore.gateSchedules(ScheduleStore.load(getApplication()))))
+        private set
+    var freePauseUntilMs by mutableStateOf<Long?>(FreePauses.until(getApplication()))
+        private set
+    /** Pending action for the 500-character edit-lock gate (pause / remove a schedule). */
+    var gateAction by mutableStateOf<(() -> Unit)?>(null)
+
+    fun refreshSchedules() {
         viewModelScope.launch {
+            try {
+                schedules = ScheduleRepository.refresh(ctx); schedulesError = null
+                recomputeGate()
+                ScheduleEnforcer.evaluate(ctx); ScheduleAlarms.rearm(ctx)
+            } catch (e: Exception) { schedulesError = "Couldn't refresh schedules; using the saved copy." }
+        }
+    }
+
+    private fun recomputeGate() { gate = computeGate(ScheduleStore.gateSchedules(schedules)) }
+
+    private fun endFreePauseIfDue() {
+        val until = freePauseUntilMs ?: return
+        if (System.currentTimeMillis() >= until) { FreePauses.clear(ctx); freePauseUntilMs = null; if (!running) { running = true } }
+    }
+
+    init {
+        refreshSchedules()
+        viewModelScope.launch {
+            var n = 0
             while (true) {
                 delay(1000)
+                n++
                 if (running) tick()
                 if (qtRunning) qtTick()
+                endFreePauseIfDue()
+                if (n % 30 == 0) recomputeGate()
+                if (n % 300 == 0) refreshSchedules() // every 5 minutes, like the desktop app
             }
         }
+    }
+
+    /** Edit-lock gate for changing a schedule (pause / remove): type the 500-character code exactly. */
+    fun requireGate(action: () -> Unit) { gateAction = action; sheet = SheetKind.Gate }
+
+    fun setScheduleActive(id: String, active: Boolean) = viewModelScope.launch {
+        try { ScheduleRepository.setActive(id, active); refreshSchedules() } catch (e: Exception) { flash("Couldn't update the schedule") }
+    }
+    fun removeSchedule(id: String) = viewModelScope.launch {
+        try { ScheduleRepository.delete(id); refreshSchedules() } catch (e: Exception) { flash("Couldn't remove the schedule") }
     }
 
     private fun tick() {
@@ -93,15 +144,33 @@ class AppViewModel : ViewModel() {
     /** Start (or resume) the active task, or ask for a task first. */
     fun startFocus() {
         if (running) return
+        // On a day a schedule runs, the timer only starts inside one of its blocks (desktop rule).
+        recomputeGate()
+        if (gate.restricted && gate.inside == null) { flash(blockedMessage(gate)); return }
         val id = activeId ?: tasks.firstOrNull { !it.done }?.id
         if (id == null) { sheet = SheetKind.AddTask; return }
         activeId = id; running = true; waitingBreak = false
     }
 
-    fun startTask(id: String) { activeId = id; running = true; waitingBreak = false; go(Dest.Focus) }
+    fun startTask(id: String) {
+        recomputeGate()
+        if (gate.restricted && gate.inside == null) { flash(blockedMessage(gate)); go(Dest.Focus); return }
+        activeId = id; running = true; waitingBreak = false; go(Dest.Focus)
+    }
 
     /** Pausing a live session goes through the 150-word reflection sheet, as on desktop. */
-    fun askPause() { if (running) sheet = SheetKind.Pause }
+    fun askPause() {
+        if (!running) return
+        // Inside a schedule block: 2 free 20-minute pauses per schedule per day, then the reflection gate.
+        val sid = gate.inside?.schedule?.id
+        sheet = if (sid != null && FreePauses.left(ctx, sid) > 0) SheetKind.FreePause else SheetKind.Pause
+    }
+    val freePausesLeft: Int get() = gate.inside?.schedule?.id?.let { FreePauses.left(ctx, it) } ?: 0
+    fun beginFreePause() {
+        val sid = gate.inside?.schedule?.id ?: return
+        freePauseUntilMs = FreePauses.begin(ctx, sid)
+        running = false; sheet = null
+    }
     fun confirmPause() { running = false; sheet = null }
 
     fun setMode(m: String) {

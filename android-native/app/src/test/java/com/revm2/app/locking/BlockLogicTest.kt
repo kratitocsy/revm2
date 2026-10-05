@@ -52,6 +52,17 @@ class BlockLogicTest {
         assertFalse(BlockStore.isDomainBlockedForSession(session(active = false), "reddit.com"))
     }
 
+    @Test fun allowOnlySessionRefusesEverythingExceptTheListAndOurOwnHosts() {
+        val s = BlockStore.Session(true, "s", true, "whitelist", emptySet(), setOf("khanacademy.org"), null, domainsAllowOnly = true)
+        assertFalse(BlockStore.isDomainBlockedForSession(s, "www.khanacademy.org"))
+        assertFalse(BlockStore.isDomainBlockedForSession(s, "abc.supabase.co"))
+        assertTrue(BlockStore.isDomainBlockedForSession(s, "reddit.com"))
+        // Sleep block: nothing allowed except the app's own hosts.
+        val sleep = BlockStore.Session(true, "s", true, "whitelist", emptySet(), emptySet(), null, domainsAllowOnly = true)
+        assertTrue(BlockStore.isDomainBlockedForSession(sleep, "youtube.com"))
+        assertFalse(BlockStore.isDomainBlockedForSession(sleep, "xyz.supabase.co"))
+    }
+
     @Test fun remainingSecondsForTimedAndUnlimitedSessions() {
         assertNull(session().remainingSeconds())
         assertEquals(60L, session(endsAtMs = 160_000L).remainingSeconds(nowMs = 100_000L))

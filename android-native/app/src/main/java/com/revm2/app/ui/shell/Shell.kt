@@ -66,7 +66,7 @@ fun AppShell(vm: AppViewModel = viewModel()) {
             val pkgs = com.revm2.app.locking.LockingController.listInstalledApps(ctx)
                 .filter { a -> vm.blockedApps.any { it.equals(a.label, ignoreCase = true) } }.map { it.packageName }
             com.revm2.app.locking.LockingController.startSession(ctx, "focus-" + System.currentTimeMillis(), apps = pkgs, domains = vm.blockedSites.toList(), lockSettings = vm.prefs["focus_strict_lock"] == true)
-        } else if (!vm.running && com.revm2.app.locking.LockingController.sessionState(ctx).active) {
+        } else if (!vm.running && com.revm2.app.locking.LockingController.sessionState(ctx).let { it.active && it.sessionId?.startsWith("focus-") == true }) {
             com.revm2.app.locking.LockingController.endSession(ctx)
         }
     }

@@ -72,6 +72,23 @@ object LockingController {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
 
+    /** Exact alarms start and end scheduled blocks on the minute (Android 12+ lets the user decide). */
+    fun canScheduleExact(ctx: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT < 31 || ctx.getSystemService(android.app.AlarmManager::class.java).canScheduleExactAlarms()
+
+    fun requestExactAlarms(ctx: Context) {
+        if (android.os.Build.VERSION.SDK_INT >= 31)
+            ctx.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + ctx.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    /** Presets store apps by whatever name their device saw (a package id on Android, a friendly or process name on
+     * desktop). Match against package id or app label, ignoring case and a trailing ".exe". */
+    fun resolvePackages(ctx: Context, names: List<String>): List<String> {
+        if (names.isEmpty()) return emptyList()
+        val wanted = names.map { it.trim().removeSuffix(".exe").lowercase() }.toSet()
+        return listInstalledApps(ctx).filter { it.packageName.lowercase() in wanted || it.label.lowercase() in wanted }.map { it.packageName }
+    }
+
     fun requestNotificationAccess(ctx: Context) =
         ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
@@ -109,6 +126,7 @@ object LockingController {
         unlockPhrase: String? = null,
         endsAtMs: Long = 0L,
         lockSettings: Boolean = noEarlyUnlock,
+        domainsAllowOnly: Boolean = false,
     ) {
         BlockStore.startSession(
             ctx = ctx,
@@ -120,6 +138,7 @@ object LockingController {
             unlockPhrase = unlockPhrase,
             endsAtMs = endsAtMs,
             lockSettings = lockSettings,
+            domainsAllowOnly = domainsAllowOnly,
         )
         // Foreground guard: keeps enforcement alive, ends a timed session on schedule, reopens the tunnel after a reboot.
         GuardService.start(ctx)
@@ -135,6 +154,8 @@ object LockingController {
         if (s.noEarlyUnlock && s.unlockPhrase != null && !TextUtils.equals(enteredPhrase, s.unlockPhrase)) {
             return false
         }
+        // Ending a scheduled block early (paid/typed unlock) must not relock the same slot today.
+        s.sessionId?.let { if (it.startsWith(ScheduleEnforcer.PREFIX)) com.revm2.app.schedule.ScheduleStore.markRun(ctx, it.removePrefix(ScheduleEnforcer.PREFIX)) }
         BlockStore.endSession(ctx)
         GuardService.stop(ctx)
         ctx.stopService(Intent(ctx, RevM2VpnService::class.java))
