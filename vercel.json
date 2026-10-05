@@ -9,6 +9,11 @@
       "permanent": false
     },
     {
+      "source": "/downloads/Wynko-Advanced-Lock.apk",
+      "destination": "https://github.com/kratitocsy/revm2/releases/download/android-advanced-latest/Wynko-Advanced-Lock.apk",
+      "permanent": false
+    },
+    {
       "source": "/waitlist",
       "destination": "/login",
       "permanent": false
