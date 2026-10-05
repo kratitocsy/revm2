@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.revm2.app"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         // CI passes -PappVersionCode / -PappVersionName, same as mobile/.
         versionCode = (project.findProperty("appVersionCode") as String?)?.toInt() ?: 1
@@ -36,6 +36,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    lint {
+        // Print every finding in the CI log (not just the first failure).
+        textReport = true
+        textOutput = file("stdout")
     }
     buildFeatures {
         compose = true
