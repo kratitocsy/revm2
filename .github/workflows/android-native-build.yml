@@ -13,6 +13,15 @@ on:
       - '.github/workflows/android-native-build.yml'
   workflow_dispatch: {}
 
+# The build only reads the repo; give the token nothing more (CodeQL: workflow does not limit GITHUB_TOKEN).
+permissions:
+  contents: read
+
+# A newer push supersedes an older run of the same branch.
+concurrency:
+  group: android-native-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
