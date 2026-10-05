@@ -84,7 +84,7 @@ val CoinPacks = listOf(CoinPack("a", "Starter", 200, 19), CoinPack("b", "Scholar
 data class PrefRow(val key: String, val label: String)
 val PrefGroups = listOf(
     "NOTIFICATIONS" to listOf(PrefRow("notif_focus_alerts", "Focus alerts"), PrefRow("notif_streak", "Streak reminders"), PrefRow("notif_battle", "Battle invites"), PrefRow("notif_rooms", "Room activity"), PrefRow("notif_achievements", "Achievements")),
-    "FOCUS" to listOf(PrefRow("focus_block_distractions", "Block distracting apps"), PrefRow("focus_auto_start_breaks", "Auto-start breaks"), PrefRow("focus_ambient_sound", "Ambient sound"), PrefRow("sound_effects", "Sound effects")),
+    "FOCUS" to listOf(PrefRow("focus_block_distractions", "Block distracting apps"), PrefRow("focus_auto_start_breaks", "Auto-start breaks"), PrefRow("focus_ambient_sound", "Ambient sound"), PrefRow("sound_effects", "Sound effects"), PrefRow("focus_strict_lock", "Strict mode: also lock Settings during focus")),
     "PRIVACY" to listOf(PrefRow("privacy_public_profile", "Public profile"), PrefRow("privacy_show_streak", "Show my streak"), PrefRow("privacy_show_stats", "Show my stats"), PrefRow("privacy_allow_room_invites", "Allow room invites")),
 )
 

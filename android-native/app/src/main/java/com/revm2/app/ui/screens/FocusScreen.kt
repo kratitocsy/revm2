@@ -19,6 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.revm2.app.locking.LockingController
+import com.revm2.app.locking.UsageStats
+import com.revm2.app.ui.components.Disclosure
+import com.revm2.app.ui.components.DisclosureDialog
 import com.revm2.app.ui.components.*
 import com.revm2.app.ui.sample.AllApps
 import com.revm2.app.ui.shell.AppViewModel
@@ -31,7 +34,15 @@ import com.revm2.app.ui.theme.Wk
 fun FocusScreen(vm: AppViewModel) {
     val ctx = LocalContext.current
     var perms by remember { mutableStateOf(LockingController.permissions(ctx)) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { perms = LockingController.permissions(ctx) }
+    var disclosure by remember { mutableStateOf<Disclosure?>(null) }
+    var usage by remember { mutableStateOf(UsageStats.today(ctx)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        perms = LockingController.permissions(ctx)
+        usage = UsageStats.today(ctx)
+        // If accessibility/VPN/admin was switched off during the last session, say so (the session counts as unverified).
+        LockingController.consumeTamper(ctx)?.let { vm.flash("Session unverified: $it") }
+    }
+    val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { perms = LockingController.permissions(ctx) }
     val vpn = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { perms = LockingController.permissions(ctx) }
     var menu by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf("") }
@@ -108,11 +119,40 @@ fun FocusScreen(vm: AppViewModel) {
                     AllApps.filter { it.name in vm.blockedApps }.take(4).forEach { Pill(it.name, Wk.Orange300, size = 10) }
                 }
                 PermLine("Overlay", perms.overlay) { LockingController.requestOverlay(ctx) }
-                PermLine("Accessibility", perms.accessibility) { LockingController.requestAccessibility(ctx) }
-                PermLine("DNS block · Local VPN", perms.vpn) { LockingController.vpnConsentIntent(ctx)?.let { vpn.launch(it) } }
-                PermLine("Device Admin", perms.deviceAdmin) { LockingController.requestDeviceAdmin(ctx) }
+                PermLine("Accessibility", perms.accessibility) { disclosure = Disclosure.Accessibility }
+                PermLine("DNS block · Local VPN", perms.vpn) { disclosure = Disclosure.Vpn }
+                PermLine("Device Admin", perms.deviceAdmin) { disclosure = Disclosure.DeviceAdmin }
+                WkText("EXTRA PROTECTION", 10, FontWeight.SemiBold, Wk.Ink500, Modifier.padding(top = 6.dp), letterSpacingEm = 0.12f)
+                PermLine("Silence blocked-app notifications", perms.notificationAccess) { disclosure = Disclosure.NotificationAccess }
+                PermLine("Keep running (battery: Unrestricted)", perms.batteryUnrestricted) { LockingController.requestBatteryUnrestricted(ctx) }
+                if (android.os.Build.VERSION.SDK_INT >= 33) PermLine("Session notification", perms.postNotifications) { notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+                PermLine("Screen-time stats", perms.usageAccess) { disclosure = Disclosure.UsageAccess }
+                WkText("Strict (locked) sessions also close Settings until they end, so protection can't be switched off from inside the phone.", 11, color = Wk.Ink500, modifier = Modifier.padding(top = 4.dp), lineHeight = 1.4f)
             }
         }
+        if (!full && perms.usageAccess && usage.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CardHeader(Icons.Filled.BarChart, "Screen time today", "Your biggest distractions")
+                usage.forEach { u ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        WkText(u.label, 13, color = Wk.Ink100, modifier = Modifier.weight(1f), maxLines = 1)
+                        WkText(if (u.minutes >= 60) "${u.minutes / 60}h ${u.minutes % 60}m" else "${u.minutes}m", 12, FontWeight.SemiBold, Wk.Orange300)
+                    }
+                }
+            }
+        }
+    }
+    disclosure?.let { d ->
+        DisclosureDialog(d, onDismiss = { disclosure = null }, onAgree = {
+            disclosure = null
+            when (d) {
+                Disclosure.Accessibility -> LockingController.requestAccessibility(ctx)
+                Disclosure.Vpn -> LockingController.vpnConsentIntent(ctx)?.let { vpn.launch(it) }
+                Disclosure.DeviceAdmin -> LockingController.requestDeviceAdmin(ctx)
+                Disclosure.NotificationAccess -> LockingController.requestNotificationAccess(ctx)
+                Disclosure.UsageAccess -> LockingController.requestUsageAccess(ctx)
+            }
+        })
     }
 }
 

@@ -260,3 +260,23 @@ shell:
 Fastest path to something real: Phases 1–2 alone (wrapper + mobile-native
 shell, no blocking yet) is a shippable v1 APK in under a week — Tier 2+3
 blocking can follow as a v1.1 once the base app is stable on real devices.
+
+---
+
+## Addendum (Oct 2026): native Android app - Play-compliant ceiling, as built
+
+The native app (`android-native/`) implements the strongest blocking that fits Google Play. Device Owner (Tier 4)
+stays out of the Play build (see the Advanced Lock APK download on the website).
+
+| Capability | How | Play notes |
+|---|---|---|
+| App block | Accessibility service reads only the foreground package, shows an overlay then sends the user Home | Prominent in-app disclosure before the Settings hand-off; `isAccessibilityTool="false"`; no window content read |
+| Site block | Local VPN, DNS-only, NXDOMAIN for blocked domains; DoH/DoT resolver domains blocked so secure DNS can't bypass it | Disclosure; no remote server |
+| Notification block | `NotificationListenerService` cancels notifications from blocked apps | Disclosure; reads only the posting package |
+| Stay alive | Foreground `GuardService` (specialUse) with ongoing notification; battery "Unrestricted" prompt (no restricted permission); `BootReceiver` resumes a running session after reboot | `FOREGROUND_SERVICE_SPECIAL_USE` declaration needed in Play Console |
+| Tamper resistance | Device Admin (uninstall needs an extra step); **strict mode** also blocks the Settings app and package installer for the session | Strict mode is opt-in; timed sessions end by themselves so it cannot trap a user |
+| Tamper reporting | Accessibility off / VPN revoked / admin deactivated mid-session marks the session unverified | |
+| Stats | Usage Access screen time | |
+| App picker | `<queries>` for launchable apps instead of `QUERY_ALL_PACKAGES` | Avoids a restricted permission |
+
+Still outside the Play ceiling: killing apps, kiosk pinning and locking Settings against the user outside a session.

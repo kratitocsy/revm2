@@ -14,8 +14,15 @@ data class LockPermissions(
     val overlay: Boolean,
     val vpn: Boolean,
     val deviceAdmin: Boolean,
+    val notificationAccess: Boolean = false,
+    val usageAccess: Boolean = false,
+    val batteryUnrestricted: Boolean = false,
+    val postNotifications: Boolean = true,
 ) {
+    /** The four permissions blocking itself needs. */
     val allGranted get() = accessibility && overlay && vpn && deviceAdmin
+    /** Extras that make enforcement harder to bypass or kill. */
+    val allHardening get() = notificationAccess && batteryUnrestricted && postNotifications
 }
 
 data class InstalledApp(val packageName: String, val label: String)
@@ -46,6 +53,11 @@ object LockingController {
             overlay = Settings.canDrawOverlays(ctx),
             vpn = VpnService.prepare(ctx) == null,
             deviceAdmin = dpm?.isAdminActive(adminComponent(ctx)) == true,
+            notificationAccess = isNotificationListenerEnabled(ctx),
+            usageAccess = UsageStats.hasAccess(ctx),
+            batteryUnrestricted = ctx.getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(ctx.packageName) == true,
+            postNotifications = android.os.Build.VERSION.SDK_INT < 33 ||
+                ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED,
         )
     }
 
@@ -59,6 +71,16 @@ object LockingController {
             Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + ctx.packageName))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
+
+    fun requestNotificationAccess(ctx: Context) =
+        ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+
+    fun requestUsageAccess(ctx: Context) =
+        ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+
+    /** Opens the battery-optimisation list (no restricted permission needed) so the user can set Wynko to "Unrestricted". */
+    fun requestBatteryUnrestricted(ctx: Context) =
+        ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     /** Intent for the one-tap VPN consent dialog, or null if already granted. Launch with an ActivityResult launcher. */
     fun vpnConsentIntent(ctx: Context): Intent? = VpnService.prepare(ctx)
@@ -85,6 +107,8 @@ object LockingController {
         appsMode: String = "blacklist",
         noEarlyUnlock: Boolean = false,
         unlockPhrase: String? = null,
+        endsAtMs: Long = 0L,
+        lockSettings: Boolean = noEarlyUnlock,
     ) {
         BlockStore.startSession(
             ctx = ctx,
@@ -94,7 +118,11 @@ object LockingController {
             appList = apps,
             domainList = domains,
             unlockPhrase = unlockPhrase,
+            endsAtMs = endsAtMs,
+            lockSettings = lockSettings,
         )
+        // Foreground guard: keeps enforcement alive, ends a timed session on schedule, reopens the tunnel after a reboot.
+        GuardService.start(ctx)
         // Only start the tunnel if consent was already granted; never prompt mid-session.
         if (VpnService.prepare(ctx) == null) {
             ctx.startService(Intent(ctx, RevM2VpnService::class.java).setAction(RevM2VpnService.ACTION_START))
@@ -108,11 +136,18 @@ object LockingController {
             return false
         }
         BlockStore.endSession(ctx)
-        ctx.startService(Intent(ctx, RevM2VpnService::class.java).setAction(RevM2VpnService.ACTION_STOP))
+        GuardService.stop(ctx)
+        ctx.stopService(Intent(ctx, RevM2VpnService::class.java))
         return true
     }
 
     fun sessionState(ctx: Context) = BlockStore.current(ctx)
+
+    /** Why enforcement was interrupted during the last session (accessibility/VPN/admin turned off), if it was. Clears it. */
+    fun consumeTamper(ctx: Context): String? = BlockStore.consumeTamper(ctx)
+
+    private fun isNotificationListenerEnabled(ctx: Context): Boolean =
+        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(ctx).contains(ctx.packageName)
 
     private fun adminComponent(ctx: Context) = ComponentName(ctx, RevM2DeviceAdminReceiver::class.java)
 

@@ -36,5 +36,6 @@ class RevM2DeviceAdminReceiver : DeviceAdminReceiver() {
 
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
+        BlockStore.markTampered(context, "Device admin was deactivated")
     }
 }

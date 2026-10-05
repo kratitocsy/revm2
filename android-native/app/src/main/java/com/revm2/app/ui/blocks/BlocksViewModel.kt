@@ -37,6 +37,7 @@ class BlocksViewModel : ViewModel() {
     }
 
     fun refresh(ctx: Context) = launchCatching {
+        LockingController.consumeTamper(ctx)?.let { _state.update { st -> st.copy(error = "Last session unverified: $it") } }
         val presets = FocusRepository.presets()
         val active = FocusRepository.activeSession()
         // Keep on-device enforcement in step with the server row (covers a session started elsewhere or already ended).
@@ -91,6 +92,7 @@ class BlocksViewModel : ViewModel() {
 
     private fun enforce(ctx: Context, s: FocusSession) = LockingController.startSession(
         ctx, s.id, apps = s.apps, domains = s.sites, appsMode = s.appsMode, noEarlyUnlock = s.noEarlyUnlock,
+        endsAtMs = s.endsAt?.let { Instant.parse(it).toEpochMilli() } ?: 0L,
     )
 
     private fun remaining(s: FocusSession?): Long? =

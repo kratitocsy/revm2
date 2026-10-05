@@ -45,6 +45,35 @@
             </intent-filter>
         </service>
 
+        <!-- Foreground guard: keeps enforcement alive for the length of a session, ends timed sessions on schedule -->
+        <service
+            android:name=".locking.GuardService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="focus_lock_enforcement" />
+        </service>
+
+        <!-- Silences notifications from blocked apps during a session (needs Notification access) -->
+        <service
+            android:name=".locking.BlockedNotificationListener"
+            android:exported="true"
+            android:label="Wynko Focus Lock"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Resume a running session after reboot / app update -->
+        <receiver android:name=".locking.BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Device Admin (not Device Owner) — uninstall-resistance friction -->
         <receiver
             android:name=".locking.RevM2DeviceAdminReceiver"
@@ -59,11 +88,28 @@
         </receiver>
     </application>
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+    </queries>
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- No QUERY_ALL_PACKAGES (a restricted Play permission): the app picker only needs launchable apps,
+         which the queries block above makes visible. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 </manifest>

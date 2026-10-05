@@ -71,6 +71,7 @@ class RevM2VpnService : VpnService() {
         // User revoked VPN permission from system settings — stop cleanly,
         // don't try to fight it. Matches "revocable anytime" framing used
         // for every other permission in this feature.
+        BlockStore.markTampered(this, "VPN permission was revoked")
         stopVpn()
         super.onRevoke()
     }

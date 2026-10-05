@@ -8,6 +8,8 @@ Full native replacement for the Capacitor shell in `../mobile/`. Kotlin + Jetpac
 - Real behaviour already hooked up: the Focus timer (Pomodoro/Regular, 150-word pause gate), live Focus sessions start the on-device blocking in `locking/` (accessibility overlay + VPN DNS), the permission checklist on Focus Lock, and the previous presets/sessions screen (`ui/blocks`, reachable via Focus Lock → Manage).
 - Auth: email/password sign-in via Supabase gates the app (`ui/auth/AuthGate.kt`); the profile screen shows sample data for now.
 
+- Blocking is at the Play Store ceiling (see the Oct 2026 addendum in `docs/revm2-locking-research.md`): foreground guard service, boot resume, strict mode, notification blocking, DoH hardening, tamper reporting, usage stats, prominent permission disclosures. Unit tests: `BlockLogicTest`.
+
 **Not compiled or run yet** (no Android SDK where this was written). Open `android-native/` in Android Studio, sync, and fix any compile errors first.
 
 ## Build
