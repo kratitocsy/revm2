@@ -800,6 +800,7 @@ function updateBadge(session) {
 async function reconcileRemotePause(remoteSession) {
   const local = await getSession();
   const decision = resolveRemotePause(local, remoteSession);
+  if (decision.action !== "none") console.info("Wynko: backend pause ->", decision.action, decision.until ? new Date(decision.until).toISOString() : "");
 
   if (decision.action === "pause") {
     local.pausedUntil = decision.until;
