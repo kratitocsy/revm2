@@ -3,7 +3,9 @@ package com.revm2.app.ui.shell
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.*
@@ -149,9 +151,9 @@ private fun AddTaskSheet(vm: AppViewModel) {
 private fun Stepper(label: String, value: Int, presets: List<Int>, onChange: (Int) -> Unit) {
     WkText(label, 13, FontWeight.SemiBold, Wk.Ink100)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        RoundIconButton(androidx.compose.material.icons.Icons.Filled.Remove, { onChange((value - 1).coerceAtLeast(1)) }, 40, Wk.Black600, Wk.Ink250)
+        RoundIconButton(Icons.Filled.Remove, { onChange((value - 1).coerceAtLeast(1)) }, 40, Wk.Black600, Wk.Ink250)
         WkText("$value min", 16, FontWeight.Bold, Wk.Cream50, Modifier.weight(1f), align = androidx.compose.ui.text.style.TextAlign.Center)
-        RoundIconButton(androidx.compose.material.icons.Icons.Filled.Add, { onChange((value + 1).coerceAtMost(180)) }, 40, Wk.Black600, Wk.Ink250)
+        RoundIconButton(Icons.Filled.Add, { onChange((value + 1).coerceAtMost(180)) }, 40, Wk.Black600, Wk.Ink250)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         presets.forEach { p -> Pill("$p", if (p == value) Wk.Orange500 else Wk.Ink400, Modifier.tap { onChange(p) }, size = 11) }
