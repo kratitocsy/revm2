@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sb } from './supabaseClient';
 import { logStudyTime, STUDY_LOGGED_EVENT } from './studyTimeLog';
+import { resolveDeviceApps } from './resolveDeviceApps';
 
 /* ============================================================
    Backend wiring for the redesigned Focus Lock page
@@ -153,7 +154,7 @@ export function useFocusSession(groupId: string | null = null) {
       }
       try {
         await tauri.core.invoke('set_blocked_apps', {
-          apps: data?.apps || [],
+          apps: await resolveDeviceApps(data?.apps || []),
           mode: data?.apps_mode === 'whitelist' ? 'whitelist' : 'blacklist',
         });
       } catch {
