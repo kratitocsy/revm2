@@ -37,11 +37,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures {
         compose = true
         buildConfig = true
     }
+}
+
+// Kotlin 2.2 removed the old `kotlinOptions` block.
+kotlin {
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 }
 
 dependencies {
@@ -68,7 +72,7 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:realtime-kt")
     implementation("io.github.jan-tennert.supabase:functions-kt")
-    implementation("io.ktor:ktor-client-okhttp:3.2.3")
+    implementation("io.ktor:ktor-client-okhttp:3.3.0")
 
     testImplementation("junit:junit:4.13.2")
 }
