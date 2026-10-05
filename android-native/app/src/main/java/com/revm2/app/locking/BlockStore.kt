@@ -42,6 +42,44 @@ object BlockStore {
         "com.android.packageinstaller", "com.google.android.packageinstaller", "com.samsung.android.packageinstaller",
     )
 
+    // ── Reels & Shorts blocking settings ──
+    const val SHORT_OFF = 0
+    const val SHORT_IN_SESSIONS = 1
+    const val SHORT_ALWAYS = 2
+    private const val KEY_SHORT_MODE = "shortform_mode"
+    private const val KEY_SHORT_DAY = "shortform_day"
+    private const val KEY_SHORT_COUNT = "shortform_count"
+
+    fun shortFormMode(ctx: Context): Int = prefs(ctx).getInt(KEY_SHORT_MODE, SHORT_OFF)
+    fun setShortFormMode(ctx: Context, mode: Int) { prefs(ctx).edit().putInt(KEY_SHORT_MODE, mode).apply() }
+    fun shortFormPlatformOn(ctx: Context, platform: String): Boolean = prefs(ctx).getBoolean("shortform_$platform", true)
+    fun setShortFormPlatform(ctx: Context, platform: String, on: Boolean) { prefs(ctx).edit().putBoolean("shortform_$platform", on).apply() }
+
+    /** Should Reels/Shorts on [platform] be closed right now? Off, only during a focus session, or always. */
+    fun shortFormActive(ctx: Context, platform: String): Boolean {
+        if (!shortFormPlatformOn(ctx, platform)) return false
+        return when (shortFormMode(ctx)) {
+            SHORT_ALWAYS -> true
+            SHORT_IN_SESSIONS -> current(ctx).active
+            else -> false
+        }
+    }
+
+    /** True if short-form blocking could apply to any platform (used to decide whether to watch content changes). */
+    fun shortFormAny(ctx: Context): Boolean = shortFormMode(ctx) != SHORT_OFF
+
+    fun recordShortFormBlock(ctx: Context) {
+        val today = java.time.LocalDate.now().toString()
+        val p = prefs(ctx)
+        val n = if (p.getString(KEY_SHORT_DAY, null) == today) p.getInt(KEY_SHORT_COUNT, 0) else 0
+        p.edit().putString(KEY_SHORT_DAY, today).putInt(KEY_SHORT_COUNT, n + 1).apply()
+    }
+
+    fun shortFormBlockedToday(ctx: Context): Int {
+        val p = prefs(ctx)
+        return if (p.getString(KEY_SHORT_DAY, null) == java.time.LocalDate.now().toString()) p.getInt(KEY_SHORT_COUNT, 0) else 0
+    }
+
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 

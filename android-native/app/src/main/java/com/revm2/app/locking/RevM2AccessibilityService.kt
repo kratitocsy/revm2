@@ -34,18 +34,63 @@ class RevM2AccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        serviceInfo = AccessibilityServiceInfo().apply {
+        // Keep the capabilities declared in accessibility_service_config.xml; only the event mask changes at runtime.
+        serviceInfo = (serviceInfo ?: AccessibilityServiceInfo()).apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             notificationTimeout = 50
         }
     }
 
+    private var watchingContent = false
+    private var lastShortCheck = 0L
+    private var shortHits = ArrayDeque<Long>()
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        if (event == null) return
         val pkg = event.packageName?.toString() ?: return
-        // A new foreground window means the previous block is stale; re-evaluate every time.
-        if (BlockStore.isAppBlocked(this, pkg)) showOverlay() else removeOverlay()
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                // A new foreground window means the previous block is stale; re-evaluate every time.
+                if (BlockStore.isAppBlocked(this, pkg)) showOverlay() else { removeOverlay(); updateContentWatch(pkg) }
+                if (watchingContent) checkShortForm(pkg)
+            }
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> if (watchingContent) checkShortForm(pkg)
+        }
+    }
+
+    /**
+     * Screen structure is only looked at while Instagram or YouTube is in front AND Reels/Shorts blocking is on.
+     * Everywhere else the service listens to window changes only (no content events at all).
+     */
+    private fun updateContentWatch(pkg: String) {
+        val target = ShortFormHints.targetFor(pkg)
+        val want = target != null && BlockStore.shortFormActive(this, target.platform)
+        if (want == watchingContent) return
+        watchingContent = want
+        serviceInfo = serviceInfo?.apply {
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or (if (want) AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED else 0)
+        }
+    }
+
+    private fun checkShortForm(pkg: String) {
+        val target = ShortFormHints.targetFor(pkg) ?: return
+        if (!BlockStore.shortFormActive(this, target.platform)) return
+        val now = System.currentTimeMillis()
+        if (now - lastShortCheck < 350) return
+        lastShortCheck = now
+        val root = rootInActiveWindow ?: return
+        // Looks up specific view ids only; never reads text, messages or anything the user typed.
+        val onShortScreen = ShortFormHints.qualifiedIds(target).any { id ->
+            root.findAccessibilityNodeInfosByViewId(id)?.any { it.isVisibleToUser } == true
+        }
+        if (!onShortScreen) return
+        BlockStore.recordShortFormBlock(this)
+        shortHits.addLast(now)
+        while (shortHits.isNotEmpty() && now - shortHits.first() > 4000) shortHits.removeFirst()
+        // Back normally leaves the Reels/Shorts screen; if it keeps coming back (e.g. the Shorts tab), go Home instead.
+        performGlobalAction(if (shortHits.size >= 3) GLOBAL_ACTION_HOME else GLOBAL_ACTION_BACK)
+        android.widget.Toast.makeText(this, if (target.platform == ShortFormHints.YOUTUBE) "Shorts blocked by Wynko" else "Reels blocked by Wynko", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     override fun onInterrupt() { removeOverlay() }

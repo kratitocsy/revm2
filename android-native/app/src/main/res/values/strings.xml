@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RevM2</string>
-    <string name="accessibility_service_description">Lets RevM2 detect when a blocked app comes to the foreground during an active focus session, so it can show the block screen. Does not read screen content — only which app is currently open. Only active while you have a focus session running.</string>
+    <string name="accessibility_service_description">Lets Wynko detect which app is open during a focus session so it can show the block screen. If you turn on Reels &amp; Shorts blocking, it also looks for the Reels and Shorts screens inside Instagram and YouTube (and nothing else on screen) so it can close them. It does not read messages, passwords or anything you type, and nothing leaves your phone.</string>
 </resources>

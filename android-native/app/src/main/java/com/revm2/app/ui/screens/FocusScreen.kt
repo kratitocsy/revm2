@@ -21,6 +21,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.revm2.app.locking.LockingController
 import com.revm2.app.locking.UsageStats
 import com.revm2.app.ui.components.Disclosure
+import com.revm2.app.locking.BlockStore
+import com.revm2.app.locking.ShortFormHints
 import com.revm2.app.ui.components.DisclosureDialog
 import com.revm2.app.ui.components.*
 import com.revm2.app.ui.sample.AllApps
@@ -28,6 +30,7 @@ import com.revm2.app.ui.shell.AppViewModel
 import com.revm2.app.ui.shell.Dest
 import com.revm2.app.ui.shell.SheetKind
 import com.revm2.app.ui.shell.WkField
+import com.revm2.app.ui.shell.ToggleRow
 import com.revm2.app.ui.theme.Wk
 
 @Composable
@@ -36,9 +39,13 @@ fun FocusScreen(vm: AppViewModel) {
     var perms by remember { mutableStateOf(LockingController.permissions(ctx)) }
     var disclosure by remember { mutableStateOf<Disclosure?>(null) }
     var usage by remember { mutableStateOf(UsageStats.today(ctx)) }
+    var shortMode by remember { mutableIntStateOf(LockingController.shortFormMode(ctx)) }
+    var pendingShortMode by remember { mutableStateOf<Int?>(null) }
+    var shortCount by remember { mutableIntStateOf(LockingController.shortFormBlockedToday(ctx)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         perms = LockingController.permissions(ctx)
         usage = UsageStats.today(ctx)
+        shortCount = LockingController.shortFormBlockedToday(ctx)
         // If accessibility/VPN/admin was switched off during the last session, say so (the session counts as unverified).
         LockingController.consumeTamper(ctx)?.let { vm.flash("Session unverified: $it") }
     }
@@ -130,6 +137,22 @@ fun FocusScreen(vm: AppViewModel) {
                 WkText("Strict (locked) sessions also close Settings until they end, so protection can't be switched off from inside the phone.", 11, color = Wk.Ink500, modifier = Modifier.padding(top = 4.dp), lineHeight = 1.4f)
             }
         }
+        if (!full) {
+            Column(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                CardHeader(Icons.Filled.Block, "Reels & Shorts", "Closes the short-video feed, not the whole app")
+                SegmentTabs(listOf("Off", "In sessions", "Always"), shortMode, { m ->
+                    if (m == BlockStore.SHORT_OFF) { shortMode = m; LockingController.setShortFormMode(ctx, m) } else pendingShortMode = m
+                })
+                if (shortMode != BlockStore.SHORT_OFF) {
+                    var ig by remember { mutableStateOf(LockingController.shortFormPlatformOn(ctx, ShortFormHints.INSTAGRAM)) }
+                    var yt by remember { mutableStateOf(LockingController.shortFormPlatformOn(ctx, ShortFormHints.YOUTUBE)) }
+                    ToggleRow("Instagram Reels", null, ig) { ig = it; LockingController.setShortFormPlatform(ctx, ShortFormHints.INSTAGRAM, it) }
+                    ToggleRow("YouTube Shorts", null, yt) { yt = it; LockingController.setShortFormPlatform(ctx, ShortFormHints.YOUTUBE, it) }
+                    if (!perms.accessibility) WkText("Needs the Accessibility permission above.", 11, color = Wk.Orange300)
+                    WkText("Closed $shortCount today", 12, FontWeight.SemiBold, Wk.Ink400)
+                }
+            }
+        }
         if (!full && perms.usageAccess && usage.isNotEmpty()) {
             Column(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CardHeader(Icons.Filled.BarChart, "Screen time today", "Your biggest distractions")
@@ -142,11 +165,18 @@ fun FocusScreen(vm: AppViewModel) {
             }
         }
     }
+    pendingShortMode?.let { m ->
+        DisclosureDialog(Disclosure.ShortForm, onDismiss = { pendingShortMode = null }, onAgree = {
+            shortMode = m; LockingController.setShortFormMode(ctx, m); pendingShortMode = null
+            if (!perms.accessibility) disclosure = Disclosure.Accessibility
+        })
+    }
     disclosure?.let { d ->
         DisclosureDialog(d, onDismiss = { disclosure = null }, onAgree = {
             disclosure = null
             when (d) {
                 Disclosure.Accessibility -> LockingController.requestAccessibility(ctx)
+                Disclosure.ShortForm -> Unit
                 Disclosure.Vpn -> LockingController.vpnConsentIntent(ctx)?.let { vpn.launch(it) }
                 Disclosure.DeviceAdmin -> LockingController.requestDeviceAdmin(ctx)
                 Disclosure.NotificationAccess -> LockingController.requestNotificationAccess(ctx)

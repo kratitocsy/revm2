@@ -143,6 +143,13 @@ object LockingController {
 
     fun sessionState(ctx: Context) = BlockStore.current(ctx)
 
+    // ── Reels & Shorts blocking ──
+    fun shortFormMode(ctx: Context) = BlockStore.shortFormMode(ctx)
+    fun setShortFormMode(ctx: Context, mode: Int) = BlockStore.setShortFormMode(ctx, mode)
+    fun shortFormPlatformOn(ctx: Context, platform: String) = BlockStore.shortFormPlatformOn(ctx, platform)
+    fun setShortFormPlatform(ctx: Context, platform: String, on: Boolean) = BlockStore.setShortFormPlatform(ctx, platform, on)
+    fun shortFormBlockedToday(ctx: Context) = BlockStore.shortFormBlockedToday(ctx)
+
     /** Why enforcement was interrupted during the last session (accessibility/VPN/admin turned off), if it was. Clears it. */
     fun consumeTamper(ctx: Context): String? = BlockStore.consumeTamper(ctx)
 

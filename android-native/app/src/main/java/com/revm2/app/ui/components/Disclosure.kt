@@ -11,10 +11,17 @@ import com.revm2.app.ui.theme.Wk
 enum class Disclosure(val title: String, val body: String) {
     Accessibility(
         "Allow Wynko to see which app is open?",
-        "Wynko uses Android's Accessibility service only to detect which app is in the foreground during a focus session, " +
-            "so it can cover apps you chose to block and send you back to your home screen. It does not read what is on your screen, " +
-            "your messages, passwords or anything you type, and nothing it sees leaves your phone. It only works while a session is running " +
-            "and you can switch it off any time in Settings.",
+        "Wynko uses Android's Accessibility service to detect which app is in the foreground during a focus session, " +
+            "so it can cover apps you chose to block and send you back to your home screen. It does not read your messages, passwords " +
+            "or anything you type, and nothing it sees leaves your phone. If you also turn on Reels & Shorts blocking, it looks at the " +
+            "layout of Instagram and YouTube screens, only while one of them is open, to recognise the Reels and Shorts screens. " +
+            "You can switch it off any time in Settings.",
+    ),
+    ShortForm(
+        "Block Reels and Shorts?",
+        "To close Instagram Reels and YouTube Shorts, Wynko's Accessibility service looks for the Reels and Shorts screens while Instagram or " +
+            "YouTube is open. It checks for those screens only: it doesn't read posts, comments, messages or search text, doesn't record " +
+            "anything and sends nothing off your phone. When it finds one it presses Back. Turn it off any time here.",
     ),
     Vpn(
         "Allow a local VPN for website blocking?",
