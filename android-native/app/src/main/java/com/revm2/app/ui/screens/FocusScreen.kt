@@ -91,8 +91,8 @@ fun FocusScreen(vm: AppViewModel) {
                     Icon(Icons.Filled.KeyboardArrowDown, null, tint = Wk.Orange200, modifier = Modifier.size(16.dp))
                 }
                 DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { Column { WkText("🍅 Pomodoro Timer", 13, FontWeight.SemiBold, Wk.Ink100); WkText("Focus • ${vm.pomoFocus}/${vm.pomoBreak} • ${if (vm.pomoRepeat) "Repeat" else "Once"}", 11, color = Wk.Ink500) } }, onClick = { vm.setMode("pomodoro"); menu = false })
-                    DropdownMenuItem(text = { Column { WkText("⏱ Regular Timer", 13, FontWeight.SemiBold, Wk.Ink100); WkText("Count Up • No Limit", 11, color = Wk.Ink500) } }, onClick = { vm.setMode("regular"); menu = false })
+                    DropdownMenuItem(text = { Column { WkText("🍅 Pomodoro Timer", 13, FontWeight.SemiBold, Wk.Ink100); WkText("Focus • ${vm.pomoFocus}/${vm.pomoBreak} • ${if (vm.pomoRepeat) "Repeat" else "Once"}", 11, color = Wk.Ink500) } }, onClick = { vm.selectMode("pomodoro"); menu = false })
+                    DropdownMenuItem(text = { Column { WkText("⏱ Regular Timer", 13, FontWeight.SemiBold, Wk.Ink100); WkText("Count Up • No Limit", 11, color = Wk.Ink500) } }, onClick = { vm.selectMode("regular"); menu = false })
                 }
             }
         }

@@ -97,8 +97,8 @@ private fun TimerCard(vm: AppViewModel) {
                     Icon(Icons.Filled.KeyboardArrowDown, null, tint = Wk.Ink250, modifier = Modifier.size(16.dp))
                 }
                 DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { WkText("🍅 Pomodoro Timer", 13, color = Wk.Ink100) }, onClick = { vm.setMode("pomodoro"); menu = false })
-                    DropdownMenuItem(text = { WkText("⏱ Regular Timer", 13, color = Wk.Ink100) }, onClick = { vm.setMode("regular"); menu = false })
+                    DropdownMenuItem(text = { WkText("🍅 Pomodoro Timer", 13, color = Wk.Ink100) }, onClick = { vm.selectMode("pomodoro"); menu = false })
+                    DropdownMenuItem(text = { WkText("⏱ Regular Timer", 13, color = Wk.Ink100) }, onClick = { vm.selectMode("regular"); menu = false })
                 }
             }
         }

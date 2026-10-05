@@ -90,7 +90,7 @@ fun SettingsScreen(vm: AppViewModel) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4, 6).forEach { h -> Pill("${h}h", if (h == goal) Wk.Orange500 else Wk.Ink400, Modifier.tap { goal = h }, 12) } }
                     Label("DEFAULT TIMER")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("pomodoro" to "Pomodoro", "regular" to "Regular").forEach { (id, n) -> Box(Modifier.weight(1f).height(44.dp).wkSurface(if (timer == id) Color(0x24FF8A3D) else Wk.Black800, if (timer == id) Wk.Orange600 else Wk.Black600, 12.dp).tap { timer = id; vm.setMode(id) }, contentAlignment = Alignment.Center) { WkText(n, 13, FontWeight.SemiBold, Wk.Ink100) } }
+                        listOf("pomodoro" to "Pomodoro", "regular" to "Regular").forEach { (id, n) -> Box(Modifier.weight(1f).height(44.dp).wkSurface(if (timer == id) Color(0x24FF8A3D) else Wk.Black800, if (timer == id) Wk.Orange600 else Wk.Black600, 12.dp).tap { timer = id; vm.selectMode(id) }, contentAlignment = Alignment.Center) { WkText(n, 13, FontWeight.SemiBold, Wk.Ink100) } }
                     }
                     WkText("Pomodoro lengths are edited from the Pomodoro card in Focus Lock.", 11, color = Wk.Ink500)
                 }

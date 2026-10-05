@@ -173,7 +173,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun confirmPause() { running = false; sheet = null }
 
-    fun setMode(m: String) {
+    fun selectMode(m: String) {
         if (running) return
         mode = m
         remaining = pomoFocus * 60; elapsed = 0; phase = "focus"
