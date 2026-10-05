@@ -37,7 +37,7 @@ fun BlocksScreen(vm: BlocksViewModel = viewModel()) {
     }
     LaunchedEffect(state.remainingSeconds) { if (state.remainingSeconds == 0L) vm.finishIfExpired(ctx) }
 
-    LazyColumn(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Focus lock", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp)) }
 
         state.error?.let { msg ->
@@ -52,7 +52,7 @@ fun BlocksScreen(vm: BlocksViewModel = viewModel()) {
             item { Text("Permissions", style = MaterialTheme.typography.titleMedium) }
             item { PermRow("Accessibility (detect blocked apps)", perms.accessibility) { LockingController.requestAccessibility(ctx) } }
             item { PermRow("Overlay (block screen)", perms.overlay) { LockingController.requestOverlay(ctx) } }
-            item { PermRow("VPN (block websites)", perms.vpn) { LockingController.vpnConsentIntent(ctx)?.let(vpnLauncher::launch) } }
+            item { PermRow("VPN (block websites)", perms.vpn) { LockingController.vpnConsentIntent(ctx)?.let { vpnLauncher.launch(it) } } }
             item { PermRow("Device admin (uninstall friction)", perms.deviceAdmin) { LockingController.requestDeviceAdmin(ctx) } }
         }
 

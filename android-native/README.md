@@ -2,14 +2,13 @@
 
 Full native replacement for the Capacitor shell in `../mobile/`. Kotlin + Jetpack Compose, same Supabase backend as the web app. Android only.
 
-## Status: phases 1 + part of 2
-- Compose project, Wynko theme (`ui/theme`, tokens from `src/styles/colors.css`)
-- Supabase auth (email/password) with persisted session, bottom-tab navigation
-- Tier 2+3 locking code copied verbatim from `mobile/` (`locking/`), called directly through `LockingController` instead of the Capacitor plugin bridge
-- Blocks tab (phase 2, first part): saved blocks (`focus_lock_presets`) list/create/remove with an installed-apps picker, start/stop sessions (`focus_lock_sessions`, same row shape as `blocks.html`), live countdown, strict "lock until time is up" mode, permission checklist. On-device enforcement is started/stopped in step with the server row.
-- Home / Study / Community / Profile are placeholders (see TODO comments for the web code to port)
+## Status
+- Phase 1 skeleton + the **Claude Design "Wynko Mobile" UI** in Compose: Plus Jakarta Sans theme, 5-tab bar with the raised Focus button, side drawer, mini player, bottom sheets, and all 10 modules (Home, Focus Lock, Study Rooms, Room, Communities + student/manage views, Profile, Battleground, WYNKOINS, Settings, Schedules, Earn, Quick Timer).
+- Screens run on **sample data** (`ui/sample/SampleData.kt`, copied from the prototype); Supabase wiring comes screen by screen.
+- Real behaviour already hooked up: the Focus timer (Pomodoro/Regular, 150-word pause gate), live Focus sessions start the on-device blocking in `locking/` (accessibility overlay + VPN DNS), the permission checklist on Focus Lock, and the previous presets/sessions screen (`ui/blocks`, reachable via Focus Lock → Manage).
+- Auth: email/password sign-in via Supabase (`data/`, currently not gating the shell; see TODO).
 
-Not yet built or run: no Android SDK was available when this was scaffolded. Open `android-native/` in Android Studio and sync first.
+**Not compiled or run yet** (no Android SDK where this was written). Open `android-native/` in Android Studio, sync, and fix any compile errors first.
 
 ## Build
 `./gradlew :app:assembleDebug` (needs the Android SDK). Optional: `-PappVersionCode`, `-PappVersionName`, `-PsupabaseUrl`, `-PsupabaseAnon`.
