@@ -6,7 +6,7 @@ Full native replacement for the Capacitor shell in `../mobile/`. Kotlin + Jetpac
 - Phase 1 skeleton + the **Claude Design "Wynko Mobile" UI** in Compose: Plus Jakarta Sans theme, 5-tab bar with the raised Focus button, side drawer, mini player, bottom sheets, and all 10 modules (Home, Focus Lock, Study Rooms, Room, Communities + student/manage views, Profile, Battleground, WYNKOINS, Settings, Schedules, Earn, Quick Timer).
 - Screens run on **sample data** (`ui/sample/SampleData.kt`, copied from the prototype); Supabase wiring comes screen by screen.
 - Real behaviour already hooked up: the Focus timer (Pomodoro/Regular, 150-word pause gate), live Focus sessions start the on-device blocking in `locking/` (accessibility overlay + VPN DNS), the permission checklist on Focus Lock, and the previous presets/sessions screen (`ui/blocks`, reachable via Focus Lock → Manage).
-- Auth: email/password sign-in via Supabase (`data/`, currently not gating the shell; see TODO).
+- Auth: email/password sign-in via Supabase gates the app (`ui/auth/AuthGate.kt`); the profile screen shows sample data for now.
 
 **Not compiled or run yet** (no Android SDK where this was written). Open `android-native/` in Android Studio, sync, and fix any compile errors first.
 
