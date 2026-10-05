@@ -1,6 +1,6 @@
 # RevM2 native Android app
 
-Full native replacement for the Capacitor shell in `../mobile/`. Kotlin + Jetpack Compose, same Supabase backend as the web app. Android only.
+Native Android app (the old Capacitor shell in `mobile/` has been removed). Kotlin + Jetpack Compose, same Supabase backend as the web app. Android only.
 
 ## Status
 - Phase 1 skeleton + the **Claude Design "Wynko Mobile" UI** in Compose: Plus Jakarta Sans theme, 5-tab bar with the raised Focus button, side drawer, mini player, bottom sheets, and all 10 modules (Home, Focus Lock, Study Rooms, Room, Communities + student/manage views, Profile, Battleground, WYNKOINS, Settings, Schedules, Earn, Quick Timer).
@@ -19,5 +19,3 @@ Full native replacement for the Capacitor shell in `../mobile/`. Kotlin + Jetpac
 2. (remaining) Onboarding quiz, home, focus-lock schedules/slots, study timer
 3. Communities, chat, battles, wallet/Razorpay, shop
 4. Wynky AI chat, notifications, widgets
-
-Both apps share `applicationId com.revm2.app`, so they can't be installed side by side; remove `mobile/` once this reaches parity.

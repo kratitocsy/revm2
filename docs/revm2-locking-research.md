@@ -84,6 +84,9 @@ None of this ports to Android as-is. Needs a different mechanism, not a translat
 
 ## Build path (when we get to it)
 
+> **Update (Oct 2026):** superseded. The Android app is fully native (`android-native/`, Kotlin + Compose) and the Capacitor shell was removed. The Capacitor steps below are kept for history only.
+
+
 1. **Capacitor**, not a bare PWA/TWA wrapper — wraps existing web frontend
    (`groups.html`, `materials.js`, `materials-viewer.js`, etc.) completely
    unchanged. Native Kotlin plugin added on top for the blocking logic,

@@ -1,6 +1,6 @@
 name: Android native build
 
-# Builds the native Compose app in android-native/ (the Capacitor app in mobile/ has its own workflow).
+# Builds the native Compose app in android-native/ (replaces the old Capacitor workflow).
 on:
   push:
     branches: [main]
