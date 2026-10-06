@@ -108,7 +108,6 @@ export default function VoiceBar({ voice, members, groupId, lift = false }: {
           <Toggle label="Quiet mode" hint="Hear nobody; no join/leave chimes." checked={prefs.quiet} onChange={voice.setQuiet} />
           <Toggle label="Push to talk" hint="Hold Space to speak. Ignored while typing." checked={prefs.pushToTalk} onChange={v => voice.updatePrefs({ pushToTalk: v })} />
           <Toggle label="Noise suppression" hint="Cuts keyboard and background noise." checked={prefs.noiseSuppression} onChange={v => voice.updatePrefs({ noiseSuppression: v })} />
-          <Toggle label="Echo cancellation" hint="On for speakers; off can sound clearer on headphones." checked={prefs.echoCancellation} onChange={v => voice.updatePrefs({ echoCancellation: v })} />
           <Toggle label="Auto volume (gain)" hint="Evens out how loud your mic is." checked={prefs.autoGain} onChange={v => voice.updatePrefs({ autoGain: v })} />
         </div>
       )}

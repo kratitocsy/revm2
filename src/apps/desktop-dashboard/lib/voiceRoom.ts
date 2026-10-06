@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IAgoraRTCClient, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { sb } from '../../_shared/supabaseClient';
 import {
-  DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs, peersFromPresence, speakingUserIds, sameSet,
+  DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs, peersFromPresence, speakingUserIds, sameSet, yieldsToOtherSession,
+  type PresencePayload,
   type VoicePrefs, type VoicePeer,
 } from './voiceRoomLogic';
 
@@ -97,6 +98,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
   const peersRef = useRef<VoicePeer[]>([]);
   const speakingRef = useRef<Set<string>>(new Set());
   const mutexRef = useRef<Promise<void>>(Promise.resolve());
+  const joinedAtRef = useRef(0);
   const usageSinceRef = useRef(0);
   const usageFirstRef = useRef(true);
   const usageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -137,7 +139,8 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
       const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
       const p = livePrefsRef.current;
       const track = await AgoraRTC.createMicrophoneAudioTrack({
-        encoderConfig: 'speech_standard', ANS: p.noiseSuppression, AEC: p.echoCancellation, AGC: p.autoGain,
+        // Echo cancellation is always on: without it people hear themselves a moment later.
+        encoderConfig: 'speech_standard', ANS: p.noiseSuppression, AEC: true, AGC: p.autoGain,
       });
       // State may have changed while the browser was asking for the mic.
       const now = stateRef.current;
@@ -157,7 +160,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     const ch = channelRef.current;
     if (!ch || !agoraUidRef.current) return;
     const s = stateRef.current;
-    void ch.track({ agora_uid: agoraUidRef.current, muted: s.muted || s.deafened, deafened: s.deafened });
+    void ch.track({ agora_uid: agoraUidRef.current, muted: s.muted || s.deafened, deafened: s.deafened, joined_at: joinedAtRef.current });
   }, []);
 
   // Reports the time since the last report to the monthly allowance ledger. Never throws.
@@ -245,6 +248,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
 
       const uid = await client.join(app_id, `voice-${groupId}`, token, null);
       agoraUidRef.current = String(uid);
+      joinedAtRef.current = Date.now();
       client.enableAudioVolumeIndicator();
 
       // Presence: who is here and who is muted (also maps Agora uids to people).
@@ -254,6 +258,13 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
         const list = peersFromPresence(ch.presenceState() as Record<string, unknown[]>);
         peersRef.current = list;
         setPeers(list);
+        // The same account in this call from another tab or device would hear itself back
+        // as an echo: the later session steps out.
+        const mine = (ch.presenceState() as Record<string, PresencePayload[]>)[myUserId] ?? [];
+        if (stateRef.current.status === 'on' && yieldsToOtherSession(agoraUidRef.current, mine)) {
+          setError('You are already in this call on another tab or device, so this one was closed to avoid an echo.');
+          void leave();
+        }
       });
       ch.on('presence', { event: 'join' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(true); });
       ch.on('presence', { event: 'leave' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(false); });
@@ -316,12 +327,12 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     applyPlayback();
   }, [status, deafened, prefs.volume, prefs.quiet, applyPlayback]);
 
-  // Changing noise suppression / echo cancellation / gain rebuilds a live mic.
+  // Changing noise suppression / gain rebuilds a live mic.
   useEffect(() => {
     if (status !== 'on' || !micRef.current) return;
     void serial(closeMic).then(() => syncMic());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs.noiseSuppression, prefs.echoCancellation, prefs.autoGain]);
+  }, [prefs.noiseSuppression, prefs.autoGain]);
 
   // Push-to-talk: hold Space (never while typing in a field).
   useEffect(() => {

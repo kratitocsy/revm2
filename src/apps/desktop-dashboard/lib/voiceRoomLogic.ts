@@ -8,7 +8,6 @@ export interface VoicePrefs {
   /** Playback volume for everyone else, 0-100. */
   volume: number
   noiseSuppression: boolean
-  echoCancellation: boolean
   autoGain: boolean
   /** Hold Space to talk instead of an open mic. */
   pushToTalk: boolean
@@ -18,7 +17,6 @@ export const DEFAULT_VOICE_PREFS: VoicePrefs = {
   quiet: false,
   volume: 100,
   noiseSuppression: true,
-  echoCancellation: true,
   autoGain: true,
   pushToTalk: false,
 }
@@ -49,13 +47,12 @@ export function sanitizePrefs(raw: unknown): VoicePrefs {
     quiet: bool('quiet'),
     volume: typeof r.volume === 'number' && Number.isFinite(r.volume) ? clamp(Math.round(r.volume), 0, 100) : DEFAULT_VOICE_PREFS.volume,
     noiseSuppression: bool('noiseSuppression'),
-    echoCancellation: bool('echoCancellation'),
     autoGain: bool('autoGain'),
     pushToTalk: bool('pushToTalk'),
   }
 }
 
-export interface PresencePayload { agora_uid: number | string; muted: boolean; deafened: boolean }
+export interface PresencePayload { agora_uid: number | string; muted: boolean; deafened: boolean; joined_at?: number }
 export interface VoicePeer { userId: string; agoraUid: string; muted: boolean; deafened: boolean }
 
 /** Turns a Supabase presence state ({ [userId]: payload[] }) into one peer per user. */
@@ -88,4 +85,21 @@ export function sameSet(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false
   for (const x of a) if (!b.has(x)) return false
   return true
+}
+
+/**
+ * Whether this session should step out because the same account is already in the
+ * call from another tab or device. Two sessions of one person hear each other with
+ * a delay, which is an echo, so the one that joined later leaves (the Agora uid
+ * breaks an exact tie so exactly one of the two yields).
+ */
+export function yieldsToOtherSession(myAgoraUid: string, metas: PresencePayload[]): boolean {
+  const mine = metas.find(m => String(m.agora_uid) === myAgoraUid)
+  if (!mine) return false
+  const myAt = Number(mine.joined_at) || 0
+  return metas.some(m => {
+    if (String(m.agora_uid) === myAgoraUid) return false
+    const at = Number(m.joined_at) || 0
+    return at < myAt || (at === myAt && String(m.agora_uid) < myAgoraUid)
+  })
 }
