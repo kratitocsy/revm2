@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 enum class Dest { Home, Focus, Schedules, Rooms, Room, Comms, CommStudent, CommManage, Battle, Coins, Earn, Settings, More, Quick, BlockLists }
 
-enum class SheetKind { FreePause, Gate, Pause, AddTask, Pomodoro, Notifications, Password, DeleteAccount, AiAssistant, Routine, Challenge }
+enum class SheetKind { FreePause, Gate, Pause, AddTask, Pomodoro, Notifications, Password, DeleteAccount, AiAssistant, Routine, Challenge, CreateRoom, NewAnnouncement, CreateCommunity }
 
 typealias StudyTask = PlanTask
 
@@ -111,6 +111,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 endFreePauseIfDue()
                 if (n % 30 == 0) recomputeGate()
                 if (n % 300 == 0) refreshSchedules() // every 5 minutes, like the desktop app
+                syncTimerState()
+                if (n % 30 == 0) pullPlan()
+                if (n % 60 == 0) { refreshNotifs(); refreshProgress() }
+                if (dest == Dest.Room && n % 10 == 0) refreshRoom()
             }
         }
     }
@@ -212,22 +216,299 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var qtTotal by mutableStateOf(25 * 60)
     var qtRemaining by mutableStateOf(25 * 60)
     var qtRunning by mutableStateOf(false)
-    private fun qtTick() { if (qtRemaining > 0) qtRemaining-- else qtRunning = false }
-    fun qtToggle() { if (qtRemaining == 0) qtRemaining = qtTotal; qtRunning = !qtRunning }
-    fun qtSet(minutes: Int) { qtTotal = minutes * 60; qtRemaining = qtTotal; qtRunning = false }
+    /** Quick Timer seconds already sent to study_log (as "Quick Timer", like the web). */
+    private var qtLogged = 0
+    private fun qtLog() {
+        val secs = (qtTotal - qtRemaining) - qtLogged
+        if (secs <= 0) return
+        qtLogged += secs
+        viewModelScope.launch { StudyRepository.logTime(ctx, "Quick Timer", secs); refreshProgress() }
+    }
+    private fun qtTick() { if (qtRemaining > 0) qtRemaining-- else { qtRunning = false; qtLog() } }
+    fun qtToggle() {
+        if (qtRemaining == 0) { qtRemaining = qtTotal; qtLogged = 0 }
+        qtRunning = !qtRunning
+        if (!qtRunning) qtLog()
+    }
+    fun qtSet(minutes: Int) { if (qtRunning) qtLog(); qtTotal = minutes * 60; qtRemaining = qtTotal; qtRunning = false; qtLogged = 0 }
 
     // ── blocking (design shows names; the real list comes from the locking plugin) ──
     val blockedApps = mutableStateListOf("Instagram", "YouTube", "Snapchat", "BGMI")
     val blockedSites = mutableStateListOf("reddit.com")
     fun toggleApp(name: String) { if (!blockedApps.remove(name)) blockedApps.add(name) }
 
-    // ── rooms / communities ──
-    var currentRoomId by mutableStateOf(1)
+    // ── study rooms (same RPCs as the web's lib/studyRooms.ts) ──
+    var rooms by mutableStateOf<List<RoomRow>>(emptyList()); private set
+    var currentRoomId by mutableStateOf<String?>(null)
     var roomFrom by mutableStateOf(Dest.Rooms)
-    val joinedRooms = mutableStateListOf<Int>()
-    var pendingRoomId by mutableStateOf<Int?>(null)
-    var currentCommunityId by mutableStateOf("c2")
-    fun openRoom(id: Int, from: Dest) { currentRoomId = id; roomFrom = from; go(Dest.Room) }
+    var pendingRoomId by mutableStateOf<String?>(null)
+    var roomMembers by mutableStateOf<List<RoomMemberRow>>(emptyList()); private set
+    var roomMessages by mutableStateOf<List<RoomMessageRow>>(emptyList()); private set
+    val currentRoom: RoomRow? get() = rooms.firstOrNull { it.id == currentRoomId }
+
+    fun refreshRooms() { viewModelScope.launch { try { rooms = SocialRepository.rooms() } catch (_: Exception) {} } }
+    fun openRoom(id: String, from: Dest) {
+        currentRoomId = id; roomFrom = from; roomMembers = emptyList(); roomMessages = emptyList()
+        go(Dest.Room); refreshRoom()
+    }
+    fun refreshRoom() {
+        val id = currentRoomId ?: return
+        viewModelScope.launch {
+            try { roomMembers = SocialRepository.roomMembers(id) } catch (_: Exception) {}
+            try { roomMessages = SocialRepository.roomMessages(id) } catch (_: Exception) {}
+        }
+    }
+    /** Join (password for private rooms), then open it. */
+    fun joinRoom(id: String, password: String? = null, onWrongPassword: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                when (SocialRepository.joinRoom(id, password)) {
+                    "joined", "already_member" -> { sheet = null; refreshRooms(); openRoom(id, Dest.Rooms) }
+                    "wrong_password" -> onWrongPassword()
+                    "full" -> flash("This room is full")
+                    else -> flash("This room is invite-only")
+                }
+            } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't join the room") }
+        }
+    }
+    fun leaveRoom(id: String) {
+        viewModelScope.launch { try { SocialRepository.leaveRoom(id); refreshRooms(); back() } catch (e: Exception) { flash("Couldn't leave the room") } }
+    }
+    fun createRoom(name: String, subject: String, desc: String, isPublic: Boolean, password: String) {
+        viewModelScope.launch {
+            try { val id = SocialRepository.createRoom(name, subject, desc, isPublic, password); sheet = null; refreshRooms(); openRoom(id, Dest.Rooms) }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't create the room") }
+        }
+    }
+    fun sendRoomMessage(text: String) {
+        val id = currentRoomId ?: return
+        viewModelScope.launch { try { SocialRepository.sendRoomMessage(id, text.trim()); refreshRoom() } catch (e: Exception) { flash("Message not sent") } }
+    }
+
+    // ── communities (same RPCs as the web's lib/communities.ts) ──
+    var communities by mutableStateOf<List<MyCommunityRow>>(emptyList()); private set
+    var discover by mutableStateOf<List<DiscoverRow>>(emptyList()); private set
+    var communitySchedules by mutableStateOf<List<CommunityScheduleRow>>(emptyList()); private set
+    var currentCommunityId by mutableStateOf("")
+    var communityDetail by mutableStateOf<CommunityDetail?>(null); private set
+    var announcements by mutableStateOf<List<AnnouncementRow>>(emptyList()); private set
+    var headOverview by mutableStateOf<HeadOverview?>(null); private set
+    var students by mutableStateOf<List<StudentRow>>(emptyList()); private set
+    var joinRequests by mutableStateOf<List<JoinRequestRow>>(emptyList()); private set
+    val homeCommunity: MyCommunityRow? get() = communities.firstOrNull { it.isHome == true }
+    val currentCommunity: MyCommunityRow? get() = communities.firstOrNull { it.id == currentCommunityId }
+
+    fun refreshCommunities() {
+        viewModelScope.launch {
+            try { communities = SocialRepository.myCommunities() } catch (_: Exception) {}
+            try { discover = SocialRepository.discover() } catch (_: Exception) {}
+            try { communitySchedules = SocialRepository.mySchedules() } catch (_: Exception) {}
+        }
+    }
+    fun openCommunity(id: String, manage: Boolean) {
+        currentCommunityId = id; communityDetail = null; announcements = emptyList(); headOverview = null; students = emptyList(); joinRequests = emptyList()
+        go(if (manage) Dest.CommManage else Dest.CommStudent)
+        viewModelScope.launch {
+            try { communityDetail = SocialRepository.detail(id) } catch (_: Exception) {}
+            try { announcements = SocialRepository.announcements(id) } catch (_: Exception) {}
+            if (manage) {
+                try { headOverview = SocialRepository.headOverview(id) } catch (_: Exception) {}
+                try { students = SocialRepository.studentAnalytics(id) } catch (_: Exception) {}
+                try { joinRequests = SocialRepository.joinRequests(id) } catch (_: Exception) {}
+            }
+        }
+    }
+    private fun joinMessage(status: String) = when (status) {
+        "joined" -> "You joined the community"; "requested" -> "Request sent — you'll join once the WynkoHead approves it"
+        "already_member" -> "You're already a member"; "full" -> "This community is full"
+        "password_required" -> "This community needs its password (join it on the web)"; "wrong_password" -> "Wrong password"
+        else -> "That invite isn't valid"
+    }
+    fun joinCommunity(id: String) {
+        viewModelScope.launch { try { flash(joinMessage(SocialRepository.joinCommunity(groupId = id))); refreshCommunities() } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't join") } }
+    }
+    fun joinCommunityByCode(input: String) {
+        viewModelScope.launch { try { flash(joinMessage(SocialRepository.joinCommunity(token = SocialRepository.parseInvite(input)))); refreshCommunities() } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't join") } }
+    }
+    fun leaveCommunity(id: String) {
+        val name = communities.firstOrNull { it.id == id }?.name
+        viewModelScope.launch {
+            try {
+                SocialRepository.leaveCommunity(id)
+                if (name != null) PlanWriter.releaseCommunitySchedule(ctx, name)
+                refreshCommunities(); refreshSchedules(); go(Dest.Comms)
+            } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't leave") }
+        }
+    }
+    fun setHomeCommunity(id: String) {
+        viewModelScope.launch { try { SocialRepository.setHomeCommunity(id); flash("Home Community changed"); refreshCommunities() } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't change your Home Community") } }
+    }
+    fun createCommunity(name: String, description: String) {
+        viewModelScope.launch {
+            try { val id = SocialRepository.createCommunity(name, description, null); refreshCommunities(); openCommunity(id, manage = true) }
+            catch (e: Exception) { flash(e.message?.take(100) ?: "Only verified WynkoHeads can create a community") }
+        }
+    }
+    /** Accept: the week becomes real Focus Lock schedules (own schedules paused). Reject: back to your own. */
+    fun decideCommunitySchedule(row: CommunityScheduleRow, accept: Boolean) {
+        viewModelScope.launch {
+            try {
+                SocialRepository.setScheduleChoice(row.groupId, if (accept) "accepted" else "rejected")
+                if (accept) PlanWriter.enforceCommunitySchedule(ctx, row.name, row.week) else PlanWriter.releaseCommunitySchedule(ctx, row.name)
+                flash(if (accept) "Schedule synced to your Focus Lock" else "You're back on your own schedule")
+                communitySchedules = SocialRepository.mySchedules(); refreshSchedules()
+            } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't save your choice") }
+        }
+    }
+    fun postAnnouncement(title: String, message: String, pinned: Boolean, important: Boolean) {
+        val id = currentCommunityId
+        viewModelScope.launch {
+            try { SocialRepository.postAnnouncement(id, title, message, pinned, important); sheet = null; announcements = SocialRepository.announcements(id) }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't post") }
+        }
+    }
+    fun deleteAnnouncement(annId: String) {
+        viewModelScope.launch { try { SocialRepository.deleteAnnouncement(annId); announcements = announcements.filter { it.id != annId } } catch (e: Exception) { flash("Couldn't delete") } }
+    }
+    fun decideJoinRequest(reqId: String, approve: Boolean) {
+        viewModelScope.launch {
+            try { SocialRepository.decideJoinRequest(reqId, approve); joinRequests = joinRequests.filter { it.id != reqId }; refreshCommunities() }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't update that request") }
+        }
+    }
+    fun setRequiresApproval(value: Boolean) {
+        val id = currentCommunityId
+        viewModelScope.launch { try { SocialRepository.setRequiresApproval(id, value); refreshCommunities() } catch (e: Exception) { flash("Couldn't change that setting") } }
+    }
+
+    // ── study time + shared plan (web/desktop see the same session and running task) ──
+    var progress by mutableStateOf<StudyProgress?>(null); private set
+    fun refreshProgress() { viewModelScope.launch { try { progress = StudyRepository.progress() } catch (_: Exception) {} } }
+
+    private var sessionId: String? = null
+    private var lastRunning = false
+    private var lastActiveId: String? = null
+    /** Set when a change came from another device, so it isn't written back. */
+    private var remoteDriven = false
+    private var lastRemotePlanMs = 0L
+
+    private fun currentProgress() = TaskProgress(mode, phase, phaseTotal, remaining, elapsed)
+
+    /** Called every second: reacts to the timer starting, pausing or switching task. */
+    private fun syncTimerState() {
+        if (running == lastRunning && activeId == lastActiveId) return
+        val wasRunning = lastRunning
+        lastRunning = running; lastActiveId = activeId
+        val fromRemote = remoteDriven; remoteDriven = false
+        val task = activeTask
+        viewModelScope.launch {
+            // Study session: stop the old one on pause / task switch, start one while running here.
+            sessionId?.let { id -> sessionId = null; runCatching { StudyRepository.stopSession(id) } }
+            if (running && task != null && !fromRemote) {
+                sessionId = StudyRepository.startSession(task.subject, if (dest == Dest.Room) currentRoomId else null)
+            }
+            if (!fromRemote) runCatching { StudyRepository.savePlan(activeId, running, currentProgress()) }
+            if (wasRunning && !running) refreshProgress()
+        }
+    }
+
+    /** Follows a start / pause made on the web or desktop. */
+    private fun pullPlan() {
+        viewModelScope.launch {
+            try {
+                val remote = AppRepository.tasks()
+                if (remote.map { it.id }.toSet() != tasks.map { it.id }.toSet() || remote.zip(tasks).any { (a, b) -> a.done != b.done }) {
+                    tasks.clear(); tasks.addAll(remote)
+                }
+                val ps = StudyRepository.planState() ?: return@launch
+                if (ps.updatedBy == StudyRepository.clientId || ps.updatedAtMs <= lastRemotePlanMs) return@launch
+                lastRemotePlanMs = ps.updatedAtMs
+                if (ps.running && ps.activeTaskId != null && tasks.any { it.id == ps.activeTaskId }) {
+                    val tp = StudyRepository.taskProgress(ps.activeTaskId) ?: return@launch
+                    val since = ps.anchorMs?.let { ((System.currentTimeMillis() - it) / 1000).toInt() } ?: 0
+                    remoteDriven = true
+                    activeId = ps.activeTaskId; mode = if (tp.mode == "regular") "regular" else "pomodoro"; phase = tp.phase ?: "focus"
+                    if (mode == "regular") elapsed = tp.elapsed + since else remaining = (tp.remaining - since).coerceAtLeast(1)
+                    running = true
+                } else if (!ps.running && running) {
+                    remoteDriven = true; running = false
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    // ── Wynky (same chat history, AI chat mode, memory and plan tables as the web) ──
+    val wynkyMsgs = mutableStateListOf<WynkyMsg>()
+    var wynkyBusy by mutableStateOf(false); private set
+    var wynkyPlan by mutableStateOf<WynkyAnswer?>(null); private set
+    fun openWynky() {
+        sheet = SheetKind.AiAssistant
+        viewModelScope.launch {
+            try { val h = WynkyRepository.history(); wynkyMsgs.clear(); wynkyMsgs.addAll(h) } catch (_: Exception) {}
+            if (wynkyMsgs.isEmpty()) wynkyMsgs.add(WynkyMsg(true, "Hi! I'm Wynky 🐧 Tell me how you want your study week to look, and I'll plan it with you."))
+        }
+    }
+    fun sendWynky(text: String) {
+        val t = text.trim(); if (t.isEmpty() || wynkyBusy) return
+        val history = wynkyMsgs.toList()
+        wynkyMsgs.add(WynkyMsg(false, t)); wynkyBusy = true
+        viewModelScope.launch {
+            runCatching { WynkyRepository.remember(false, t) }
+            try {
+                val a = WynkyRepository.chat(t, history, schedules)
+                wynkyMsgs.add(WynkyMsg(true, a.reply)); runCatching { WynkyRepository.remember(true, a.reply) }
+                wynkyPlan = a.takeIf { it.days.values.any { d -> d.isNotEmpty() } }
+            } catch (e: Exception) {
+                wynkyMsgs.add(WynkyMsg(true, "I couldn't do that just now (${e.message?.take(120) ?: "the AI is not available"}). Please try again in a moment."))
+            }
+            wynkyBusy = false
+        }
+    }
+    fun saveWynkyPlan() {
+        val plan = wynkyPlan ?: return
+        wynkyBusy = true
+        viewModelScope.launch {
+            try {
+                PlanWriter.saveWynkyPlan(plan.days, plan.activeDays)
+                wynkyPlan = null
+                val msg = "✅ Saved. Focus Lock follows this plan on every device."
+                wynkyMsgs.add(WynkyMsg(true, msg)); runCatching { WynkyRepository.remember(true, msg) }
+                refreshSchedules()
+            } catch (e: Exception) { wynkyMsgs.add(WynkyMsg(true, e.message ?: "Couldn't save the plan.")) }
+            wynkyBusy = false
+        }
+    }
+    fun clearWynky() {
+        viewModelScope.launch { try { WynkyRepository.clearHistory(); wynkyMsgs.clear(); wynkyPlan = null } catch (_: Exception) { flash("Couldn't clear your history") } }
+    }
+
+    // ── shop + purchases (server-verified, same as web) ──
+    var shopItems by mutableStateOf<List<ShopItemRow>>(emptyList()); private set
+    fun buyCoins(activity: android.app.Activity, packId: String) {
+        viewModelScope.launch {
+            try {
+                val added = PaymentsRepository.buy(activity, packId)
+                if (added != null) { coins = AppRepository.coins(); flash("+%,d WYNKOINS".format(added)) }
+            } catch (e: Exception) { flash(e.message?.take(80) ?: "Payment failed") }
+        }
+    }
+    fun redeem(item: ShopItemRow) {
+        viewModelScope.launch {
+            try { PaymentsRepository.redeem(item.id); coins = AppRepository.coins(); flash("${item.name} redeemed") }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't redeem that") }
+        }
+    }
+
+    // ── routines = Focus Lock presets (same table as blocks.html / desktop) ──
+    var routines by mutableStateOf<List<FocusPreset>>(emptyList()); private set
+    fun refreshRoutines() { viewModelScope.launch { try { routines = FocusRepository.presets() } catch (_: Exception) {} } }
+    fun createRoutine(name: String, apps: List<String>, sites: List<String>) {
+        val uid = profile?.id ?: return
+        viewModelScope.launch {
+            try { FocusRepository.createPreset(NewFocusPreset(uid, name.trim(), sites, "blacklist", apps, "blacklist", false, null)); sheet = null; refreshRoutines(); flash("Routine saved") }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't save the routine") }
+        }
+    }
 
     // ── account data (Supabase) ──
     var profile by mutableStateOf<Profile?>(null); private set
@@ -256,7 +537,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 tasks.clear(); tasks.addAll(remote)
                 accountError = null
             } catch (e: Exception) { accountError = "Couldn't load your account; showing what we have." }
-            refreshNotifs(); refreshBattle(); refreshCoinPacks()
+            refreshNotifs(); refreshBattle(); refreshCoinPacks(); refreshProgress(); refreshRooms(); refreshCommunities(); refreshRoutines()
+            try { shopItems = PaymentsRepository.shopItems() } catch (_: Exception) {}
+            runCatching { StudyRepository.flushTime(ctx) }
+            pullPlan()
         }
     }
 
@@ -318,6 +602,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 dailyGoalHours = goalHours
                 profile = AppRepository.profile(); flash("Profile saved")
             } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't save your profile") }
+        }
+    }
+
+    /** Same server-side delete as web Settings (delete_my_account), then sign out. */
+    fun deleteAccount() {
+        viewModelScope.launch {
+            try { AppRepository.deleteAccount(); sheet = null; AuthRepository.signOut() }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't delete your account") }
         }
     }
 

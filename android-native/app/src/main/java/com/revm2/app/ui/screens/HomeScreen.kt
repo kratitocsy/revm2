@@ -40,11 +40,17 @@ fun HomeScreen(vm: AppViewModel) = ScreenColumn {
 
 @Composable
 private fun ProgressCard(vm: AppViewModel) {
-    var selected by remember { mutableIntStateOf(WeekMinutes.lastIndex) }
+    val week = vm.progress?.week ?: emptyList()
+    val minutes = if (week.size == 7) week.map { it.minutes } else List(7) { 0 }
+    val labels = if (week.size == 7) week.map { it.label } else List(7) { "" }
+    val total = minutes.sum(); val avg = total / 7
+    val top = maxOf(240, minutes.maxOrNull() ?: 0).toFloat()
+    var selected by remember { mutableIntStateOf(6) }
+    fun hm(m: Int) = if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
     Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
         CardHeader(Icons.Filled.BarChart, "Your Study Progress", "Study time · Last 7 days")
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Triple(Icons.Filled.Schedule, "16h 5m", "Total Studied"), Triple(Icons.Filled.BarChart, "2h 18m", "Daily Average"), Triple(Icons.Filled.TrackChanges, "${vm.profile?.streak ?: 0} days", "Current Streak")).forEach { (ic, v, l) ->
+            listOf(Triple(Icons.Filled.Schedule, hm(total), "Total Studied"), Triple(Icons.Filled.BarChart, hm(avg), "Daily Average"), Triple(Icons.Filled.TrackChanges, "${vm.progress?.streak ?: vm.profile?.streak ?: 0} days", "Current Streak")).forEach { (ic, v, l) ->
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconChip(ic, 28, round = true)
                     Column { WkText(v, 13, FontWeight.Bold, Wk.Ink100, maxLines = 1); WkText(l, 9, color = Wk.Ink500, maxLines = 1) }
@@ -55,7 +61,7 @@ private fun ProgressCard(vm: AppViewModel) {
             Canvas(Modifier.fillMaxSize().padding(start = 22.dp, bottom = 20.dp, top = 6.dp)) {
                 val w = size.width; val h = size.height
                 for (g in 0..4) drawLine(Color(0x149C968C), Offset(0f, h - h * g / 4f), Offset(w, h - h * g / 4f), 1f)
-                val pts = WeekMinutes.mapIndexed { i, m -> Offset(w * i / (WeekMinutes.size - 1), h - h * (m / 240f)) }
+                val pts = minutes.mapIndexed { i, m -> Offset(w * i / (minutes.size - 1), h - h * (m / top)) }
                 val line = Path().apply {
                     moveTo(pts[0].x, pts[0].y)
                     for (i in 1 until pts.size) {
@@ -72,17 +78,17 @@ private fun ProgressCard(vm: AppViewModel) {
                 }
             }
             Column(Modifier.fillMaxHeight().padding(bottom = 20.dp, top = 6.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                listOf("4h", "3h", "2h", "1h", "0h").forEach { WkText(it, 9, color = Wk.Ink400.copy(alpha = 0.4f)) }
+                (4 downTo 0).map { "${(top * it / 4 / 60).toInt()}h" }.forEach { WkText(it, 9, color = Wk.Ink400.copy(alpha = 0.4f)) }
             }
             Row(Modifier.fillMaxSize().padding(start = 22.dp), verticalAlignment = Alignment.Bottom) {
-                WeekLabels.forEachIndexed { i, l ->
+                labels.forEachIndexed { i, l ->
                     Box(Modifier.weight(1f).tap { selected = i }, contentAlignment = Alignment.BottomCenter) {
                         WkText(l, 10, if (i == selected) FontWeight.Bold else FontWeight.Normal, if (i == selected) Wk.Orange500 else Wk.Ink500, align = TextAlign.Center)
                     }
                 }
             }
         }
-        WkText("${WeekLabels[selected]} · ${WeekMinutes[selected] / 60}h ${WeekMinutes[selected] % 60}m", 11, FontWeight.SemiBold, Wk.Ink100, Modifier.padding(top = 6.dp))
+        WkText("${labels[selected]} · ${minutes[selected] / 60}h ${minutes[selected] % 60}m", 11, FontWeight.SemiBold, Wk.Ink100, Modifier.padding(top = 6.dp))
     }
 }
 
@@ -171,30 +177,24 @@ fun TaskRow(vm: AppViewModel, t: com.revm2.app.ui.shell.StudyTask) {
 
 @Composable
 private fun LiveRoomsCard(vm: AppViewModel) {
-    val live = Rooms.filter { it.hot }.take(4)
+    val live = vm.rooms.filter { it.liveCount > 0 }.sortedByDescending { it.liveCount }.take(4).ifEmpty { vm.rooms.filter { it.isMember }.take(4) }
     Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
         CardHeader(Icons.Filled.Videocam, "Live Study Rooms") {
             Column(horizontalAlignment = Alignment.End) {
                 WkText("View All", 12, color = Wk.Ink300, modifier = Modifier.tap { vm.go(Dest.Rooms) })
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { StatDot(Wk.Green); WkText("${live.sumOf { it.live }} studying", 11, color = Wk.Green) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { StatDot(Wk.Green); WkText("${vm.rooms.sumOf { it.liveCount }} studying", 11, color = Wk.Green) }
             }
         }
+        if (live.isEmpty()) WkText("No one is studying in a room right now.", 12, color = Wk.Ink500)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             live.forEach { r ->
-                ListRow(onClick = { vm.openRoom(r.id, Dest.Rooms) }) {
+                ListRow(onClick = { if (r.isMember) vm.openRoom(r.id, Dest.Rooms) else vm.go(Dest.Rooms) }) {
                     RoomIcon(r, 40)
-                    Column(Modifier.weight(1f)) { WkText(r.name, 14, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("${r.live} / ${r.members} studying", 11, color = Wk.Ink500) }
-                    AvatarStack(r.people.take(3), 24)
+                    Column(Modifier.weight(1f)) { WkText(r.name, 14, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("${r.liveCount} / ${r.memberCount} studying", 11, color = Wk.Ink500) }
+                    AvatarStack(initialsAvatars(r.previewInitials).take(3), 24)
                     Icon(Icons.Filled.ChevronRight, null, tint = Wk.Ink500, modifier = Modifier.size(16.dp))
                 }
             }
         }
-    }
-}
-
-@Composable
-fun RoomIcon(r: Room, size: Int) {
-    Box(Modifier.size(size.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(r.iconA, r.iconB))), contentAlignment = Alignment.Center) {
-        WkText(r.iconLabel, if (size > 44) 22 else 16, FontWeight.Bold, Wk.Cream50)
     }
 }

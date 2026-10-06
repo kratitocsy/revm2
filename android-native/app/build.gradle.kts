@@ -79,6 +79,9 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:functions-kt")
     implementation("io.ktor:ktor-client-okhttp:3.3.0")
 
+    // Razorpay checkout for WYNKOINS packs (same create/verify edge functions as the web)
+    implementation("com.razorpay:checkout:1.6.41")
+
     testImplementation("junit:junit:4.13.2")
 }
 

@@ -126,6 +126,7 @@ fun BattlegroundScreen(vm: AppViewModel) = ScreenColumn {
 // ───────────────────────── WYNKOINS ─────────────────────────
 @Composable
 fun WynkoinsScreen(vm: AppViewModel) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Eyebrow("WYNKOINS"); WkText("Buy coins. Unlock perks.", 15, FontWeight.Bold, Wk.Ink100) }
@@ -152,15 +153,16 @@ fun WynkoinsScreen(vm: AppViewModel) {
                     }
                     WkText("₹${p.price}", 22, FontWeight.ExtraBold, Wk.Orange500)
                     WkText("one-time purchase · UPI, cards, net banking via Razorpay", 11, color = Wk.Ink500)
-                    PrimaryButton("Buy ${p.coins} WYNKOINS for ₹${p.price}", { vm.flash("Razorpay checkout arrives with the payments wiring") }, Modifier.fillMaxWidth())
+                    PrimaryButton("Buy ${p.coins} WYNKOINS for ₹${p.price}", { (ctx as? android.app.Activity)?.let { vm.buyCoins(it, p.id) } }, Modifier.fillMaxWidth())
                 }
             }
             Eyebrow("SPEND WYNKOINS", Wk.Orange300)
-            SHOP.forEach { s ->
+            if (vm.shopItems.isEmpty()) WkText("Nothing in the shop right now.", 12, color = Wk.Ink500)
+            vm.shopItems.forEach { s ->
                 ListRow {
-                    WkText(s.first, 22)
-                    Column(Modifier.weight(1f)) { WkText(s.second, 14, FontWeight.SemiBold, Wk.Ink100); WkText(s.third, 11, color = Wk.Ink500) }
-                    GhostButton("${s.fourth} coins", { vm.flash("Redeeming arrives with the payments wiring") }, height = 36, textColor = Wk.Orange200, border = Wk.Orange600)
+                    WkText(when (s.itemType) { "ad_free" -> "🚫"; "streak_freeze" -> "🧊"; else -> "✦" }, 22)
+                    Column(Modifier.weight(1f)) { WkText(s.name, 14, FontWeight.SemiBold, Wk.Ink100); WkText(s.durationDays?.let { "$it days" } ?: "Permanent", 11, color = Wk.Ink500) }
+                    GhostButton("${s.coinCost} coins", { if (vm.coins >= s.coinCost) vm.redeem(s) else vm.flash("Not enough WYNKOINS") }, height = 36, textColor = Wk.Orange200, border = Wk.Orange600)
                 }
             }
             Eyebrow("EARN FREE WYNKOINS", Wk.Orange300)
@@ -170,8 +172,6 @@ fun WynkoinsScreen(vm: AppViewModel) {
     }
 }
 
-private data class ShopItem(val first: String, val second: String, val third: String, val fourth: Int)
-private val SHOP = listOf(ShopItem("🚫", "Ad-free", "30 days", 199), ShopItem("🧊", "Streak Freeze", "Protects one missed day", 150), ShopItem("✦", "Room Theme", "Custom colours for your room", 300))
 
 // ───────────────────────── Quick Timer ─────────────────────────
 @Composable

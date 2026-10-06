@@ -133,6 +133,8 @@ object AppRepository {
     suspend fun setUsername(username: String): String =
         sb.postgrest.rpc("set_my_username", buildJsonObject { put("p_username", username) }).decodeAs<String>()
 
+    suspend fun deleteAccount() { sb.postgrest.rpc("delete_my_account", buildJsonObject { put("p_confirm", "DELETE") }) }
+
     suspend fun coins(): Int =
         sb.from("user_wallets").select { filter { eq("user_id", user.id) } }.decodeSingleOrNull<WalletRow>()?.coins ?: 0
 
