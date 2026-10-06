@@ -32,19 +32,19 @@ import androidx.compose.material3.DropdownMenuItem
 
 @Composable
 fun HomeScreen(vm: AppViewModel) = ScreenColumn {
-    ProgressCard()
+    ProgressCard(vm)
     TimerCard(vm)
     PlanCard(vm)
     LiveRoomsCard(vm)
 }
 
 @Composable
-private fun ProgressCard() {
+private fun ProgressCard(vm: AppViewModel) {
     var selected by remember { mutableIntStateOf(WeekMinutes.lastIndex) }
     Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
         CardHeader(Icons.Filled.BarChart, "Your Study Progress", "Study time · Last 7 days")
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Triple(Icons.Filled.Schedule, "16h 5m", "Total Studied"), Triple(Icons.Filled.BarChart, "2h 18m", "Daily Average"), Triple(Icons.Filled.TrackChanges, "6 days", "Current Streak")).forEach { (ic, v, l) ->
+            listOf(Triple(Icons.Filled.Schedule, "16h 5m", "Total Studied"), Triple(Icons.Filled.BarChart, "2h 18m", "Daily Average"), Triple(Icons.Filled.TrackChanges, "${vm.profile?.streak ?: 0} days", "Current Streak")).forEach { (ic, v, l) ->
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconChip(ic, 28, round = true)
                     Column { WkText(v, 13, FontWeight.Bold, Wk.Ink100, maxLines = 1); WkText(l, 9, color = Wk.Ink500, maxLines = 1) }
@@ -132,7 +132,7 @@ fun TimerRing(text: String, caption: String, size: Int, textSize: Int, progress:
 @Composable
 private fun PlanCard(vm: AppViewModel) {
     Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
-        CardHeader(Icons.Filled.Schedule, "Today's Study Plan") { WkText("Tue, 23 Sep 2026", 11, color = Wk.Ink500) }
+        CardHeader(Icons.Filled.Schedule, "Today's Study Plan") { WkText(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy")), 11, color = Wk.Ink500) }
         if (vm.tasks.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 WkText("📭", 30); WkText("No tasks scheduled for today", 14, FontWeight.SemiBold, Wk.Ink300, Modifier.padding(top = 8.dp, bottom = 4.dp))

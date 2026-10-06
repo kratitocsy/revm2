@@ -4,7 +4,8 @@ Native Android app (the old Capacitor shell in `mobile/` has been removed). Kotl
 
 ## Status
 - Phase 1 skeleton + the **Claude Design "Wynko Mobile" UI** in Compose: Plus Jakarta Sans theme, 5-tab bar with the raised Focus button, side drawer, mini player, bottom sheets, and all 10 modules (Home, Focus Lock, Study Rooms, Room, Communities + student/manage views, Profile, Battleground, WYNKOINS, Settings, Schedules, Earn, Quick Timer).
-- Screens run on **sample data** (`ui/sample/SampleData.kt`, copied from the prototype); Supabase wiring comes screen by screen.
+- **Wired to Supabase** (`data/AppRepository.kt`, same tables/RPCs as the web app): profile card + streak, Settings profile fields, username (`set_my_username`), preference toggles (`user_profiles.preferences`, merged), sign out, WYNKOINS balance (`user_wallets`) and coin packs (`coin_packages`), today's study plan tasks (`study_plan_tasks`: add / remove / complete), the notification bell (`notifications` + `mark_my_notifications_read`), and Battleground hub, leaderboard, history, opponent search, send / cancel / accept / decline challenges (battle RPCs).
+- Still **sample data** (`ui/sample/SampleData.kt`): Study Rooms, Communities (announcements, schedules, members), Home's 7-day study chart, Schedules routines. Not wired yet: buying coins (Razorpay) and spending them, the live 1v1 duel timer, task timer progress sync to `study_plans`.
 - Real behaviour already hooked up: the Focus timer (Pomodoro/Regular, 150-word pause gate), live Focus sessions start the on-device blocking in `locking/` (accessibility overlay + VPN DNS), the permission checklist on Focus Lock, and the previous presets/sessions screen (`ui/blocks`, reachable via Focus Lock → Manage).
 - Auth: email/password sign-in via Supabase gates the app (`ui/auth/AuthGate.kt`); the profile screen shows sample data for now.
 

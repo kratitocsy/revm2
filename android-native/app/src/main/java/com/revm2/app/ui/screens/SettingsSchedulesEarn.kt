@@ -28,11 +28,16 @@ private val SettingsTabs = listOf("👤" to "Profile", "🔑" to "Account", "�
 @Composable
 fun SettingsScreen(vm: AppViewModel) {
     var tab by remember { mutableIntStateOf(0) }
-    var display by remember { mutableStateOf("Jatin Sinsinwar") }
-    var username by remember { mutableStateOf("jatin") }
-    var bio by remember { mutableStateOf("") }
-    var school by remember { mutableStateOf("DPS R.K. Puram") }
-    var goal by remember { mutableIntStateOf(3) }
+    val me = vm.profile
+    // Re-seed the form whenever the profile (re)loads.
+    var display by remember(me) { mutableStateOf(me?.displayName ?: "") }
+    var username by remember(me) { mutableStateOf(me?.username ?: "") }
+    var bio by remember(me) { mutableStateOf(me?.bio ?: "") }
+    var school by remember(me) { mutableStateOf(me?.school ?: "") }
+    var classYear by remember(me) { mutableStateOf(me?.classYear ?: "") }
+    var course by remember(me) { mutableStateOf(me?.course ?: "") }
+    var exam by remember(me) { mutableStateOf(me?.exam ?: "") }
+    var goal by remember(me) { mutableIntStateOf(vm.dailyGoalHours) }
     var timer by remember { mutableStateOf("pomodoro") }
     var avatar by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -65,14 +70,14 @@ fun SettingsScreen(vm: AppViewModel) {
                 }
                 Section("ACADEMIC INFORMATION") {
                     Label("SCHOOL / INSTITUTION"); WkField(school, { school = it }, "School")
-                    Label("CLASS / YEAR"); Chips(listOf("11th Grade", "12th Grade", "Dropper"), "12th Grade")
-                    Label("COURSE / STREAM"); Chips(listOf("Engineering", "Medical", "Other"), "Engineering")
-                    Label("TARGET EXAM"); Chips(listOf("JEE Main", "JEE Advanced", "NEET"), "JEE Advanced")
+                    Label("CLASS / YEAR"); Chips(listOf("11th Grade", "12th Grade", "Dropper"), classYear) { classYear = it }
+                    Label("COURSE / STREAM"); Chips(listOf("Engineering", "Medical", "Other"), course) { course = it }
+                    Label("TARGET EXAM"); Chips(listOf("JEE Main", "JEE Advanced", "NEET"), exam) { exam = it }
                 }
-                PrimaryButton("Save profile", { vm.flash("Profile saved (demo)") }, Modifier.fillMaxWidth())
+                PrimaryButton("Save profile", { vm.saveProfile(display, bio, school, classYear, course, exam, goal, username) }, Modifier.fillMaxWidth())
             }
             1 -> {
-                Section("EMAIL ADDRESS") { Label("CURRENT EMAIL"); WkText("jatin@gmail.com", 14, color = Wk.Ink100); Label("CHANGE EMAIL"); var e by remember { mutableStateOf("") }; WkField(e, { e = it }, "new@email.com"); GhostButton("Update", { vm.flash("Confirmation link sent (demo)") }); WkText("We’ll email a confirmation link to both addresses.", 11, color = Wk.Ink500) }
+                Section("EMAIL ADDRESS") { Label("CURRENT EMAIL"); WkText(me?.email ?: "", 14, color = Wk.Ink100); Label("CHANGE EMAIL"); var e by remember { mutableStateOf("") }; WkField(e, { e = it }, "new@email.com"); GhostButton("Update", { vm.flash("Confirmation link sent (demo)") }); WkText("We’ll email a confirmation link to both addresses.", 11, color = Wk.Ink500) }
                 Section("CHANGE PASSWORD") { var a by remember { mutableStateOf("") }; var b by remember { mutableStateOf("") }; Label("CURRENT PASSWORD"); WkField(a, { a = it }, "••••••••"); Label("NEW PASSWORD"); WkField(b, { b = it }, "••••••••"); GhostButton("Change password", { vm.flash("Password updated (demo)") }) }
                 Section("CONNECTED ACCOUNTS") {
                     ListRow { WkText("Google", 13, FontWeight.SemiBold, Wk.Ink100, Modifier.weight(1f)); Pill("Connected", Wk.Green) }
@@ -80,14 +85,14 @@ fun SettingsScreen(vm: AppViewModel) {
                 }
                 Section("DANGER ZONE") {
                     WkText("Delete Account", 14, FontWeight.SemiBold, Wk.Red); WkText("Permanently delete your Wynko account and all data. This can’t be undone.", 11, color = Wk.Ink500)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { GhostButton("Delete", { vm.sheet = SheetKind.DeleteAccount }, textColor = Wk.Red, border = Wk.Red.copy(alpha = 0.5f)); GhostButton("Sign Out", { vm.flash("Sign out is wired in the full app") }) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { GhostButton("Delete", { vm.sheet = SheetKind.DeleteAccount }, textColor = Wk.Red, border = Wk.Red.copy(alpha = 0.5f)); GhostButton("Sign Out", { vm.signOut() }) }
                 }
             }
             2 -> PrefSection(vm, PrefGroups.filter { it.first == "NOTIFICATIONS" })
             3 -> {
                 Section("DAILY GOALS") {
                     Label("DAILY STUDY GOAL (HOURS) · drives Home’s Today’s Focus")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4, 6).forEach { h -> Pill("${h}h", if (h == goal) Wk.Orange500 else Wk.Ink400, Modifier.tap { goal = h }, 12) } }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4, 6).forEach { h -> Pill("${h}h", if (h == goal) Wk.Orange500 else Wk.Ink400, Modifier.tap { goal = h; vm.saveProfile(display, bio, school, classYear, course, exam, h, username) }, 12) } }
                     Label("DEFAULT TIMER")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("pomodoro" to "Pomodoro", "regular" to "Regular").forEach { (id, n) -> Box(Modifier.weight(1f).height(44.dp).wkSurface(if (timer == id) Color(0x24FF8A3D) else Wk.Black800, if (timer == id) Wk.Orange600 else Wk.Black600, 12.dp).tap { timer = id; vm.selectMode(id) }, contentAlignment = Alignment.Center) { WkText(n, 13, FontWeight.SemiBold, Wk.Ink100) } }
@@ -115,15 +120,14 @@ private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) 
 }
 
 @Composable
-private fun Chips(options: List<String>, initial: String) {
-    var sel by remember { mutableStateOf(initial) }
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { options.forEach { o -> Pill(o, if (o == sel) Wk.Orange500 else Wk.Ink400, Modifier.tap { sel = o }, 12) } }
+private fun Chips(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { options.forEach { o -> Pill(o, if (o == selected) Wk.Orange500 else Wk.Ink400, Modifier.tap { onSelect(o) }, 12) } }
 }
 
 @Composable
 private fun PrefSection(vm: AppViewModel, groups: List<Pair<String, List<PrefRow>>>) {
     groups.forEach { (title, rows) ->
-        Section(title) { rows.forEach { r -> ToggleRow(r.label, null, vm.prefs[r.key] == true) { vm.prefs[r.key] = it } } }
+        Section(title) { rows.forEach { r -> ToggleRow(r.label, null, vm.prefs[r.key] == true) { vm.setPref(r.key, it) } } }
     }
 }
 

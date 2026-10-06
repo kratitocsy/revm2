@@ -52,7 +52,8 @@ fun SheetHost(vm: AppViewModel) {
         SheetKind.Pomodoro -> PomodoroSheet(vm)
         SheetKind.Notifications -> WkSheet({ vm.sheet = null }) {
             WkText("Notifications", 16, FontWeight.Bold, Wk.Ink100)
-            Notifications.forEach { n ->
+            if (vm.notifs.isEmpty()) WkText("You're all caught up.", 12, color = Wk.Ink500)
+            vm.notifs.forEach { n ->
                 ListRow {
                     Column(Modifier.weight(1f)) { WkText(n.title, 13, FontWeight.SemiBold, Wk.Ink100); WkText(n.body, 11, color = Wk.Ink500) }
                     WkText(n.whenText, 10, color = Wk.Ink600)
@@ -268,13 +269,19 @@ private fun RoutineSheet(vm: AppViewModel) {
 @Composable
 private fun ChallengeSheet(vm: AppViewModel) {
     var q by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf(vm.leaderboard) }
+    LaunchedEffect(q) {
+        if (q.isBlank()) { results = vm.leaderboard; return@LaunchedEffect }
+        kotlinx.coroutines.delay(300) // debounce
+        try { results = com.revm2.app.data.AppRepository.searchOpponents(q.trim()) } catch (_: Exception) { results = emptyList() }
+    }
     WkSheet({ vm.sheet = null }) {
         Eyebrow("CHALLENGE SOMEONE", Wk.Orange300); WkText("Search by username.", 12, color = Wk.Ink400)
         WkField(q, { q = it }, "username")
-        Battlers.filter { q.isBlank() || it.name.contains(q.trim(), true) }.forEach { b ->
-            ListRow(onClick = { vm.sheet = null; vm.battle = "waiting"; vm.flash("Challenge sent to ${b.name}") }) {
+        results.forEach { b ->
+            ListRow(onClick = { vm.challenge(b.id, b.name) }) {
                 Avatar(b.name.take(2).uppercase(), Wk.Orange300, 36)
-                Column(Modifier.weight(1f)) { WkText(b.name, 13, FontWeight.SemiBold, Wk.Ink100); WkText("${b.title} · ${b.xp} XP", 11, color = Wk.Ink500) }
+                Column(Modifier.weight(1f)) { WkText(b.name, 13, FontWeight.SemiBold, Wk.Ink100); WkText("${b.title} · ${"%,d".format(b.xp)} XP", 11, color = Wk.Ink500) }
                 WkText("Challenge", 12, FontWeight.SemiBold, Wk.Orange300)
             }
         }

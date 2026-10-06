@@ -8,10 +8,12 @@ import androidx.compose.runtime.setValue
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.revm2.app.data.ScheduleRepository
+import com.revm2.app.data.*
+import kotlinx.serialization.json.JsonObject
 import com.revm2.app.locking.ScheduleAlarms
 import com.revm2.app.locking.ScheduleEnforcer
 import com.revm2.app.schedule.*
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -19,9 +21,9 @@ enum class Dest { Home, Focus, Schedules, Rooms, Room, Comms, CommStudent, CommM
 
 enum class SheetKind { FreePause, Gate, Pause, AddTask, Pomodoro, Notifications, Password, DeleteAccount, AiAssistant, Routine, Challenge }
 
-data class StudyTask(val id: String, val subject: String, val topic: String, val minutes: Int, val done: Boolean = false)
+typealias StudyTask = PlanTask
 
-/** Cross-screen state for the native app. Data is prototype sample data until wired to Supabase. */
+/** Cross-screen state for the native app. Account data comes from Supabase (see data/AppRepository.kt); rooms and communities are still prototype sample data. */
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx get() = getApplication<Application>()
 
@@ -64,11 +66,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var activeId by mutableStateOf<String?>(null)
     var waitingBreak by mutableStateOf(false)
     var focusFull by mutableStateOf(false)
-    val tasks = mutableStateListOf(
-        StudyTask("t1", "Physics", "Electrostatics", 60),
-        StudyTask("t2", "Chemistry", "Chemical Bonding", 45),
-        StudyTask("t3", "Mathematics", "Integration", 50),
-    )
+    val tasks = mutableStateListOf<StudyTask>()
     val activeTask get() = tasks.firstOrNull { it.id == activeId }
     val phaseTotal get() = if (phase == "focus") pomoFocus * 60 else pomoBreak * 60
     val timerText: String get() = fmt(if (mode == "pomodoro") remaining else elapsed, hours = mode != "pomodoro")
@@ -186,10 +184,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun addTask(subject: String, topic: String, minutes: Int = 45) {
-        tasks.add(StudyTask("t${System.nanoTime()}", subject, topic.ifBlank { "General" }, minutes)); sheet = null
+        val t = StudyTask(java.util.UUID.randomUUID().toString(), subject, topic.ifBlank { "General" }, minutes, false)
+        tasks.add(t); sheet = null
+        viewModelScope.launch {
+            try { AppRepository.addTask(t, tasks.size) } catch (e: Exception) { tasks.remove(t); flash("Couldn't save the task") }
+        }
     }
-    fun removeTask(id: String) { tasks.removeAll { it.id == id }; if (activeId == id) { activeId = null; running = false } }
-    fun toggleDone(id: String) { val i = tasks.indexOfFirst { it.id == id }; if (i >= 0) tasks[i] = tasks[i].copy(done = !tasks[i].done) }
+    fun removeTask(id: String) {
+        val i = tasks.indexOfFirst { it.id == id }; if (i < 0) return
+        val t = tasks.removeAt(i)
+        if (activeId == id) { activeId = null; running = false }
+        viewModelScope.launch {
+            try { AppRepository.deleteTask(id) } catch (e: Exception) { tasks.add(i.coerceAtMost(tasks.size), t); flash("Couldn't remove the task") }
+        }
+    }
+    fun toggleDone(id: String) {
+        val i = tasks.indexOfFirst { it.id == id }; if (i < 0) return
+        val was = tasks[i]; tasks[i] = was.copy(done = !was.done)
+        viewModelScope.launch {
+            try { AppRepository.setTaskDone(id, !was.done) } catch (e: Exception) {
+                val j = tasks.indexOfFirst { it.id == id }; if (j >= 0) tasks[j] = was; flash("Couldn't update the task")
+            }
+        }
+    }
 
     // ── quick timer ──
     var qtTotal by mutableStateOf(25 * 60)
@@ -212,17 +229,108 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var currentCommunityId by mutableStateOf("c2")
     fun openRoom(id: Int, from: Dest) { currentRoomId = id; roomFrom = from; go(Dest.Room) }
 
-    // ── economy / battleground ──
-    var coins by mutableStateOf(1250)
-    var xp by mutableStateOf(1240)
-    var battle by mutableStateOf("invite")            // home | invite | waiting | arena
+    // ── account data (Supabase) ──
+    var profile by mutableStateOf<Profile?>(null); private set
+    var coins by mutableStateOf(0); private set
+    val xp: Int get() = hub?.xp ?: profile?.battleXp ?: 0
+    var hub by mutableStateOf<BattleHub?>(null); private set
+    var leaderboard by mutableStateOf<List<Battler>>(emptyList()); private set
+    var battleHistory by mutableStateOf<List<BattleResult>>(emptyList()); private set
+    var coinPacks by mutableStateOf<List<CoinPack>>(emptyList()); private set
+    var notifs by mutableStateOf<List<Notif>>(emptyList()); private set
+    var accountError by mutableStateOf<String?>(null); private set
+    val unreadNotifs: Boolean get() = notifs.any { !it.read }
+    // 1v1 arena states ("waiting"/"arena") are driven by the server hub; the live-duel timer itself is not wired yet.
+    var battle by mutableStateOf("home")              // home | waiting | arena
     var battleSecs by mutableStateOf(0)
-    var unreadNotifs by mutableStateOf(true)
+
+    fun refreshAccount() {
+        viewModelScope.launch {
+            try {
+                val p = AppRepository.profile()
+                profile = p
+                p.preferences.forEach { (k, v) -> (v as? kotlinx.serialization.json.JsonPrimitive)?.booleanOrNull?.let { prefs[k] = it } }
+                if (p.dailyGoalMinutes > 0) dailyGoalHours = (p.dailyGoalMinutes / 60).coerceAtLeast(1)
+                coins = AppRepository.coins()
+                val remote = AppRepository.tasks()
+                tasks.clear(); tasks.addAll(remote)
+                accountError = null
+            } catch (e: Exception) { accountError = "Couldn't load your account; showing what we have." }
+            refreshNotifs(); refreshBattle(); refreshCoinPacks()
+        }
+    }
+
+    var dailyGoalHours by mutableStateOf(3)
+
+    fun refreshNotifs() { viewModelScope.launch { try { notifs = AppRepository.notifications() } catch (_: Exception) {} } }
+    fun openNotifications() {
+        sheet = SheetKind.Notifications
+        if (unreadNotifs) viewModelScope.launch {
+            try { AppRepository.markNotificationsRead() } catch (_: Exception) {}
+            notifs = notifs.map { it.copy(read = true) }
+        }
+    }
+
+    fun refreshBattle() {
+        viewModelScope.launch {
+            try {
+                hub = AppRepository.battleHub()
+                leaderboard = AppRepository.topBattlers()
+                battleHistory = AppRepository.battleHistory()
+                battle = if (hub?.outgoingId != null) "waiting" else "home"
+            } catch (_: Exception) { flash("Couldn't load Battleground") }
+        }
+    }
+    fun refreshCoinPacks() { viewModelScope.launch { try { coinPacks = AppRepository.coinPacks() } catch (_: Exception) {} } }
+
+    fun challenge(userId: String, name: String) {
+        viewModelScope.launch {
+            try { AppRepository.sendChallenge(userId); sheet = null; flash("Challenge sent to $name"); refreshBattle() }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't send the challenge") }
+        }
+    }
+    fun cancelChallenge() {
+        val id = hub?.outgoingId ?: return
+        viewModelScope.launch { try { AppRepository.cancelChallenge(id); refreshBattle() } catch (e: Exception) { flash("Couldn't cancel the challenge") } }
+    }
+    fun respondChallenge(id: String, accept: Boolean) {
+        viewModelScope.launch {
+            try { AppRepository.respondChallenge(id, accept); refreshBattle(); if (accept) flash("Challenge accepted") }
+            catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't respond") }
+        }
+    }
+
+    /** Persists the preference toggles, merged into the profile's preferences JSON. */
+    fun setPref(key: String, value: Boolean) {
+        val old = prefs[key]
+        prefs[key] = value
+        viewModelScope.launch {
+            try { AppRepository.savePreferences(profile?.preferences ?: JsonObject(emptyMap()), prefs.toMap()) }
+            catch (e: Exception) { if (old != null) prefs[key] = old; flash("Couldn't save that setting") }
+        }
+    }
+
+    fun saveProfile(display: String, bio: String, school: String, classYear: String, course: String, exam: String, goalHours: Int, username: String) {
+        viewModelScope.launch {
+            try {
+                AppRepository.saveProfile(display, bio, school, classYear, course, exam, goalHours * 60)
+                if (username.isNotBlank() && username != profile?.username) AppRepository.setUsername(username)
+                dailyGoalHours = goalHours
+                profile = AppRepository.profile(); flash("Profile saved")
+            } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't save your profile") }
+        }
+    }
+
+    fun signOut() { viewModelScope.launch { try { AuthRepository.signOut() } catch (e: Exception) { flash("Couldn't sign out") } } }
+
     val prefs = mutableStateMapOf(
         "notif_focus_alerts" to true, "notif_streak" to true, "notif_battle" to true, "notif_rooms" to true, "notif_achievements" to true,
         "sound_effects" to true, "privacy_public_profile" to true, "privacy_show_streak" to true, "privacy_show_stats" to true,
         "privacy_allow_room_invites" to true, "focus_auto_start_breaks" to false, "focus_block_distractions" to true, "focus_ambient_sound" to false, "focus_strict_lock" to false,
     )
+
+    // Last, so every property above is initialised before the first load starts.
+    init { refreshAccount() }
 
     companion object {
         val TopLevel = setOf(Dest.Home, Dest.Focus, Dest.Rooms, Dest.Battle, Dest.Comms, Dest.Schedules, Dest.Coins, Dest.Earn, Dest.Settings, Dest.More)

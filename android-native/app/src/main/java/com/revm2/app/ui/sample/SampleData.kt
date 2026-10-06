@@ -68,18 +68,7 @@ val RoomMembers = listOf(
     Member("JS", hex(0xFFA94D), "You", "Joined just now", "00:00", "idle"),
 )
 
-data class Battler(val name: String, val title: String, val xp: String, val medal: String?)
-val Battlers = listOf(
-    Battler("aarav_k", "Focus Titan", "4,820", "🥇"),
-    Battler("meera.s", "Deep Worker", "4,310", "🥈"),
-    Battler("rohan_21", "Grinder", "3,905", "🥉"),
-    Battler("ishaan.p", "Rising Scholar", "3,120", null),
-    Battler("tanya_g", "Rising Scholar", "2,980", null),
-)
 val BattleTiers = listOf("Rookie" to 0, "Challenger" to 100, "Focused" to 300, "Warrior" to 700, "Elite" to 1500, "Unstoppable" to 3000)
-
-data class CoinPack(val id: String, val name: String, val coins: Int, val price: Int, val popular: Boolean = false)
-val CoinPacks = listOf(CoinPack("a", "Starter", 200, 19), CoinPack("b", "Scholar", 500, 49, true), CoinPack("c", "Topper", 1000, 99))
 
 data class PrefRow(val key: String, val label: String)
 val PrefGroups = listOf(
@@ -105,17 +94,6 @@ val Routines = listOf(
     Routine("r2", "Weekend Mock", false, "Sat · 9:00 AM – 12:00 PM", "Instagram, Snapchat, Netflix, X"),
 )
 
-data class Notif(val title: String, val body: String, val whenText: String)
-val Notifications = listOf(
-    Notif("aarav_k challenged you", "Focus battle · expires in 4 min", "now"),
-    Notif("Week 39 schedule is live", "JEE Night Grind published a schedule", "1h"),
-    Notif("6-day streak 🔥", "Study today to keep it going", "3h"),
-)
-
-val BattleHistory = listOf(
-    Triple("W", "meera.s", "Yesterday · 42m focused"), Triple("L", "rohan_21", "Mon · 25m focused"),
-    Triple("W", "tanya_g", "Sun · 50m focused"), Triple("W", "aarav_k", "Sat · 35m focused"),
-)
 val SubjectsForAdd = listOf("Physics", "Chemistry", "Mathematics", "Biology")
 
 val GradientBrush = { a: Color, b: Color -> Brush.linearGradient(listOf(a, b)) }

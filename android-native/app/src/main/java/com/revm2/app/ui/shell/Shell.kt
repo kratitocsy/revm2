@@ -133,7 +133,7 @@ private fun AppBar(vm: AppViewModel) {
         }
         Box(
             Modifier.size(40.dp).clip(CircleShape).background(Wk.Black800).border(1.dp, Wk.Black600, CircleShape)
-                .clickable { vm.sheet = SheetKind.Notifications; vm.unreadNotifs = false },
+                .clickable { vm.openNotifications() },
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.Notifications, "Notifications", tint = Wk.Ink400, modifier = Modifier.size(20.dp))
