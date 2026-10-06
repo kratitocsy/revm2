@@ -266,10 +266,10 @@ export async function ensurePresets(sb: SupaLike, userId: string, args: {
     // the only ones kept open (same choice blocks.html offers) — never
     // implied, because one list is enforced on every device and an
     // allow-only list of desktop apps would close everything on the phone.
-    // 'whitelist' with no apps is saved as-is when the student picked it
-    // ("Close every app"): the desktop app treats an empty allow list as
-    // "allow nothing", and the chat only offers it as an explicit choice.
-    // With no choice made, no apps means 'blacklist', a no-op.
+    // 'whitelist' with no apps is saved as-is: "No apps" in the chat means
+    // no app may open, and the desktop app treats an empty allow list as
+    // "allow nothing" (closes every app). A caller that sets no mode keeps
+    // 'blacklist', a no-op with no apps.
     const appsMode = allow.appsMode === 'whitelist' ? 'whitelist' : 'blacklist';
     // Same for sites: an allow-list with no sites would block the whole web,
     // which a subject set up with only apps never asked for.

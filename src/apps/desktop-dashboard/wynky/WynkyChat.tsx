@@ -730,10 +730,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   function enterAppsMode(d: Draft, idx: number) {
     setDraft(d); setSubjIdx(idx)
     const name = d.subjects[idx]
-    const appCount = d.allow[name]?.apps?.length || 0
-    ask('apps_mode', appCount
-      ? `During ${name}${onDay()}, should I keep only these apps open, or close them? Keeping only these open closes every other app on your phone and your computer, so choose it only if these are all you need.`
-      : `During ${name}${onDay()}, should I close every app, or leave your apps alone? Closing every app shuts everything except your browser and the essentials on your phone and your computer, so choose it only if you don't need any other app.`)
+    ask('apps_mode', `During ${name}${onDay()}, should I keep only these apps open, or close them? Keeping only these open closes every other app on your phone and your computer, so choose it only if these are all you need.`)
   }
 
   function afterSubject(d: Draft, idx: number) {
@@ -1367,9 +1364,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     options = ids.map(id => ({ id: `app:${id}`, label: dev.find(a => a.id === id)?.label || id }))
     doneLabel = picked.length ? 'Done' : 'No apps'
   } else if (step === 'apps_mode') {
-    options = (draft.allow[subject]?.apps?.length || 0)
-      ? [{ id: 'whitelist', label: 'Keep only these open' }, { id: 'blacklist', label: 'Close these apps' }]
-      : [{ id: 'whitelist', label: 'Close every app' }, { id: 'blacklist', label: 'Leave apps alone' }]
+    options = [{ id: 'whitelist', label: 'Keep only these open' }, { id: 'blacklist', label: 'Close these apps' }]
   } else if (step === 'busy') {
     const custom = uniq([...draft.busy, ...picked]).filter(v => v !== NOTHING_FIXED && !BUSY_OPTIONS.some(o => o.value === v))
     options = [
@@ -1533,10 +1528,12 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     if (step === 'apps') {
       const apps = uniq(picked.map(id => id.slice(4)))
       echo(apps.length ? picked.map(labelOf).join(', ') : 'No apps')
-      // Always ask what to do with apps - including when none were picked,
-      // where the choice is "close every app" vs "leave apps alone".
-      const next = withAllow(d, subject, { apps, appsMode: apps.length ? cur.appsMode : undefined })
-      enterAppsMode(next, subjIdx)
+      // "No apps" means no app may open during this block: saved as an
+      // allow-only list with nothing on it, so every app gets closed, and no
+      // question is asked. Picking some apps asks whether to keep only those
+      // open or to close them.
+      if (apps.length) enterAppsMode(withAllow(d, subject, { apps, appsMode: cur.appsMode }), subjIdx)
+      else afterSubject(withAllow(d, subject, { apps: [], appsMode: 'whitelist' }), subjIdx)
     }
   }
 

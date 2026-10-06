@@ -101,14 +101,14 @@ describe('ensurePresets apps mode', () => {
     expect(presetRow(writes).sites).toEqual([]);
   });
 
-  it('saves an empty allow-only app list when the student chose "close every app"', async () => {
+  it('saves an empty allow-only app list when no apps may open ("No apps")', async () => {
     const { sb, writes } = fakeSb();
     await ensurePresets(sb, 'u1', { subjectAllowlists: { Physics: { sites: ['khanacademy.org'], apps: [], appsMode: 'whitelist' } }, freeTimeSites: [], freeTimeApps: [] });
     expect(presetRow(writes).apps_mode).toBe('whitelist');
     expect(presetRow(writes).apps).toEqual([]);
   });
 
-  it('leaves apps alone when no apps were picked and no mode was chosen', async () => {
+  it('stays a no-op blacklist when a caller sets no apps mode and no apps', async () => {
     const { sb, writes } = fakeSb();
     await ensurePresets(sb, 'u1', { subjectAllowlists: { Physics: { sites: ['khanacademy.org'], apps: [] } }, freeTimeSites: [], freeTimeApps: [] });
     expect(presetRow(writes).apps_mode).toBe('blacklist');
