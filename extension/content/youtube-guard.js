@@ -324,7 +324,7 @@
       searchFilterScheduled = false;
       if (!isSearchResultsPage()) return;
       const { revm2Session } = await chrome.storage.local.get("revm2Session");
-      const rules = revm2Session?.active ? revm2Session.youtubeRules : null;
+      const rules = isEnforcing(revm2Session) ? revm2Session.youtubeRules : null;
       if (!rules || !Array.isArray(rules.channels) || rules.channels.length === 0) {
         resetSearchFilter();
         return;
@@ -339,6 +339,16 @@
     subtree: true,
   });
 
+  // Mirrors isCurrentlyEnforcing() in utils/session-logic.js (a content script
+  // can't import that module): a session inside a pause window - the on-device
+  // code pause, or one the backend set - is still `active` in storage but must
+  // not restrict YouTube either. background.js clears pausedUntil when the pause
+  // ends, which fires storage.onChanged below and re-checks the open tab.
+  function isEnforcing(session) {
+    if (!session?.active) return false;
+    return !(session.pausedUntil && Date.now() < session.pausedUntil);
+  }
+
   function goToBlockedPage(reasonSite) {
     const url = chrome.runtime.getURL(
       `blocked/blocked.html?site=${encodeURIComponent(reasonSite)}&youtube=1`
@@ -350,7 +360,7 @@
     if (lastChecked === location.href) return;
 
     const { revm2Session } = await chrome.storage.local.get("revm2Session");
-    const rules = revm2Session?.active ? revm2Session.youtubeRules : null;
+    const rules = isEnforcing(revm2Session) ? revm2Session.youtubeRules : null;
     if (!rules || !Array.isArray(rules.channels) || rules.channels.length === 0) {
       lastChecked = location.href;
       if (isSearchResultsPage()) resetSearchFilter();
