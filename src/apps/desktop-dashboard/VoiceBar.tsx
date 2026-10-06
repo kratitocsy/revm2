@@ -44,7 +44,11 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint?: stri
   )
 }
 
-export default function VoiceBar({ voice, members, groupId }: { voice: VoiceRoom; members: RoomMember[]; groupId: string }) {
+export default function VoiceBar({ voice, members, groupId, lift = false }: {
+  voice: VoiceRoom; members: RoomMember[]; groupId: string
+  /** Sit higher on the page so the bar never covers the chat box (it is at the bottom of the Chat tab). */
+  lift?: boolean
+}) {
   const [visible, setVisible] = useState(false)
   const [panel, setPanel] = useState<null | 'settings' | 'ask'>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -90,8 +94,8 @@ export default function VoiceBar({ voice, members, groupId }: { voice: VoiceRoom
   const note = msg || voice.error || (status === 'on' ? voice.notice : null)
 
   return (
-    <div className="fixed left-1/2 bottom-6 z-40 flex flex-col items-center gap-2 w-max max-w-[calc(100vw-24px)]"
-      style={{ transform: 'translateX(-50%)', opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none', transition: 'opacity 200ms' }}
+    <div className="fixed left-1/2 z-40 flex flex-col items-center gap-2 w-max max-w-[calc(100vw-24px)]"
+      style={{ bottom: lift ? '7.5rem' : '1.5rem', transform: 'translateX(-50%)', opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none', transition: 'opacity 200ms' }}
       aria-hidden={!show}>
       {panel === 'settings' && (
         <div className="w-80 max-w-full rounded-2xl border px-4 py-2 shadow-2xl bg-[#121214] border-[#2E2E33]">

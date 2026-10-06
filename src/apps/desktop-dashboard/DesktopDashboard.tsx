@@ -6944,7 +6944,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
-      {isRealRoom && live.status === 'ready' && <VoiceBar voice={voice} members={live.members} groupId={room.groupId!} />}
+      {isRealRoom && live.status === 'ready' && <VoiceBar voice={voice} members={live.members} groupId={room.groupId!} lift={activeTab === 'chat'} />}
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
