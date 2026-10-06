@@ -22,7 +22,7 @@ import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
 import { autoConnectExtension } from './lib/extensionConnect'
-import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, blockedMessage, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
+import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
 import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -2127,9 +2127,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   // The task id is captured at click-time so "Unlock Pause" pauses the right task
   // even if activeTask/activeTaskId were to change while the modal is open.
   const [pendingPauseTaskId, setPendingPauseTaskId] = useState<string | null>(null)
-  // Schedule window: on a day a schedule runs, the timer starts only inside its blocks (lib/scheduleWindow.ts).
+  // Schedule window: the timer can start any time; inside a schedule block it also gets free pauses (lib/scheduleWindow.ts).
   const gate = useWindowGate()
-  const [windowNote, setWindowNote] = useState<string | null>(null)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Latest values for the 1s interval below, which is created once per run and would otherwise see stale ones.
@@ -2336,8 +2335,6 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   async function handleStartTask(taskId: string, opts?: { resume?: boolean }) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-    if (gate.restricted && !gate.inside) { clearFreePause(); setWindowNote(blockedMessage(gate)); return }
-    setWindowNote(null)
     clearFreePause()
     if (running && activeTaskId && activeTaskId !== taskId) {
       // Only one live study_sessions row per user - starting a different
@@ -2471,7 +2468,6 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0, planDate: todayKey }
       setTasks(prev => [task, ...prev])
       setViewDate(todayKey)
-      if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); onAutoStartHandled?.(); return }
       if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
       setActiveTaskId(task.id)
       setRunning(true)
@@ -2583,17 +2579,14 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
           <UserAvatar size={32} />
         </header>
 
-        {gate.restricted && (
+        {(gate.inside || (freePauseUntil() && !running)) && (
           <div className="relative z-10 px-5 sm:px-8 py-2.5 text-[13px] border-b flex-shrink-0"
-            style={windowNote || !gate.inside
+            style={freePauseUntil() && !running
               ? { background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }
               : { background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.3)', color: '#34D399' }}>
-            {windowNote
-              ?? (freePauseUntil() && !running
-                ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
-                : gate.inside
-                ? `Schedule block live: ${gate.inside.slot.subject ?? 'Study'} until ${clockLabel(gate.inside.slot.end)}. Start the timer now.`
-                : blockedMessage(gate))}
+            {freePauseUntil() && !running
+              ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
+              : `Schedule block live: ${gate.inside?.slot.subject ?? 'Study'} until ${clockLabel(gate.inside?.slot.end ?? '00:00')}. Start the timer now.`}
           </div>
         )}
 
@@ -6586,7 +6579,6 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   // Reset - waits here until the reflection is unlocked. Never saved.
   const [pausePrompt, setPausePrompt] = useState<{ run: () => void } | null>(null)
   const gate = useWindowGate()
-  const [windowNote, setWindowNote] = useState<string | null>(null)
 
   // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
   // reassigned every render so the interval below always calls the current start/stop closures.
@@ -6715,8 +6707,6 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       afterPauseBarrier(() => void pauseFocus())
       return
     }
-    if (gate.restricted && !gate.inside) { clearFreePause(); setWindowNote(blockedMessage(gate)); return }
-    setWindowNote(null)
     clearFreePause()
     togglingRef.current = true
     try {
@@ -6902,12 +6892,10 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
               onReset={resetSelectedTask}
               onOpenFocusLock={() => onNavigate('focus')}
             />
-            {gate.restricted && (windowNote || !gate.inside || (freePauseUntil() && !focusRunning)) && (
+            {freePauseUntil() && !focusRunning && (
               <div className="mt-3 rounded-xl border px-4 py-2.5 text-[13px]"
                 style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }}>
-                {windowNote ?? (freePauseUntil() && !focusRunning
-                  ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
-                  : blockedMessage(gate))}
+                {`Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`}
               </div>
             )}
           </div>
