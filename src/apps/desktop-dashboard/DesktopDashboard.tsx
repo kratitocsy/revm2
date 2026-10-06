@@ -60,6 +60,9 @@ import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
   type RoomRow, type RoomMember,
 } from './lib/studyRooms'
+import { useVoiceRoom } from './lib/voiceRoom'
+import VoiceTile from './VoiceTile'
+import VoiceBar from './VoiceBar'
 import {
   fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
   sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
@@ -3023,7 +3026,7 @@ function MicOffIcon() {
 }
 
 // ─── Bot Card ─────────────────────────────────────────────────────────────────
-function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string }) {
+function BotCard({ bot, canKick, onKick, avatarUrl, hideMicBadge }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string; hideMicBadge?: boolean }) {
   const fmtTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
     return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
@@ -3083,10 +3086,12 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
       ) : (
         <StudyingAvatar cardGrad={bot.cardGrad} accentColor={bot.accentColor} />
       )}
-      <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <MicOffIcon />
-      </div>
+      {!hideMicBadge && (
+        <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <MicOffIcon />
+        </div>
+      )}
       {canKick && (
         <button onClick={onKick}
           className="absolute top-2.5 left-2.5 text-[9px] px-2 py-0.5 rounded-full transition-all hover:bg-red-500/20"
@@ -6566,6 +6571,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   // Real room: members + live study state + chat from Supabase (lib/studyRooms.ts).
   const live = useRoomLive(room.groupId ?? null)
   const isRealRoom = !!room.groupId
+  // Voice (audio only) for real rooms: the call lives in lib/voiceRoom.ts, the controls in VoicePanel.tsx.
+  const voice = useVoiceRoom(isRealRoom ? room.groupId ?? null : null, live.members.find(m => m.is_me)?.user_id ?? null)
   const [nowMs, setNowMs] = useState(() => Date.now())
   useEffect(() => {
     if (!isRealRoom) return
@@ -6857,6 +6864,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
+      {isRealRoom && live.status === 'ready' && <VoiceBar voice={voice} members={live.members} groupId={room.groupId!} />}
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -6936,12 +6944,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
             {activeTab === 'studying' && isRealRoom && live.status === 'ready' && (
               <div className="grid grid-cols-3 gap-5">
                 {memberCards.map(p => (
-                  <BotCard key={p.id}
-                    bot={p}
-                    canKick={amAdmin && !p.isMe}
-                    onKick={() => p.userId && void kick(p.userId)}
-                    avatarUrl={p.avatarUrl}
-                  />
+                  <VoiceTile key={p.id} voice={voice} userId={p.userId} isMe={!!p.isMe}>
+                    <BotCard
+                      bot={p}
+                      canKick={amAdmin && !p.isMe}
+                      onKick={() => p.userId && void kick(p.userId)}
+                      avatarUrl={p.avatarUrl}
+                      hideMicBadge
+                    />
+                  </VoiceTile>
                 ))}
                 {seatsLeft > 0 && (
                   <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-wk-orange-500/30 transition-colors"
