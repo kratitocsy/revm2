@@ -1,10 +1,10 @@
 // Schedule windows for the focus timer.
 //
-// On a day one of the member's active Focus Lock schedules runs, the timer can
-// only be started inside one of that schedule's blocks, and pausing inside a
-// block gets 2 free pauses per schedule per day before the 150-character gate
-// (pauseReflection.ts) applies. On a day no schedule runs, or for someone with
-// no schedule at all, nothing here restricts anything.
+// The timer can be started at any time, whether or not a Focus Lock schedule
+// block is running. Inside one of the member's schedule blocks, pausing gets 2
+// free pauses per schedule per day before the 150-character gate
+// (pauseReflection.ts) applies, and starting the timer there takes the member to
+// their home community's study room.
 //
 // Times are India time, the same clock schedule-tick runs schedules on.
 
@@ -29,7 +29,7 @@ export interface WindowSchedule {
 export interface WindowMatch { schedule: WindowSchedule; slot: WindowSlot; endsInMin: number }
 export interface NextWindow { schedule: WindowSchedule; slot: WindowSlot; startsInMin: number; dayOffset: number }
 export interface WindowGate {
-  /** A schedule runs today, so starting the timer is limited to its blocks. */
+  /** A schedule runs today. Informational only: starting the timer is never limited to its blocks. */
   restricted: boolean;
   inside: WindowMatch | null;
   next: NextWindow | null;
@@ -113,15 +113,6 @@ export function clockLabel(hhmm: string): string {
   const m = toMin(hhmm);
   const h = Math.floor(m / 60), mm = m % 60;
   return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-}
-
-/** The one-line reason shown when the timer can't be started right now. */
-export function blockedMessage(gate: WindowGate): string {
-  const n = gate.next;
-  if (!n) return 'Your schedule is on, so the timer starts only inside its blocks.';
-  const what = n.slot.subject ? `${n.slot.subject} at ${clockLabel(n.slot.start)}` : clockLabel(n.slot.start);
-  const when = n.dayOffset === 0 ? 'today' : n.dayOffset === 1 ? 'tomorrow' : 'later this week';
-  return `Your schedule is on, so the timer starts only inside its blocks. Next block: ${what} ${when}.`;
 }
 
 // ── Free pauses (2 per schedule per day) ────────────────────────────────────

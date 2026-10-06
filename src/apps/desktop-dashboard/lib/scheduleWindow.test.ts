@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { beginFreePause, blockedMessage, clearFreePause, clockLabel, computeGate, freePausesLeft, freePauseUntil, spendFreePause, FREE_PAUSES_PER_SCHEDULE, FREE_PAUSE_MINUTES, type WindowSchedule } from './scheduleWindow';
+import { beginFreePause, clearFreePause, clockLabel, computeGate, freePausesLeft, freePauseUntil, spendFreePause, FREE_PAUSES_PER_SCHEDULE, FREE_PAUSE_MINUTES, type WindowSchedule } from './scheduleWindow';
 
 // 2026-10-01 is a Thursday (day 4). All times India time.
 const at = (hhmm: string, date = '2026-10-01') => new Date(`${date}T${hhmm}:00+05:30`);
@@ -38,7 +38,6 @@ describe('computeGate', () => {
     const g = computeGate([physics], at('21:00'));
     expect(g.next?.dayOffset).toBe(1);
     expect(g.next?.slot.subject).toBe('Physics');
-    expect(blockedMessage(g)).toContain('Physics at 4:00 PM tomorrow');
   });
 
   it('a day the schedule does not run is unrestricted', () => {
