@@ -293,6 +293,27 @@ export function communityInviteLink(token: string): string {
   return `${origin}/home.html?community=${encodeURIComponent(token)}`;
 }
 
+/**
+ * A link any member can share. Unlike communityInviteLink (which carries the
+ * WynkoHead's secret token and skips the password of a private community), this
+ * only names the community: opening it runs the normal join flow, so a public
+ * community lets people straight in and a private one asks for its password.
+ * With `room: true` it also opens the community's study room after joining.
+ */
+export function communityShareLink(groupId: string, opts: { room?: boolean } = {}): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}/home.html?joincommunity=${encodeURIComponent(groupId)}${opts.room ? '&open=room' : ''}`;
+}
+
+/** Reads a shared community link's parameters from a URL query string. */
+export function parseCommunityShare(search: string): { groupId: string; openRoom: boolean } | null {
+  const p = new URLSearchParams(search);
+  const groupId = (p.get('joincommunity') || '').trim();
+  // Group ids are UUIDs; anything else is not one of our links.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId)) return null;
+  return { groupId, openRoom: p.get('open') === 'room' };
+}
+
 // ── Earnings (existing RevHead ledger / payout backend) ──────────────────────
 export async function fetchEarningsLedger(days: number): Promise<EarningsLedgerRow[]> {
   const since = new Date(Date.now() - days * 86400000).toISOString();

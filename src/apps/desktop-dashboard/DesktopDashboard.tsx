@@ -22,7 +22,7 @@ import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
 import { autoConnectExtension } from './lib/extensionConnect'
-import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, blockedMessage, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
+import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
 import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
 import {
@@ -37,7 +37,7 @@ import {
   joinCommunity, leaveCommunity, setHomeCommunity, parseInviteInput, fetchCommunityDetail, fetchAnnouncements, setScheduleChoice,
   applyAsWynkoHead, createCommunity, publishCommunitySchedule, loadScheduleDraft, saveScheduleDraft, fetchHeadOverview,
   fetchStudentAnalytics, fetchJoinRequests, decideJoinRequest, updateCommunitySettings, setCommunityAccess, fetchCommunityIsPrivate, postAnnouncement, deleteAnnouncement,
-  communityInviteLink, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout, MIN_PAYOUT_INR, setMyDateOfBirth,
+  communityInviteLink, communityShareLink, parseCommunityShare, fetchEarningsLedger, fetchPayoutHistory, fetchWalletBalance, requestPayout, MIN_PAYOUT_INR, setMyDateOfBirth,
   fetchMonetizedCommunityIds, setCommunityMonetization, transferCommunityOwnership, fetchMyHomeCommunity,
   fetchReferralSummary, referralLink, type ReferralSummary,
   type MyCommunity, type DiscoverCommunity, type CommunityScheduleRow, type CommunityDetailData, type CommunityAnnouncementRow,
@@ -2127,9 +2127,8 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   // The task id is captured at click-time so "Unlock Pause" pauses the right task
   // even if activeTask/activeTaskId were to change while the modal is open.
   const [pendingPauseTaskId, setPendingPauseTaskId] = useState<string | null>(null)
-  // Schedule window: on a day a schedule runs, the timer starts only inside its blocks (lib/scheduleWindow.ts).
+  // Schedule window: the timer can start any time; inside a schedule block it also gets free pauses (lib/scheduleWindow.ts).
   const gate = useWindowGate()
-  const [windowNote, setWindowNote] = useState<string | null>(null)
   const didCatchUp = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Latest values for the 1s interval below, which is created once per run and would otherwise see stale ones.
@@ -2336,8 +2335,6 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
   async function handleStartTask(taskId: string, opts?: { resume?: boolean }) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-    if (gate.restricted && !gate.inside) { clearFreePause(); setWindowNote(blockedMessage(gate)); return }
-    setWindowNote(null)
     clearFreePause()
     if (running && activeTaskId && activeTaskId !== taskId) {
       // Only one live study_sessions row per user - starting a different
@@ -2471,7 +2468,6 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
       const task: StudyTask = { id: makeTaskId(), subject: autoStartTask.subject, topic: autoStartTask.topic, mode: selectedMode, ...pomodoroFields(pomo), regularElapsed: 0, planDate: todayKey }
       setTasks(prev => [task, ...prev])
       setViewDate(todayKey)
-      if (gate.restricted && !gate.inside) { setWindowNote(blockedMessage(gate)); onAutoStartHandled?.(); return }
       if (running && activeTaskId && activeTaskId !== task.id) stopRemoteSession()
       setActiveTaskId(task.id)
       setRunning(true)
@@ -2583,17 +2579,14 @@ function FocusLockPage({ units, schedule, todayIdx, onNavigate, profile, autoSta
           <UserAvatar size={32} />
         </header>
 
-        {gate.restricted && (
+        {(gate.inside || (freePauseUntil() && !running)) && (
           <div className="relative z-10 px-5 sm:px-8 py-2.5 text-[13px] border-b flex-shrink-0"
-            style={windowNote || !gate.inside
+            style={freePauseUntil() && !running
               ? { background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }
               : { background: 'rgba(52,211,153,0.07)', borderColor: 'rgba(52,211,153,0.3)', color: '#34D399' }}>
-            {windowNote
-              ?? (freePauseUntil() && !running
-                ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
-                : gate.inside
-                ? `Schedule block live: ${gate.inside.slot.subject ?? 'Study'} until ${clockLabel(gate.inside.slot.end)}. Start the timer now.`
-                : blockedMessage(gate))}
+            {freePauseUntil() && !running
+              ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
+              : `Schedule block live: ${gate.inside?.slot.subject ?? 'Study'} until ${clockLabel(gate.inside?.slot.end ?? '00:00')}. Start the timer now.`}
           </div>
         )}
 
@@ -3115,7 +3108,7 @@ function BotCard({ bot, canKick, onKick, avatarUrl, hideMicBadge }: { bot: BotPa
 }
 
 // ─── Study Rooms List Page ─────────────────────────────────────────────────────
-function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, communities, communitiesStatus, communitiesError, onRefreshCommunities, pendingJoinRoomId, onPendingJoinHandled, ownedCommunityIds, onManageCommunity, onCreateCommunity }: {
+function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onCommunityTabChange, onOpenCommunity, communities, communitiesStatus, communitiesError, onRefreshCommunities, pendingJoinRoomId, onPendingJoinHandled, pendingCommunityId, onPendingCommunityHandled, ownedCommunityIds, onManageCommunity, onCreateCommunity }: {
   onNavigate: (id: string) => void
   onEnterRoom: (room: RoomData) => void
   profile?: ProfileInfo
@@ -3123,6 +3116,9 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
   // Live Study Rooms card for a room you're not in yet).
   pendingJoinRoomId?: string | null
   onPendingJoinHandled?: () => void
+  // A private community opened from a shared link: its password prompt shows on the Communities tab.
+  pendingCommunityId?: string | null
+  onPendingCommunityHandled?: () => void
   // Owned by the App root (not local state) so that coming Back from a
   // community's page lands on the Communities tab again, not Study Rooms.
   communityTab: 'rooms' | 'communities'
@@ -3338,7 +3334,8 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
           {communityTab === 'communities' ? (
             <CommunitiesTabContent communities={communities} status={communitiesStatus} error={communitiesError}
               onRefresh={onRefreshCommunities} onOpenCommunity={onOpenCommunity}
-              ownedCommunityIds={ownedCommunityIds} onManageCommunity={onManageCommunity} onCreateCommunity={onCreateCommunity} />
+              ownedCommunityIds={ownedCommunityIds} onManageCommunity={onManageCommunity} onCreateCommunity={onCreateCommunity}
+              pendingCommunityId={pendingCommunityId} onPendingCommunityHandled={onPendingCommunityHandled} />
           ) : (
           <>
           {/* Hero */}
@@ -3788,7 +3785,7 @@ function joinStatusMessage(status: string): string {
   return 'That invite link or code isn’t valid.'
 }
 
-function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCommunity, ownedCommunityIds, onManageCommunity, onCreateCommunity }: {
+function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCommunity, ownedCommunityIds, onManageCommunity, onCreateCommunity, pendingCommunityId, onPendingCommunityHandled }: {
   communities: CommunityData[]
   status: 'loading' | 'ready' | 'error'
   error: string | null
@@ -3797,6 +3794,8 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
   ownedCommunityIds: Set<string>
   onManageCommunity: (id: string) => void
   onCreateCommunity: (name: string, description: string) => Promise<string | null>
+  pendingCommunityId?: string | null
+  onPendingCommunityHandled?: () => void
 }) {
   // Home Community + its 30-day lock are stored per user (community_home) and
   // enforced server-side by rpc_set_home_community; half of the user's study
@@ -3805,6 +3804,9 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
   const [pickerError, setPickerError] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState('')
   const [inviteMsg, setInviteMsg] = useState<string | null>(null)
+  // Password for a private community opened from a shared link.
+  const [sharedPw, setSharedPw] = useState('')
+  const [sharedMsg, setSharedMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showDiscover, setShowDiscover] = useState(false)
   const discoverQ = useLoader(showDiscover ? fetchDiscoverCommunities : null, [] as DiscoverCommunity[], [showDiscover], 0)
@@ -3856,6 +3858,25 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
     }
   }
 
+  async function joinSharedPrivate() {
+    if (!pendingCommunityId || !sharedPw.trim() || busy) return
+    setBusy(true)
+    try {
+      const r = await joinCommunity({ groupId: pendingCommunityId, password: sharedPw })
+      if (r.status === 'joined' || r.status === 'already_member') {
+        setSharedPw(''); setSharedMsg(null)
+        onPendingCommunityHandled?.()
+        await onRefresh()
+      } else {
+        setSharedMsg(joinStatusMessage(r.status))
+      }
+    } catch (e) {
+      setSharedMsg((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleJoinInvite() {
     const token = parseInviteInput(inviteLink)
     if (!token || busy) return
@@ -3898,6 +3919,22 @@ function CommunitiesTabContent({ communities, status, error, onRefresh, onOpenCo
 
   return (
     <div className="pb-8">
+      {pendingCommunityId && (
+        <div className="rounded-2xl border p-4 mb-5" style={{ background: 'rgba(255,138,61,0.07)', borderColor: 'rgba(255,138,61,0.35)' }}>
+          <div className="text-sm font-semibold text-white mb-0.5">This community is private</div>
+          <div className="text-[12px] text-wk-ink-400 mb-3">Someone shared it with you. Enter its password to join.</div>
+          <div className="flex items-center gap-2">
+            <input type="password" value={sharedPw} onChange={e => setSharedPw(e.target.value)} placeholder="Community password"
+              onKeyDown={e => { if (e.key === 'Enter') void joinSharedPrivate() }}
+              className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border text-sm text-wk-ink-100 bg-[#161618] border-[#26262A] outline-none focus:border-[#FF8A3D]" />
+            <button onClick={() => void joinSharedPrivate()} disabled={!sharedPw.trim() || busy}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-wk-black-950 disabled:opacity-40" style={{ background: '#FF8A3D' }}>Join</button>
+            <button onClick={() => { setSharedPw(''); setSharedMsg(null); onPendingCommunityHandled?.() }}
+              className="px-3 py-2.5 rounded-xl text-sm text-wk-ink-400 hover:text-white">Cancel</button>
+          </div>
+          {sharedMsg && <div className="text-[12px] text-amber-300 mt-2">{sharedMsg}</div>}
+        </div>
+      )}
       {/* 1 · Home Community hero */}
       <div className="relative rounded-3xl border overflow-hidden p-6 sm:p-7 mb-7"
         style={{ borderColor: 'rgba(255,138,61,0.35)', boxShadow: 'none' }}>
@@ -4551,6 +4588,14 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
   const [tab, setTab] = useState<CommunityStudentTab>('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const [linkNote, setLinkNote] = useState<string | null>(null)
+  // Any member can copy these: they only name the community, so a private one still asks for its password.
+  function copyShareLink(room: boolean) {
+    const link = communityShareLink(community.id, { room })
+    const done = (msg: string) => { setLinkNote(msg); setTimeout(() => setLinkNote(null), 2200) }
+    try { navigator.clipboard.writeText(link).then(() => done(room ? 'Study room link copied' : 'Community link copied'), () => done('Could not copy the link')) }
+    catch { done('Could not copy the link') }
+  }
 
   const TABS: { id: CommunityStudentTab; label: string; icon: keyof typeof IP }[] = [
     { id: 'home', label: 'Home', icon: 'home' },
@@ -4577,6 +4622,7 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
             <div className="text-[10px] text-wk-ink-600 mb-0.5">COMMUNITY</div>
             <div className="text-sm font-semibold text-wk-ink-200">Student View</div>
           </div>
+          {linkNote && <span className="text-[12px] text-emerald-400">{linkNote}</span>}
           <NotificationBell />
           <UserAvatar size={32} />
         </header>
@@ -4622,6 +4668,17 @@ function CommunityStudentPage({ community, isHome, isOwner = false, week, weekBy
                       <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
                       <div role="menu" className="absolute right-0 top-full mt-2 w-60 rounded-xl border p-1.5 z-40"
                         style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+                        <button role="menuitem" onClick={() => { setMenuOpen(false); copyShareLink(false) }}
+                          className="w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium text-wk-ink-200 transition-colors hover:bg-white/5">
+                          Copy community link
+                          <div className="text-[11px] font-normal text-wk-ink-500 mt-0.5">Anyone with it can join. Private communities ask for the password.</div>
+                        </button>
+                        <button role="menuitem" onClick={() => { setMenuOpen(false); copyShareLink(true) }}
+                          className="w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium text-wk-ink-200 transition-colors hover:bg-white/5">
+                          Copy study room link
+                          <div className="text-[11px] font-normal text-wk-ink-500 mt-0.5">Joins, then opens the community study room.</div>
+                        </button>
+                        <div className="my-1 border-t border-[#26262A]" />
                         <button role="menuitem" disabled={isHome || isOwner}
                           onClick={() => { setMenuOpen(false); setConfirmLeave(true) }}
                           className="w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors enabled:hover:bg-red-500/10 disabled:cursor-not-allowed"
@@ -6145,6 +6202,7 @@ function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChan
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copiedShare, setCopiedShare] = useState<'community' | 'room' | null>(null)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
   const requestsQ = useLoader(() => fetchJoinRequests(groupId), [] as JoinRequestRow[], [groupId])
@@ -6170,6 +6228,11 @@ function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChan
     navigator.clipboard?.writeText(inviteLink)
     setCopied(true)
     timers.current.push(setTimeout(() => setCopied(false), 2000))
+  }
+  function copyShare(kind: 'community' | 'room') {
+    try { void navigator.clipboard?.writeText(communityShareLink(groupId, { room: kind === 'room' })) } catch { return }
+    setCopiedShare(kind)
+    timers.current.push(setTimeout(() => setCopiedShare(null), 2000))
   }
   async function handle(id: string, approve: boolean) {
     try {
@@ -6216,6 +6279,17 @@ function HeadManageTab({ groupId, settings, inviteToken, onChange, onMembersChan
             <Ico n="copy" cls="w-4 h-4" /> {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
+        <div className="text-[11px] font-semibold text-wk-ink-500 mb-1.5">Links members can share</div>
+        <div className="flex flex-wrap items-center gap-2.5 mb-2">
+          {([['community', 'Copy community link'], ['room', 'Copy study room link']] as const).map(([kind, label]) => (
+            <button key={kind} onClick={() => copyShare(kind)}
+              className="px-4 py-2.5 rounded-xl border text-sm font-semibold flex items-center gap-2 transition-colors text-wk-ink-200 hover:text-white hover:border-[rgba(156,150,140,0.6)]"
+              style={{ background: 'rgba(156,150,140,0.08)', borderColor: 'rgba(156,150,140,0.35)' }}>
+              <Ico n="copy" cls="w-4 h-4" /> {copiedShare === kind ? 'Copied' : label}
+            </button>
+          ))}
+        </div>
+        <div className="text-[11px] text-wk-ink-500 mb-5">Every member can copy these from the community menu. They follow the access setting below: a private community still asks for its password.</div>
         <CommunityAccessControl groupId={groupId} />
       </div>
 
@@ -6571,6 +6645,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   // Real room: members + live study state + chat from Supabase (lib/studyRooms.ts).
   const live = useRoomLive(room.groupId ?? null)
   const isRealRoom = !!room.groupId
+  // Share link for this room, open to every member: a community's study room goes through the
+  // community join flow, any other room through the ordinary room invite.
+  const [roomLinkCopied, setRoomLinkCopied] = useState(false)
+  function copyRoomLink() {
+    if (!room.groupId) return
+    const link = room.classes === 'Community' ? communityShareLink(room.groupId, { room: true }) : roomInviteLink(room.groupId)
+    const done = () => { setRoomLinkCopied(true); setTimeout(() => setRoomLinkCopied(false), 2000) }
+    try { navigator.clipboard.writeText(link).then(done, () => {}) } catch { /* clipboard blocked: nothing to copy to */ }
+  }
   // Voice (audio only) for real rooms: the call lives in lib/voiceRoom.ts, the controls in VoicePanel.tsx.
   const voice = useVoiceRoom(isRealRoom ? room.groupId ?? null : null, live.members.find(m => m.is_me)?.user_id ?? null)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -6586,7 +6669,6 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   // Reset - waits here until the reflection is unlocked. Never saved.
   const [pausePrompt, setPausePrompt] = useState<{ run: () => void } | null>(null)
   const gate = useWindowGate()
-  const [windowNote, setWindowNote] = useState<string | null>(null)
 
   // Side effects of a Pomodoro tick (same rules as Focus Lock), kept out of the state updater and
   // reassigned every render so the interval below always calls the current start/stop closures.
@@ -6715,8 +6797,6 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
       afterPauseBarrier(() => void pauseFocus())
       return
     }
-    if (gate.restricted && !gate.inside) { clearFreePause(); setWindowNote(blockedMessage(gate)); return }
-    setWindowNote(null)
     clearFreePause()
     togglingRef.current = true
     try {
@@ -6864,7 +6944,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
-      {isRealRoom && live.status === 'ready' && <VoiceBar voice={voice} members={live.members} groupId={room.groupId!} />}
+      {isRealRoom && live.status === 'ready' && <VoiceBar voice={voice} members={live.members} groupId={room.groupId!} lift={activeTab === 'chat'} />}
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -6884,6 +6964,13 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
             <Ico n="rooms" cls="w-4 h-4" />
             <span className="text-wk-ink-300 font-mono text-sm">{studyingCount} studying</span>
           </div>
+          {isRealRoom && (
+            <button onClick={copyRoomLink} title="Copy a link anyone can use to join this room"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors text-wk-ink-200 hover:text-white flex-shrink-0"
+              style={{ background: 'rgba(22,22,24,0.7)', borderColor: 'rgba(156,150,140,0.35)' }}>
+              <Ico n="copy" cls="w-3.5 h-3.5" /> {roomLinkCopied ? 'Link copied' : 'Share'}
+            </button>
+          )}
           <UserAvatar size={32} />
         </header>
 
@@ -6902,12 +6989,10 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
               onReset={resetSelectedTask}
               onOpenFocusLock={() => onNavigate('focus')}
             />
-            {gate.restricted && (windowNote || !gate.inside || (freePauseUntil() && !focusRunning)) && (
+            {freePauseUntil() && !focusRunning && (
               <div className="mt-3 rounded-xl border px-4 py-2.5 text-[13px]"
                 style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)', color: '#FBBF24' }}>
-                {windowNote ?? (freePauseUntil() && !focusRunning
-                  ? `Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`
-                  : blockedMessage(gate))}
+                {`Free pause: the timer resumes by itself in ${Math.max(1, Math.ceil(((freePauseUntil() ?? 0) - Date.now()) / 60000))} min.`}
               </div>
             )}
           </div>
@@ -10712,6 +10797,8 @@ export default function DesktopDashboard() {
   // Room to run the Join flow for when Study Rooms opens: from an invite link
   // (home.html?room=<id>) or Home's Live Study Rooms card.
   const [pendingJoinRoomId, setPendingJoinRoomId] = useState<string | null>(null)
+  // A private community opened from a shared link: asks for its password on the Communities tab.
+  const [pendingCommunityId, setPendingCommunityId] = useState<string | null>(null)
   // Community section: which community's Student View is open and which tab of
   // the Community module (Study Rooms / Communities) is showing. Communities,
   // their schedules and the WynkoHead role come from Supabase (see below).
@@ -10814,15 +10901,41 @@ export default function DesktopDashboard() {
       // Community invite links (communityInviteLink): home.html?community=<token>
       // joins, or sends a join request when the WynkoHead approves members.
       const communityToken = url.searchParams.get('community')
-      if (!roomId && !communityToken) return
+      // Links any member can share (communityShareLink): home.html?joincommunity=<id>[&open=room]
+      // runs the normal join flow for that community; &open=room then opens its study room.
+      const share = parseCommunityShare(url.search)
+      if (!roomId && !communityToken && !share) return
       url.searchParams.delete('room')
       url.searchParams.delete('community')
+      url.searchParams.delete('joincommunity')
+      url.searchParams.delete('open')
       window.history.replaceState(null, '', url.pathname + url.search + url.hash)
       setActiveRoom(null)
       setActiveNav('studyrooms')
       if (roomId) {
         setStudyRoomsTab('rooms')
         setPendingJoinRoomId(roomId)
+        return
+      }
+      if (share) {
+        setStudyRoomsTab('communities')
+        joinCommunity({ groupId: share.groupId })
+          .then(async r => {
+            if (r.status === 'joined' || r.status === 'already_member') {
+              await myCommunitiesQ.refresh()
+              const mine = (await fetchMyCommunities()).find(c => c.id === share.groupId)
+              if (mine) {
+                const c = toCommunityData(mine)
+                if (share.openRoom) setActiveRoom(communityStudyRoom(c)); else setActiveCommunity(c)
+              }
+              if (r.status === 'joined') setCommunityNotice(joinStatusMessage('joined'))
+              return
+            }
+            // Private: the Communities tab asks for the password right there.
+            if (r.status === 'password_required' || r.status === 'wrong_password') setPendingCommunityId(share.groupId)
+            setCommunityNotice(joinStatusMessage(r.status))
+          })
+          .catch(e => setCommunityNotice((e as Error).message))
         return
       }
       setStudyRoomsTab('communities')
@@ -11279,6 +11392,7 @@ export default function DesktopDashboard() {
       }
       return <StudyRoomsPage onNavigate={handleNav} onEnterRoom={room => setActiveRoom(room)} profile={profile}
         pendingJoinRoomId={pendingJoinRoomId} onPendingJoinHandled={() => setPendingJoinRoomId(null)}
+        pendingCommunityId={pendingCommunityId} onPendingCommunityHandled={() => setPendingCommunityId(null)}
         communityTab={studyRoomsTab} onCommunityTabChange={setStudyRoomsTab}
         onOpenCommunity={setActiveCommunity} communities={communities} communitiesStatus={myCommunitiesQ.status}
         communitiesError={myCommunitiesQ.error} onRefreshCommunities={refreshCommunities}
