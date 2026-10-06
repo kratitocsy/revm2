@@ -267,7 +267,12 @@ Deno.serve(async (req) => {
           mode: preset.mode === "whitelist" ? "whitelist" : "blacklist",
           youtube_rules: preset.youtube_rules || null,
           apps: preset.apps || [],
-          apps_mode: preset.apps_mode === "whitelist" ? "whitelist" : "blacklist",
+          // A scheduled block's app list is always an ALLOW list, whatever
+          // the preset's own apps_mode says: no apps picked = allow none
+          // (the desktop app closes everything), some picked = only those
+          // stay open. A blacklist with an empty list used to kill nothing,
+          // so a block with no apps picked left every app running.
+          apps_mode: "whitelist",
           no_early_unlock: !!preset.no_early_unlock,
         };
       }
