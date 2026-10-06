@@ -482,16 +482,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { try { WynkyRepository.clearHistory(); wynkyMsgs.clear(); wynkyPlan = null } catch (_: Exception) { flash("Couldn't clear your history") } }
     }
 
-    // ── shop + purchases (server-verified, same as web) ──
+    // ── shop (coins are spent server-side; buying coins is web-only) ──
     var shopItems by mutableStateOf<List<ShopItemRow>>(emptyList()); private set
-    fun buyCoins(activity: android.app.Activity, packId: String) {
-        viewModelScope.launch {
-            try {
-                val added = PaymentsRepository.buy(activity, packId)
-                if (added != null) { coins = AppRepository.coins(); flash("+%,d WYNKOINS".format(added)) }
-            } catch (e: Exception) { flash(e.message?.take(80) ?: "Payment failed") }
-        }
-    }
     fun redeem(item: ShopItemRow) {
         viewModelScope.launch {
             try { PaymentsRepository.redeem(item.id); coins = AppRepository.coins(); flash("${item.name} redeemed") }
@@ -517,7 +509,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var hub by mutableStateOf<BattleHub?>(null); private set
     var leaderboard by mutableStateOf<List<Battler>>(emptyList()); private set
     var battleHistory by mutableStateOf<List<BattleResult>>(emptyList()); private set
-    var coinPacks by mutableStateOf<List<CoinPack>>(emptyList()); private set
     var notifs by mutableStateOf<List<Notif>>(emptyList()); private set
     var accountError by mutableStateOf<String?>(null); private set
     val unreadNotifs: Boolean get() = notifs.any { !it.read }
@@ -537,7 +528,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 tasks.clear(); tasks.addAll(remote)
                 accountError = null
             } catch (e: Exception) { accountError = "Couldn't load your account; showing what we have." }
-            refreshNotifs(); refreshBattle(); refreshCoinPacks(); refreshProgress(); refreshRooms(); refreshCommunities(); refreshRoutines()
+            refreshNotifs(); refreshBattle(); refreshProgress(); refreshRooms(); refreshCommunities(); refreshRoutines()
             try { shopItems = PaymentsRepository.shopItems() } catch (_: Exception) {}
             runCatching { StudyRepository.flushTime(ctx) }
             pullPlan()
@@ -565,7 +556,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) { flash("Couldn't load Battleground") }
         }
     }
-    fun refreshCoinPacks() { viewModelScope.launch { try { coinPacks = AppRepository.coinPacks() } catch (_: Exception) {} } }
 
     fun challenge(userId: String, name: String) {
         viewModelScope.launch {

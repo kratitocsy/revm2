@@ -29,7 +29,6 @@ data class BattleStats(val total: Int = 0, val wins: Int = 0, val losses: Int = 
 data class BattleInvite(val id: String, val fromName: String, val title: String)
 data class BattleHub(val xp: Int, val title: String, val stats: BattleStats, val incoming: List<BattleInvite>, val outgoingId: String?, val outgoingName: String?)
 data class BattleResult(val won: Boolean, val opponent: String, val whenText: String)
-data class CoinPack(val id: String, val name: String, val coins: Int, val price: Int, val popular: Boolean = false)
 data class PlanTask(val id: String, val subject: String, val topic: String, val minutes: Int, val done: Boolean)
 
 // ── wire rows (only the columns we read) ──
@@ -87,9 +86,6 @@ private data class HistoryRow(
     @SerialName("opponent_username") val opponent: String? = null,
     val result: String = "lost", @SerialName("focus_seconds") val focusSeconds: Int? = 0,
 )
-
-@Serializable
-private data class PackRow(val id: String, val name: String, val coins: Int, @SerialName("bonus_pct") val bonus: Int? = null, @SerialName("price_inr") val price: Double = 0.0, val popular: Boolean = false)
 
 /** Reads/writes the same tables and RPCs the web app uses. Money and XP are server-owned: nothing here writes them. */
 object AppRepository {
@@ -203,12 +199,6 @@ object AppRepository {
     suspend fun respondChallenge(invitationId: String, accept: Boolean) {
         sb.postgrest.rpc("respond_battle_challenge", buildJsonObject { put("p_invitation_id", invitationId); put("p_accept", accept) })
     }
-
-    // ── coin packs (display only; purchase is Razorpay + server-side grant) ──
-
-    suspend fun coinPacks(): List<CoinPack> =
-        sb.from("coin_packages").select { order("price_inr", Order.ASCENDING) }.decodeList<PackRow>()
-            .map { CoinPack(it.id, it.name, it.coins + it.coins * (it.bonus ?: 0) / 100, it.price.toInt(), it.popular) }
 
     private fun ago(iso: String?): String {
         val t = try { OffsetDateTime.parse(iso ?: return "").toInstant().toEpochMilli() } catch (e: Exception) { return "" }

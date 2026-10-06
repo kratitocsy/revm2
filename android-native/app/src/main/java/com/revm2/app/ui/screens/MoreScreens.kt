@@ -37,7 +37,7 @@ fun MoreScreen(vm: AppViewModel) = ScreenColumn {
     Row(Modifier.fillMaxWidth().wkCard(borderColor = Wk.Orange600.copy(alpha = 0.4f)).tap { vm.go(Dest.Coins) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         IconChip(Icons.Filled.MonetizationOn, 48)
         Column(Modifier.weight(1f)) { Eyebrow("WYNKOINS", Wk.Orange300); WkText("%,d".format(vm.coins), 26, FontWeight.ExtraBold, Wk.Cream50) }
-        WkText("Top up →", 12, FontWeight.SemiBold, Wk.Orange300)
+        WkText("Shop →", 12, FontWeight.SemiBold, Wk.Orange300)
     }
     Row(Modifier.fillMaxWidth().wkCard().tap { vm.go(Dest.Settings) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         IconChip(Icons.Filled.Settings, 40, Wk.Ink400)
@@ -126,10 +126,9 @@ fun BattlegroundScreen(vm: AppViewModel) = ScreenColumn {
 // ───────────────────────── WYNKOINS ─────────────────────────
 @Composable
 fun WynkoinsScreen(vm: AppViewModel) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Eyebrow("WYNKOINS"); WkText("Buy coins. Unlock perks.", 15, FontWeight.Bold, Wk.Ink100) }
+            Column(Modifier.weight(1f)) { Eyebrow("WYNKOINS"); WkText("Spend coins. Unlock perks.", 15, FontWeight.Bold, Wk.Ink100) }
             Row(Modifier.wkSurface(Color(0x1FF59E0B), Wk.Amber.copy(alpha = 0.4f), 99.dp).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Filled.MonetizationOn, null, tint = Wk.Amber, modifier = Modifier.size(18.dp)); WkText("%,d".format(vm.coins), 14, FontWeight.Bold, Wk.Amber)
             }
@@ -139,23 +138,10 @@ fun WynkoinsScreen(vm: AppViewModel) {
                 Box(Modifier.size(64.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Wk.Orange300, Wk.Orange600))), contentAlignment = Alignment.Center) { Icon(Icons.Filled.MonetizationOn, null, tint = Wk.Cream50, modifier = Modifier.size(36.dp)) }
                 Column { Eyebrow("WYNKO VIRTUAL CURRENCY", Wk.Orange300); WkText("WYNKOINS", 28, FontWeight.ExtraBold, Wk.Cream50) }
             }
-            WkText("Buy WYNKOINS to unlock exclusive perks inside Wynko — remove ads, unlock features, and more coming soon.", 13, color = Wk.Ink400, lineHeight = 1.5f)
+            WkText("Spend WYNKOINS on perks inside Wynko. Earn more by inviting friends.", 13, color = Wk.Ink400, lineHeight = 1.5f)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) { WkText("YOUR BALANCE", 10, color = Wk.Ink500); WkText("%,d".format(vm.coins), 32, FontWeight.ExtraBold, Wk.Orange300); WkText("WYNKOINS", 11, color = Wk.Orange300) }
         }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Eyebrow("BUY WYNKOINS", Wk.Orange300)
-            vm.coinPacks.forEach { p ->
-                Column(Modifier.fillMaxWidth().wkCard(borderColor = if (p.popular) Wk.Orange500 else Wk.Hairline).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconChip(Icons.Filled.MonetizationOn, 52)
-                        Column(Modifier.weight(1f)) { WkText("${p.coins}", 26, FontWeight.ExtraBold, Wk.Cream50); WkText("WYNKOINS · ${"%.1f".format(p.price * 100f / p.coins)}p/coin", 11, color = Wk.Ink500) }
-                        if (p.popular) Pill("MOST POPULAR", Wk.Orange500, size = 9)
-                    }
-                    WkText("₹${p.price}", 22, FontWeight.ExtraBold, Wk.Orange500)
-                    WkText("one-time purchase · UPI, cards, net banking via Razorpay", 11, color = Wk.Ink500)
-                    PrimaryButton("Buy ${p.coins} WYNKOINS for ₹${p.price}", { (ctx as? android.app.Activity)?.let { vm.buyCoins(it, p.id) } }, Modifier.fillMaxWidth())
-                }
-            }
             Eyebrow("SPEND WYNKOINS", Wk.Orange300)
             if (vm.shopItems.isEmpty()) WkText("Nothing in the shop right now.", 12, color = Wk.Ink500)
             vm.shopItems.forEach { s ->
