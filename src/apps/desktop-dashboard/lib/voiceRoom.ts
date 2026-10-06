@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IAgoraRTCClient, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { sb } from '../../_shared/supabaseClient';
 import {
-  DEFAULT_VOICE_PREFS, MAX_VOICE_PARTICIPANTS, micShouldBeOn, remoteVolume, sanitizePrefs, peersFromPresence, speakingUserIds, sameSet, overVoiceCap,
+  DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs, peersFromPresence, speakingUserIds, sameSet,
   type VoicePrefs, type VoicePeer,
 } from './voiceRoomLogic';
 
@@ -20,9 +20,9 @@ import {
    counts toward the monthly Agora allowance, so call time is reported to
    record_feature_usage every minute (without a group id - passing one
    would also credit group_user_daily_seconds, which feeds community
-   revenue), a call is refused once the allowance has flipped to the
-   fallback provider, and one room's call is capped at
-   MAX_VOICE_PARTICIPANTS people.
+   revenue), and a call is refused once the allowance has flipped to the
+   fallback provider. There is no limit on how many people can be in a
+   room's call.
 
    The microphone is only opened while it is actually live: muting
    closes it (so the browser's mic light goes off) and unmuting
@@ -97,7 +97,6 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
   const peersRef = useRef<VoicePeer[]>([]);
   const speakingRef = useRef<Set<string>>(new Set());
   const mutexRef = useRef<Promise<void>>(Promise.resolve());
-  const joinedAtRef = useRef(0);
   const usageSinceRef = useRef(0);
   const usageFirstRef = useRef(true);
   const usageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,7 +157,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     const ch = channelRef.current;
     if (!ch || !agoraUidRef.current) return;
     const s = stateRef.current;
-    void ch.track({ agora_uid: agoraUidRef.current, muted: s.muted || s.deafened, deafened: s.deafened, joined_at: joinedAtRef.current });
+    void ch.track({ agora_uid: agoraUidRef.current, muted: s.muted || s.deafened, deafened: s.deafened });
   }, []);
 
   // Reports the time since the last report to the monthly allowance ledger. Never throws.
@@ -246,7 +245,6 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
 
       const uid = await client.join(app_id, `voice-${groupId}`, token, null);
       agoraUidRef.current = String(uid);
-      joinedAtRef.current = Date.now();
       client.enableAudioVolumeIndicator();
 
       // Presence: who is here and who is muted (also maps Agora uids to people).
@@ -256,11 +254,6 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
         const list = peersFromPresence(ch.presenceState() as Record<string, unknown[]>);
         peersRef.current = list;
         setPeers(list);
-        // One room's call is capped; the latest arrivals step out (everyone applies the same rule).
-        if (stateRef.current.status === 'on' && overVoiceCap(myUserId, list)) {
-          setError(`Voice is full: ${MAX_VOICE_PARTICIPANTS} people at most. Try again when someone leaves.`);
-          void leave();
-        }
       });
       ch.on('presence', { event: 'join' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(true); });
       ch.on('presence', { event: 'leave' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(false); });

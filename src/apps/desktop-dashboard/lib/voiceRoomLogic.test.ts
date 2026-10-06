@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs,
-  peersFromPresence, speakingUserIds, sameSet, overVoiceCap, MAX_VOICE_PARTICIPANTS,
+  peersFromPresence, speakingUserIds, sameSet,
 } from './voiceRoomLogic'
 
 describe('micShouldBeOn', () => {
@@ -74,34 +74,5 @@ describe('presence and speaking', () => {
   it('compares sets', () => {
     expect(sameSet(new Set(['a', 'b']), new Set(['b', 'a']))).toBe(true)
     expect(sameSet(new Set(['a']), new Set(['b']))).toBe(false)
-  })
-})
-
-describe('overVoiceCap', () => {
-  const peer = (userId: string, joinedAt: number) => ({ userId, agoraUid: userId, muted: false, deafened: false, joinedAt })
-  const many = (n: number) => Array.from({ length: n }, (_, i) => peer(`u${String(i).padStart(2, '0')}`, 1000 + i))
-
-  it('lets everyone in up to the limit', () => {
-    const peers = many(MAX_VOICE_PARTICIPANTS)
-    expect(peers.some(p => overVoiceCap(p.userId, peers))).toBe(false)
-  })
-  it('asks the latest arrival to step out once the call is over the limit', () => {
-    const peers = many(MAX_VOICE_PARTICIPANTS + 1)
-    expect(overVoiceCap(peers[MAX_VOICE_PARTICIPANTS].userId, peers)).toBe(true)
-    expect(overVoiceCap(peers[0].userId, peers)).toBe(false)
-    expect(peers.filter(p => overVoiceCap(p.userId, peers)).length).toBe(1)
-  })
-  it('breaks ties on the same instant the same way for everyone', () => {
-    const peers = [peer('b', 5), peer('a', 5), peer('c', 5)]
-    expect(overVoiceCap('c', peers, 2)).toBe(true)
-    expect(overVoiceCap('a', peers, 2)).toBe(false)
-    expect(overVoiceCap('b', peers, 2)).toBe(false)
-  })
-  it('does nothing for someone not in the list yet', () => {
-    expect(overVoiceCap('nobody', many(20))).toBe(false)
-  })
-  it('reads joined_at from presence', () => {
-    const peers = peersFromPresence({ u1: [{ agora_uid: 1, muted: false, deafened: false, joined_at: 1234 }] } as never)
-    expect(peers[0].joinedAt).toBe(1234)
   })
 })
