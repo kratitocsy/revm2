@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IAgoraRTCClient, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { sb } from '../../_shared/supabaseClient';
 import {
-  DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs, peersFromPresence, speakingUserIds, sameSet,
+  DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs, peersFromPresence, speakingUserIds, sameSet, yieldsToOtherSession,
+  type PresencePayload,
   type VoicePrefs, type VoicePeer,
 } from './voiceRoomLogic';
 
@@ -15,6 +16,14 @@ import {
    Who is in the call, and whether they are muted or deafened, is
    shared through a Supabase presence channel (`voice:<groupId>`);
    that is also what turns Agora's numeric uids back into people.
+
+   Cost control (same as the old groups page): every minute in a call
+   counts toward the monthly Agora allowance, so call time is reported to
+   record_feature_usage every minute (without a group id - passing one
+   would also credit group_user_daily_seconds, which feeds community
+   revenue), and a call is refused once the allowance has flipped to the
+   fallback provider. There is no limit on how many people can be in a
+   room's call.
 
    The microphone is only opened while it is actually live: muting
    closes it (so the browser's mic light goes off) and unmuting
@@ -89,6 +98,10 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
   const peersRef = useRef<VoicePeer[]>([]);
   const speakingRef = useRef<Set<string>>(new Set());
   const mutexRef = useRef<Promise<void>>(Promise.resolve());
+  const joinedAtRef = useRef(0);
+  const usageSinceRef = useRef(0);
+  const usageFirstRef = useRef(true);
+  const usageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const livePrefsRef = useRef(prefs);
   livePrefsRef.current = prefs;
   const stateRef = useRef({ muted, deafened, pttHeld, status });
@@ -126,7 +139,8 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
       const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
       const p = livePrefsRef.current;
       const track = await AgoraRTC.createMicrophoneAudioTrack({
-        encoderConfig: 'speech_standard', ANS: p.noiseSuppression, AEC: p.echoCancellation, AGC: p.autoGain,
+        // Echo cancellation is always on: without it people hear themselves a moment later.
+        encoderConfig: 'speech_standard', ANS: p.noiseSuppression, AEC: true, AGC: p.autoGain,
       });
       // State may have changed while the browser was asking for the mic.
       const now = stateRef.current;
@@ -146,10 +160,28 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     const ch = channelRef.current;
     if (!ch || !agoraUidRef.current) return;
     const s = stateRef.current;
-    void ch.track({ agora_uid: agoraUidRef.current, muted: s.muted || s.deafened, deafened: s.deafened });
+    void ch.track({ agora_uid: agoraUidRef.current, muted: s.muted || s.deafened, deafened: s.deafened, joined_at: joinedAtRef.current });
+  }, []);
+
+  // Reports the time since the last report to the monthly allowance ledger. Never throws.
+  const reportUsage = useCallback(async () => {
+    const since = usageSinceRef.current;
+    if (!since) return;
+    const now = Date.now();
+    const seconds = Math.min(120, Math.floor((now - since) / 1000));
+    usageSinceRef.current = now;
+    if (seconds < 1) return;
+    const first = usageFirstRef.current;
+    usageFirstRef.current = false;
+    try {
+      await sb.rpc('record_feature_usage', { p_feature_key: 'group_voice', p_seconds: seconds, p_group_id: null, p_new_session: first });
+    } catch { /* usage logging must never break a call */ }
   }, []);
 
   const teardown = useCallback(async () => {
+    if (usageTimerRef.current) { clearInterval(usageTimerRef.current); usageTimerRef.current = null; }
+    await reportUsage();      // the last partial minute
+    usageSinceRef.current = 0;
     await closeMic();
     const client = clientRef.current;
     clientRef.current = null;
@@ -164,7 +196,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     speakingRef.current = new Set();
     setPeers([]);
     setSpeaking(new Set());
-  }, [closeMic]);
+  }, [closeMic, reportUsage]);
 
   const fetchToken = useCallback(async () => {
     const { data, error: err } = await sb.functions.invoke('agora-token', {
@@ -183,6 +215,12 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     setError(null); setNotice(null); setStatus('joining');
     stateRef.current = { ...stateRef.current, status: 'joining' };
     try {
+      // Past the monthly allowance the app is meant to use the fallback provider; this build only
+      // speaks Agora, so say so instead of running up charges.
+      const { data: provider } = await sb.rpc('get_active_rtc_provider');
+      if (typeof provider === 'string' && provider !== 'agora') {
+        throw new Error('Voice is paused for now: this month\u2019s free voice minutes are used up. It comes back next month.');
+      }
       const { token, app_id } = await fetchToken();
       const AgoraRTC = (await import('agora-rtc-sdk-ng')).default;
       AgoraRTC.setLogLevel(3);
@@ -210,6 +248,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
 
       const uid = await client.join(app_id, `voice-${groupId}`, token, null);
       agoraUidRef.current = String(uid);
+      joinedAtRef.current = Date.now();
       client.enableAudioVolumeIndicator();
 
       // Presence: who is here and who is muted (also maps Agora uids to people).
@@ -219,6 +258,13 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
         const list = peersFromPresence(ch.presenceState() as Record<string, unknown[]>);
         peersRef.current = list;
         setPeers(list);
+        // The same account in this call from another tab or device would hear itself back
+        // as an echo: the later session steps out.
+        const mine = (ch.presenceState() as Record<string, PresencePayload[]>)[myUserId] ?? [];
+        if (stateRef.current.status === 'on' && yieldsToOtherSession(agoraUidRef.current, mine)) {
+          setError('You are already in this call on another tab or device, so this one was closed to avoid an echo.');
+          void leave();
+        }
       });
       ch.on('presence', { event: 'join' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(true); });
       ch.on('presence', { event: 'leave' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(false); });
@@ -235,6 +281,9 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
       trackPresence();
       applyPlayback();
       setNotice('You joined muted. Tap the mic to talk.');
+      usageSinceRef.current = Date.now();
+      usageFirstRef.current = true;
+      usageTimerRef.current = setInterval(() => { void reportUsage(); }, 60_000);
     } catch (e) {
       await teardown();
       stateRef.current = { ...stateRef.current, status: 'off' };
@@ -242,7 +291,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
       setError(friendlyError(e));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, myUserId, fetchToken, teardown, trackPresence, applyPlayback]);
+  }, [groupId, myUserId, fetchToken, teardown, trackPresence, applyPlayback, reportUsage]);
 
   const leave = useCallback(async () => {
     stateRef.current = { ...stateRef.current, status: 'off' };
@@ -260,20 +309,30 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
   /** Quiet mode: hear nobody, and no join/leave chimes. Your mic is left as it is. */
   const setQuiet = useCallback((on: boolean) => { updatePrefs({ quiet: on }); }, [updatePrefs]);
 
-  // Mic follows mute / deafen / push-to-talk; presence and playback follow the same state.
+  // The mic follows mute / deafen / push-to-talk.
   useEffect(() => {
     if (status !== 'on') return;
     void syncMic();
-    trackPresence();
-    applyPlayback();
-  }, [status, muted, deafened, pttHeld, prefs.pushToTalk, prefs.volume, prefs.quiet, syncMic, trackPresence, applyPlayback]);
+  }, [status, muted, deafened, pttHeld, prefs.pushToTalk, syncMic]);
 
-  // Changing noise suppression / echo cancellation / gain rebuilds a live mic.
+  // Everyone else sees your mute / deafen state (not on every volume-slider tick or key press).
+  useEffect(() => {
+    if (status !== 'on') return;
+    trackPresence();
+  }, [status, muted, deafened, trackPresence]);
+
+  // Playback level follows volume, quiet mode and deafen.
+  useEffect(() => {
+    if (status !== 'on') return;
+    applyPlayback();
+  }, [status, deafened, prefs.volume, prefs.quiet, applyPlayback]);
+
+  // Changing noise suppression / gain rebuilds a live mic.
   useEffect(() => {
     if (status !== 'on' || !micRef.current) return;
     void serial(closeMic).then(() => syncMic());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs.noiseSuppression, prefs.echoCancellation, prefs.autoGain]);
+  }, [prefs.noiseSuppression, prefs.autoGain]);
 
   // Push-to-talk: hold Space (never while typing in a field).
   useEffect(() => {

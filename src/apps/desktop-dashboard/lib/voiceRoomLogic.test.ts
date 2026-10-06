@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs,
-  peersFromPresence, speakingUserIds, sameSet,
+  peersFromPresence, speakingUserIds, sameSet, yieldsToOtherSession,
 } from './voiceRoomLogic'
 
 describe('micShouldBeOn', () => {
@@ -74,5 +74,27 @@ describe('presence and speaking', () => {
   it('compares sets', () => {
     expect(sameSet(new Set(['a', 'b']), new Set(['b', 'a']))).toBe(true)
     expect(sameSet(new Set(['a']), new Set(['b']))).toBe(false)
+  })
+})
+
+describe('yieldsToOtherSession', () => {
+  const meta = (uid: number, at: number) => ({ agora_uid: uid, muted: true, deafened: false, joined_at: at })
+  it('does nothing when it is the only session', () => {
+    expect(yieldsToOtherSession('1', [meta(1, 100)])).toBe(false)
+  })
+  it('the later session steps out, the earlier one stays', () => {
+    const both = [meta(1, 100), meta(2, 200)]
+    expect(yieldsToOtherSession('2', both)).toBe(true)
+    expect(yieldsToOtherSession('1', both)).toBe(false)
+  })
+  it('exactly one of two simultaneous sessions steps out', () => {
+    const both = [meta(7, 500), meta(3, 500)]
+    expect([yieldsToOtherSession('7', both), yieldsToOtherSession('3', both)].filter(Boolean)).toHaveLength(1)
+  })
+  it('does nothing if this session is not in the list yet', () => {
+    expect(yieldsToOtherSession('9', [meta(1, 100)])).toBe(false)
+  })
+  it('treats a missing join time as the earliest, so old clients never push a new one out wrongly', () => {
+    expect(yieldsToOtherSession('2', [{ agora_uid: 1, muted: true, deafened: false }, meta(2, 200)])).toBe(true)
   })
 })
