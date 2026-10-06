@@ -39,7 +39,6 @@ fun SettingsScreen(vm: AppViewModel) {
     var exam by remember(me) { mutableStateOf(me?.exam ?: "") }
     var goal by remember(me) { mutableIntStateOf(vm.dailyGoalHours) }
     var timer by remember { mutableStateOf("pomodoro") }
-    var avatar by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column { Eyebrow("SETTINGS"); WkText("Manage your account & preferences.", 14, color = Wk.Ink300) }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -59,7 +58,7 @@ fun SettingsScreen(vm: AppViewModel) {
                     WkText("Choose avatar · saves instantly", 11, color = Wk.Ink500)
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         listOf(Wk.Orange300, Wk.Pink, Wk.Blue, Wk.Green, Wk.Violet, Wk.Amber).forEachIndexed { i, c ->
-                            Box(Modifier.size(52.dp).clip(CircleShape).background(c).tap { avatar = i; vm.flash("Avatar saved") }, contentAlignment = Alignment.Center) { if (i == avatar) Icon(Icons.Filled.Check, null, tint = Wk.Black950) }
+                            Box(Modifier.size(52.dp).clip(CircleShape).background(c).tap { vm.setAvatar(i) }, contentAlignment = Alignment.Center) { if (i == vm.avatarPreset) Icon(Icons.Filled.Check, null, tint = Wk.Black950) }
                         }
                     }
                 }
@@ -77,11 +76,13 @@ fun SettingsScreen(vm: AppViewModel) {
                 PrimaryButton("Save profile", { vm.saveProfile(display, bio, school, classYear, course, exam, goal, username) }, Modifier.fillMaxWidth())
             }
             1 -> {
-                Section("EMAIL ADDRESS") { Label("CURRENT EMAIL"); WkText(me?.email ?: "", 14, color = Wk.Ink100); Label("CHANGE EMAIL"); var e by remember { mutableStateOf("") }; WkField(e, { e = it }, "new@email.com"); GhostButton("Update", { vm.flash("Confirmation link sent (demo)") }); WkText("We’ll email a confirmation link to both addresses.", 11, color = Wk.Ink500) }
-                Section("CHANGE PASSWORD") { var a by remember { mutableStateOf("") }; var b by remember { mutableStateOf("") }; Label("CURRENT PASSWORD"); WkField(a, { a = it }, "••••••••"); Label("NEW PASSWORD"); WkField(b, { b = it }, "••••••••"); GhostButton("Change password", { vm.flash("Password updated (demo)") }) }
+                Section("EMAIL ADDRESS") { Label("CURRENT EMAIL"); WkText(me?.email ?: "", 14, color = Wk.Ink100); Label("CHANGE EMAIL"); var e by remember { mutableStateOf("") }; WkField(e, { e = it }, "new@email.com"); GhostButton("Update", { if (e.contains("@")) { vm.changeEmail(e); e = "" } else vm.flash("Enter a valid email") }); WkText("We’ll email a confirmation link to both addresses.", 11, color = Wk.Ink500) }
+                Section("CHANGE PASSWORD") { var a by remember { mutableStateOf("") }; var b by remember { mutableStateOf("") }; Label("CURRENT PASSWORD"); WkField(a, { a = it }, "••••••••", password = true); Label("NEW PASSWORD"); WkField(b, { b = it }, "••••••••", password = true); GhostButton("Change password", { if (b.length >= 8) { vm.changePassword(a, b); a = ""; b = "" } else vm.flash("Use at least 8 characters") }) }
                 Section("CONNECTED ACCOUNTS") {
-                    ListRow { WkText("Google", 13, FontWeight.SemiBold, Wk.Ink100, Modifier.weight(1f)); Pill("Connected", Wk.Green) }
-                    ListRow { WkText("Discord", 13, FontWeight.SemiBold, Wk.Ink100, Modifier.weight(1f)); GhostButton("Connect", { vm.flash("Discord linking arrives later") }, height = 32) }
+                    val linked = vm.linkedProviders
+                    listOf("email" to "Email & password", "google" to "Google", "discord" to "Discord").forEach { (id, label) ->
+                        ListRow { WkText(label, 13, FontWeight.SemiBold, Wk.Ink100, Modifier.weight(1f)); if (id in linked) Pill("Connected", Wk.Green) else WkText("Link on the web", 11, color = Wk.Ink500) }
+                    }
                 }
                 Section("DANGER ZONE") {
                     WkText("Delete Account", 14, FontWeight.SemiBold, Wk.Red); WkText("Permanently delete your Wynko account and all data. This can’t be undone.", 11, color = Wk.Ink500)
@@ -135,18 +136,23 @@ private fun PrefSection(vm: AppViewModel, groups: List<Pair<String, List<PrefRow
 @Composable
 fun EarnScreen(vm: AppViewModel) = ScreenColumn {
     var tab by remember { mutableIntStateOf(0) }
-    var pending by remember { mutableStateOf(false) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    LaunchedEffect(Unit) { vm.refreshEarn() }
     Column { Eyebrow("WYNKOHEAD PROGRAM"); WkText("Earn with Wynko", 24, FontWeight.ExtraBold, Wk.Cream50); WkText("Guide students. Grow a community. Get paid.", 13, color = Wk.Ink400) }
     SegmentTabs(listOf("👑 WynkoHead", "🎁 Invite Friends"), tab, { tab = it })
     if (tab == 1) {
-        Eyebrow("HOW FRIEND INVITES WORK", Wk.Orange300)
-        listOf(Triple("🔗", "Share Your Link", "Copy your unique invite link and send it to a friend."), Triple("🎓", "Friend Joins", "Your friend signs up on Wynko using your link."), Triple("🔥", "3-Day Streak", "They study for 3 consecutive days on Wynko."), Triple("🪙", "Both Get WYNKOINS", "You and your friend each receive WYNKOINS instantly!")).forEach { (i, t, d) ->
+        val r = vm.referrals
+        val link = r?.code?.let { "https://wynko.in/login?ref=$it" }
+        Eyebrow("HOW REFERRALS WORK", Wk.Orange300)
+        listOf(Triple("🔗", "Share Your Link", "Send your referral link to a friend."), Triple("🎓", "Friend Joins", "They sign up on Wynko through your link."), Triple("👑", "They Build a Community", "If they become a WynkoHead and their community earns, you get 10% of the platform's share for 6 months.")).forEach { (i, t, d) ->
             ListRow { WkText(i, 22); Column { WkText(t, 13, FontWeight.SemiBold, Wk.Ink100); WkText(d, 11, color = Wk.Ink500) } }
         }
         Column(Modifier.fillMaxWidth().wkCard(borderColor = Wk.Orange600.copy(alpha = 0.3f)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Eyebrow("YOUR INVITE LINK", Wk.Orange300); WkText("🔗 wynko.app/login?ref=JATIN26", 13, FontWeight.SemiBold, Wk.Ink100)
-            PrimaryButton("Copy link", { vm.flash("Invite link copied") }, Modifier.fillMaxWidth())
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { listOf("3" to "Invited", "1" to "On streak", "100" to "WYNKOINS earned").forEach { (v, l) -> Column(horizontalAlignment = Alignment.CenterHorizontally) { WkText(v, 20, FontWeight.ExtraBold, Wk.Cream50); WkText(l, 10, color = Wk.Ink500) } } }
+            Eyebrow("YOUR REFERRAL LINK", Wk.Orange300); WkText(link?.let { "🔗 $it" } ?: "Loading…", 13, FontWeight.SemiBold, Wk.Ink100)
+            PrimaryButton("Copy link", { link?.let { clipboard.setText(androidx.compose.ui.text.AnnotatedString(it)); vm.flash("Referral link copied") } }, Modifier.fillMaxWidth(), enabled = link != null)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                listOf("${r?.peopleReferred ?: 0}" to "Referred", "${r?.communitiesCreated ?: 0}" to "Communities", "₹${(r?.totalEarned ?: 0.0).toInt()}" to "Earned").forEach { (v, l) -> Column(horizontalAlignment = Alignment.CenterHorizontally) { WkText(v, 20, FontWeight.ExtraBold, Wk.Cream50); WkText(l, 10, color = Wk.Ink500) } }
+            }
         }
     } else {
         Eyebrow("HOW WYNKOHEAD WORKS", Wk.Orange300)
@@ -156,16 +162,25 @@ fun EarnScreen(vm: AppViewModel) = ScreenColumn {
                 Column { WkText("$e $t", 14, FontWeight.Bold, Wk.Ink100); WkText(d, 12, color = Wk.Ink400, lineHeight = 1.5f) }
             }
         }
+        val status = vm.wynkoHead
         Column(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { WkText("Become a WynkoHead", 15, FontWeight.Bold, Wk.Ink100, Modifier.weight(1f)); Pill(if (pending) "PENDING" else "18+ ONLY", Wk.Orange300) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WkText("Become a WynkoHead", 15, FontWeight.Bold, Wk.Ink100, Modifier.weight(1f))
+                Pill(when (status) { "pending" -> "PENDING"; "verified" -> "VERIFIED"; "rejected" -> "NOT APPROVED"; else -> "18+ ONLY" }, Wk.Orange300)
+            }
             listOf("Confirm you’re 18 or older", "Apply to become a WynkoHead", "Create a community and switch on monetisation").forEachIndexed { i, t ->
-                val done = pending && i < 2
+                val done = (status == "pending" && i < 2) || (status == "verified" && i < 2)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(24.dp).clip(CircleShape).background(if (done) Color(0x1A34D399) else Wk.OrangeTint), contentAlignment = Alignment.Center) { WkText(if (done) "✓" else "${i + 1}", 11, FontWeight.Bold, if (done) Wk.Green else Wk.Orange200) }
                     WkText(t, 13, color = Wk.Ink300)
                 }
             }
-            PrimaryButton(if (pending) "Application Pending" else "Apply Now", { pending = true; vm.flash("Application submitted (demo)") }, Modifier.fillMaxWidth(), enabled = !pending)
+            when (status) {
+                "verified" -> PrimaryButton("Create your community", { vm.go(Dest.Comms); vm.sheet = SheetKind.CreateCommunity }, Modifier.fillMaxWidth())
+                "pending" -> PrimaryButton("Application Pending", {}, Modifier.fillMaxWidth(), enabled = false)
+                else -> PrimaryButton("Apply Now", { vm.applyWynkoHead() }, Modifier.fillMaxWidth())
+            }
+            WkText("Your date of birth and payout details are set on the web dashboard.", 11, color = Wk.Ink500)
         }
     }
 }

@@ -12,6 +12,7 @@ class BootReceiver : BroadcastReceiver() {
         if (a != Intent.ACTION_BOOT_COMPLETED && a != Intent.ACTION_MY_PACKAGE_REPLACED) return
         ScheduleEnforcer.evaluate(context)
         ScheduleAlarms.rearm(context)
+        ScheduleAlarms.armSync(context)
         if (BlockStore.current(context).active) GuardService.start(context)
     }
 }

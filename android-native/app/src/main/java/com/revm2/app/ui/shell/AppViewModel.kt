@@ -9,6 +9,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.revm2.app.data.*
+import io.github.jan.supabase.auth.auth
 import kotlinx.serialization.json.JsonObject
 import com.revm2.app.locking.ScheduleAlarms
 import com.revm2.app.locking.ScheduleEnforcer
@@ -87,7 +88,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 schedules = ScheduleRepository.refresh(ctx); schedulesError = null
                 recomputeGate()
-                ScheduleEnforcer.evaluate(ctx); ScheduleAlarms.rearm(ctx)
+                ScheduleEnforcer.evaluate(ctx); ScheduleAlarms.rearm(ctx); ScheduleAlarms.armSync(ctx)
             } catch (e: Exception) { schedulesError = "Couldn't refresh schedules; using the saved copy." }
         }
     }
@@ -185,6 +186,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         pomoFocus = focus; pomoBreak = brk; pomoRepeat = repeat; pomoAuto = auto
         if (!running && mode == "pomodoro" && phase == "focus") remaining = focus * 60
         sheet = null; flash("Pomodoro saved · $focus/$brk")
+        // Same user_profiles.pomodoro_settings the web and desktop read.
+        viewModelScope.launch { runCatching { AppRepository.savePomodoro(AppRepository.Pomodoro(focus, brk, repeat, auto)) } }
     }
 
     fun addTask(subject: String, topic: String, minutes: Int = 45) {
@@ -524,6 +527,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 p.preferences.forEach { (k, v) -> (v as? kotlinx.serialization.json.JsonPrimitive)?.booleanOrNull?.let { prefs[k] = it } }
                 if (p.dailyGoalMinutes > 0) dailyGoalHours = (p.dailyGoalMinutes / 60).coerceAtLeast(1)
                 coins = AppRepository.coins()
+                avatarPreset = (p.preferences["avatar_preset"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()?.takeIf { it in 0..5 } ?: 0
+                AppRepository.pomodoro()?.takeIf { it.updatedAt > 0 }?.let { pm ->
+                    pomoFocus = pm.focusMinutes; pomoBreak = pm.breakMinutes; pomoRepeat = pm.repeat; pomoAuto = pm.autoStartBreaks
+                    if (!running && mode == "pomodoro" && phase == "focus") remaining = pm.focusMinutes * 60
+                }
                 val remote = AppRepository.tasks()
                 tasks.clear(); tasks.addAll(remote)
                 accountError = null
@@ -601,6 +609,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try { AppRepository.deleteAccount(); sheet = null; AuthRepository.signOut() }
             catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't delete your account") }
         }
+    }
+
+    // ── account extras (same calls as web Settings / Earn) ──
+    var avatarPreset by mutableStateOf(0); private set
+    /** Sign-in methods on this account ("email", "google", "discord"...). Linking new ones is done on the web. */
+    val linkedProviders: List<String> get() = runCatching {
+        Supabase.client.auth.currentUserOrNull()?.identities?.map { it.provider }.orEmpty()
+    }.getOrDefault(emptyList())
+    fun setAvatar(i: Int) {
+        val old = avatarPreset; avatarPreset = i
+        viewModelScope.launch {
+            try { AppRepository.saveAvatarPreset(profile?.preferences ?: JsonObject(emptyMap()), i); profile = AppRepository.profile(); flash("Avatar saved") }
+            catch (e: Exception) { avatarPreset = old; flash("Couldn't save your avatar") }
+        }
+    }
+    fun changeEmail(email: String) {
+        viewModelScope.launch { try { AppRepository.changeEmail(email); flash("Check both inboxes to confirm the change") } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't change your email") } }
+    }
+    fun changePassword(current: String, next: String) {
+        viewModelScope.launch { try { AppRepository.changePassword(current, next); flash("Password updated") } catch (e: Exception) { flash(e.message?.take(80) ?: "Couldn't change your password") } }
+    }
+    var referrals by mutableStateOf<AppRepository.Referrals?>(null); private set
+    var wynkoHead by mutableStateOf("none"); private set
+    fun refreshEarn() {
+        viewModelScope.launch {
+            try { referrals = AppRepository.referrals() } catch (_: Exception) {}
+            try { wynkoHead = AppRepository.wynkoHeadStatus() } catch (_: Exception) {}
+        }
+    }
+    fun applyWynkoHead() {
+        viewModelScope.launch { try { AppRepository.applyWynkoHead(); wynkoHead = AppRepository.wynkoHeadStatus(); flash("Application submitted") } catch (e: Exception) { flash(e.message?.take(100) ?: "Couldn't submit your application") } }
     }
 
     fun signOut() { viewModelScope.launch { try { AuthRepository.signOut() } catch (e: Exception) { flash("Couldn't sign out") } } }

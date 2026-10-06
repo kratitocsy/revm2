@@ -106,7 +106,9 @@ fun SchedulesScreen(vm: AppViewModel) = ScreenColumn {
                 Pill(if (s.active) "ACTIVE" else "PAUSED", if (s.active) Wk.Green else Wk.Ink400)
             }
             WkText(s.days.sorted().joinToString(" ") { DayShort[it] } + (s.parity?.let { " · alternate weeks" } ?: "") + " · ${s.slots.size} block${if (s.slots.size == 1) "" else "s"}", 11, color = Wk.Ink500)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (s.name.startsWith(com.revm2.app.locking.ScheduleEnforcer.COMMUNITY_PREFIX)) {
+                WkText("Set by your community · strict on every device (no early unlock). Stop following it from the community's Schedule tab.", 11, color = Wk.Orange300, lineHeight = 1.4f)
+            } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GhostButton(if (s.active) "Pause" else "Resume", { vm.requireGate { vm.setScheduleActive(s.id, !s.active) } }, height = 36)
                 GhostButton("Remove", { vm.requireGate { vm.removeSchedule(s.id) } }, height = 36, textColor = Wk.Red, border = Wk.Red.copy(alpha = 0.4f))
             }

@@ -200,6 +200,55 @@ object AppRepository {
         sb.postgrest.rpc("respond_battle_challenge", buildJsonObject { put("p_invitation_id", invitationId); put("p_accept", accept) })
     }
 
+    // ── account & settings extras (same calls as the web's lib/settings.ts) ──
+
+    /** Supabase Auth sends confirmation links to both addresses. */
+    suspend fun changeEmail(email: String) { sb.auth.updateUser { this.email = email.trim() } }
+
+    /** Re-checks the current password first, as the web does. */
+    suspend fun changePassword(current: String, next: String) {
+        val email = user.email ?: error("This account has no email password")
+        try { sb.auth.signInWith(io.github.jan.supabase.auth.providers.builtin.Email) { this.email = email; password = current } }
+        catch (e: Exception) { throw IllegalStateException("Your current password is incorrect.") }
+        sb.auth.updateUser { password = next }
+    }
+
+    /** preferences.avatar_preset (0-5), merged into the preferences object like the web. */
+    suspend fun saveAvatarPreset(existing: JsonObject, preset: Int) {
+        sb.from("user_profiles").update({ set("preferences", JsonObject(existing + ("avatar_preset" to JsonPrimitive(preset)))) }) { filter { eq("id", user.id) } }
+    }
+
+    // user_profiles.pomodoro_settings: { focusMinutes, breakMinutes, repeat, autoStartBreaks, updatedAt }, shared with web/desktop.
+    @Serializable
+    data class Pomodoro(val focusMinutes: Int = 25, val breakMinutes: Int = 5, val repeat: Boolean = true, val autoStartBreaks: Boolean = true, val updatedAt: Long = 0)
+    @Serializable private data class PomodoroRow(@SerialName("pomodoro_settings") val settings: Pomodoro? = null)
+
+    suspend fun pomodoro(): Pomodoro? =
+        sb.from("user_profiles").select(io.github.jan.supabase.postgrest.query.Columns.list("pomodoro_settings")) { filter { eq("id", user.id) } }
+            .decodeSingleOrNull<PomodoroRow>()?.settings?.let { it.copy(focusMinutes = it.focusMinutes.coerceIn(1, 180), breakMinutes = it.breakMinutes.coerceIn(1, 60)) }
+
+    suspend fun savePomodoro(p: Pomodoro) {
+        sb.from("user_profiles").update({ set("pomodoro_settings", p.copy(updatedAt = System.currentTimeMillis())) }) { filter { eq("id", user.id) } }
+    }
+
+    // ── referrals + WynkoHead (migrations 0071/0079) ──
+    @Serializable
+    data class Referrals(
+        @SerialName("referral_code") val code: String? = null, @SerialName("people_referred") val peopleReferred: Int = 0,
+        @SerialName("communities_created") val communitiesCreated: Int = 0, @SerialName("total_earned") val totalEarned: Double = 0.0,
+    )
+    suspend fun referrals(): Referrals {
+        sb.postgrest.rpc("my_referral_code")
+        return sb.postgrest.rpc("my_referral_summary").decodeList<Referrals>().firstOrNull() ?: Referrals()
+    }
+
+    @Serializable private data class HeadRow(@SerialName("is_revhead") val isRevhead: Boolean? = null, @SerialName("revhead_status") val status: String? = null)
+    /** "none" | "pending" | "verified" | "rejected" */
+    suspend fun wynkoHeadStatus(): String =
+        sb.from("user_profiles").select(io.github.jan.supabase.postgrest.query.Columns.list("is_revhead", "revhead_status")) { filter { eq("id", user.id) } }
+            .decodeSingleOrNull<HeadRow>()?.status?.takeIf { it in listOf("pending", "verified", "rejected") } ?: "none"
+    suspend fun applyWynkoHead() { sb.postgrest.rpc("revhead_apply", buildJsonObject { put("p_referral_code", kotlinx.serialization.json.JsonNull) }) }
+
     private fun ago(iso: String?): String {
         val t = try { OffsetDateTime.parse(iso ?: return "").toInstant().toEpochMilli() } catch (e: Exception) { return "" }
         val mins = ((System.currentTimeMillis() - t) / 60_000).coerceAtLeast(0)

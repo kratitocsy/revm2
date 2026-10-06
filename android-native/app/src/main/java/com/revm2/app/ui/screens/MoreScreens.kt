@@ -152,8 +152,7 @@ fun WynkoinsScreen(vm: AppViewModel) {
                 }
             }
             Eyebrow("EARN FREE WYNKOINS", Wk.Orange300)
-            ListRow(onClick = { vm.go(Dest.Earn) }) { WkText("🎁", 20); Column(Modifier.weight(1f)) { WkText("Invite a friend", 13, FontWeight.SemiBold, Wk.Ink100); WkText("+50 coins after their 3-day streak", 11, color = Wk.Ink500) } }
-            ListRow { WkText("🔥", 20); Column(Modifier.weight(1f)) { WkText("Daily study streak", 13, FontWeight.SemiBold, Wk.Ink100); WkText("Coming soon", 11, color = Wk.Ink500) } }
+            ListRow(onClick = { vm.go(Dest.Earn) }) { WkText("🎁", 20); Column(Modifier.weight(1f)) { WkText("Invite a friend", 13, FontWeight.SemiBold, Wk.Ink100); WkText("Referrals and the WynkoHead program", 11, color = Wk.Ink500) } }
         }
     }
 }

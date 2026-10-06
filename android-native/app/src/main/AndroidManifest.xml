@@ -77,6 +77,9 @@
         <!-- Fires at schedule slot boundaries to start/end the scheduled block -->
         <receiver android:name=".locking.ScheduleReceiver" android:exported="false" />
 
+        <!-- Re-downloads schedules every ~15 min so ones accepted on web/desktop are enforced here too -->
+        <receiver android:name=".locking.ScheduleSyncReceiver" android:exported="false" />
+
         <!-- Device Admin (not Device Owner) — uninstall-resistance friction -->
         <receiver
             android:name=".locking.RevM2DeviceAdminReceiver"

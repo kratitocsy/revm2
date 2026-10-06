@@ -216,7 +216,7 @@ fun CommunityStudentScreen(vm: AppViewModel) {
                         WkText("Focus Lock follows this week on all your devices.", 12, color = Wk.Ink400, modifier = Modifier.weight(1f))
                         GhostButton("Stop", { vm.decideCommunitySchedule(sched, false) }, height = 38)
                     }
-                    WkText("Accepting pauses your own schedules while you follow this one. Subjects you've set up with Wynky keep their allow-lists; others use a standard blocklist.", 11, color = Wk.Ink500, lineHeight = 1.4f)
+                    WkText("Accepting pauses your own schedules while you follow this one, and its blocks are strict on every device: no early unlock; on Android, Settings and Reels/Shorts are closed too. Subjects you've set up with Wynky keep their allow-lists; others use a standard blocklist.", 11, color = Wk.Ink500, lineHeight = 1.4f)
                 }
             }
             2 -> {

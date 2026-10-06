@@ -31,12 +31,13 @@ fun wkFieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-fun WkField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, singleLine: Boolean = true, number: Boolean = false, minLines: Int = 1) {
+fun WkField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, singleLine: Boolean = true, number: Boolean = false, minLines: Int = 1, password: Boolean = false) {
     OutlinedTextField(
         value, onChange, modifier = modifier.fillMaxWidth(), singleLine = singleLine, minLines = minLines,
         placeholder = { WkText(placeholder, 13, color = Wk.Ink600) },
         textStyle = TextStyle(fontFamily = Jakarta, fontSize = 14.sp, color = Wk.Ink100),
-        keyboardOptions = KeyboardOptions(keyboardType = if (number) KeyboardType.Number else KeyboardType.Text),
+        keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else if (number) KeyboardType.Number else KeyboardType.Text),
+        visualTransformation = if (password) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         colors = wkFieldColors(), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     )
 }
