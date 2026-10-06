@@ -71,6 +71,24 @@ jobs:
             rm -f "$OUT"
             sed -i 's#href="Wynko-Setup-x64.exe" download="Wynko-Setup-x64.exe"#href="'"$URL"'"#' downloads/index.html
           fi
+      # Android "Advanced Lock" (device-owner) APK. Built and published to the
+      # android-advanced-latest release separately; copy it into the site so
+      # /downloads serves it. If there is no release yet, swap the button for a
+      # "Coming soon" label so the page never ships a dead link.
+      - name: Attach the Android Advanced Lock APK
+        shell: bash
+        run: |
+          URL=https://github.com/kratitocsy/revm2/releases/download/android-advanced-latest/Wynko-Advanced-Lock.apk
+          OUT=downloads/Wynko-Advanced-Lock.apk
+          if curl -fL --retry 3 --retry-delay 5 -o "$OUT" "$URL" \
+             && [ "$(stat -c%s "$OUT")" -gt 1000000 ] \
+             && [ "$(head -c2 "$OUT")" = "PK" ]; then
+            echo "Attached $(stat -c%s "$OUT") bytes"
+          else
+            echo "::warning::No Advanced Lock APK release yet; showing 'Coming soon' on the downloads page."
+            rm -f "$OUT"
+            sed -i 's#<a class="btn" id="android-download"[^>]*>Download APK</a>#<span class="btn off">Coming soon</span>#' downloads/index.html
+          fi
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

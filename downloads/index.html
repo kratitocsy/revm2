@@ -30,6 +30,9 @@
   @media (prefers-reduced-motion:reduce){.guide.flash{animation:none}}
   .guide a.shot{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--border);line-height:0;background:#fff}
   .guide img{width:100%;height:auto;display:block}
+  .btn.off{background:rgba(255,255,255,.08);color:var(--text-3);cursor:default}
+  .warn{margin-top:14px;padding:14px 16px;border:1px solid rgba(255,169,77,.45);border-left-width:4px;border-radius:14px;background:rgba(255,169,77,.07);font-size:13px;color:var(--text)}
+  .warn b{color:#FFA94D}
   small a{color:var(--orange);text-decoration:underline;text-underline-offset:2px}
   small{color:var(--text-3);display:block;margin-top:10px;font-size:12px}
 </style>
@@ -38,7 +41,7 @@
 <main>
   <a class="back" href="../?stay">&larr; Back to Wynko</a>
   <h1>Download Wynko</h1>
-  <p class="lead">The desktop app and the browser extension work together. Install both for the strongest Focus Lock.</p>
+  <p class="lead">The desktop app and the browser extension work together, and Android has an Advanced Lock build for a spare study phone. Install both for the strongest Focus Lock.</p>
 
   <section class="card" id="desktop">
     <h2>Wynko for Windows</h2>
@@ -54,6 +57,21 @@
       </a>
       <small>An older &ldquo;revm2&rdquo; install is removed for you.</small>
     </div>
+  </section>
+
+  <section class="card" id="android">
+    <h2>Wynko for Android &middot; Advanced Lock</h2>
+    <p>The strongest block Android allows. Wynko takes device-owner control of the phone: other apps are suspended and can&rsquo;t be opened, only Wynko runs, and Settings is locked while a session is live.</p>
+    <a class="btn" id="android-download" href="Wynko-Advanced-Lock.apk" download>Download APK</a>
+    <small>Direct download (not on Google Play) &middot; Android 8.0+ &middot; <a href="https://github.com/kratitocsy/revm2/releases/download/android-advanced-latest/Wynko-Advanced-Lock.apk">Download not starting? Use the GitHub link</a></small>
+    <div class="warn" role="note">
+      <b>&#9888;&#65039; Read this first &mdash; it needs a factory reset.</b> Advanced Lock can only be switched on for a phone with <b>no Google account signed in</b>, which in practice means a freshly reset phone. Undoing it needs <b>another factory reset</b>. Use it on a <b>spare, study-only phone</b>, not your daily one. For everyday phones use the regular Wynko app, which blocks apps and sites without a reset.
+    </div>
+    <ol>
+      <li>Reset a spare phone (or use one that has never been set up) and skip signing in to Google.</li>
+      <li>Download the APK above and allow &ldquo;Install unknown apps&rdquo; for your browser when Android asks.</li>
+      <li>Open Wynko and choose <b>Advanced Lock</b>; it walks you through the one-time device-owner setup.</li>
+    </ol>
   </section>
 
   <section class="card" id="extension">

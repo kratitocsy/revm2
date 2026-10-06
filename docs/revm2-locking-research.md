@@ -84,6 +84,9 @@ None of this ports to Android as-is. Needs a different mechanism, not a translat
 
 ## Build path (when we get to it)
 
+> **Update (Oct 2026):** superseded. The Android app is fully native (`android-native/`, Kotlin + Compose) and the Capacitor shell was removed. The Capacitor steps below are kept for history only.
+
+
 1. **Capacitor**, not a bare PWA/TWA wrapper — wraps existing web frontend
    (`groups.html`, `materials.js`, `materials-viewer.js`, etc.) completely
    unchanged. Native Kotlin plugin added on top for the blocking logic,
@@ -260,3 +263,37 @@ shell:
 Fastest path to something real: Phases 1–2 alone (wrapper + mobile-native
 shell, no blocking yet) is a shippable v1 APK in under a week — Tier 2+3
 blocking can follow as a v1.1 once the base app is stable on real devices.
+
+---
+
+## Addendum (Oct 2026): native Android app - Play-compliant ceiling, as built
+
+The native app (`android-native/`) implements the strongest blocking that fits Google Play. Device Owner (Tier 4)
+stays out of the Play build (see the Advanced Lock APK download on the website).
+
+| Capability | How | Play notes |
+|---|---|---|
+| App block | Accessibility service reads only the foreground package, shows an overlay then sends the user Home | Prominent in-app disclosure before the Settings hand-off; `isAccessibilityTool="false"`; no window content read |
+| Site block | Local VPN, DNS-only, NXDOMAIN for blocked domains; DoH/DoT resolver domains blocked so secure DNS can't bypass it | Disclosure; no remote server |
+| Reels & Shorts block | Same accessibility service, `canRetrieveWindowContent` on, but content events are only subscribed while Instagram or YouTube is in front **and** the feature is on. It looks up specific view ids (`ShortFormHints.kt`) and presses Back (Home if it keeps returning). Modes: off / in sessions / always | Separate consent dialog; the Accessibility disclosure mentions it; Permission Declaration Form must say it reads only the Reels/Shorts markers. View ids are internal to those apps and drift with updates - keep the list current |
+| Notification block | `NotificationListenerService` cancels notifications from blocked apps | Disclosure; reads only the posting package |
+| Stay alive | Foreground `GuardService` (specialUse) with ongoing notification; battery "Unrestricted" prompt (no restricted permission); `BootReceiver` resumes a running session after reboot | `FOREGROUND_SERVICE_SPECIAL_USE` declaration needed in Play Console |
+| Tamper resistance | Device Admin (uninstall needs an extra step); **strict mode** also blocks the Settings app and package installer for the session | Strict mode is opt-in; timed sessions end by themselves so it cannot trap a user |
+| Tamper reporting | Accessibility off / VPN revoked / admin deactivated mid-session marks the session unverified | |
+| Stats | Usage Access screen time | |
+| App picker | `<queries>` for launchable apps instead of `QUERY_ALL_PACKAGES` | Avoids a restricted permission |
+
+Still outside the Play ceiling: killing apps, kiosk pinning and locking Settings against the user outside a session.
+
+### Schedules on the phone (Oct 2026)
+
+The native app follows the desktop's schedule rules (`schedule/ScheduleGate.kt` is a port of
+`src/apps/desktop-dashboard/lib/scheduleWindow.ts`):
+
+- Schedules, slots and the preset each slot enforces are read from the same Supabase tables as desktop and `schedule-tick`, and cached on the phone.
+- India-time clock, alternate-week parity, midnight-crossing blocks.
+- On a day a schedule runs the focus timer only starts inside one of its blocks.
+- Inside a block: 2 free 20-minute pauses per schedule per day, then the 150-character reflection (spaces don't count).
+- Pausing/removing a schedule needs the 500-character typed code.
+- On-device enforcement (`ScheduleEnforcer` + exact alarms + boot re-arm) mirrors `schedule-tick`: starts the slot's saved block once per slot per day, schedule wins over a running block, Sleep slots block everything (allow-only, empty list, locked), ending a block early does not relock that slot, the block ends with the slot. It never writes to the database, so it agrees with the server tick instead of racing it.
+- Not ported yet: creating/editing schedules (desktop/web only, behind the 500/250-character gates), study-timer auto-start from a slot's subject, schedule overrides.

@@ -1,0 +1,117 @@
+name: Android native build
+
+# Builds, tests and distributes the native Compose app in android-native/ (replaces the old Capacitor workflow, including its Firebase App Distribution step).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/android-native-build.yml'
+  pull_request:
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/android-native-build.yml'
+  workflow_dispatch: {}
+
+# The build only reads the repo; give the token nothing more (CodeQL: workflow does not limit GITHUB_TOKEN).
+permissions:
+  contents: read
+
+# A newer push supersedes an older run of the same branch.
+concurrency:
+  group: android-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the release-notes step can list every commit in a push.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # ubuntu-latest ships the Android SDK (ANDROID_HOME); Gradle fetches the platform/build-tools it needs.
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-native-${{ hashFiles('android-native/**/*.gradle*', 'android-native/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - run: chmod +x ./gradlew
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Lint
+        run: ./gradlew :app:lintDebug --stacktrace
+
+      - name: Build debug APK
+        # versionCode must increase for Android to treat a build as an update; run_number does that.
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace \
+            -PappVersionCode=${{ github.run_number }} \
+            -PappVersionName=1.0.${{ github.run_number }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wynko-native-debug
+          path: android-native/app/build/outputs/apk/debug/*.apk
+
+      # Firebase App Distribution, same app and testers group as the old Capacitor build (same applicationId,
+      # com.revm2.app, and the same google-services.json). Only on main, and only once the secrets exist.
+      - name: Check Firebase secrets present
+        id: firebase_check
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$FIREBASE_APP_ID" ] && [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Firebase App Distribution -- FIREBASE_APP_ID / FIREBASE_SERVICE_ACCOUNT secrets not set."
+          fi
+
+      - name: Build release notes
+        if: steps.firebase_check.outputs.ready == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        working-directory: .
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && \
+             [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            git log --pretty=format:"- %s (%h)" "${{ github.event.before }}..${{ github.event.after }}" > release_notes.txt
+          fi
+          if [ ! -s release_notes.txt ]; then
+            git log -1 --pretty=format:"- %s (%h)" > release_notes.txt
+          fi
+          cat release_notes.txt
+
+      - name: Distribute via Firebase App Distribution
+        if: steps.firebase_check.outputs.ready == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: testers
+          file: android-native/app/build/outputs/apk/debug/app-debug.apk
+          releaseNotesFile: release_notes.txt
+
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-native-reports
+          path: |
+            android-native/app/build/reports/**
+            android-native/app/build/test-results/**
