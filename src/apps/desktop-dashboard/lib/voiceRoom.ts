@@ -74,6 +74,16 @@ function chime(up: boolean) {
   } catch { /* chimes are a nicety */ }
 }
 
+// Agora retries quietly when it cannot reach its servers (blocked network, firewall), which would
+// leave the bar on "Connecting…" for a long time. Give up with a clear message instead.
+const CONNECT_TIMEOUT_MS = 20_000;
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
 function typingInField(): boolean {
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;
@@ -246,7 +256,8 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
         if (cur === 'DISCONNECTED' && stateRef.current.status === 'on') { void leave(); }
       });
 
-      const uid = await client.join(app_id, `voice-${groupId}`, token, null);
+      const uid = await withTimeout(client.join(app_id, `voice-${groupId}`, token, null), CONNECT_TIMEOUT_MS,
+        'Could not connect to voice. Check your internet connection, or a firewall that blocks voice calls, and try again.');
       agoraUidRef.current = String(uid);
       joinedAtRef.current = Date.now();
       client.enableAudioVolumeIndicator();
@@ -269,7 +280,9 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
       ch.on('presence', { event: 'join' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(true); });
       ch.on('presence', { event: 'leave' }, ({ key }) => { if (key !== myUserId && !livePrefsRef.current.quiet) chime(false); });
       await new Promise<void>((resolve) => {
-        ch.subscribe((s) => { if (s === 'SUBSCRIBED') resolve(); if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') resolve(); });
+        // Presence only labels who is who; if it cannot connect the call itself still works.
+        const giveUp = setTimeout(resolve, 8_000);
+        ch.subscribe((s) => { if (s === 'SUBSCRIBED' || s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') { clearTimeout(giveUp); resolve(); } });
       });
 
       // Everyone joins muted, so the browser never asks for the microphone

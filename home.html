@@ -30,6 +30,10 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="module" src="home-app-dist/home-app.js?v=rebrand0001"></script>
+<!-- No ?v= on this URL, on purpose: the bundle's lazy-loaded parts (voice, PDF, Word import) import it
+     as ./home-app.js, and a different URL (even just a query string) makes the browser run the whole
+     app a second time the first time one of them loads, which resets the page. Vercel serves it with
+     revalidation, so it does not need a version suffix. -->
+<script type="module" src="home-app-dist/home-app.js"></script>
 </body>
 </html>
