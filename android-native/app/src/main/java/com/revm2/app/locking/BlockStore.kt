@@ -193,6 +193,22 @@ object BlockStore {
         return isAppBlockedForSession(s, packageName, ctx.packageName, launcherPackages(ctx), tamperPackages(ctx))
     }
 
+    /**
+     * Uninstall protection for every active session, not only strict ones: the system uninstall confirmation
+     * (package installer) and Android's Device Admin deactivation screen are closed while a block runs. With
+     * Wynko's Device Admin switched on, Android refuses to uninstall it until admin is deactivated, and that screen
+     * is closed too - so Wynko can't be uninstalled mid-session. Settings itself stays usable in normal sessions.
+     */
+    fun isUninstallGuarded(ctx: Context, packageName: String, className: String?): Boolean =
+        isUninstallGuardedForSession(current(ctx), packageName, className)
+
+    fun isUninstallGuardedForSession(s: Session, packageName: String, className: String?): Boolean {
+        if (!s.active) return false
+        if (packageName in INSTALLER_PACKAGES) return true
+        // com.android.settings.DeviceAdminAdd (older) / ...specialaccess.deviceadmin.DeviceAdminAdd (newer), OEM copies alike.
+        return className?.contains("DeviceAdminAdd") == true
+    }
+
     fun isDomainBlocked(ctx: Context, domain: String): Boolean =
         isDomainBlockedForSession(current(ctx), domain)
 
