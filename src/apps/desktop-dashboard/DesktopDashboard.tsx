@@ -61,7 +61,7 @@ import {
   type RoomRow, type RoomMember,
 } from './lib/studyRooms'
 import { useVoiceRoom } from './lib/voiceRoom'
-import VoicePanel from './VoicePanel'
+import VoiceTile from './VoiceTile'
 import {
   fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
   sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
@@ -3025,7 +3025,7 @@ function MicOffIcon() {
 }
 
 // ─── Bot Card ─────────────────────────────────────────────────────────────────
-function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string }) {
+function BotCard({ bot, canKick, onKick, avatarUrl, hideMicBadge }: { bot: BotParticipant; canKick?: boolean; onKick?: () => void; avatarUrl?: string; hideMicBadge?: boolean }) {
   const fmtTime = (secs: number) => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60)
     return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
@@ -3085,10 +3085,12 @@ function BotCard({ bot, canKick, onKick, avatarUrl }: { bot: BotParticipant; can
       ) : (
         <StudyingAvatar cardGrad={bot.cardGrad} accentColor={bot.accentColor} />
       )}
-      <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <MicOffIcon />
-      </div>
+      {!hideMicBadge && (
+        <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <MicOffIcon />
+        </div>
+      )}
       {canKick && (
         <button onClick={onKick}
           className="absolute top-2.5 left-2.5 text-[9px] px-2 py-0.5 rounded-full transition-all hover:bg-red-500/20"
@@ -6908,8 +6910,6 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
             )}
           </div>
 
-          {isRealRoom && live.status === 'ready' && <VoicePanel voice={voice} members={live.members} />}
-
           {/* Tabs */}
           <div className="flex-shrink-0 mb-5 flex rounded-2xl border overflow-hidden bg-[#161618] border-[#26262A]"
             >
@@ -6942,12 +6942,15 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
             {activeTab === 'studying' && isRealRoom && live.status === 'ready' && (
               <div className="grid grid-cols-3 gap-5">
                 {memberCards.map(p => (
-                  <BotCard key={p.id}
-                    bot={p}
-                    canKick={amAdmin && !p.isMe}
-                    onKick={() => p.userId && void kick(p.userId)}
-                    avatarUrl={p.avatarUrl}
-                  />
+                  <VoiceTile key={p.id} voice={voice} userId={p.userId} isMe={!!p.isMe} groupId={room.groupId!}>
+                    <BotCard
+                      bot={p}
+                      canKick={amAdmin && !p.isMe}
+                      onKick={() => p.userId && void kick(p.userId)}
+                      avatarUrl={p.avatarUrl}
+                      hideMicBadge
+                    />
+                  </VoiceTile>
                 ))}
                 {seatsLeft > 0 && (
                   <div className="rounded-2xl border overflow-hidden flex flex-col items-center justify-center py-10 cursor-pointer hover:border-wk-orange-500/30 transition-colors"

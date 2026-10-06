@@ -69,6 +69,7 @@ export function notificationIcon(type: string): string {
     case 'grid_session_invite': return '🎥';
     case 'challenge_invite': return '⚔️';
     case 'gvg_invite': return '🏆';
+    case 'voice_nudge': return '🎙️';
     default: return '🔔';
   }
 }

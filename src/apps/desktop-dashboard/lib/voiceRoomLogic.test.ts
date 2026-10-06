@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_VOICE_PREFS, QUIET_VOLUME_FACTOR, micShouldBeOn, remoteVolume, sanitizePrefs,
+  DEFAULT_VOICE_PREFS, micShouldBeOn, remoteVolume, sanitizePrefs,
   peersFromPresence, speakingUserIds, sameSet,
 } from './voiceRoomLogic'
 
@@ -20,8 +20,8 @@ describe('micShouldBeOn', () => {
 
 describe('remoteVolume', () => {
   it('passes the slider through normally', () => expect(remoteVolume({ volume: 80, quiet: false, deafened: false })).toBe(80))
-  it('plays quieter in quiet mode', () => {
-    expect(remoteVolume({ volume: 100, quiet: true, deafened: false })).toBe(Math.round(100 * QUIET_VOLUME_FACTOR))
+  it('hears nobody in quiet mode, whatever the slider says', () => {
+    expect(remoteVolume({ volume: 100, quiet: true, deafened: false })).toBe(0)
   })
   it('is silent when deafened, whatever the slider says', () => {
     expect(remoteVolume({ volume: 100, quiet: false, deafened: true })).toBe(0)

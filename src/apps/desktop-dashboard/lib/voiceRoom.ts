@@ -18,19 +18,21 @@ import {
 
    The microphone is only opened while it is actually live: muting
    closes it (so the browser's mic light goes off) and unmuting
-   opens it again. Joining in quiet mode never asks for the mic at
-   all. The pure rules live in voiceRoomLogic.ts.
+   opens it again, and everyone joins muted, so the mic is never
+   requested until you choose to talk. Quiet mode silences everyone
+   else for you. The pure rules live in voiceRoomLogic.ts.
    ============================================================ */
 
 const PREFS_KEY = 'wynko.voice.prefs.v1';
 
 export type VoiceStatus = 'off' | 'joining' | 'on';
 
+// Quiet mode is deliberately not remembered: a call that opens in silence would look broken.
 function loadPrefs(): VoicePrefs {
-  try { return sanitizePrefs(JSON.parse(localStorage.getItem(PREFS_KEY) || 'null')); } catch { return { ...DEFAULT_VOICE_PREFS }; }
+  try { return { ...sanitizePrefs(JSON.parse(localStorage.getItem(PREFS_KEY) || 'null')), quiet: false }; } catch { return { ...DEFAULT_VOICE_PREFS }; }
 }
 function savePrefs(p: VoicePrefs) {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* private mode: just don't remember */ }
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ ...p, quiet: false })); } catch { /* private mode: just don't remember */ }
 }
 
 function friendlyError(e: unknown): string {
@@ -232,7 +234,7 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
       setStatus('on');
       trackPresence();
       applyPlayback();
-      if (!livePrefsRef.current.quiet) setNotice('You joined muted. Tap the mic to talk.');
+      setNotice('You joined muted. Tap the mic to talk.');
     } catch (e) {
       await teardown();
       stateRef.current = { ...stateRef.current, status: 'off' };
@@ -255,11 +257,8 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
     setPrefs(prev => { const next = sanitizePrefs({ ...prev, ...patch }); savePrefs(next); return next; });
   }, []);
 
-  /** Quiet mode: mute the mic, play others quieter, and stop the join/leave chimes. */
-  const setQuiet = useCallback((on: boolean) => {
-    updatePrefs({ quiet: on });
-    if (on) setMuted(true);
-  }, [updatePrefs]);
+  /** Quiet mode: hear nobody, and no join/leave chimes. Your mic is left as it is. */
+  const setQuiet = useCallback((on: boolean) => { updatePrefs({ quiet: on }); }, [updatePrefs]);
 
   // Mic follows mute / deafen / push-to-talk; presence and playback follow the same state.
   useEffect(() => {
@@ -306,3 +305,16 @@ export function useVoiceRoom(groupId: string | null, myUserId: string | null) {
 }
 
 export type VoiceRoom = ReturnType<typeof useVoiceRoom>;
+
+export type NudgeResult = 'sent' | 'cooldown' | 'unavailable' | 'error';
+
+/** Sends "asked you to talk" to another member (see migration 0106). */
+export async function nudgeToTalk(groupId: string, userId: string): Promise<NudgeResult> {
+  const { data, error } = await sb.rpc('rpc_nudge_to_talk', { p_group_id: groupId, p_user_id: userId });
+  if (error) {
+    // PGRST202 / "could not find the function": the migration isn't applied yet.
+    if (/PGRST202|could not find the function|does not exist/i.test(`${error.code || ''} ${error.message || ''}`)) return 'unavailable';
+    return 'error';
+  }
+  return data === 'cooldown' ? 'cooldown' : 'sent';
+}

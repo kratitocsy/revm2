@@ -2,8 +2,8 @@
 // apart from voiceRoom.ts so they can be unit-tested with plain vitest.
 
 export interface VoicePrefs {
-  /** Quiet mode: join/stay muted (listen-only), others play at a lower level,
-   *  and join/leave chimes are off. */
+  /** Quiet mode: you hear nobody (everyone else is silenced for you) and the
+   *  join/leave chimes are off. Your own microphone is unaffected. */
   quiet: boolean
   /** Playback volume for everyone else, 0-100. */
   volume: number
@@ -23,9 +23,6 @@ export const DEFAULT_VOICE_PREFS: VoicePrefs = {
   pushToTalk: false,
 }
 
-/** Quiet mode plays other people at this fraction of the volume slider. */
-export const QUIET_VOLUME_FACTOR = 0.35
-
 /** Anything above this on Agora's 0-100 volume indicator counts as speaking. */
 export const SPEAKING_LEVEL = 8
 
@@ -40,9 +37,8 @@ export function micShouldBeOn(s: { muted: boolean; deafened: boolean; pushToTalk
 
 /** Playback volume (0-100) to apply to every remote voice. */
 export function remoteVolume(s: { volume: number; quiet: boolean; deafened: boolean }): number {
-  if (s.deafened) return 0
-  const base = clamp(Math.round(s.volume), 0, 100)
-  return s.quiet ? Math.round(base * QUIET_VOLUME_FACTOR) : base
+  if (s.deafened || s.quiet) return 0
+  return clamp(Math.round(s.volume), 0, 100)
 }
 
 /** Fills in anything missing or malformed from stored preferences. */
