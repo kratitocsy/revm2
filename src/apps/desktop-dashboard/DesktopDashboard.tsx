@@ -60,6 +60,8 @@ import {
   useStudyRooms, useRoomLive, joinRoom, leaveRoom, createRoom, kickMember, sendRoomMessage, roomInviteLink,
   type RoomRow, type RoomMember,
 } from './lib/studyRooms'
+import { useVoiceRoom } from './lib/voiceRoom'
+import VoicePanel from './VoicePanel'
 import {
   fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
   sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
@@ -6566,6 +6568,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
   // Real room: members + live study state + chat from Supabase (lib/studyRooms.ts).
   const live = useRoomLive(room.groupId ?? null)
   const isRealRoom = !!room.groupId
+  // Voice (audio only) for real rooms: the call lives in lib/voiceRoom.ts, the controls in VoicePanel.tsx.
+  const voice = useVoiceRoom(isRealRoom ? room.groupId ?? null : null, live.members.find(m => m.is_me)?.user_id ?? null)
   const [nowMs, setNowMs] = useState(() => Date.now())
   useEffect(() => {
     if (!isRealRoom) return
@@ -6903,6 +6907,8 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
               </div>
             )}
           </div>
+
+          {isRealRoom && live.status === 'ready' && <VoicePanel voice={voice} members={live.members} />}
 
           {/* Tabs */}
           <div className="flex-shrink-0 mb-5 flex rounded-2xl border overflow-hidden bg-[#161618] border-[#26262A]"
