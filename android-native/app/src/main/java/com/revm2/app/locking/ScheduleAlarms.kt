@@ -30,6 +30,18 @@ object ScheduleAlarms {
         }
     }
 
+    /**
+     * Every ~15 minutes, download the schedules again (ScheduleSyncReceiver) so one accepted or changed on the
+     * web/desktop reaches the phone without the app being opened. Inexact, so it costs no exact-alarm permission.
+     */
+    fun armSync(ctx: Context) {
+        val am = ctx.getSystemService(AlarmManager::class.java) ?: return
+        val pi = PendingIntent.getBroadcast(ctx, 7732, Intent(ctx, ScheduleSyncReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        am.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + AlarmManager.INTERVAL_FIFTEEN_MINUTES,
+            AlarmManager.INTERVAL_FIFTEEN_MINUTES, pi)
+    }
+
     private fun pending(ctx: Context) = PendingIntent.getBroadcast(
         ctx, 7731, Intent(ctx, ScheduleReceiver::class.java).setAction(ACTION), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )

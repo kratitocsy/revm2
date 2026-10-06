@@ -19,14 +19,10 @@ class RevM2DeviceAdminReceiver : DeviceAdminReceiver() {
 
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
         val session = BlockStore.current(context)
-        return if (session.active && session.noEarlyUnlock) {
-            "You're mid-session with no-early-unlock on. Deactivating here " +
-            "removes RevM2's uninstall-resistance immediately — it won't end " +
-            "the session in RevM2 itself. Open the app if you meant to end " +
-            "the session properly instead."
+        return if (session.active) {
+            "A focus session is running, so this screen closes until it ends. Wynko can't be uninstalled mid-session."
         } else {
-            "This turns off uninstall-resistance for RevM2. You can still " +
-            "manage sessions normally from inside the app."
+            "This turns off uninstall protection for Wynko. During focus sessions Wynko can't be uninstalled while this is on."
         }
     }
 

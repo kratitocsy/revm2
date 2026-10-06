@@ -31,12 +31,13 @@ fun wkFieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-fun WkField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, singleLine: Boolean = true, number: Boolean = false, minLines: Int = 1) {
+fun WkField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, singleLine: Boolean = true, number: Boolean = false, minLines: Int = 1, password: Boolean = false) {
     OutlinedTextField(
         value, onChange, modifier = modifier.fillMaxWidth(), singleLine = singleLine, minLines = minLines,
         placeholder = { WkText(placeholder, 13, color = Wk.Ink600) },
         textStyle = TextStyle(fontFamily = Jakarta, fontSize = 14.sp, color = Wk.Ink100),
-        keyboardOptions = KeyboardOptions(keyboardType = if (number) KeyboardType.Number else KeyboardType.Text),
+        keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else if (number) KeyboardType.Number else KeyboardType.Text),
+        visualTransformation = if (password) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         colors = wkFieldColors(), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     )
 }
@@ -52,7 +53,8 @@ fun SheetHost(vm: AppViewModel) {
         SheetKind.Pomodoro -> PomodoroSheet(vm)
         SheetKind.Notifications -> WkSheet({ vm.sheet = null }) {
             WkText("Notifications", 16, FontWeight.Bold, Wk.Ink100)
-            Notifications.forEach { n ->
+            if (vm.notifs.isEmpty()) WkText("You're all caught up.", 12, color = Wk.Ink500)
+            vm.notifs.forEach { n ->
                 ListRow {
                     Column(Modifier.weight(1f)) { WkText(n.title, 13, FontWeight.SemiBold, Wk.Ink100); WkText(n.body, 11, color = Wk.Ink500) }
                     WkText(n.whenText, 10, color = Wk.Ink600)
@@ -64,6 +66,9 @@ fun SheetHost(vm: AppViewModel) {
         SheetKind.AiAssistant -> AiSheet(vm)
         SheetKind.Routine -> RoutineSheet(vm)
         SheetKind.Challenge -> ChallengeSheet(vm)
+        SheetKind.CreateRoom -> CreateRoomSheet(vm)
+        SheetKind.NewAnnouncement -> AnnouncementSheet(vm)
+        SheetKind.CreateCommunity -> CreateCommunitySheet(vm)
     }
 }
 
@@ -77,7 +82,6 @@ private fun PauseSheet(vm: AppViewModel) {
         WkField(text, { text = it }, "Start typing…", singleLine = false, minLines = 5)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             WkText("$chars / $PAUSE_REFLECTION_MIN_CHARS characters", 12, FontWeight.SemiBold, if (chars >= PAUSE_REFLECTION_MIN_CHARS) Wk.Green else Wk.Ink500, Modifier.weight(1f))
-            WkText("demo: fill sample", 11, color = Wk.Orange300, modifier = Modifier.tap { text = "reading electrostatics notes again feeling a bit tired need water then back to ".repeat(3) })
         }
         PrimaryButton("Unlock Pause", { vm.confirmPause() }, Modifier.fillMaxWidth(), enabled = isPauseUnlocked(text), color = Wk.Cream50)
         GhostButton("Keep Studying", { vm.sheet = null }, Modifier.fillMaxWidth(), height = 46)
@@ -197,7 +201,7 @@ fun ToggleRow(label: String, sub: String?, checked: Boolean, onChange: (Boolean)
 
 @Composable
 private fun PasswordSheet(vm: AppViewModel) {
-    val room = Rooms.firstOrNull { it.id == vm.pendingRoomId }
+    val room = vm.rooms.firstOrNull { it.id == vm.pendingRoomId }
     var pw by remember { mutableStateOf("") }
     var err by remember { mutableStateOf(false) }
     WkSheet({ vm.sheet = null }) {
@@ -205,12 +209,9 @@ private fun PasswordSheet(vm: AppViewModel) {
         WkText("Enter the room password to join", 12, color = Wk.Ink400)
         WkField(pw, { pw = it; err = false }, "Password")
         if (err) WkText("Wrong password. Try again.", 12, color = Wk.Red)
-        WkText("demo: bio123 / jee2026", 11, color = Wk.Ink600)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostButton("Cancel", { vm.sheet = null }, Modifier.weight(1f), height = 46)
-            PrimaryButton("Enter Room", {
-                if (room != null && pw == room.password) { vm.joinedRooms.add(room.id); vm.sheet = null; vm.openRoom(room.id, Dest.Rooms) } else err = true
-            }, Modifier.weight(1f))
+            PrimaryButton("Enter Room", { room?.let { vm.joinRoom(it.id, pw) { err = true } } }, Modifier.weight(1f), enabled = pw.isNotBlank())
         }
     }
 }
@@ -224,7 +225,7 @@ private fun DeleteSheet(vm: AppViewModel) {
         WkField(txt, { txt = it }, "DELETE")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostButton("Cancel", { vm.sheet = null }, Modifier.weight(1f), height = 46)
-            PrimaryButton("Delete Account", { vm.sheet = null; vm.flash("Demo only — nothing was deleted") }, Modifier.weight(1f), enabled = txt == "DELETE", color = Wk.Red)
+            PrimaryButton("Delete Account", { vm.deleteAccount() }, Modifier.weight(1f), enabled = txt == "DELETE", color = Wk.Red)
         }
     }
 }
@@ -232,49 +233,132 @@ private fun DeleteSheet(vm: AppViewModel) {
 @Composable
 private fun AiSheet(vm: AppViewModel) {
     var input by remember { mutableStateOf("") }
-    val msgs = remember { mutableStateListOf("bot" to "Hi! I’m Wynky 🐧 Tell me your exam, subjects and how many hours you can study each day — I’ll build your week.") }
-    var ready by remember { mutableStateOf(false) }
     WkSheet({ vm.sheet = null }) {
-        Eyebrow("AI ASSISTANT", Wk.Orange300); WkText("Create Your Study Schedule", 18, FontWeight.Bold, Wk.Ink100); Pill("Online", Wk.Green)
-        msgs.forEach { (from, text) ->
-            Box(Modifier.fillMaxWidth(), contentAlignment = if (from == "bot") Alignment.CenterStart else Alignment.CenterEnd) {
-                Box(Modifier.widthIn(max = 280.dp).wkSurface(if (from == "bot") Wk.Black700 else Color(0x24FF8A3D), Wk.Black600, 14.dp).padding(10.dp)) { WkText(text, 13, color = Wk.Ink100, lineHeight = 1.4f) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Eyebrow("WYNKY", Wk.Orange300); WkText("Plan your study week", 18, FontWeight.Bold, Wk.Ink100) }
+            if (vm.wynkyMsgs.any { it.past }) WkText("Clear history", 11, color = Wk.Ink500, modifier = Modifier.tap { vm.clearWynky() })
+        }
+        WkText("Same chat as Wynky on the web and desktop.", 11, color = Wk.Ink500)
+        vm.wynkyMsgs.takeLast(30).forEach { m ->
+            Box(Modifier.fillMaxWidth(), contentAlignment = if (m.fromBot) Alignment.CenterStart else Alignment.CenterEnd) {
+                Box(Modifier.widthIn(max = 280.dp).wkSurface(if (m.fromBot) Wk.Black700 else Color(0x24FF8A3D), Wk.Black600, 14.dp).padding(10.dp)) { WkText(m.text, 13, color = if (m.past) Wk.Ink300 else Wk.Ink100, lineHeight = 1.4f) }
             }
         }
-        WkField(input, { input = it }, "Type here…")
-        if (ready) PrimaryButton("Apply to My Week", { vm.sheet = null; vm.flash("Schedule applied (demo)") }, Modifier.fillMaxWidth())
-        else PrimaryButton("Send", {
-            if (input.isNotBlank()) { msgs.add("me" to input); msgs.add("bot" to "Got it! I've drafted a balanced week with revision slots. Apply it when you're ready."); input = ""; ready = true }
-        }, Modifier.fillMaxWidth())
+        if (vm.wynkyBusy) WkText("Wynky is thinking…", 12, color = Wk.Ink500)
+        vm.wynkyPlan?.let { plan ->
+            Column(Modifier.fillMaxWidth().wkSurface(Wk.Black800, Wk.Orange600.copy(alpha = 0.4f), 14.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Eyebrow("PROPOSED PLAN", Wk.Orange300)
+                val names = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                plan.days.toSortedMap(compareBy { it.toIntOrNull() ?: -1 }).forEach { (day, slots) ->
+                    val label = if (day == "all") "Every day" else day.toIntOrNull()?.let { (if (it >= 7) "B " else "") + names[it % 7] } ?: day
+                    WkText("$label: " + (slots.joinToString("; ") { "${it.start}-${it.end} ${it.subject ?: ""}" }.ifBlank { "day off" }), 12, color = Wk.Ink250)
+                }
+                PrimaryButton("Save to Focus Lock", { vm.saveWynkyPlan() }, Modifier.fillMaxWidth(), enabled = !vm.wynkyBusy)
+            }
+        }
+        WkField(input, { input = it }, "e.g. 6 hours a day, mornings free on Sunday…", singleLine = false, minLines = 2)
+        PrimaryButton("Send", { vm.sendWynky(input); input = "" }, Modifier.fillMaxWidth(), enabled = input.isNotBlank() && !vm.wynkyBusy)
     }
 }
 
 @Composable
 private fun RoutineSheet(vm: AppViewModel) {
     var name by remember { mutableStateOf("") }
+    var site by remember { mutableStateOf("") }
     val apps = remember { mutableStateListOf("Instagram", "YouTube") }
+    val sites = remember { mutableStateListOf<String>() }
     WkSheet({ vm.sheet = null }) {
         Eyebrow("NEW ROUTINE", Wk.Orange300); WkText("Create Focus Routine", 18, FontWeight.Bold, Wk.Ink100)
+        WkText("Saved as a Focus Lock preset, so it shows up on the web and desktop too.", 11, color = Wk.Ink500)
         WkField(name, { name = it }, "Routine name")
         WkText("Apps to block", 12, color = Wk.Ink400)
         AppGrid(AllApps.take(8), apps) { n -> if (!apps.remove(n)) apps.add(n) }
+        WkText("Websites to block", 12, color = Wk.Ink400)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { WkField(site, { site = it }, "reddit.com") }
+            GhostButton("Add", { val v = site.trim().lowercase().removePrefix("https://").removePrefix("http://").removePrefix("www.").trimEnd('/'); if (v.isNotEmpty() && v !in sites) sites.add(v); site = "" }, height = 44)
+        }
+        if (sites.isNotEmpty()) WkText(sites.joinToString(", "), 12, color = Wk.Ink300)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostButton("Cancel", { vm.sheet = null }, Modifier.weight(1f), height = 46)
-            PrimaryButton("Create Routine", { vm.sheet = null; vm.flash("Routine created (demo)") }, Modifier.weight(1f), enabled = name.isNotBlank())
+            PrimaryButton("Create Routine", { vm.createRoutine(name, apps.toList(), sites.toList()) }, Modifier.weight(1f), enabled = name.isNotBlank() && (apps.isNotEmpty() || sites.isNotEmpty()))
         }
+    }
+}
+
+@Composable
+private fun CreateRoomSheet(vm: AppViewModel) {
+    var name by remember { mutableStateOf("") }
+    var subject by remember { mutableStateOf("Physics") }
+    var desc by remember { mutableStateOf("") }
+    var isPublic by remember { mutableStateOf(true) }
+    var pw by remember { mutableStateOf("") }
+    WkSheet({ vm.sheet = null }) {
+        Eyebrow("NEW STUDY ROOM", Wk.Orange300); WkText("Create a room", 18, FontWeight.Bold, Wk.Ink100)
+        WkField(name, { name = it }, "Room name")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SubjectsForAdd.forEach { sj ->
+                val on = sj == subject
+                Box(Modifier.weight(1f).height(38.dp).wkSurface(if (on) Color(0x24FF8A3D) else Wk.Black800, if (on) Wk.Orange600 else Wk.Black600, 12.dp).tap { subject = sj }, contentAlignment = Alignment.Center) {
+                    WkText(sj.take(5), 12, FontWeight.SemiBold, if (on) Wk.Cream50 else Wk.Ink400, maxLines = 1)
+                }
+            }
+        }
+        WkField(desc, { desc = it }, "What's this room for?")
+        ToggleRow("Public room", "Anyone can find and join", isPublic) { isPublic = it }
+        if (!isPublic) WkField(pw, { pw = it }, "Room password")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GhostButton("Cancel", { vm.sheet = null }, Modifier.weight(1f), height = 46)
+            PrimaryButton("Create", { vm.createRoom(name.trim(), subject, desc.trim(), isPublic, pw) }, Modifier.weight(1f), enabled = name.isNotBlank() && (isPublic || pw.length >= 4))
+        }
+    }
+}
+
+@Composable
+private fun AnnouncementSheet(vm: AppViewModel) {
+    var title by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf("") }
+    var pinned by remember { mutableStateOf(false) }
+    var important by remember { mutableStateOf(false) }
+    WkSheet({ vm.sheet = null }) {
+        Eyebrow("NEW ANNOUNCEMENT", Wk.Orange300)
+        WkField(title, { title = it }, "Title")
+        WkField(msg, { msg = it }, "Message", singleLine = false, minLines = 4)
+        ToggleRow("Pin to top", null, pinned) { pinned = it }
+        ToggleRow("Mark important", null, important) { important = it }
+        PrimaryButton("Post", { vm.postAnnouncement(title.trim(), msg.trim(), pinned, important) }, Modifier.fillMaxWidth(), enabled = title.isNotBlank() && msg.isNotBlank())
+    }
+}
+
+@Composable
+private fun CreateCommunitySheet(vm: AppViewModel) {
+    var name by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    WkSheet({ vm.sheet = null }) {
+        Eyebrow("NEW COMMUNITY", Wk.Orange300); WkText("Create a community", 18, FontWeight.Bold, Wk.Ink100)
+        WkText("Communities are run by verified WynkoHeads. Apply on the web if you aren't one yet.", 11, color = Wk.Ink500)
+        WkField(name, { name = it }, "Community name")
+        WkField(desc, { desc = it }, "Description", singleLine = false, minLines = 3)
+        PrimaryButton("Create", { vm.sheet = null; vm.createCommunity(name.trim(), desc.trim()) }, Modifier.fillMaxWidth(), enabled = name.isNotBlank())
     }
 }
 
 @Composable
 private fun ChallengeSheet(vm: AppViewModel) {
     var q by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf(vm.leaderboard) }
+    LaunchedEffect(q) {
+        if (q.isBlank()) { results = vm.leaderboard; return@LaunchedEffect }
+        kotlinx.coroutines.delay(300) // debounce
+        try { results = com.revm2.app.data.AppRepository.searchOpponents(q.trim()) } catch (_: Exception) { results = emptyList() }
+    }
     WkSheet({ vm.sheet = null }) {
         Eyebrow("CHALLENGE SOMEONE", Wk.Orange300); WkText("Search by username.", 12, color = Wk.Ink400)
         WkField(q, { q = it }, "username")
-        Battlers.filter { q.isBlank() || it.name.contains(q.trim(), true) }.forEach { b ->
-            ListRow(onClick = { vm.sheet = null; vm.battle = "waiting"; vm.flash("Challenge sent to ${b.name}") }) {
+        results.forEach { b ->
+            ListRow(onClick = { vm.challenge(b.id, b.name) }) {
                 Avatar(b.name.take(2).uppercase(), Wk.Orange300, 36)
-                Column(Modifier.weight(1f)) { WkText(b.name, 13, FontWeight.SemiBold, Wk.Ink100); WkText("${b.title} · ${b.xp} XP", 11, color = Wk.Ink500) }
+                Column(Modifier.weight(1f)) { WkText(b.name, 13, FontWeight.SemiBold, Wk.Ink100); WkText("${b.title} · ${"%,d".format(b.xp)} XP", 11, color = Wk.Ink500) }
                 WkText("Challenge", 12, FontWeight.SemiBold, Wk.Orange300)
             }
         }

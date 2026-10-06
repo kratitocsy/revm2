@@ -28,6 +28,7 @@ object BlockStore {
     private const val KEY_ENDS_AT = "ends_at_ms"  // 0 = no time limit
     private const val KEY_LOCK_SETTINGS = "lock_settings"
     private const val KEY_DOMAINS_ALLOW_ONLY = "domains_allow_only"
+    private const val KEY_FORCE_SHORT = "force_shortform" // this session closes Reels/Shorts whatever the user setting
     private const val KEY_TAMPERED = "tampered"
     private const val KEY_TAMPER_REASON = "tamper_reason"
 
@@ -58,6 +59,7 @@ object BlockStore {
 
     /** Should Reels/Shorts on [platform] be closed right now? Off, only during a focus session, or always. */
     fun shortFormActive(ctx: Context, platform: String): Boolean {
+        current(ctx).let { if (it.active && it.forceShortForm) return true }
         if (!shortFormPlatformOn(ctx, platform)) return false
         return when (shortFormMode(ctx)) {
             SHORT_ALWAYS -> true
@@ -98,6 +100,7 @@ object BlockStore {
         val tamperReason: String? = null,
         /** true: only [domainList] (plus our own hosts) can be looked up; everything else is refused. */
         val domainsAllowOnly: Boolean = false,
+        val forceShortForm: Boolean = false,
     ) {
         /** Seconds left, or null for an unlimited session. */
         fun remainingSeconds(nowMs: Long = System.currentTimeMillis()): Long? =
@@ -126,6 +129,7 @@ object BlockStore {
             tampered = p.getBoolean(KEY_TAMPERED, false),
             tamperReason = p.getString(KEY_TAMPER_REASON, null),
             domainsAllowOnly = p.getBoolean(KEY_DOMAINS_ALLOW_ONLY, false),
+            forceShortForm = p.getBoolean(KEY_FORCE_SHORT, false),
         )
     }
 
@@ -140,6 +144,7 @@ object BlockStore {
         endsAtMs: Long = 0L,
         lockSettings: Boolean = noEarlyUnlock,
         domainsAllowOnly: Boolean = false,
+        forceShortForm: Boolean = false,
     ) {
         prefs(ctx).edit()
             .putBoolean(KEY_SESSION_ACTIVE, true)
@@ -152,6 +157,7 @@ object BlockStore {
             .putLong(KEY_ENDS_AT, endsAtMs)
             .putBoolean(KEY_LOCK_SETTINGS, lockSettings)
             .putBoolean(KEY_DOMAINS_ALLOW_ONLY, domainsAllowOnly)
+            .putBoolean(KEY_FORCE_SHORT, forceShortForm)
             .putBoolean(KEY_TAMPERED, false)
             .putString(KEY_TAMPER_REASON, null)
             .apply()
@@ -185,6 +191,22 @@ object BlockStore {
     fun isAppBlocked(ctx: Context, packageName: String): Boolean {
         val s = current(ctx)
         return isAppBlockedForSession(s, packageName, ctx.packageName, launcherPackages(ctx), tamperPackages(ctx))
+    }
+
+    /**
+     * Uninstall protection for every active session, not only strict ones: the system uninstall confirmation
+     * (package installer) and Android's Device Admin deactivation screen are closed while a block runs. With
+     * Wynko's Device Admin switched on, Android refuses to uninstall it until admin is deactivated, and that screen
+     * is closed too - so Wynko can't be uninstalled mid-session. Settings itself stays usable in normal sessions.
+     */
+    fun isUninstallGuarded(ctx: Context, packageName: String, className: String?): Boolean =
+        isUninstallGuardedForSession(current(ctx), packageName, className)
+
+    fun isUninstallGuardedForSession(s: Session, packageName: String, className: String?): Boolean {
+        if (!s.active) return false
+        if (packageName in INSTALLER_PACKAGES) return true
+        // com.android.settings.DeviceAdminAdd (older) / ...specialaccess.deviceadmin.DeviceAdminAdd (newer), OEM copies alike.
+        return className?.contains("DeviceAdminAdd") == true
     }
 
     fun isDomainBlocked(ctx: Context, domain: String): Boolean =

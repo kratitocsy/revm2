@@ -68,4 +68,11 @@ class BlockLogicTest {
         assertEquals(60L, session(endsAtMs = 160_000L).remainingSeconds(nowMs = 100_000L))
         assertEquals(0L, session(endsAtMs = 100_000L).remainingSeconds(nowMs = 200_000L))
     }
+
+    @Test fun uninstallGuardOnlyDuringSession() {
+        assertFalse(BlockStore.isUninstallGuardedForSession(session(active = false), "com.google.android.packageinstaller", null))
+        assertTrue(BlockStore.isUninstallGuardedForSession(session(active = true), "com.google.android.packageinstaller", null))
+        assertTrue(BlockStore.isUninstallGuardedForSession(session(active = true), "com.android.settings", "com.android.settings.DeviceAdminAdd"))
+        assertFalse(BlockStore.isUninstallGuardedForSession(session(active = true), "com.android.settings", "com.android.settings.Settings"))
+    }
 }

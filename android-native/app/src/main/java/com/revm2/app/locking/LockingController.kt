@@ -127,6 +127,7 @@ object LockingController {
         endsAtMs: Long = 0L,
         lockSettings: Boolean = noEarlyUnlock,
         domainsAllowOnly: Boolean = false,
+        forceShortForm: Boolean = false,
     ) {
         BlockStore.startSession(
             ctx = ctx,
@@ -139,6 +140,7 @@ object LockingController {
             endsAtMs = endsAtMs,
             lockSettings = lockSettings,
             domainsAllowOnly = domainsAllowOnly,
+            forceShortForm = forceShortForm,
         )
         // Foreground guard: keeps enforcement alive, ends a timed session on schedule, reopens the tunnel after a reboot.
         GuardService.start(ctx)

@@ -52,7 +52,8 @@ class RevM2AccessibilityService : AccessibilityService() {
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 // A new foreground window means the previous block is stale; re-evaluate every time.
-                if (BlockStore.isAppBlocked(this, pkg)) showOverlay() else { removeOverlay(); updateContentWatch(pkg) }
+                val guarded = BlockStore.isUninstallGuarded(this, pkg, event.className?.toString())
+                if (guarded || BlockStore.isAppBlocked(this, pkg)) showOverlay() else { removeOverlay(); updateContentWatch(pkg) }
                 if (watchingContent) checkShortForm(pkg)
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> if (watchingContent) checkShortForm(pkg)

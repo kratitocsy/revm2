@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
 
   const { data: schedules, error: schedErr } = await db
     .from("focus_lock_schedules")
-    .select("id, user_id, days_of_week")
+    .select("id, user_id, days_of_week, name")
     .eq("active", true)
     .contains("days_of_week", [dayOfWeek]);
 
@@ -268,7 +268,9 @@ Deno.serve(async (req) => {
           youtube_rules: preset.youtube_rules || null,
           apps: preset.apps || [],
           apps_mode: preset.apps_mode === "whitelist" ? "whitelist" : "blacklist",
-          no_early_unlock: !!preset.no_early_unlock,
+          // A community week the member accepted ("Community — …", lib/communityEnforce.ts) is always
+          // strict: the block can't be ended early on any device. Personal plans keep their preset's setting.
+          no_early_unlock: !!preset.no_early_unlock || String(schedule.name ?? "").startsWith("Community — "),
         };
       }
 
