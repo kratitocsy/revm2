@@ -59,4 +59,5 @@ end;
 $$;
 
 revoke all on function public.rpc_nudge_to_talk(uuid, uuid) from public;
+revoke execute on function public.rpc_nudge_to_talk(uuid, uuid) from anon;
 grant execute on function public.rpc_nudge_to_talk(uuid, uuid) to authenticated;

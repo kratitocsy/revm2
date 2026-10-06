@@ -62,6 +62,7 @@ import {
 } from './lib/studyRooms'
 import { useVoiceRoom } from './lib/voiceRoom'
 import VoiceTile from './VoiceTile'
+import VoiceBar from './VoiceBar'
 import {
   fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
   sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
@@ -6863,6 +6864,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0B0B0D]" >
+      {isRealRoom && live.status === 'ready' && <VoiceBar voice={voice} members={live.members} groupId={room.groupId!} />}
       <Sidebar active="studyrooms" setActive={onNavigate} profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -6942,7 +6944,7 @@ function RoomInteriorPage({ room, onBack, onNavigate, profile, units, schedule, 
             {activeTab === 'studying' && isRealRoom && live.status === 'ready' && (
               <div className="grid grid-cols-3 gap-5">
                 {memberCards.map(p => (
-                  <VoiceTile key={p.id} voice={voice} userId={p.userId} isMe={!!p.isMe} groupId={room.groupId!}>
+                  <VoiceTile key={p.id} voice={voice} userId={p.userId} isMe={!!p.isMe}>
                     <BotCard
                       bot={p}
                       canKick={amAdmin && !p.isMe}
