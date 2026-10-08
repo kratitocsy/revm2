@@ -44,6 +44,7 @@
 
   <main class="ow-main">
     <div id="owAlerts" class="ow-alerts" role="alert" aria-live="polite"></div>
+    <div id="owCountdown" class="ow-countdown" hidden></div>
     <header class="ow-head">
       <div>
         <div class="ow-crumb">Owner Control / <span id="owCrumb"></span></div>
@@ -1329,6 +1330,32 @@ document.getElementById('owAlerts').addEventListener('click', async e => {
   catch(err){ b.disabled = false; toast(err.message); return; }
   loadAlerts();
 });
+
+/* ── Opening countdown ─────────────────────────────────── */
+// Counts down the last 60 minutes to 10:30 AM India time, when Wynko opens
+// to everyone. Display only: it does not flip the invite-only switch, and it
+// shows only while Wynko is still invite-only, so it stays away once opened.
+(function(){
+  let inviteOnly = false;
+  const box = document.getElementById('owCountdown');
+  const IST = (5 * 60 + 30) * 60000, OPEN_MIN = 10 * 60 + 30, WINDOW_MIN = 60;
+  function tick(){
+    const ist = new Date(Date.now() + IST);
+    const nowSec = ist.getUTCHours() * 3600 + ist.getUTCMinutes() * 60 + ist.getUTCSeconds();
+    const left = OPEN_MIN * 60 - nowSec;
+    if(!inviteOnly || left <= 0 || left > WINDOW_MIN * 60){ box.hidden = true; return; }
+    const m = Math.floor(left / 60), sec = left % 60;
+    box.hidden = false;
+    box.innerHTML = `<span class="ow-cd-label">Wynko opens to everyone at 10:30 AM</span><span class="ow-cd-time">${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}</span>`;
+  }
+  async function check(){
+    try{ inviteOnly = !!(await rpc('owner_app_access')).invite_only; }catch(_){ /* keep last */ }
+    tick();
+  }
+  check();
+  setInterval(check, 60000);
+  setInterval(tick, 1000);
+})();
 
 /* ── Boot ──────────────────────────────────────────────── */
 function denied(){
