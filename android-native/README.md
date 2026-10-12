@@ -19,3 +19,8 @@ Native Android app (the old Capacitor shell in `mobile/` has been removed). Kotl
 2. (remaining) Onboarding quiz, home, focus-lock schedules/slots, study timer
 3. Communities, chat, battles, wallet/Razorpay, shop
 4. Wynky AI chat, notifications, widgets
+
+## App ID
+`com.wynko.app` (namespace and applicationId). This is the ID to use when creating the Play Console app, and it can never be changed after that.
+
+Firebase: `app/google-services.json` is still the registration for the old package, so the Google Services plugin and the CI Firebase upload are skipped until it is replaced. To enable them: Firebase console -> add an Android app with package `com.wynko.app` -> download `google-services.json` into `android-native/app/` and update the `FIREBASE_APP_ID` repo secret to the new app's ID.

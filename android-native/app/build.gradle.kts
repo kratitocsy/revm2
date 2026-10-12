@@ -6,13 +6,11 @@ plugins {
 }
 
 android {
-    // Same namespace as the Capacitor shell so the locking/ package
-    // (copied verbatim) compiles unchanged.
-    namespace = "com.revm2.app"
+    namespace = "com.wynko.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.revm2.app"
+        applicationId = "com.wynko.app"
         minSdk = 26
         targetSdk = 36
         // CI passes -PappVersionCode / -PappVersionName, same as mobile/.
@@ -82,8 +80,9 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-// Firebase analytics is only wired in if google-services.json is non-empty,
-// same guard as mobile/android/app/build.gradle.
-if (file("google-services.json").let { it.exists() && it.readText().isNotBlank() }) {
+// The Google Services plugin (Firebase) fails the build when google-services.json has no client for this
+// applicationId, so only apply it once the JSON has been regenerated for com.wynko.app (Firebase console ->
+// add an Android app with that package -> download google-services.json).
+if (file("google-services.json").let { it.exists() && it.readText().contains("\"package_name\": \"com.wynko.app\"") }) {
     apply(plugin = "com.google.gms.google-services")
 }

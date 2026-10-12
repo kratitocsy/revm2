@@ -69,19 +69,23 @@ jobs:
           name: wynko-native-debug
           path: android-native/app/build/outputs/apk/debug/*.apk
 
-      # Firebase App Distribution, same app and testers group as the old Capacitor build (same applicationId,
-      # com.revm2.app, and the same google-services.json). Only on main, and only once the secrets exist.
+      # Firebase App Distribution. Only on main, and only once the secrets exist AND google-services.json has been
+      # regenerated for the app's package (com.wynko.app); an APK for a different package would be rejected by the
+      # Firebase app the FIREBASE_APP_ID secret points at.
       - name: Check Firebase secrets present
         id: firebase_check
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          if [ -n "$FIREBASE_APP_ID" ] && [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$FIREBASE_APP_ID" ] || [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Skipping Firebase App Distribution -- FIREBASE_APP_ID / FIREBASE_SERVICE_ACCOUNT secrets not set."
+          elif ! grep -q '"package_name": "com.wynko.app"' app/google-services.json; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Firebase App Distribution -- app/google-services.json is not registered for com.wynko.app yet."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build release notes
