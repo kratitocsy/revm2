@@ -13,6 +13,8 @@ class AuthViewModel : ViewModel() {
     private val _state = MutableStateFlow(AuthUiState())
     val state: StateFlow<AuthUiState> = _state
 
+    fun clearMessages() { _state.value = AuthUiState() }
+
     fun signIn(email: String, password: String) = run { AuthRepository.signIn(email.trim(), password) }
 
     fun signUp(email: String, password: String) = run(
