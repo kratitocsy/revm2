@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -13,6 +14,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun LoginScreen(vm: AuthViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -41,5 +43,13 @@ fun LoginScreen(vm: AuthViewModel = viewModel()) {
             onClick = { vm.signUp(email, password) },
             enabled = !state.loading && email.isNotBlank() && password.length >= 6,
         ) { Text("Create account") }
+        TextButton(onClick = { vm.resetPassword(email) }, enabled = !state.loading && email.isNotBlank()) {
+            Text("Forgot password?")
+        }
+        OutlinedButton(
+            onClick = { vm.signInWithGoogle(context) },
+            enabled = !state.loading,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Continue with Google") }
     }
 }

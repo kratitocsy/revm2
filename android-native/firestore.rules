@@ -1,0 +1,99 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users            Document ID: {uid} (the Firebase Auth uid)
+//   - displayName: string (required, <= 80)
+//   - email: string (required, <= 254, owner-only readable)
+//   - photoUrl: string (required, <= 2048, may be empty)
+//   - createdAt: timestamp (required, set once, immutable)
+//   - dailyFocusGoalMinutes: int (required, 0..1440)
+//   - preferences: map (optional, <= 50 keys)
+//
+// Subcollections of users/{uid}, owner-only, free-form documents with a
+// bounded number of top-level fields:
+//   studyLog/{date}, studyPlanTasks/{taskId}, focusPresets/{presetId},
+//   schedules/{scheduleId}, scheduleRuns/{runId}
+//
+// Everything else is denied.
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function validString(value, maxLen) {
+      return value is string && value.size() <= maxLen;
+    }
+
+    // ===============================================================
+    // Domain Validators (used on BOTH create and update)
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['displayName', 'email', 'photoUrl', 'createdAt', 'dailyFocusGoalMinutes', 'preferences']) &&
+             hasRequiredFields(['displayName', 'email', 'photoUrl', 'createdAt', 'dailyFocusGoalMinutes']) &&
+             validString(data.displayName, 80) &&
+             validString(data.email, 254) &&
+             validString(data.photoUrl, 2048) &&
+             data.createdAt is timestamp &&
+             data.dailyFocusGoalMinutes is int &&
+             data.dailyFocusGoalMinutes >= 0 && data.dailyFocusGoalMinutes <= 1440 &&
+             (!('preferences' in data) || (data.preferences is map && data.preferences.size() <= 50));
+    }
+
+    // Free-form per-user records: bounded field count, no giant payloads from a single string field
+    // is enforced by Firestore's 1 MiB document limit; the key cap keeps the schema from being polluted.
+    function isValidRecord(data) {
+      return data.keys().size() >= 1 && data.keys().size() <= 40;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidUser(request.resource.data) &&
+                       request.resource.data.createdAt == request.time;
+
+      allow update: if isOwner(userId) &&
+                       isValidUser(request.resource.data) &&
+                       request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if false;
+
+      match /{collection}/{docId} {
+        allow read: if isOwner(userId) &&
+                       collection in ['studyLog', 'studyPlanTasks', 'focusPresets', 'schedules', 'scheduleRuns'];
+        allow create, update: if isOwner(userId) &&
+                       collection in ['studyLog', 'studyPlanTasks', 'focusPresets', 'schedules', 'scheduleRuns'] &&
+                       isValidRecord(request.resource.data);
+        allow delete: if isOwner(userId) &&
+                       collection in ['studyLog', 'studyPlanTasks', 'focusPresets', 'schedules', 'scheduleRuns'];
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

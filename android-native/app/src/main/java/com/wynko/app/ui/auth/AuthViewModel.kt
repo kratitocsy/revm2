@@ -16,8 +16,12 @@ class AuthViewModel : ViewModel() {
     fun signIn(email: String, password: String) = run { AuthRepository.signIn(email.trim(), password) }
 
     fun signUp(email: String, password: String) = run(
-        info = "Account created. Check your email if confirmation is required."
+        info = "Account created."
     ) { AuthRepository.signUp(email.trim(), password) }
+
+    fun signInWithGoogle(activityContext: android.content.Context) = run { AuthRepository.signInWithGoogle(activityContext) }
+
+    fun resetPassword(email: String) = run(info = "Password reset email sent.") { AuthRepository.sendPasswordReset(email.trim()) }
 
     private fun run(info: String? = null, block: suspend () -> Unit) {
         viewModelScope.launch {

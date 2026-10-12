@@ -1,0 +1,16 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Wynko",
+        "supportEmail": "wynko1010@gmail.com"
+      }
+    }
+  }
+}
