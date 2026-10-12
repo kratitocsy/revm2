@@ -14,7 +14,7 @@
       },
       "oauth_client": [
         {
-          "client_id": "267998717507-n3n2r79edb519teg11vc7a9gldd6rhhm.apps.googleusercontent.com",
+          "client_id": "267998717507-bm3csd7cf8klk90ks66cka7c3r4ce1fl.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -27,7 +27,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "267998717507-n3n2r79edb519teg11vc7a9gldd6rhhm.apps.googleusercontent.com",
+              "client_id": "267998717507-bm3csd7cf8klk90ks66cka7c3r4ce1fl.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
@@ -43,7 +43,15 @@
       },
       "oauth_client": [
         {
-          "client_id": "267998717507-n3n2r79edb519teg11vc7a9gldd6rhhm.apps.googleusercontent.com",
+          "client_id": "267998717507-m9ql70t56ej730uhlivoskjvaiscms9u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wynko.app",
+            "certificate_hash": "f3410e3ff6dacc09d5f3bec4b4ffcb5b9fbbc89d"
+          }
+        },
+        {
+          "client_id": "267998717507-bm3csd7cf8klk90ks66cka7c3r4ce1fl.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -56,7 +64,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "267998717507-n3n2r79edb519teg11vc7a9gldd6rhhm.apps.googleusercontent.com",
+              "client_id": "267998717507-bm3csd7cf8klk90ks66cka7c3r4ce1fl.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
