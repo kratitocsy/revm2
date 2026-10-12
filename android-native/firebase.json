@@ -1,6 +1,7 @@
 {
   "firestore": {
     "database": "(default)",
+    "location": "nam5",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
@@ -9,7 +10,7 @@
       "emailPassword": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "Wynko",
-        "supportEmail": "wynko1010@gmail.com"
+        "supportEmail": "kiarase2288@gmail.com"
       }
     }
   }
