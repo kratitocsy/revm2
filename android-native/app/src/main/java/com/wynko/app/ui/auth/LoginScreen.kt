@@ -23,7 +23,7 @@ fun LoginScreen(vm: AuthViewModel = viewModel()) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("RevM2", style = MaterialTheme.typography.displaySmall)
+        Text("Wynko", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(32.dp))
         OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
@@ -32,7 +32,7 @@ fun LoginScreen(vm: AuthViewModel = viewModel()) {
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
-        state.info?.let { Text(it, modifier = Modifier.padding(top = 8.dp)) }
+        state.info?.let { Text(it, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(top = 8.dp)) }
         Spacer(Modifier.height(20.dp))
         Button(
             onClick = { vm.signIn(email, password) },
