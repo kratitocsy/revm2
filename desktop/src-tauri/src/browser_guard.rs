@@ -40,6 +40,10 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 // read_extension_settings() below for how that's handled.
 pub const EXTENSION_ID: &str = "knofmgookchmjekaefloaljcamjlbnmp";
 
+// The Chrome Web Store copy of the extension: the store assigns its own ID,
+// so a store install never has EXTENSION_ID above.
+pub const STORE_EXTENSION_ID: &str = "knfnglhnejkndbkaegmpeeaickdhjmjh";
+
 // The extension's manifest "name" - stable across every browser regardless
 // of what ID that browser assigns it. Used as a fallback identifier for
 // browsers (Edge) that don't honor EXTENSION_ID above. Both the Wynko name
@@ -131,10 +135,10 @@ fn read_extension_settings(profile_dir: &PathBuf) -> Option<Value> {
         let Ok(content) = std::fs::read_to_string(profile_dir.join(filename)) else { continue };
         let Ok(json): Result<Value, _> = serde_json::from_str(&content) else { continue };
 
-        if let Some(settings) = json
-            .pointer(&format!("/extensions/settings/{EXTENSION_ID}"))
-        {
-            return Some(settings.clone());
+        for id in [STORE_EXTENSION_ID, EXTENSION_ID] {
+            if let Some(settings) = json.pointer(&format!("/extensions/settings/{id}")) {
+                return Some(settings.clone());
+            }
         }
 
         if let Some(all_settings) = json.pointer("/extensions/settings").and_then(|v| v.as_object()) {
