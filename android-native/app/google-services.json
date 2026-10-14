@@ -43,6 +43,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "267998717507-28uukn373c65rkisstq1s4jo77eq59gh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wynko.app",
+            "certificate_hash": "64b971249ff4064f877dc1dd9b10300ffeb215d6"
+          }
+        },
+        {
           "client_id": "267998717507-m9ql70t56ej730uhlivoskjvaiscms9u.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
