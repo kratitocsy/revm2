@@ -260,7 +260,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <main class="legal-doc reveal">
 <h1>Privacy Policy</h1>
 <p><strong>Wynko — Learn Together. Win Together.</strong> · wynko.in</p>
-<p><strong>Last updated:</strong> 17 September 2026
+<p><strong>Last updated:</strong> 14 October 2026
 <strong>Effective date:</strong> 17 September 2026</p>
 <hr />
 <h2>1. Who we are</h2>
@@ -442,6 +442,11 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <td>Name, email, profile picture</td>
 </tr>
 <tr>
+<td><strong>Firebase (Google)</strong></td>
+<td>Sign-in (email/password and Google) and profile storage for the Wynko Android app</td>
+<td>Email address, name, profile picture, a user ID, and your profile record</td>
+</tr>
+<tr>
 <td><strong>Agora</strong></td>
 <td>Real-time voice in study rooms</td>
 <td>Live audio (not recorded), IP address, connection and call-quality data</td>
@@ -472,7 +477,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <p>We may also disclose data to courts, regulators, or law-enforcement where legally required, to professional advisers, and to a successor if Wynko is acquired or reorganised (we'll notify you first).</p>
 <p>Other users only see and hear what you choose to share: your display name and profile, your messages in chat rooms you join, your voice while you are unmuted in a voice room, your activity in shared groups, and your position on leaderboards you take part in.</p>
 <h2>7. International transfers</h2>
-<p>Some of our providers (Supabase, Backblaze, Cloudflare, Vercel, Google, Agora) store or process data outside India, including in the United States and the EU. Where data covered by the GDPR/UK GDPR leaves the EEA or UK, we rely on adequacy decisions or the European Commission's Standard Contractual Clauses (with the UK Addendum where relevant). You can ask us for details at founder@wynko.in.</p>
+<p>Some of our providers (Supabase, Backblaze, Cloudflare, Vercel, Google and Firebase, Agora) store or process data outside India, including in the United States and the EU. Where data covered by the GDPR/UK GDPR leaves the EEA or UK, we rely on adequacy decisions or the European Commission's Standard Contractual Clauses (with the UK Addendum where relevant). You can ask us for details at founder@wynko.in.</p>
 <h2>8. Wynko Focus Lock browser extension</h2>
 <p>The Wynko Focus Lock extension for Chrome and Edge helps you stay focused by blocking distracting websites during your Wynko study sessions.</p>
 <p><strong>What data the extension collects and stores:</strong></p>
@@ -484,6 +489,20 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <p><strong>Optional adult-content filter:</strong> If you enable "Block adult content" in the extension's options, the extension analyzes each page's title, meta tags, and visible text in your browser to detect explicit content. This analysis happens entirely in your browser — the page content is never sent to us. The extension only records which domains were blocked, stored locally.</p>
 <p><strong>No other data:</strong> The extension does not access your full browsing history, does not use cookies or tracking pixels, and does not send page content or any personally identifiable information to Wynko.</p>
 <p>For more details, see this full privacy policy.</p>
+<h2>8A. Wynko Android app</h2>
+<p>The Wynko Android app (package name <code>com.wynko.app</code>) helps you stay focused by blocking distracting apps and sites during your Wynko study sessions and schedules. This section describes what the app does on your phone. The rest of this Policy applies to the app as well.</p>
+<p><strong>Sign-in and account.</strong> You can sign in with an email address and password, or with Google. The app uses Firebase Authentication to do this, and stores a profile record (your name, email address, profile picture and study goal) in Firebase's Firestore database. We never receive your Google password.</p>
+<p><strong>Permissions the app asks for.</strong> Each one is optional and asked for in the app before you are taken to Android's settings. Blocking features do not work without them.</p>
+<ul>
+<li><strong>Accessibility service.</strong> While a block is running, it reads only the name of the app that is currently in front, so Wynko can show a block screen and send you back to the home screen. If you turn on the optional Reels and Shorts block, it also looks for the screen markers of Instagram Reels and YouTube Shorts, and only while Instagram or YouTube is open. It does not read what you type, passwords, messages or page content, and it does not send any of this off your phone.</li>
+<li><strong>Local VPN (DNS filter).</strong> Used only to block the websites on your list. It runs on your phone and handles only domain-name (DNS) lookups. A lookup for a blocked site is answered on the phone. A lookup for any other site is passed on to a public DNS resolver (Google Public DNS, 8.8.8.8) to get the normal answer, which is the same thing your phone would do without the VPN. It does not route the rest of your internet traffic and does not send your browsing to Wynko's servers.</li>
+<li><strong>Device administrator.</strong> Used only so that uninstalling Wynko needs an extra step during a block. You can turn it off in Android's settings between blocks.</li>
+<li><strong>Usage access.</strong> Used to show your screen time. This stays on your phone.</li>
+<li><strong>Notification access.</strong> Used to hide notifications from apps you chose to block. It reads only which app a notification came from, not its content.</li>
+<li><strong>Display over other apps, notifications, exact alarms and a foreground service.</strong> Used to show the block screen, to remind you about sessions, to start scheduled blocks on time, and to keep a running block alive.</li>
+</ul>
+<p><strong>What is stored and where.</strong> Your block lists, saved blocks and schedules are stored on your phone so blocking works without internet and after a restart. When you are signed in, the details of your sessions and schedules (names, times, the sites and apps you chose) are saved to your Wynko account so they stay in sync with wynko.in and the desktop app. We do not collect your contacts, messages, location, camera or the content of other apps.</p>
+<p><strong>Your choices and deletion.</strong> You can turn off any permission in Android's settings at any time, and uninstalling the app removes the data stored on the phone. You can delete your account and the data held in it from the app's settings or by email, as described in Section 12A.</p>
 <h2>9. Cookies and similar technologies</h2>
 <p>We use:</p>
 <ul>
@@ -557,7 +576,18 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <li><strong>Nominate</strong> someone to exercise your rights if you die or become incapacitated (DPDP Act);</li>
 <li><strong>Complain</strong> to the Data Protection Board of India, or to your local authority if you are in the EU/EEA or UK.</li>
 </ul>
-<p>Email founder@wynko.in. We respond within 30 days and never penalise you for exercising a right. We may ask you to verify your identity first. You can delete your account at any time by emailing founder@wynko.in from your registered email address.</p>
+<p>Email founder@wynko.in. We respond within 30 days and never penalise you for exercising a right. We may ask you to verify your identity first. You can delete your account at any time, in the Android app's settings or by emailing founder@wynko.in from your registered email address. See Section 12A.</p>
+<h2 id="delete-account">12A. Delete your account and data</h2>
+<p>You can delete your Wynko account and the personal data in it at any time. You do not need a reason.</p>
+<p><strong>How to delete</strong></p>
+<ul>
+<li><strong>In the Android app:</strong> open the app's settings and choose <strong>Delete account</strong>, then confirm. Signing in again afterwards will not bring the account back.</li>
+<li><strong>By email:</strong> write to <strong>founder@wynko.in</strong> from the email address registered on your account, with the subject "Delete my Wynko account". If you can no longer sign in, tell us the email address or username on the account. We may ask you to confirm it is yours before we delete anything.</li>
+</ul>
+<p><strong>What happens next.</strong> We act within 30 days, and usually sooner. When your account is deleted we remove your sign-in record (Firebase Authentication), your profile and study records (Firestore and our database), your saved blocks and schedules, and the files you uploaded. Rolling backups are purged within 35 days, as set out in Section 10.</p>
+<p><strong>What may be kept after deletion.</strong> Only what the law or security needs: payment and tax records (8 years, once paid plans launch), and security and abuse logs (12 months). Messages you posted in a study room may stay visible to other members of that room until they expire under Section 10. We will tell you if we cannot delete something and why.</p>
+<p><strong>Delete only some data.</strong> If you want to keep your account but remove something, such as your profile photo, uploaded files or your chat history, email us and say what to remove. You can also delete much of your content yourself in the app.</p>
+<p>Deleting your account is free. It does not require a payment, a reason or a subscription.</p>
 <h2>13. Changes to this Policy</h2>
 <p>We'll update this Policy as Wynko grows — for example when we launch paid plans or add new providers. For material changes we'll notify you by email or in-app at least 7 days before they take effect. The "Last updated" date above always reflects the current version.</p>
 <h2>14. Contact</h2>
