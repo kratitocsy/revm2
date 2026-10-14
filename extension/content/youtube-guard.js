@@ -44,6 +44,8 @@
 (function () {
   if (window.top !== window) return; // only the top frame - embeds fire this too, and duplicate work
 
+  const initialHref = location.href;
+  let notReadyAttempts = 0; // retries while a watch/channel page's metadata is still loading
   let lastChecked = null; // dedupe: SPA nav events can fire more than once per real navigation
 
   function normalizeChannelRef(raw) {
@@ -68,6 +70,22 @@
     return v;
   }
 
+  // Like normalizeChannelRef(), but only returns a value when the URL/path
+  // actually points at a CHANNEL (@handle, /channel/UC..., /c/x, /user/x).
+  // A watch page's canonical link is https://www.youtube.com/watch?v=...,
+  // which normalizeChannelRef() turns into the bare string "watch" - that
+  // is not a channel, but being non-empty it used to count as one: the
+  // "metadata isn't ready yet" guard in evaluate() never fired, and in
+  // "allow" mode a video from a LISTED channel was redirected to the block
+  // page before its owner link/name had rendered.
+  function channelRefFromUrl(raw) {
+    if (!raw) return "";
+    let v = String(raw).trim();
+    v = v.replace(/^https?:\/\/(www\.|m\.)?youtube\.com/i, "");
+    const m = v.match(/^\/(channel\/UC[\w-]+|c\/[\w.%-]+|user\/[\w.%-]+|@[\w.%-]+)/i);
+    return m ? normalizeChannelRef(m[1]) : "";
+  }
+
   // Pulls every identifier the current page exposes for "which channel is
   // this" - a video's watch page doesn't put the channel in the URL, so this
   // has to look at the DOM/embedded JSON instead of just location.pathname.
@@ -82,7 +100,7 @@
     // Canonical link - present on watch pages and set to the channel URL on
     // channel pages, so this covers both.
     const canonical = document.querySelector('link[rel="canonical"]')?.href;
-    if (canonical) refs.add(normalizeChannelRef(canonical));
+    if (canonical) refs.add(channelRefFromUrl(canonical));
 
     // itemprop channelId - present on watch pages once the player metadata
     // is in the DOM.
@@ -96,13 +114,15 @@
       "ytd-playlist-sidebar-renderer #owner-text a, ytd-playlist-header-renderer #owner-text a, " +
       "ytd-playlist-byline-renderer #owner-text a"
     )?.getAttribute("href");
-    if (ownerLink) refs.add(normalizeChannelRef(ownerLink));
+    if (ownerLink) refs.add(channelRefFromUrl(ownerLink));
 
     // Last resort: scan the embedded page-data script for a channelId/handle
     // pair. This is a plain regex scan, not a JSON.parse of the whole blob -
     // ytInitialData is large and its shape shifts often, and all this needs
     // is "does this string contain a channel identifier anywhere".
-    if (refs.size === 0) {
+    // (ytInitialData is NOT refreshed on SPA navigation, so only trust it
+    // while still on the URL the tab originally loaded.)
+    if (refs.size === 0 && location.href === initialHref) {
       for (const script of document.querySelectorAll("script")) {
         const text = script.textContent;
         if (!text || !text.includes("channelId")) continue;
@@ -201,6 +221,15 @@
   function isHomePage() {
     const path = location.pathname.replace(/\/+$/, "") || "/";
     return path === "/";
+  }
+
+  // Downloads page (YouTube Premium offline downloads) - reachable in "allow"
+  // mode. The page is just a list of saved videos; opening one still goes
+  // through the normal watch-page check, so only videos from a listed channel
+  // actually play.
+  function isDownloadsPage() {
+    const path = location.pathname.replace(/\/+$/, "");
+    return path === "/feed/downloads";
   }
 
   function isSearchResultsPage() {
@@ -384,10 +413,20 @@
     // Deliberately do NOT set lastChecked here (unlike every other return
     // in this function) - the dedup check above must NOT block those
     // later rechecks for this same URL once real metadata exists.
-    const isNavigationSurface = isHomePage() || isSearchResultsPage();
+    const isNavigationSurface = isHomePage() || isSearchResultsPage() || isDownloadsPage();
     if (!isNavigationSurface && refs.size === 0 && names.size === 0) {
-      return;
+      // Metadata not rendered yet - poll for it (the one-shot rechecks
+      // below can all fire before YouTube finishes rendering the owner
+      // link). After ~10s with still nothing, fall through and evaluate
+      // with what we have, which blocks in "allow" mode (fail closed).
+      if (notReadyAttempts < 25) {
+        notReadyAttempts++;
+        const href = location.href;
+        setTimeout(() => { if (location.href === href) evaluate(); }, 400);
+        return;
+      }
     }
+    notReadyAttempts = 0;
 
     lastChecked = location.href;
 
@@ -398,7 +437,9 @@
       // "allow" mode - only a listed channel's own pages stay reachable,
       // plus two deliberate exceptions:
       //   1. the home feed, always
-      //   2. the search results page's SHELL - the page itself always
+      //   2. the Downloads page (/feed/downloads) - just a list of saved
+      //      videos; each one is still checked when opened
+      //   3. the search results page's SHELL - the page itself always
       //      stays reachable now; applySearchFilter() below hides any
       //      individual result card that isn't confirmed to belong to a
       //      listed channel, using each card's own byline link rather
@@ -408,7 +449,8 @@
       //      saved label, which is the common case, not an edge case).
       // Everything else not on the list - Shorts feed, another channel's
       // page, or a video from another channel - still gets blocked.
-      const allowedHere = onListedChannel || isHomePage() || isSearchResultsPage();
+      const allowedHere =
+        onListedChannel || isHomePage() || isSearchResultsPage() || isDownloadsPage();
       if (!allowedHere) {
         goToBlockedPage(refs.values().next().value || location.hostname);
       }

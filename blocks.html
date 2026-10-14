@@ -267,6 +267,28 @@ function addYtChannel(){
   pushYtChannel(id, raw.startsWith('@')||id.startsWith('@') ? (id.startsWith('@')?id:'@'+id) : id);
   input.value='';
   closeYtSuggest();
+  if(id.startsWith('@')) upgradeHandleToChannelId(id);
+}
+// A typed @handle can't be turned into a channel ID in the browser (CORS), so
+// ask the resolver and swap the stored id for the UC... one when it confirms
+// that exact handle. Silent no-op if the resolver is down - the handle entry
+// just stays as it was.
+async function upgradeHandleToChannelId(handle){
+  try{
+    const resp=await fetch(`${REVM2_CONFIG.SUPABASE_URL}/functions/v1/yt-resolve-channel?q=${encodeURIComponent(handle)}`,{
+      headers:{ apikey: REVM2_CONFIG.SUPABASE_ANON, Authorization: `Bearer ${REVM2_CONFIG.SUPABASE_ANON}` }
+    });
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const m=(data.matches||[]).find(x=>x.handle && x.channelId && x.handle.toLowerCase()===handle);
+    if(!m) return;
+    const entry=pendingYtChannels.find(c=>c.id===handle);
+    if(!entry) return; // removed meanwhile
+    const newId=m.channelId.toLowerCase();
+    if(pendingYtChannels.some(c=>c.id===newId)){ pendingYtChannels=pendingYtChannels.filter(c=>c!==entry); }
+    else { entry.id=newId; if(entry.label===handle && m.title) entry.label=m.title; }
+    renderYtChips();
+  }catch(e){}
 }
 function removeYtChannel(i){ pendingYtChannels.splice(i,1); renderYtChips(); }
 
@@ -366,7 +388,11 @@ function selectYtSuggest(i){
   // Prefer the @handle as the stored id since that's what normalizeChannelRef()
   // and the extension's page-matching both key on; fall back to the raw
   // channelId for the (rare) channel that has no handle.
-  const id = m.handle ? m.handle.toLowerCase() : (m.channelId ? m.channelId.toLowerCase() : '');
+  // Store the canonical channel ID (UC...) whenever YouTube gave us one: unlike
+  // an @handle, it never changes and is exposed on every watch/live/channel
+  // page, so the extension's matching can't miss it. A handle is only the
+  // fallback for the rare result with no channelId.
+  const id = m.channelId ? m.channelId.toLowerCase() : (m.handle ? m.handle.toLowerCase() : '');
   // label must be the actual channel NAME ("Eduniti"), not the handle -
   // youtube-guard.js's loose word-match (search-query allowance,
   // display-name fallback) matches against label, and a handle like

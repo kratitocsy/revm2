@@ -855,8 +855,16 @@ export async function resolveChannelSeed(supabaseUrl: string, anonKey: string, q
   return match || null;
 }
 
+/** The id stored for a picked channel (in the block's youtube_rules and in
+ *  wynky_channel_picks). Prefers the canonical channel ID (UC...) over the
+ *  @handle: the ID never changes and is exposed on every watch/live/channel
+ *  page, so the extension's matching can't miss it, whereas a stored handle
+ *  can differ from the one the page shows (that mismatch blocked an allowed
+ *  channel's live stream). Lowercased to match normalizeChannelRef() in
+ *  blocks.html and youtube-guard.js. The handle is only the fallback for a
+ *  result with no channelId. */
 export function channelPickId(m: ResolvedChannelMatch): string {
-  return (m.handle ? m.handle.toLowerCase() : m.channelId) || m.title;
+  return (m.channelId ? m.channelId.toLowerCase() : (m.handle ? m.handle.toLowerCase() : '')) || m.title;
 }
 
 export async function fetchPopularChannels(sb: SupaLike, examKey: string, subjKey: string, limit = 20): Promise<{ channel_id: string; channel_label: string; pick_count: number }[]> {

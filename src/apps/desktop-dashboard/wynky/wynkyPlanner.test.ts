@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { confirmAiPlan, confirmPlan, confirmWeekPlan, istWeekParity, ensurePresets, eventsFromSummary, NoEnforceableBlocksError, type LearnedRow, type SupaLike } from './wynkyPlanner';
+import { confirmAiPlan, confirmPlan, confirmWeekPlan, istWeekParity, ensurePresets, channelPickId, eventsFromSummary, NoEnforceableBlocksError, type LearnedRow, type SupaLike } from './wynkyPlanner';
 
 // Minimal stand-in for the Supabase query builder: every lookup finds
 // nothing, every insert gets a fresh id, and all writes are recorded.
@@ -209,5 +209,16 @@ describe('istWeekParity', () => {
     expect(istWeekParity(new Date('2026-08-16T09:00:00+05:30'))).toBe(0);
     // Saturday 23:00 IST is still the old week even though UTC is earlier/later.
     expect(istWeekParity(new Date('2026-08-15T23:00:00+05:30'))).toBe(1);
+  });
+});
+
+describe('channelPickId', () => {
+  it('prefers the canonical channel ID over the handle, lowercased', () => {
+    expect(channelPickId({ channelId: 'UCHWna16c7Ff0mY_QBVF2rXQ', handle: '@MathsUnpluggedIndia', title: 'Maths Unplugged!' }))
+      .toBe('uchwna16c7ff0my_qbvf2rxq');
+  });
+  it('falls back to the handle, then the title', () => {
+    expect(channelPickId({ channelId: null, handle: '@SomeChannel', title: 'Some Channel' })).toBe('@somechannel');
+    expect(channelPickId({ channelId: null, handle: null, title: 'Some Channel' })).toBe('Some Channel');
   });
 });
