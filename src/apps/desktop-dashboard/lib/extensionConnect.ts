@@ -13,17 +13,31 @@ import { sb } from '../../_shared/supabaseClient';
 
 // Pinned by the "key" in the extension's manifest.json (same as blocks.html).
 export const EXTENSION_ID = 'knofmgookchmjekaefloaljcamjlbnmp';
+// The Chrome Web Store copy has its own ID (the store assigns it), so the
+// page tries both: the pinned dev/"Load unpacked" ID and the store ID.
+export const STORE_EXTENSION_ID = 'knfnglhnejkndbkaegmpeeaickdhjmjh';
+export const EXTENSION_STORE_URL = `https://chromewebstore.google.com/detail/${STORE_EXTENSION_ID}`;
+const EXTENSION_IDS = [STORE_EXTENSION_ID, EXTENSION_ID];
 
 type ExtResponse = { ok?: boolean; installed?: boolean; connected?: boolean; reason?: string };
 
-function sendToExtension(msg: Record<string, unknown>, timeoutMs = 1500): Promise<ExtResponse> {
+async function sendToExtension(msg: Record<string, unknown>, timeoutMs = 1500): Promise<ExtResponse> {
+  let last: ExtResponse = { ok: false, reason: 'no_extension_api' };
+  for (const id of EXTENSION_IDS) {
+    last = await sendToExtensionId(id, msg, timeoutMs);
+    if (last.ok) return last;
+  }
+  return last;
+}
+
+function sendToExtensionId(id: string, msg: Record<string, unknown>, timeoutMs: number): Promise<ExtResponse> {
   return new Promise(resolve => {
     const rt = (globalThis as any).chrome?.runtime;
     if (!rt?.sendMessage) { resolve({ ok: false, reason: 'no_extension_api' }); return; }
     let done = false;
     const timer = setTimeout(() => { if (!done) { done = true; resolve({ ok: false, reason: 'timeout' }); } }, timeoutMs);
     try {
-      rt.sendMessage(EXTENSION_ID, msg, (response: ExtResponse | undefined) => {
+      rt.sendMessage(id, msg, (response: ExtResponse | undefined) => {
         if (done) return;
         done = true; clearTimeout(timer);
         if (rt.lastError) { resolve({ ok: false, reason: rt.lastError.message }); return; }
@@ -62,4 +76,14 @@ export async function autoConnectExtension(userId: string): Promise<'connected' 
   } catch {
     return 'failed';
   }
+}
+
+/** True only in desktop Chrome/Edge/Brave-style browsers where the extension
+ *  is not installed: the one place an "Add to Chrome" prompt makes sense. */
+export async function shouldOfferExtensionInstall(): Promise<boolean> {
+  if (typeof window === 'undefined' || typeof (window as any).__TAURI__ !== 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (!/Chrome\//.test(ua) || /Mobile|Android|Edg\/|OPR\//.test(ua)) return false;
+  const status = await sendToExtension({ type: 'RM2_STATUS' });
+  return !(status.ok && status.installed);
 }

@@ -22,6 +22,7 @@ import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
 import { autoConnectExtension } from './lib/extensionConnect'
+import ExtensionInstallPrompt from './ExtensionInstallPrompt'
 import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
 import type { AiSlot, SubjectAllowlist } from './wynky/wynkyPlanner'
 import { useFocusSession } from '../_shared/useFocusSession'
@@ -11480,6 +11481,7 @@ export default function DesktopDashboard() {
           onCreateOwn={() => { void rejectCommunitySchedule(scheduleNotif.id); handleNav('schedules') }}
           onDismiss={dismissScheduleNotif} />
       )}
+      {authState === 'ready' && !needsHomeChoice && <ExtensionInstallPrompt />}
       {focusSetup && (
         <CommunityFocusSetup communityName={focusSetup.row.name} subjects={focusSetup.subjects} initial={focusSetup.initial}
           onCancel={() => setFocusSetup(null)}
