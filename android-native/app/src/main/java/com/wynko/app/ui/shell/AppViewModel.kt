@@ -33,6 +33,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val stack = ArrayDeque<Dest>()
 
     fun go(d: Dest) {
+        if (!com.wynko.app.BuildConfig.PAYMENTS_ENABLED && (d == Dest.Coins || d == Dest.Earn)) { drawerOpen = false; return }
         if (d == dest) { drawerOpen = false; return }
         val isTop = d in TopLevel
         if (isTop) stack.clear() else stack.addLast(dest)

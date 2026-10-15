@@ -225,8 +225,10 @@ fun CommunityManageScreen(vm: AppViewModel) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GhostButton("View Community", { vm.currentCommunityId = "home"; vm.go(Dest.CommStudent) }, Modifier.weight(1f), height = 40)
         }
-        TabRow2(listOf("Overview", "News", "Schedule", "Analytics", "Earnings", "Manage"), tab, { tab = it })
-        when (tab) {
+        // The Earnings tab (wallet, payouts) stays hidden in the Play build, see BuildConfig.PAYMENTS_ENABLED.
+        val labels = if (com.wynko.app.BuildConfig.PAYMENTS_ENABLED) listOf("Overview", "News", "Schedule", "Analytics", "Earnings", "Manage") else listOf("Overview", "News", "Schedule", "Analytics", "Manage")
+        TabRow2(labels, tab, { tab = it })
+        when (if (!com.wynko.app.BuildConfig.PAYMENTS_ENABLED && tab >= 4) tab + 1 else tab) {
             0 -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { StatTile(Icons.Filled.Groups, "128", "Total Students", Modifier.weight(1f)); StatTile(Icons.Filled.TrackChanges, "62", "Active Today", Modifier.weight(1f)) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { StatTile(Icons.Filled.Schedule, "2h 40m", "Avg / Day", Modifier.weight(1f)); StatTile(Icons.Filled.CheckCircle, "78%", "Adherence", Modifier.weight(1f)) }

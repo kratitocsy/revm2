@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wynko.app.R
 import com.wynko.app.ui.components.*
+import com.wynko.app.BuildConfig
 import com.wynko.app.ui.screens.*
 import com.wynko.app.ui.theme.Wk
 
@@ -38,7 +39,7 @@ private val DrawerItems = listOf(
     NavItem(Dest.Comms, "Communities", Icons.Filled.Groups), NavItem(Dest.Battle, "Battleground", Icons.Filled.Bolt),
     NavItem(Dest.Coins, "WYNKOINS", Icons.Filled.MonetizationOn), NavItem(Dest.Earn, "Earn with Wynko", Icons.Filled.LocalFireDepartment),
     NavItem(Dest.Settings, "Settings", Icons.Filled.Settings),
-)
+).filter { BuildConfig.PAYMENTS_ENABLED || (it.dest != Dest.Coins && it.dest != Dest.Earn) }
 
 private fun barTitle(d: Dest) = when (d) {
     Dest.Schedules -> "Schedules"; Dest.Earn -> "Earn with Wynko"; Dest.Focus -> "Focus Lock"; Dest.Rooms -> "Study Rooms"
