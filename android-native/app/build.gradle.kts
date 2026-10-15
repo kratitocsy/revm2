@@ -19,6 +19,9 @@ android {
 
         // Same project + public anon key the web app ships (src/lib/supabase.js).
         // Override with -PsupabaseUrl / -PsupabaseAnon if needed.
+        // Digital-goods screens (WYNKOINS shop, Earn payouts) stay off in the Play build until Play Billing is
+        // integrated; build with -PpaymentsEnabled=true to see them.
+        buildConfigField("boolean", "PAYMENTS_ENABLED", "${project.findProperty("paymentsEnabled") ?: "false"}")
         buildConfigField("String", "SUPABASE_URL",
             "\"${project.findProperty("supabaseUrl") ?: "https://dhzjtjekbvxxsauzhadl.supabase.co"}\"")
         buildConfigField("String", "SUPABASE_ANON",

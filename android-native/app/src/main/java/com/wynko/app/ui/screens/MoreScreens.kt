@@ -31,7 +31,7 @@ fun MoreScreen(vm: AppViewModel) = ScreenColumn {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { Pill("Rising Scholar", Wk.Violet); Pill("🔥 6 days", Wk.Orange300) }
         }
     }
-    Row(Modifier.fillMaxWidth().wkCard(borderColor = Wk.Orange600.copy(alpha = 0.4f)).tap { vm.go(Dest.Coins) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (com.wynko.app.BuildConfig.PAYMENTS_ENABLED) Row(Modifier.fillMaxWidth().wkCard(borderColor = Wk.Orange600.copy(alpha = 0.4f)).tap { vm.go(Dest.Coins) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         IconChip(Icons.Filled.MonetizationOn, 48)
         Column(Modifier.weight(1f)) { Eyebrow("WYNKOINS", Wk.Orange300); WkText("%,d".format(vm.coins), 26, FontWeight.ExtraBold, Wk.Cream50) }
         WkText("Top up →", 12, FontWeight.SemiBold, Wk.Orange300)
