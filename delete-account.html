@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Delete your account — Wynko</title>
+<meta name="description" content="How to delete your Wynko account and data: in the Android app or by email." />
+<link rel="canonical" href="https://wynko.in/delete-account" />
+<link rel="icon" href="/favicon.ico" sizes="48x48" />
+<link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://wynko.in/delete-account" />
+<meta property="og:title" content="Delete your account — Wynko" />
+<meta property="og:description" content="How to delete your Wynko account and data: in the Android app or by email." />
+<meta property="og:image" content="https://wynko.in/wynko-lockup.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f0e0d;
+  --ink-2:#141311;
+  --surface:rgba(255,255,255,.025);
+  --surface-2:rgba(255,255,255,.045);
+  --surface-3:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);
+  --border-2:rgba(255,255,255,.14);
+  --text:#f8f5f4;
+  --text-2:#c4bfb8;
+  --text-3:#8e867c;
+  --text-4:#60584e;
+
+  --violet:#ff9d4d;
+  --violet-2:#fabd8b;
+  --blue:#ff8c4a;
+  --cyan:#eeaa22;
+  --mint:#34d399;
+  --amber:#fbbf24;
+  --coral:#fb7185;
+
+  --grad:linear-gradient(118deg,#fabd8b 0%,#ffa26c 46%,#eeaa22 100%);
+  --grad-soft:linear-gradient(120deg,rgba(255,157,77,.16),rgba(238,170,34,.12));
+  --glow-v:rgba(255,157,77,.32);
+  --glow-c:rgba(238,170,34,.28);
+
+  --font:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --maxw:1200px;
+  --r:16px;
+  --r-sm:10px;
+  --r-lg:26px;
+}
+*,*::before,*::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; overflow-x:hidden; max-width:100%; }
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    radial-gradient(1100px 560px at 8% -12%, rgba(255,157,77,.16), transparent 62%),
+    radial-gradient(900px 520px at 96% 2%, rgba(238,170,34,.10), transparent 58%),
+    radial-gradient(1200px 700px at 50% 118%, rgba(255,140,74,.10), transparent 60%);
+}
+body::after{
+  content:'';
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.026) 1px, transparent 1px);
+  background-size:46px 46px;
+  mask-image:radial-gradient(circle at 50% 0%, rgba(0,0,0,.85), transparent 78%);
+  -webkit-mask-image:radial-gradient(circle at 50% 0%, rgba(0,0,0,.85), transparent 78%);
+}
+main,header,footer{ position:relative; z-index:1; }
+a{ color:inherit; text-decoration:none; }
+img{ max-width:100%; display:block; }
+.mono{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.wrap{ max-width:var(--maxw); margin:0 auto; padding:0 28px; }
+.grad-text{ background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  font-family:var(--font); font-weight:600; font-size:.92rem;
+  padding:12px 22px; border-radius:999px; border:1px solid transparent;
+  cursor:pointer; transition:transform .18s ease, box-shadow .22s ease, background .2s ease, border-color .2s ease;
+  white-space:nowrap;
+}
+.btn:active{ transform:scale(.97); }
+.btn-primary{ background:var(--grad); color:#0d0c0b; box-shadow:0 10px 34px -12px var(--glow-v); }
+.btn-primary:hover{ box-shadow:0 14px 44px -10px var(--glow-v), 0 0 0 1px rgba(255,255,255,.12) inset; transform:translateY(-1px); }
+.btn-ghost{ background:rgba(255,255,255,.03); border-color:var(--border-2); color:var(--text); }
+.btn-ghost:hover{ border-color:var(--violet-2); color:#fff; background:rgba(255,157,77,.1); }
+.btn-sm{ padding:8px 16px; font-size:.82rem; }
+.btn-lg{ padding:15px 30px; font-size:1rem; }
+
+/* ---------- nav ---------- */
+header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(15,14,13,.72);
+  backdrop-filter:blur(16px) saturate(140%);
+  border-bottom:1px solid var(--border);
+}
+.nav{ display:flex; align-items:center; gap:34px; height:66px; }
+.brand{ display:flex; align-items:center; gap:11px; flex-shrink:0; }
+.brand-mark{
+  width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+}
+.brand-mark img{ width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 10px var(--glow-v)); }
+.brand-word{ font-weight:800; font-size:1.18rem; letter-spacing:.14em; }
+.nav-links{ display:flex; align-items:center; gap:26px; margin-left:8px; }
+.nav-links a{ font-size:.9rem; font-weight:500; color:var(--text-2); transition:color .18s; }
+.nav-links a:hover{ color:#fff; }
+.nav-links a.active{ color:#fff; }
+.nav-links a.active::after{ content:''; display:block; height:2px; margin-top:3px; border-radius:2px; background:var(--grad); }
+.nav-right{ margin-left:auto; display:flex; align-items:center; gap:18px; }
+.nav-right .login{ font-size:.9rem; font-weight:500; color:var(--text-2); }
+.nav-right .login:hover{ color:#fff; }
+.nav-toggle{ display:none; background:none; border:0; color:var(--text); font-size:1.5rem; cursor:pointer; }
+
+/* ---------- reveal ---------- */
+.reveal{ opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease; }
+.reveal.in{ opacity:1; transform:none; }
+
+/* ---------- legal document ---------- */
+.legal-wrap{ padding:64px 0 40px; }
+.legal-doc{
+  max-width:760px; margin:0 auto; padding:44px 48px 56px;
+  border:1px solid var(--border); border-radius:var(--r-lg);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
+  box-shadow:0 40px 90px -50px var(--glow-v);
+}
+.legal-doc h1{
+  font-size:clamp(1.9rem,3.6vw,2.5rem); font-weight:800; letter-spacing:-.02em;
+  margin-bottom:10px;
+}
+.legal-doc > p:nth-of-type(1),
+.legal-doc > p:nth-of-type(2){ color:var(--text-3); font-size:.88rem; margin:0 0 4px; }
+.legal-doc > p:nth-of-type(1) strong,
+.legal-doc > p:nth-of-type(2) strong{ color:var(--text-2); }
+.legal-doc hr{ border:0; border-top:1px solid var(--border); margin:28px 0; }
+.legal-doc h2{
+  font-size:1.22rem; font-weight:700; letter-spacing:-.01em; color:var(--text);
+  margin:44px 0 14px; padding-top:20px; border-top:1px solid var(--border);
+}
+.legal-doc h2:first-of-type{ margin-top:0; }
+.legal-doc h3{ font-size:1rem; font-weight:600; color:var(--violet-2); margin:26px 0 10px; }
+.legal-doc p{ color:var(--text-2); font-size:.94rem; line-height:1.75; margin:0 0 14px; }
+.legal-doc p strong{ color:var(--text); font-weight:600; }
+.legal-doc a{ color:var(--cyan); text-decoration:underline; text-underline-offset:2px; }
+.legal-doc a:hover{ color:#fff; }
+.legal-doc ul{ margin:0 0 16px; padding-left:1.3em; }
+.legal-doc li{ color:var(--text-2); font-size:.94rem; line-height:1.75; margin-bottom:8px; }
+.legal-doc li strong{ color:var(--text); font-weight:600; }
+.legal-doc blockquote{
+  margin:22px 0; padding:14px 18px; background:rgba(255,157,77,.07);
+  border-left:3px solid var(--violet-2); border-radius:0 12px 12px 0;
+  color:var(--text-3); font-size:.9rem;
+}
+.legal-doc table{ width:100%; border-collapse:collapse; margin:18px 0 22px; font-size:.86rem; display:block; overflow-x:auto; }
+.legal-doc th,
+.legal-doc td{ border:1px solid var(--border); padding:10px 13px; text-align:left; vertical-align:top; }
+.legal-doc th{ background:rgba(255,157,77,.08); color:var(--text); font-weight:600; white-space:nowrap; }
+.legal-doc td{ color:var(--text-2); }
+.legal-doc code{ background:var(--surface-3); padding:2px 6px; border-radius:5px; font-family:var(--mono); font-size:.86em; color:var(--cyan); }
+
+/* ---------- footer ---------- */
+footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba(255,255,255,.012); }
+.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:34px; }
+.foot-brand .brand{ margin-bottom:16px; }
+.foot-brand p{ color:var(--text-3); font-size:.84rem; max-width:280px; }
+.foot-col h5{ font-size:.72rem; text-transform:uppercase; letter-spacing:.16em; color:var(--text-4); margin:0 0 16px; font-weight:600; }
+.foot-col a{ display:block; color:var(--text-2); font-size:.86rem; margin-bottom:11px; transition:color .18s; }
+.foot-col a:hover{ color:#fff; }
+.foot-bottom{ display:flex; justify-content:space-between; align-items:center; margin-top:48px; padding-top:26px; border-top:1px solid var(--border); color:var(--text-4); font-size:.78rem; flex-wrap:wrap; gap:14px; }
+.foot-bottom .soc{ display:flex; gap:10px; }
+.foot-bottom .soc a{ width:34px; height:34px; border-radius:9px; border:1px solid var(--border); display:grid; place-items:center; color:var(--text-3); }
+.foot-bottom .soc a:hover{ color:#fff; border-color:var(--border-2); }
+
+/* ---------- responsive ---------- */
+@media (max-width:1024px){
+  .foot-grid{ grid-template-columns:1.4fr 1fr 1fr; }
+}
+@media (max-width:760px){
+  .foot-grid{ grid-template-columns:1fr 1fr; }
+  .legal-wrap{ padding:36px 0 24px; }
+  .legal-doc{ padding:28px 20px 36px; border-radius:var(--r); }
+  .legal-doc table{ font-size:.8rem; }
+  .legal-doc th, .legal-doc td{ padding:8px 10px; }
+}
+/* ---------- nav: collapses to a dropdown below 960px (the full row of links doesn't fit) ---------- */
+.lbl-short, .nav-links .nav-mobile-only{ display:none; }
+@media (max-width:960px){
+  .nav{ gap:16px; }
+  .nav-toggle{ display:block; }
+  .nav-right{ gap:12px; }
+  .nav-right .login{ display:none; }
+  .nav-links{
+    display:none; position:absolute; top:100%; left:0; right:0; margin:0;
+    flex-direction:column; align-items:stretch; gap:0; padding:6px 28px 14px;
+    background:rgba(15,14,13,.97); border-bottom:1px solid var(--border);
+  }
+  header.nav-open .nav-links{ display:flex; }
+  .nav-links a{ padding:13px 0; font-size:1rem; border-bottom:1px solid var(--border); }
+  .nav-links a:last-child{ border-bottom:0; }
+  .nav-links a.active::after{ display:none; }
+  .nav-links .nav-mobile-only{ display:block; }
+}
+@media (max-width:480px){
+  header .wrap.nav{ padding:0 18px; }
+  .nav-links{ padding:6px 18px 14px; }
+  .lbl-long{ display:none; }
+  .lbl-short{ display:inline; }
+}
+@media (max-width:360px){
+  .brand-word{ display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header>
+  <div class="wrap nav">
+      <a class="brand" href="/" aria-label="Wynko home">
+      <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
+      <span class="brand-word grad-text">WYNKO</span>
+    </a>
+    <nav class="nav-links" onclick="if(event.target.closest('a')){const h=this.closest('header');h.classList.remove('nav-open');h.querySelector('.nav-toggle').setAttribute('aria-expanded','false');}">
+      <a href="/#product">Product</a>
+      <a href="/#features">Features</a>
+      <a href="/#founders">Founders</a>
+      <a href="/#reviews">Reviews</a>
+      <a href="/#faq">FAQ</a>
+      <a class="nav-mobile-only" href="/login">Log in</a>
+    </nav>
+    <div class="nav-right">
+      <a class="login" href="/login">Log in</a>
+      <a class="btn btn-primary btn-sm" href="downloads/"><span class="lbl-long">Download Desktop App</span><span class="lbl-short">Download</span></a>
+      <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.closest('header').classList.toggle('nav-open'))">&#9776;</button>
+    </div>
+  </div>
+</header>
+
+<div class="legal-wrap">
+  <div class="wrap">
+<main class="legal-doc reveal">
+<h1>Delete your Wynko account and data</h1>
+<p><strong>Wynko — Learn Together. Win Together.</strong> · wynko.in</p>
+<p>This page explains how to ask Wynko to delete your account and the personal data in it. It applies to the Wynko Android app, the Wynko website and the Wynko desktop app. Deleting your account is free.</p>
+<hr />
+<h2>How to delete your account</h2>
+<h3>Option 1: in the Wynko Android app</h3>
+<ol>
+<li>Open the Wynko app and go to <strong>Settings</strong>.</li>
+<li>Choose <strong>Delete account</strong>.</li>
+<li>Confirm when asked.</li>
+</ol>
+<h3>Option 2: by email</h3>
+<ol>
+<li>Write to <strong>founder@wynko.in</strong> from the email address registered on your account.</li>
+<li>Use the subject <strong>Delete my Wynko account</strong>.</li>
+<li>If you can no longer sign in, tell us the email address or username on the account. We may ask you to confirm it is yours before we delete anything.</li>
+</ol>
+<p>We delete the account within 30 days of your request, and usually sooner.</p>
+<h2>What we delete</h2>
+<ul>
+<li>Your sign-in record (name, email address, profile picture and user ID).</li>
+<li>Your profile and study records: goals, study history, streaks, saved blocks and schedules.</li>
+<li>Files and content you uploaded.</li>
+</ul>
+<p>Our backups are purged on a rolling basis within 35 days of deletion.</p>
+<h2>What we may keep, and for how long</h2>
+<ul>
+<li><strong>Payment and tax records:</strong> 8 years, as Indian tax law requires (once paid plans are available).</li>
+<li><strong>Security and abuse logs:</strong> up to 12 months, to keep Wynko safe.</li>
+<li><strong>Messages you posted in a study room</strong> may stay visible to other members of that room for up to 12 months, as set out in our Privacy Policy.</li>
+</ul>
+<p>If we cannot delete something, we will tell you what and why.</p>
+<h2>Delete only some of your data</h2>
+<p>If you want to keep your account but remove something, such as your profile picture, uploaded files or chat history, email <strong>founder@wynko.in</strong> and tell us what to remove.</p>
+<h2>More information</h2>
+<p>Read our full <a href="/privacy">Privacy Policy</a>, or contact us at <strong>founder@wynko.in</strong>.</p>
+</main>
+  </div>
+</div>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="/">
+          <span class="brand-mark"><img src="wynko-mark.png" alt="Wynko" /></span>
+          <span class="brand-word grad-text">WYNKO</span>
+        </a>
+        <p>A Study OS designed to help you focus, learn, and grow. Focus. Study. Together.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Product</h5>
+        <a href="/#product">Overview</a>
+        <a href="/#features">Features</a>
+        <a href="/#your-day">Your Day</a>
+        <a href="/#study-together">Study Together</a>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <a href="/about">About</a>
+        <a href="/#founders">Team &amp; Partners</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/privacy">Privacy</a>
+      </div>
+      <div class="foot-col">
+        <h5>Get started</h5>
+        <a href="/login">Sign Up / Login</a>
+        <a href="downloads/">Download Desktop App</a>
+        <a href="#">Mobile App</a>
+        <a href="mailto:founder@wynko.in">Contact Us</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>&copy; 2026 Wynko. All rights reserved. &nbsp;&middot;&nbsp; <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Service</a></span>
+      <div class="soc">
+        <a href="#" aria-label="X"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.2L1 2h7l4.9 6.4L18.9 2Zm-1.2 18h1.9L7.4 3.9H5.3L17.7 20Z"/></svg></a>
+        <a href="#" aria-label="LinkedIn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5A2.5 2.5 0 1 1 5 8.5a2.5 2.5 0 0 1-.02-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.4 8.65 22 10.9 22 14.3V21h-4v-5.9c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.52-2.25 3.1V21H9V9Z"/></svg></a>
+        <a href="#" aria-label="Instagram"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold:.05 });
+  els.forEach(el=> io.observe(el));
+})();
+</script>
+</body>
+</html>
