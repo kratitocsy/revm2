@@ -32,19 +32,25 @@ import androidx.compose.material3.DropdownMenuItem
 
 @Composable
 fun HomeScreen(vm: AppViewModel) = ScreenColumn {
-    ProgressCard()
+    LaunchedEffect(Unit) { vm.refreshProfile() }
+    ProgressCard(vm)
     TimerCard(vm)
     PlanCard(vm)
-    LiveRoomsCard(vm)
 }
 
 @Composable
-private fun ProgressCard() {
-    var selected by remember { mutableIntStateOf(WeekMinutes.lastIndex) }
+private fun fmtMin(m: Int) = if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
+
+@Composable
+private fun ProgressCard(vm: AppViewModel) {
+    val weekMinutes = vm.weekMinutes
+    val weekLabels = vm.weekLabels
+    var selected by remember { mutableIntStateOf(weekMinutes.lastIndex) }
+    val yMax = maxOf(60, weekMinutes.max()).let { ((it + 59) / 60) * 60 } // chart top, whole hours
     Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
         CardHeader(Icons.Filled.BarChart, "Your Study Progress", "Study time · Last 7 days")
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Triple(Icons.Filled.Schedule, "16h 5m", "Total Studied"), Triple(Icons.Filled.BarChart, "2h 18m", "Daily Average"), Triple(Icons.Filled.TrackChanges, "6 days", "Current Streak")).forEach { (ic, v, l) ->
+            listOf(Triple(Icons.Filled.Schedule, fmtMin(weekMinutes.sum()), "Total Studied"), Triple(Icons.Filled.BarChart, fmtMin(weekMinutes.sum() / weekMinutes.size), "Daily Average"), Triple(Icons.Filled.TrackChanges, "${vm.streakDays} day${if (vm.streakDays == 1) "" else "s"}", "Current Streak")).forEach { (ic, v, l) ->
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconChip(ic, 28, round = true)
                     Column { WkText(v, 13, FontWeight.Bold, Wk.Ink100, maxLines = 1); WkText(l, 9, color = Wk.Ink500, maxLines = 1) }
@@ -55,7 +61,7 @@ private fun ProgressCard() {
             Canvas(Modifier.fillMaxSize().padding(start = 22.dp, bottom = 20.dp, top = 6.dp)) {
                 val w = size.width; val h = size.height
                 for (g in 0..4) drawLine(Color(0x149C968C), Offset(0f, h - h * g / 4f), Offset(w, h - h * g / 4f), 1f)
-                val pts = WeekMinutes.mapIndexed { i, m -> Offset(w * i / (WeekMinutes.size - 1), h - h * (m / 240f)) }
+                val pts = weekMinutes.mapIndexed { i, m -> Offset(w * i / (weekMinutes.size - 1), h - h * (m / yMax.toFloat())) }
                 val line = Path().apply {
                     moveTo(pts[0].x, pts[0].y)
                     for (i in 1 until pts.size) {
@@ -72,17 +78,17 @@ private fun ProgressCard() {
                 }
             }
             Column(Modifier.fillMaxHeight().padding(bottom = 20.dp, top = 6.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                listOf("4h", "3h", "2h", "1h", "0h").forEach { WkText(it, 9, color = Wk.Ink400.copy(alpha = 0.4f)) }
+                (4 downTo 0).map { fmtMin(yMax * it / 4) }.forEach { WkText(it, 9, color = Wk.Ink400.copy(alpha = 0.4f)) }
             }
             Row(Modifier.fillMaxSize().padding(start = 22.dp), verticalAlignment = Alignment.Bottom) {
-                WeekLabels.forEachIndexed { i, l ->
+                weekLabels.forEachIndexed { i, l ->
                     Box(Modifier.weight(1f).tap { selected = i }, contentAlignment = Alignment.BottomCenter) {
                         WkText(l, 10, if (i == selected) FontWeight.Bold else FontWeight.Normal, if (i == selected) Wk.Orange500 else Wk.Ink500, align = TextAlign.Center)
                     }
                 }
             }
         }
-        WkText("${WeekLabels[selected]} · ${WeekMinutes[selected] / 60}h ${WeekMinutes[selected] % 60}m", 11, FontWeight.SemiBold, Wk.Ink100, Modifier.padding(top = 6.dp))
+        WkText("${weekLabels[selected]} · ${fmtMin(weekMinutes[selected])}", 11, FontWeight.SemiBold, Wk.Ink100, Modifier.padding(top = 6.dp))
     }
 }
 
@@ -132,7 +138,7 @@ fun TimerRing(text: String, caption: String, size: Int, textSize: Int, progress:
 @Composable
 private fun PlanCard(vm: AppViewModel) {
     Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
-        CardHeader(Icons.Filled.Schedule, "Today's Study Plan") { WkText("Tue, 23 Sep 2026", 11, color = Wk.Ink500) }
+        CardHeader(Icons.Filled.Schedule, "Today's Study Plan") { WkText(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy", java.util.Locale.ENGLISH)), 11, color = Wk.Ink500) }
         if (vm.tasks.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 WkText("📭", 30); WkText("No tasks scheduled for today", 14, FontWeight.SemiBold, Wk.Ink300, Modifier.padding(top = 8.dp, bottom = 4.dp))
@@ -165,29 +171,6 @@ fun TaskRow(vm: AppViewModel, t: com.wynko.app.ui.shell.StudyTask) {
         RoundIconButton(Icons.Filled.Close, { vm.removeTask(t.id) })
         Box(Modifier.size(36.dp).clip(CircleShape).background(Wk.Cream50).tap { vm.startTask(t.id) }, contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.PlayArrow, "Start", tint = Wk.Black950, modifier = Modifier.size(18.dp))
-        }
-    }
-}
-
-@Composable
-private fun LiveRoomsCard(vm: AppViewModel) {
-    val live = Rooms.filter { it.hot }.take(4)
-    Column(Modifier.fillMaxWidth().wkCard().padding(16.dp)) {
-        CardHeader(Icons.Filled.Videocam, "Live Study Rooms") {
-            Column(horizontalAlignment = Alignment.End) {
-                WkText("View All", 12, color = Wk.Ink300, modifier = Modifier.tap { vm.go(Dest.Rooms) })
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { StatDot(Wk.Green); WkText("${live.sumOf { it.live }} studying", 11, color = Wk.Green) }
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            live.forEach { r ->
-                ListRow(onClick = { vm.openRoom(r.id, Dest.Rooms) }) {
-                    RoomIcon(r, 40)
-                    Column(Modifier.weight(1f)) { WkText(r.name, 14, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("${r.live} / ${r.members} studying", 11, color = Wk.Ink500) }
-                    AvatarStack(r.people.take(3), 24)
-                    Icon(Icons.Filled.ChevronRight, null, tint = Wk.Ink500, modifier = Modifier.size(16.dp))
-                }
-            }
         }
     }
 }

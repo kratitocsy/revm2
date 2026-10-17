@@ -144,7 +144,7 @@ private fun AppBar(vm: AppViewModel) {
         Column(Modifier.weight(1f)) {
             if (vm.dest == Dest.Home) {
                 Eyebrow(java.time.LocalDate.now().let { "${it.dayOfWeek.name.take(3)} · ${it.dayOfMonth} ${it.month.name.take(3)}" })
-                WkText("${greeting()}, ${displayName()}", 15, FontWeight.SemiBold, Wk.Ink100, maxLines = 1)
+                WkText("${greeting()}, ${displayName(vm).substringBefore(" ")}", 15, FontWeight.SemiBold, Wk.Ink100, maxLines = 1)
             } else {
                 Eyebrow("WYNKO")
                 WkText(barTitle(vm.dest), 15, FontWeight.SemiBold, Wk.Ink100, maxLines = 1)
@@ -162,7 +162,7 @@ private fun AppBar(vm: AppViewModel) {
             Modifier.size(36.dp).clip(CircleShape).background(Wk.Black700).border(1.dp, Wk.Orange600.copy(alpha = 0.6f), CircleShape)
                 .clickable { vm.go(Dest.More) },
             contentAlignment = Alignment.Center,
-        ) { WkText(initials(), 12, FontWeight.Bold, Wk.Orange200) }
+        ) { WkText(initials(vm), 12, FontWeight.Bold, Wk.Orange200) }
     }
 }
 
@@ -258,8 +258,8 @@ private fun Drawer(vm: AppViewModel) {
                 Modifier.fillMaxWidth().wkSurface(Wk.Black800, Wk.Black600, 14.dp).clickable { vm.go(Dest.More) }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Avatar(initials(), Wk.Orange300, 36)
-                Column(Modifier.weight(1f)) { WkText(displayName(), 13, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("View profile", 11, color = Wk.Ink500) }
+                Avatar(initials(vm), Wk.Orange300, 36)
+                Column(Modifier.weight(1f)) { WkText(displayName(vm), 13, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("View profile", 11, color = Wk.Ink500) }
                 Icon(Icons.Filled.ChevronRight, null, tint = Wk.Ink500, modifier = Modifier.size(18.dp))
             }
         }
@@ -270,9 +270,9 @@ private fun Drawer(vm: AppViewModel) {
     }
 }
 
-private fun displayName(): String =
-    com.wynko.app.data.AuthRepository.currentEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }?.takeIf { it.isNotBlank() } ?: "there"
+private fun displayName(vm: AppViewModel): String =
+    vm.profileName ?: com.wynko.app.data.AuthRepository.currentEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }?.takeIf { it.isNotBlank() } ?: "there"
 
-private fun initials(): String = displayName().filter { it.isLetterOrDigit() }.take(2).uppercase().ifEmpty { "W" }
+private fun initials(vm: AppViewModel): String = displayName(vm).filter { it.isLetterOrDigit() }.take(2).uppercase().ifEmpty { "W" }
 
 private fun greeting(): String = when (java.time.LocalTime.now().hour) { in 5..11 -> "Good morning"; in 12..16 -> "Good afternoon"; else -> "Good evening" }

@@ -1,6 +1,7 @@
 package com.wynko.app.ui.shell
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -8,6 +9,7 @@ import androidx.compose.runtime.setValue
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.wynko.app.data.ProfileRepository
 import com.wynko.app.data.ScheduleRepository
 import com.wynko.app.locking.ScheduleAlarms
 import com.wynko.app.locking.ScheduleEnforcer
@@ -65,11 +67,53 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var activeId by mutableStateOf<String?>(null)
     var waitingBreak by mutableStateOf(false)
     var focusFull by mutableStateOf(false)
-    val tasks = mutableStateListOf(
-        StudyTask("t1", "Physics", "Electrostatics", 60),
-        StudyTask("t2", "Chemistry", "Chemical Bonding", 45),
-        StudyTask("t3", "Mathematics", "Integration", 50),
-    )
+    /** Today's plan: study blocks from the student's active schedules (ids start with "slot-"), plus tasks added by hand. */
+    val tasks = mutableStateListOf<StudyTask>()
+
+    // ── profile and progress (real data from user_profiles.study_log) ──
+    var profileName by mutableStateOf<String?>(null)
+        private set
+    var weekMinutes by mutableStateOf(List(7) { 0 })
+        private set
+    var weekLabels by mutableStateOf(List(7) { "" })
+        private set
+    var streakDays by mutableIntStateOf(0)
+        private set
+    var todayMinutes by mutableIntStateOf(0)
+        private set
+    var goalMinutes by mutableIntStateOf(180)
+        private set
+
+    /** Reloads name, weekly minutes, streak and today's total. Safe to call often; a failed refresh keeps the last numbers. */
+    fun refreshProfile() {
+        viewModelScope.launch {
+            val p = runCatching { ProfileRepository.load() }.getOrNull() ?: return@launch
+            profileName = p.displayName
+            goalMinutes = p.goalMinutes
+            // Same day keys and streak rule as the desktop Home: UTC dates, walk back from today until a zero day.
+            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+            val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
+            weekMinutes = days.map { d -> ((p.dailySeconds[d.toString()] ?: 0L) / 60).toInt() }
+            weekLabels = days.map { it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH) }
+            todayMinutes = weekMinutes.last()
+            var streak = 0
+            var d = today
+            while ((p.dailySeconds[d.toString()] ?: 0L) > 0L) { streak++; d = d.minusDays(1) }
+            streakDays = streak
+        }
+    }
+
+    /** Replaces the schedule-derived rows of today's plan; hand-added tasks and finished flags stay. */
+    private fun seedTasksFromSchedules() {
+        val now = System.currentTimeMillis()
+        val (day, _) = istDayAndMinute(now)
+        val doneIds = tasks.filter { it.done }.map { it.id }.toSet()
+        val fromSchedule = blocksOn(ScheduleStore.gateSchedules(schedules), day, now, 0)
+            .filter { !it.slot.isSleep && !it.slot.subject.isNullOrBlank() }
+            .map { b -> StudyTask("slot-" + (b.slot.id ?: "${b.schedule.id}-${b.from}"), b.slot.subject!!, "", (b.to - b.from).coerceAtLeast(1), done = ("slot-" + (b.slot.id ?: "${b.schedule.id}-${b.from}")) in doneIds) }
+        tasks.removeAll { it.id.startsWith("slot-") && it.id != activeId }
+        fromSchedule.filter { n -> tasks.none { it.id == n.id } }.forEachIndexed { i, t -> tasks.add(i, t) }
+    }
     val activeTask get() = tasks.firstOrNull { it.id == activeId }
     val phaseTotal get() = if (phase == "focus") pomoFocus * 60 else pomoBreak * 60
     val timerText: String get() = fmt(if (mode == "pomodoro") remaining else elapsed, hours = mode != "pomodoro")
@@ -89,7 +133,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 schedules = ScheduleRepository.refresh(ctx); schedulesError = null
-                recomputeGate()
+                recomputeGate(); seedTasksFromSchedules()
                 ScheduleEnforcer.evaluate(ctx); ScheduleAlarms.rearm(ctx)
             } catch (e: Exception) { schedulesError = "Couldn't refresh schedules; using the saved copy." }
         }
@@ -104,6 +148,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshSchedules()
+        refreshProfile()
         viewModelScope.launch {
             var n = 0
             while (true) {
