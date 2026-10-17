@@ -30,6 +30,9 @@ import com.wynko.app.ui.components.*
 import com.wynko.app.BuildConfig
 import com.wynko.app.ui.screens.*
 import com.wynko.app.ui.theme.Wk
+import com.wynko.app.ui.web.WebController
+import com.wynko.app.ui.web.WebPane
+import com.wynko.app.ui.web.rememberWebController
 
 private data class NavItem(val dest: Dest, val label: String, val icon: ImageVector)
 
@@ -41,6 +44,18 @@ private val DrawerItems = listOf(
     NavItem(Dest.Settings, "Settings", Icons.Filled.Settings),
 ).filter { BuildConfig.PAYMENTS_ENABLED || (it.dest != Dest.Coins && it.dest != Dest.Earn) }
 
+/** Screens that come from the web dashboard (same app as desktop) instead of native Compose: dashboard page id plus optional tab. */
+private fun webTarget(d: Dest): Pair<String, String?>? = if (!BuildConfig.WEB_UI) null else when (d) {
+    Dest.Schedules -> "schedules" to null
+    Dest.Rooms, Dest.Room -> "studyrooms" to "rooms"
+    Dest.Comms, Dest.CommStudent, Dest.CommManage -> "studyrooms" to "communities"
+    Dest.Battle -> "battleground" to null
+    Dest.Settings -> "settings" to null
+    Dest.Coins -> "wynkoins" to null
+    Dest.Earn -> "earn" to null
+    else -> null
+}
+
 private fun barTitle(d: Dest) = when (d) {
     Dest.Schedules -> "Schedules"; Dest.Earn -> "Earn with Wynko"; Dest.Focus -> "Focus Lock"; Dest.Rooms -> "Study Rooms"
     Dest.Comms -> "Communities"; Dest.Battle -> "Battleground"; Dest.Coins -> "WYNKOINS"; Dest.Settings -> "Settings"
@@ -50,6 +65,7 @@ private fun barTitle(d: Dest) = when (d) {
 @Composable
 fun AppShell(vm: AppViewModel = viewModel()) {
     val dest = vm.dest
+    val web = if (BuildConfig.WEB_UI) rememberWebController() else null
     val focusLive = dest == Dest.Focus && (vm.running || vm.focusFull)
     val showBar = !focusLive && dest !in setOf(Dest.Room, Dest.CommStudent, Dest.CommManage, Dest.Quick)
     val showTabs = !focusLive && dest != Dest.Room
@@ -76,8 +92,8 @@ fun AppShell(vm: AppViewModel = viewModel()) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             if (showBar) AppBar(vm)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (dest == Dest.BlockLists) Box(Modifier.fillMaxSize()) { ScreenHost(vm) }  // has its own LazyColumn
-                else Column(Modifier.fillMaxSize().verticalScroll(scroll)) { ScreenHost(vm) }
+                if (dest == Dest.BlockLists || (web != null && webTarget(dest) != null)) Box(Modifier.fillMaxSize()) { ScreenHost(vm, web) }  // scrolls itself
+                else Column(Modifier.fillMaxSize().verticalScroll(scroll)) { ScreenHost(vm, web) }
                 if (vm.running && dest != Dest.Focus) MiniPlayer(vm, Modifier.align(Alignment.BottomCenter))
             }
             if (showTabs) TabBar(vm)
@@ -93,7 +109,9 @@ fun AppShell(vm: AppViewModel = viewModel()) {
 }
 
 @Composable
-private fun ScreenHost(vm: AppViewModel) {
+private fun ScreenHost(vm: AppViewModel, web: WebController?) {
+    val target = webTarget(vm.dest)
+    if (web != null && target != null) { WebPane(web, target.first, target.second); return }
     when (vm.dest) {
         Dest.Home -> HomeScreen(vm)
         Dest.Focus -> FocusScreen(vm)
@@ -125,8 +143,8 @@ private fun AppBar(vm: AppViewModel) {
         Image(painterResource(R.drawable.wynko_logo), "Wynko", Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)))
         Column(Modifier.weight(1f)) {
             if (vm.dest == Dest.Home) {
-                Eyebrow("TUE · 23 SEP")
-                WkText("Good evening, Jatin", 15, FontWeight.SemiBold, Wk.Ink100, maxLines = 1)
+                Eyebrow(java.time.LocalDate.now().let { "${it.dayOfWeek.name.take(3)} · ${it.dayOfMonth} ${it.month.name.take(3)}" })
+                WkText("${greeting()}, ${displayName()}", 15, FontWeight.SemiBold, Wk.Ink100, maxLines = 1)
             } else {
                 Eyebrow("WYNKO")
                 WkText(barTitle(vm.dest), 15, FontWeight.SemiBold, Wk.Ink100, maxLines = 1)
@@ -144,7 +162,7 @@ private fun AppBar(vm: AppViewModel) {
             Modifier.size(36.dp).clip(CircleShape).background(Wk.Black700).border(1.dp, Wk.Orange600.copy(alpha = 0.6f), CircleShape)
                 .clickable { vm.go(Dest.More) },
             contentAlignment = Alignment.Center,
-        ) { WkText("JS", 12, FontWeight.Bold, Wk.Orange200) }
+        ) { WkText(initials(), 12, FontWeight.Bold, Wk.Orange200) }
     }
 }
 
@@ -240,8 +258,8 @@ private fun Drawer(vm: AppViewModel) {
                 Modifier.fillMaxWidth().wkSurface(Wk.Black800, Wk.Black600, 14.dp).clickable { vm.go(Dest.More) }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Avatar("JS", Wk.Orange300, 36)
-                Column(Modifier.weight(1f)) { WkText("Jatin Sinsinwar", 13, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("View profile", 11, color = Wk.Ink500) }
+                Avatar(initials(), Wk.Orange300, 36)
+                Column(Modifier.weight(1f)) { WkText(displayName(), 13, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("View profile", 11, color = Wk.Ink500) }
                 Icon(Icons.Filled.ChevronRight, null, tint = Wk.Ink500, modifier = Modifier.size(18.dp))
             }
         }
@@ -251,3 +269,10 @@ private fun Drawer(vm: AppViewModel) {
         )
     }
 }
+
+private fun displayName(): String =
+    com.wynko.app.data.AuthRepository.currentEmail?.substringBefore('@')?.replaceFirstChar { it.uppercase() }?.takeIf { it.isNotBlank() } ?: "there"
+
+private fun initials(): String = displayName().filter { it.isLetterOrDigit() }.take(2).uppercase().ifEmpty { "W" }
+
+private fun greeting(): String = when (java.time.LocalTime.now().hour) { in 5..11 -> "Good morning"; in 12..16 -> "Good afternoon"; else -> "Good evening" }

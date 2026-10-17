@@ -21,7 +21,6 @@ import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
-import NativeBlockingCard from './NativeBlockingCard'
 import { autoConnectExtension } from './lib/extensionConnect'
 import ExtensionInstallPrompt from './ExtensionInstallPrompt'
 import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
@@ -406,10 +405,15 @@ const PHONE_MORE = NAV.filter(n => !PHONE_TABS.includes(n))
 // Study Rooms, Battleground, etc.) haven't had their own real-data
 // pass yet, so they render without it and fall back to the same
 // placeholder identity the design shipped with, same as before.
+// The Android app hosts this dashboard inside its own app bar and tab bar and sets this flag first,
+// so the web header, side rail and phone tab bar stay out of the way.
+const isEmbedded = (): boolean => (window as any).__wkEmbedded === true
+
 function Sidebar({ active, setActive, profile }: { active: string; setActive: (id: string) => void; profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } }) {
   const name = profile?.displayName || 'Jatin Sinsinwar'
   const exam = profile?.exam || 'JEE 2026'
   const [moreOpen, setMoreOpen] = useState(false)
+  if (isEmbedded()) return null
   return (
     <>
       {/* Desktop rail - every page renders this as a flex-row sibling next to
@@ -512,6 +516,7 @@ function Sidebar({ active, setActive, profile }: { active: string; setActive: (i
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 function Header({ profile }: { profile?: { displayName: string | null; avatarUrl: string | null; exam: string | null } } = {}) {
+  if (isEmbedded()) return null
   // Same real-date computation TodayHero already uses below on this
   // page (new Date(), not a placeholder) - this was the one spot on
   // Home still showing the design's literal "Mon, 1 Sep 2026" string.
@@ -11056,6 +11061,16 @@ export default function DesktopDashboard() {
     setActiveNav(id)
     if (id !== 'studyrooms') { setActiveRoom(null); setActiveCommunity(null) }
   }
+  // The Android app switches pages through this instead of reloading the dashboard.
+  const navRef = useRef<(id: string, tab?: string) => void>(() => {})
+  navRef.current = (id, tab) => {
+    handleNav(id)
+    if (id === 'studyrooms' && (tab === 'rooms' || tab === 'communities')) setStudyRoomsTab(tab)
+  }
+  useEffect(() => {
+    ;(window as any).__wkNavigate = (id: string, tab?: string) => navRef.current(id, tab)
+    return () => { delete (window as any).__wkNavigate }
+  }, [])
 
   // ── Community schedule decision ──
   // Accepting makes the WynkoHead's published schedule the student's actual
@@ -11443,7 +11458,6 @@ export default function DesktopDashboard() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
-            <NativeBlockingCard />
             <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
             {/* Today's Study Plan | Focus Timer (primary) | Quick Timer (secondary, ~half the width of Focus Timer) */}
             <div className="grid grid-cols-1 lg:grid-cols-[6fr_6fr_3fr] gap-3.5 items-stretch">

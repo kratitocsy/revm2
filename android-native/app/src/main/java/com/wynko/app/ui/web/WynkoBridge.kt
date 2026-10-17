@@ -147,7 +147,7 @@ class WynkoBridge(
         /** Defines window.Capacitor (isNative, RevM2Locking, no-op UI plugins) and mirrors the page's session back to native. */
         val SHIM = """
 (function(){
-  if (window.__wkShim) return; window.__wkShim = true;
+  if (window.__wkShim) return; window.__wkShim = true; window.__wkEmbedded = true;
   var pending = {}, seq = 0;
   window.__wkResolve = function(id, ok, payload){ var p = pending[id]; if(!p) return; delete pending[id]; ok ? p.res(payload) : p.rej(new Error(String(payload))); };
   function call(m, a){ return new Promise(function(res, rej){ var id = ++seq; pending[id] = {res:res, rej:rej}; WynkoNative.call(id, m, JSON.stringify(a||{})); }); }
