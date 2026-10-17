@@ -21,6 +21,7 @@ import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
 import CommunityFocusSetup from './CommunityFocusSetup'
+import NativeBlockingCard from './NativeBlockingCard'
 import { autoConnectExtension } from './lib/extensionConnect'
 import ExtensionInstallPrompt from './ExtensionInstallPrompt'
 import { beginFreePause, clearFreePause, freePauseUntil, FREE_PAUSE_MINUTES, clockLabel, freePausesLeft, useWindowGate, useWindowSchedulesLoader, refreshWindowSchedules, FREE_PAUSES_PER_SCHEDULE } from './lib/scheduleWindow'
@@ -11442,6 +11443,7 @@ export default function DesktopDashboard() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
+            <NativeBlockingCard />
             <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
             {/* Today's Study Plan | Focus Timer (primary) | Quick Timer (secondary, ~half the width of Focus Timer) */}
             <div className="grid grid-cols-1 lg:grid-cols-[6fr_6fr_3fr] gap-3.5 items-stretch">

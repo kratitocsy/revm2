@@ -172,7 +172,10 @@ export function useFocusSession(groupId: string | null = null) {
               noEarlyUnlock: !!data.no_early_unlock,
               appsMode: data.apps_mode === 'whitelist' ? 'whitelist' : 'blacklist',
               apps: data.apps || [],
-              domains: [], // domain normalization lives in timer.html; this page doesn't start sessions, only relays status
+              domains: ((data.sites as string[] | null) || [])
+                .map(d => String(d).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0])
+                .filter(Boolean),
+              endsAt: data.ends_at ? Date.parse(data.ends_at) : 0,
             });
           } else {
             await plugin.endSession({});
