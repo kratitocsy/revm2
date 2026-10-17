@@ -127,6 +127,7 @@ class WynkoBridge(
 
     companion object {
         /** The current native session as a doc-start script that seeds the page's localStorage, or "" if signed out. */
+        @OptIn(kotlin.time.ExperimentalTime::class)
         fun sessionScript(): String {
             val s = Supabase.client.auth.currentSessionOrNull() ?: return ""
             val u = s.user
