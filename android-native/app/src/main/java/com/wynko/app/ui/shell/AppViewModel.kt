@@ -11,11 +11,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wynko.app.data.ProfileRepository
 import com.wynko.app.data.ScheduleRepository
+import com.wynko.app.data.StudySessionRepository
 import com.wynko.app.locking.ScheduleAlarms
 import com.wynko.app.locking.ScheduleEnforcer
 import com.wynko.app.schedule.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class Dest { Home, Focus, Schedules, Rooms, Room, Comms, CommStudent, CommManage, Battle, Coins, Earn, Settings, More, Quick, BlockLists }
 
@@ -141,6 +144,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun recomputeGate() { gate = computeGate(ScheduleStore.gateSchedules(schedules)) }
 
+    // ── saving focus time (same study_sessions rows and study_log the desktop uses) ──
+    private val sessionMutex = Mutex()
+    private var openSessionId: String? = null
+    private var sessionWasRunning = false
+
+    /** Opens a study session when the timer starts and closes (and logs) it when the timer stops or pauses, like desktop. */
+    private fun syncStudySession() {
+        if (running == sessionWasRunning) return
+        sessionWasRunning = running
+        val nowRunning = running
+        val subject = activeTask?.subject ?: "General"
+        viewModelScope.launch {
+            sessionMutex.withLock {
+                if (nowRunning) {
+                    openSessionId = StudySessionRepository.start(subject)
+                } else {
+                    val id = openSessionId; openSessionId = null
+                    if (id != null) {
+                        runCatching { StudySessionRepository.stop(id) }
+                        refreshProfile()
+                    }
+                }
+            }
+        }
+    }
+
     private fun endFreePauseIfDue() {
         val until = freePauseUntilMs ?: return
         if (System.currentTimeMillis() >= until) { FreePauses.clear(ctx); freePauseUntilMs = null; if (!running) { running = true } }
@@ -157,6 +186,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (running) tick()
                 if (qtRunning) qtTick()
                 endFreePauseIfDue()
+                syncStudySession()
                 if (n % 30 == 0) recomputeGate()
                 if (n % 300 == 0) refreshSchedules() // every 5 minutes, like the desktop app
             }
