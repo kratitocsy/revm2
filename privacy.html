@@ -260,7 +260,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <main class="legal-doc reveal">
 <h1>Privacy Policy</h1>
 <p><strong>Wynko — Learn Together. Win Together.</strong> · wynko.in</p>
-<p><strong>Last updated:</strong> 14 October 2026
+<p><strong>Last updated 17 October 2026</strong> 14 October 2026
 <strong>Effective date:</strong> 17 September 2026</p>
 <hr />
 <h2>1. Who we are</h2>
@@ -442,11 +442,6 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <td>Name, email, profile picture</td>
 </tr>
 <tr>
-<td><strong>Firebase (Google)</strong></td>
-<td>Sign-in (email/password and Google) and profile storage for the Wynko Android app</td>
-<td>Email address, name, profile picture, a user ID, and your profile record</td>
-</tr>
-<tr>
 <td><strong>Agora</strong></td>
 <td>Real-time voice in study rooms</td>
 <td>Live audio (not recorded), IP address, connection and call-quality data</td>
@@ -491,7 +486,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <p>For more details, see this full privacy policy.</p>
 <h2>8A. Wynko Android app</h2>
 <p>The Wynko Android app (package name <code>com.wynko.app</code>) helps you stay focused by blocking distracting apps and sites during your Wynko study sessions and schedules. This section describes what the app does on your phone. The rest of this Policy applies to the app as well.</p>
-<p><strong>Sign-in and account.</strong> You can sign in with an email address and password, or with Google. The app uses Firebase Authentication to do this, and stores a profile record (your name, email address, profile picture and study goal) in Firebase's Firestore database. We never receive your Google password.</p>
+<p><strong>Sign-in and account.</strong> You can sign in with an email address and password, or with Google. The app signs you in to the same Wynko account as the website and the desktop app, so your schedules, communities and study history are the same everywhere. Account data (your name, email address, profile picture and study goal) is stored with our database provider, Supabase. We never receive your Google password.</p>
 <p><strong>Permissions the app asks for.</strong> Each one is optional and asked for in the app before you are taken to Android's settings. Blocking features do not work without them.</p>
 <ul>
 <li><strong>Accessibility service.</strong> While a block is running, it reads only the name of the app that is currently in front, so Wynko can show a block screen and send you back to the home screen. If you turn on the optional Reels and Shorts block, it also looks for the screen markers of Instagram Reels and YouTube Shorts, and only while Instagram or YouTube is open. It does not read what you type, passwords, messages or page content, and it does not send any of this off your phone.</li>
@@ -499,6 +494,7 @@ footer{ border-top:1px solid var(--border); padding:60px 0 40px; background:rgba
 <li><strong>Device administrator.</strong> Used only so that uninstalling Wynko needs an extra step during a block. You can turn it off in Android's settings between blocks.</li>
 <li><strong>Usage access.</strong> Used to show your screen time. This stays on your phone.</li>
 <li><strong>Notification access.</strong> Used to hide notifications from apps you chose to block. It reads only which app a notification came from, not its content.</li>
+<li><strong>Microphone.</strong> Used only for voice study rooms, and only asked for when you join a voice call. Your voice is sent live to the others in the room (see section 3.3) and is not recorded or stored by Wynko. You can mute, leave, or turn the permission off in Android's settings at any time.</li>
 <li><strong>Display over other apps, notifications, exact alarms and a foreground service.</strong> Used to show the block screen, to remind you about sessions, to start scheduled blocks on time, and to keep a running block alive.</li>
 </ul>
 <p><strong>What is stored and where.</strong> Your block lists, saved blocks and schedules are stored on your phone so blocking works without internet and after a restart. When you are signed in, the details of your sessions and schedules (names, times, the sites and apps you chose) are saved to your Wynko account so they stay in sync with wynko.in and the desktop app. We do not collect your contacts, messages, location, camera or the content of other apps.</p>

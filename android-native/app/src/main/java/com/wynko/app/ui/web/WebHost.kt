@@ -1,5 +1,6 @@
 package com.wynko.app.ui.web
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -67,6 +68,11 @@ fun rememberWebController(): WebController {
     val fileCallback = remember { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
 
     val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+    val pendingMic = remember { arrayOfNulls<PermissionRequest>(1) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        pendingMic[0]?.let { req -> if (granted) req.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else req.deny() }
+        pendingMic[0] = null
+    }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         fileCallback[0]?.onReceiveValue(uris.toTypedArray()); fileCallback[0] = null
     }
@@ -120,8 +126,18 @@ fun rememberWebController(): WebController {
                     pickFile.launch(p.acceptTypes.firstOrNull()?.takeIf { it.isNotBlank() } ?: "*/*")
                     return true
                 }
-                // Camera and microphone are not declared in this build, so room voice/video is not offered yet.
-                override fun onPermissionRequest(req: PermissionRequest) = req.deny()
+                // Study-room voice needs the microphone only (asked when a call starts); camera is not offered.
+                override fun onPermissionRequest(req: PermissionRequest) {
+                    val wantsMic = req.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
+                    val wantsOther = req.resources.any { it != PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                    if (!trusted[0] || !wantsMic || wantsOther) { req.deny(); return }
+                    if (ctx.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        req.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                    } else {
+                        pendingMic[0] = req
+                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
             }
             w.loadUrl("${BuildConfig.WEB_BASE_URL}/home")
         }
