@@ -57,7 +57,8 @@ class WebController internal constructor(val view: WebView) {
 fun rememberWebController(): WebController {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val host = remember { Uri.parse(BuildConfig.WEB_BASE_URL).host.orEmpty() }
+    // The site redirects wynko.in to www.wynko.in, so both count as the app's own pages.
+    val hosts = remember { Uri.parse(BuildConfig.WEB_BASE_URL).host.orEmpty().removePrefix("www.").let { setOf(it, "www.$it") } }
     val trusted = remember { booleanArrayOf(false) }
     val holder = remember { arrayOfNulls<WebView>(1) }
     val fileCallback = remember { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
@@ -100,10 +101,10 @@ fun rememberWebController(): WebController {
             // Seed the page with the native session and the Capacitor-style bridge before any page script runs.
             val boot = WynkoBridge.sessionScript() + WynkoBridge.SHIM
             val docStart = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
-            if (docStart) WebViewCompat.addDocumentStartJavaScript(w, boot, setOf("https://$host"))
+            if (docStart) WebViewCompat.addDocumentStartJavaScript(w, boot, hosts.map { "https://$it" }.toSet())
 
             w.webViewClient = object : WebViewClient() {
-                private fun inApp(u: Uri?) = u?.scheme == "https" && u.host == host
+                private fun inApp(u: Uri?) = u?.scheme == "https" && u.host in hosts
                 override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
                     if (inApp(r.url)) return false
                     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, r.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
