@@ -3,13 +3,17 @@ package com.wynko.app.ui.auth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.google.firebase.auth.FirebaseUser
 import com.wynko.app.data.AuthRepository
 import com.wynko.app.ui.shell.AppShell
+import io.github.jan.supabase.auth.status.SessionStatus
 
-/** Shows the app while a Firebase user is signed in, the login screen otherwise. */
+/** Shows the app once a Supabase session exists, the login screen otherwise. */
 @Composable
 fun AuthGate() {
-    val user: FirebaseUser? by AuthRepository.user.collectAsState(initial = AuthRepository.currentUser)
-    if (user != null) AppShell() else LoginScreen()
+    val status by AuthRepository.status.collectAsState(initial = SessionStatus.Initializing)
+    when (status) {
+        is SessionStatus.Authenticated -> AppShell()
+        is SessionStatus.Initializing -> Unit // brief blank while the stored session loads
+        else -> LoginScreen()
+    }
 }
