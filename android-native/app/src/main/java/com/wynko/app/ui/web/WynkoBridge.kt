@@ -98,18 +98,24 @@ class WynkoBridge(
                 put("apps", JsonArray(apps.map { buildJsonObject { put("packageName", it.packageName); put("label", it.label) } }))
             }
         }
-        "setBlockListAndStart" -> done {
+        "setBlockListAndStart" -> {
             fun list(key: String) = a[key]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
             val strict = a["noEarlyUnlock"]?.jsonPrimitive?.booleanOrNull == true
+            // Blocks made on desktop name apps by process or label ("steam.exe"); Android matches package ids.
+            val wanted = list("apps")
+            val packages = withContext(Dispatchers.Default) { LockingController.resolvePackages(ctx, wanted) }
+            // An allow-list that resolves to nothing would lock every app, so it blocks no apps instead.
+            val whitelist = a["appsMode"]?.jsonPrimitive?.content == "whitelist" && packages.isNotEmpty()
             LockingController.startSession(
                 ctx = ctx,
                 sessionId = a["sessionId"]?.jsonPrimitive?.content ?: ("web-" + System.currentTimeMillis()),
-                apps = list("apps"),
+                apps = packages,
                 domains = list("domains"),
-                appsMode = if (a["appsMode"]?.jsonPrimitive?.content == "whitelist") "whitelist" else "blacklist",
+                appsMode = if (whitelist) "whitelist" else "blacklist",
                 noEarlyUnlock = strict,
                 endsAtMs = a["endsAt"]?.jsonPrimitive?.longOrNull ?: 0L,
             )
+            JsonObject(emptyMap())
         }
         "endSession" -> buildJsonObject { put("ended", LockingController.endSession(ctx, a["phrase"]?.jsonPrimitive?.content)) }
         "getSessionState" -> {

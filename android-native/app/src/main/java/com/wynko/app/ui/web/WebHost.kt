@@ -40,13 +40,8 @@ private val Bg = Color(0xFF0B0B0D)
  * `window.__wkNavigate(id, tab)` instead of reloading, which keeps tab changes instant.
  */
 class WebController internal constructor(val view: WebView) {
-    private var lastKey: String? = null
-
     /** Shows the dashboard page [page] ("schedules", "studyrooms", "battleground", "settings"...). */
     fun navigate(page: String, tab: String? = null) {
-        val key = "$page/${tab.orEmpty()}"
-        if (key == lastKey) return
-        lastKey = key
         val t = if (tab == null) "undefined" else "'$tab'"
         view.evaluateJavascript(
             "(function go(n){if(window.__wkNavigate){window.__wkNavigate('$page',$t)}else if(n<60){setTimeout(function(){go(n+1)},200)}})(0)",
