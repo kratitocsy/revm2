@@ -22,6 +22,9 @@ android {
         // Digital-goods screens (WYNKOINS shop, Earn payouts) stay off in the Play build until Play Billing is
         // integrated; build with -PpaymentsEnabled=true to see them.
         buildConfigField("boolean", "PAYMENTS_ENABLED", "${project.findProperty("paymentsEnabled") ?: "false"}")
+        // The dashboard (same web app as desktop, phone layout) that the app hosts. -PwebUi=false brings back the old native screens.
+        buildConfigField("boolean", "WEB_UI", "${project.findProperty("webUi") ?: "true"}")
+        buildConfigField("String", "WEB_BASE_URL", "\"${project.findProperty("webBaseUrl") ?: "https://wynko.in"}\"")
         buildConfigField("String", "SUPABASE_URL",
             "\"${project.findProperty("supabaseUrl") ?: "https://dhzjtjekbvxxsauzhadl.supabase.co"}\"")
         buildConfigField("String", "SUPABASE_ANON",
@@ -69,6 +72,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.navigation:navigation-compose:2.9.5")
+    implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 
