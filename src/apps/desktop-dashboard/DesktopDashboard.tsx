@@ -11071,6 +11071,10 @@ export default function DesktopDashboard() {
     ;(window as any).__wkNavigate = (id: string, tab?: string) => navRef.current(id, tab)
     return () => { delete (window as any).__wkNavigate }
   }, [])
+  // Tells the Android app the dashboard is signed in and showing, so it can drop its loading cover.
+  useEffect(() => {
+    if (authState === 'ready') (window as any).__wkReady = true
+  }, [authState])
 
   // ── Community schedule decision ──
   // Accepting makes the WynkoHead's published schedule the student's actual

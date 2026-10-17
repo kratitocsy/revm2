@@ -37,6 +37,7 @@ class WynkoBridge(
     private val isTrusted: () -> Boolean,
     private val requestVpn: () -> Unit,
     private val signOutNative: () -> Unit,
+    private val markReady: () -> Unit,
 ) {
     @JavascriptInterface
     fun call(id: Int, method: String, argsJson: String) {
@@ -66,6 +67,13 @@ class WynkoBridge(
                 auth.importAuthToken(access, refresh, retrieveUser = false, autoRefresh = false)
             }
         }
+    }
+
+    /** The dashboard has signed in and drawn its first screen. */
+    @JavascriptInterface
+    fun onReady() {
+        if (!isTrusted()) return
+        scope.launch { markReady() }
     }
 
     /** The page removed its session (it signed out, or its tokens were revoked). */
@@ -164,6 +172,7 @@ class WynkoBridge(
   var noop = function(){ return Promise.resolve(); };
   window.Capacitor = { isNativePlatform: function(){ return true; }, getPlatform: function(){ return 'android'; },
     Plugins: { RevM2Locking: lock, Haptics: {impact: noop}, StatusBar: {setBackgroundColor: noop, setStyle: noop}, SplashScreen: {hide: noop}, Keyboard: {addListener: noop} } };
+  (function waitReady(n){ if (window.__wkReady) { try { WynkoNative.onReady(); } catch(e) {} } else if (n < 300) { setTimeout(function(){ waitReady(n + 1); }, 100); } })(0);
   var KEY = '$SB_KEY', setI = Storage.prototype.setItem, remI = Storage.prototype.removeItem;
   Storage.prototype.setItem = function(k, v){ setI.apply(this, arguments); if (k === KEY && this === window.localStorage) { try { WynkoNative.onSession(String(v)); } catch(e) {} } };
   Storage.prototype.removeItem = function(k){ remI.apply(this, arguments); if (k === KEY && this === window.localStorage) { try { WynkoNative.onSignedOut(); } catch(e) {} } };
