@@ -6,41 +6,43 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.firebase.Firebase
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.auth
-import kotlinx.coroutines.channels.awaitClose
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.builtin.IDToken
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.tasks.await
 
-/** Firebase Authentication: email/password and Google. */
+/**
+ * Authentication against the same Supabase project as the desktop app, so one account (and all its
+ * schedules, communities and sessions) works on both. Google sign-in uses Credential Manager and
+ * hands the Google ID token to Supabase; the web client ID must be listed under
+ * Supabase -> Authentication -> Providers -> Google -> Authorized Client IDs.
+ */
 object AuthRepository {
-    private val auth: FirebaseAuth get() = Firebase.auth
+    private val auth get() = Supabase.client.auth
 
-    /** Emits the signed-in user, or null when signed out. Fires immediately with the restored session. */
-    val user: Flow<FirebaseUser?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { trySend(it.currentUser) }
-        auth.addAuthStateListener(listener)
-        awaitClose { auth.removeAuthStateListener(listener) }
-    }
+    val status: Flow<SessionStatus> get() = auth.sessionStatus
 
-    val currentUser: FirebaseUser? get() = auth.currentUser
+    val currentUserId: String? get() = auth.currentUserOrNull()?.id
+    val currentEmail: String? get() = auth.currentUserOrNull()?.email
 
     suspend fun signIn(email: String, password: String) {
-        auth.signInWithEmailAndPassword(email, password).await()
-        UserRepository.ensureProfile()
+        auth.signInWith(Email) {
+            this.email = email
+            this.password = password
+        }
     }
 
     suspend fun signUp(email: String, password: String) {
-        auth.createUserWithEmailAndPassword(email, password).await()
-        UserRepository.ensureProfile()
+        auth.signUpWith(Email) {
+            this.email = email
+            this.password = password
+        }
     }
 
     suspend fun sendPasswordReset(email: String) {
-        auth.sendPasswordResetEmail(email).await()
+        auth.resetPasswordForEmail(email)
     }
 
     /** Needs an Activity context for the account picker. The web client ID is generated from google-services.json. */
@@ -58,9 +60,11 @@ object AuthRepository {
             "Unexpected credential type"
         }
         val idToken = GoogleIdTokenCredential.createFrom(cred.data).idToken
-        auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
-        UserRepository.ensureProfile()
+        auth.signInWith(IDToken) {
+            this.idToken = idToken
+            provider = Google
+        }
     }
 
-    fun signOut() = auth.signOut()
+    suspend fun signOut() = auth.signOut()
 }
