@@ -19,6 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.45.0",
     "agora-rtc-sdk-ng": "^4.24.8",
     "mammoth": "^1.13.0",

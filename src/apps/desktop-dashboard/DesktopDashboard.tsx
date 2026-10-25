@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
+import { pickRoomIcon, RoomGlyph, type RoomIconKey } from './lib/roomIcons'
 import libraryBg from './imports/Screenshot_2026_0908_032315.png'
 import wynkoMascot from './imports/wynko-mascot.png'
 import trophyBronze from './imports/trophy-bronze.png'
@@ -1436,7 +1437,8 @@ function LiveStudyRoomsCard({ onEnterRoom, onViewAll }: {
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[rgba(156,150,140,0.35)]"
               style={{ background: 'rgba(22,22,24,0.55)', borderColor: 'rgba(38,38,42,0.6)' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base flex-shrink-0"
-                style={{ background: room.iconBg }}>{room.iconEmoji}</div>
+                style={{ background: room.iconBg }}>
+                {room.iconKey ? <RoomGlyph iconKey={room.iconKey} size={22} /> : room.iconEmoji}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-wk-ink-200 truncate flex items-center gap-1.5">
                   {room.name}{room.emoji && <span>{room.emoji}</span>}
@@ -2863,7 +2865,7 @@ function PauseReflectionModal({ onClose, onUnlock, freeLeft = 0, onFreePause }: 
 interface RoomData {
   id: number | string; name: string; emoji: string; classes: string; subject: string
   desc: string; members: number; avatarColors: string[]; avatarInits: string[]
-  iconBg: string; iconEmoji: string; tag: 'popular' | 'all' | 'myrooms'
+  iconBg: string; iconEmoji: string; iconKey?: RoomIconKey; tag: 'popular' | 'all' | 'myrooms'
   isPublic: boolean; isUserCreated?: boolean; isOwner?: boolean
   subjectTag: string
   // Set for real rooms (study_groups rows, see lib/studyRooms.ts). Rooms without
@@ -2908,7 +2910,7 @@ function roomRowToRoomData(r: RoomRow, popular: Set<string>): RoomData {
     id: r.id, groupId: r.id, name: r.name, emoji: '', classes: r.is_official ? 'Official Room' : 'All Classes',
     subject, desc: r.description?.trim() || 'Study together. Stay focused.', members: r.member_count,
     avatarColors: inits.map((x, i) => FACE_COLORS[(hashSubject(x) + i) % FACE_COLORS.length]), avatarInits: inits,
-    iconBg: `linear-gradient(135deg, ${c1}, ${c2})`, iconEmoji: subjectVisual(subject).emoji,
+    iconBg: `linear-gradient(135deg, ${c1}, ${c2})`, iconEmoji: subjectVisual(subject).emoji, iconKey: pickRoomIcon(r.name, subject),
     tag: popular.has(r.id) ? 'popular' : isAdmin ? 'myrooms' : 'all',
     isPublic: r.visibility === 'public', isUserCreated: isAdmin, isOwner: isAdmin, subjectTag: subject.toLowerCase(),
     isMember: r.is_member, hasPassword: r.has_password, liveCount: r.live_count, memberLimit: r.member_limit,
@@ -2962,11 +2964,11 @@ function getInitialChat(room: RoomData): ChatMsg[] {
 type RoomTab = 'all' | 'myrooms' | 'popular' | 'subject'
 const SUBJECT_FILTER_TABS = ['All Subjects', 'Physics', 'Chemistry', 'Mathematics', 'Biology']
 
-function RoomIcon({ bg, emoji }: { bg: string; emoji: string }) {
+function RoomIcon({ bg, emoji, iconKey }: { bg: string; emoji: string; iconKey?: RoomIconKey }) {
   return (
     <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-white font-bold text-xl select-none"
       style={{ background: bg, boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }}>
-      {emoji}
+      {iconKey ? <RoomGlyph iconKey={iconKey} size={28} /> : emoji}
     </div>
   )
 }
@@ -3458,7 +3460,7 @@ function StudyRoomsPage({ onNavigate, onEnterRoom, profile, communityTab, onComm
                 <div key={room.id}
                   className="flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-wk-orange-500/40 relative"
                   style={{ background: '#161618', borderColor: '#26262A', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-                  <RoomIcon bg={room.iconBg} emoji={room.iconEmoji} />
+                  <RoomIcon bg={room.iconBg} emoji={room.iconEmoji} iconKey={room.iconKey} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <span className="font-bold text-white text-base">{room.name}</span>
