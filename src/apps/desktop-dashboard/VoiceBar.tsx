@@ -2,24 +2,48 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { VoiceRoom } from './lib/voiceRoom'
 import { nudgeToTalk } from './lib/voiceRoom'
 import type { RoomMember } from './lib/studyRooms'
-import { VIcon, MIC, HEADPHONES, MOON, HAND, GEAR, BELL, LEAVE } from './VoiceIcons'
+import { VIcon, MIC, HEADPHONES, MOON, HAND, GEAR, BELL, LEAVE, CHEVRON_DOWN } from './VoiceIcons'
 
 /* The voice controls for a study room, as one floating bar over the whole page,
    like the toolbar in a video call: it appears when the cursor moves or a finger
    touches anywhere on the page, and fades a few seconds after the last movement.
    It stays up while its settings or "ask to talk" list is open. While it is
    hidden it does not catch clicks, so a first tap only reveals it. The call
-   itself is lib/voiceRoom.ts. */
+   itself is lib/voiceRoom.ts.
+
+   Phones: the bar sits above the bottom tab bar (it used to be hidden behind it),
+   shows icons only so it fits on one row, and stays up instead of fading, because
+   there is no cursor to bring it back. Everywhere there is a hide button that folds
+   the bar into a small mic button; the choice is remembered. */
 
 const ORANGE = '#FF8A3D'
 const VISIBLE_MS = 3500
+const HIDDEN_KEY = 'wynko.voicebar.hidden'
+// Height of the phone tab bar in DesktopDashboard's <nav> (64px + the safe area).
+const PHONE_NAV = '64px + env(safe-area-inset-bottom)'
 
-function BarBtn({ label, text, active, danger, disabled, onClick, children }: {
-  label: string; text: string; active?: boolean; danger?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode
+function usePhone() {
+  const q = '(max-width: 767px)'
+  const [phone, setPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
+  useEffect(() => {
+    const m = window.matchMedia(q)
+    const on = () => setPhone(m.matches)
+    on()
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return phone
+}
+function readHidden(): boolean {
+  try { return localStorage.getItem(HIDDEN_KEY) === '1' } catch { return false }
+}
+
+function BarBtn({ label, text, active, danger, disabled, compact, onClick, children }: {
+  label: string; text: string; active?: boolean; danger?: boolean; disabled?: boolean; compact?: boolean; onClick: () => void; children: React.ReactNode
 }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} aria-label={label} title={label}
-      className="flex flex-col items-center justify-center gap-1 w-[68px] py-2 rounded-xl transition-colors disabled:opacity-40"
+      className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-colors disabled:opacity-40 ${compact ? 'w-10' : 'w-[68px]'}`}
       style={{
         color: danger ? '#F87171' : active ? ORANGE : '#E4DFD5',
         background: active ? 'rgba(255,138,61,0.14)' : 'transparent',
@@ -27,7 +51,7 @@ function BarBtn({ label, text, active, danger, disabled, onClick, children }: {
       onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.07)' }}
       onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(255,138,61,0.14)' : 'transparent' }}>
       {children}
-      <span className="text-[10px] leading-none whitespace-nowrap">{text}</span>
+      {!compact && <span className="text-[10px] leading-none whitespace-nowrap">{text}</span>}
     </button>
   )
 }
@@ -52,6 +76,13 @@ export default function VoiceBar({ voice, members, groupId, lift = false }: {
   const [visible, setVisible] = useState(false)
   const [panel, setPanel] = useState<null | 'settings' | 'ask'>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const phone = usePhone()
+  const [hidden, setHiddenState] = useState(readHidden)
+  function setHidden(v: boolean) {
+    setHiddenState(v)
+    if (v) setPanel(null)
+    try { localStorage.setItem(HIDDEN_KEY, v ? '1' : '0') } catch { /* private mode: just not remembered */ }
+  }
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelRef = useRef(panel)
@@ -90,12 +121,29 @@ export default function VoiceBar({ voice, members, groupId, lift = false }: {
 
   const { status, prefs } = voice
   const others = members.filter(m => !m.is_me)
-  const show = visible || !!panel
+  // Phones have no cursor to bring a faded bar back, so it stays up there until hidden by hand.
+  const show = phone || visible || !!panel
   const note = msg || voice.error || (status === 'on' ? voice.notice : null)
+
+  // Keep clear of the phone tab bar (and, on the Chat tab, of the message box above it).
+  const bottom = phone
+    ? `calc(${PHONE_NAV} + ${lift ? '5.5rem' : '0.75rem'})`
+    : (lift ? '7.5rem' : '1.5rem')
+
+  if (hidden) {
+    return (
+      <button type="button" onClick={() => setHidden(false)} aria-label="Show voice controls" title="Show voice controls"
+        className="fixed z-40 right-3 w-11 h-11 rounded-full border shadow-2xl backdrop-blur flex items-center justify-center"
+        style={{ bottom, background: 'rgba(18,18,20,0.94)', borderColor: '#2E2E33', color: status === 'on' && voice.micLive ? ORANGE : '#E4DFD5' }}>
+        <VIcon d={MIC} off={status === 'on' && !voice.micLive} cls="w-5 h-5" />
+        {status === 'on' && <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-[#121214]" style={{ background: '#22C55E' }} />}
+      </button>
+    )
+  }
 
   return (
     <div className="fixed left-1/2 z-40 flex flex-col items-center gap-2 w-max max-w-[calc(100vw-24px)]"
-      style={{ bottom: lift ? '7.5rem' : '1.5rem', transform: 'translateX(-50%)', opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none', transition: 'opacity 200ms' }}
+      style={{ bottom, transform: 'translateX(-50%)', opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none', transition: 'opacity 200ms' }}
       aria-hidden={!show}>
       {panel === 'settings' && (
         <div className="w-80 max-w-full rounded-2xl border px-4 py-2 shadow-2xl bg-[#121214] border-[#2E2E33]">
@@ -141,29 +189,30 @@ export default function VoiceBar({ voice, members, groupId, lift = false }: {
         style={{ background: 'rgba(18,18,20,0.94)', borderColor: '#2E2E33' }}>
         {status === 'off' && (
           <>
-            <BarBtn label="Join voice" text="Join voice" onClick={() => void voice.join()}><VIcon d={MIC} cls="w-5 h-5" /></BarBtn>
-            <BarBtn label="Quiet mode: hear nobody" text="Quiet" active={prefs.quiet} onClick={() => voice.setQuiet(!prefs.quiet)}><VIcon d={MOON} cls="w-5 h-5" /></BarBtn>
+            <BarBtn compact={phone} label="Join voice" text="Join voice" onClick={() => void voice.join()}><VIcon d={MIC} cls="w-5 h-5" /></BarBtn>
+            <BarBtn compact={phone} label="Quiet mode: hear nobody" text="Quiet" active={prefs.quiet} onClick={() => voice.setQuiet(!prefs.quiet)}><VIcon d={MOON} cls="w-5 h-5" /></BarBtn>
           </>
         )}
         {status === 'joining' && <span className="px-5 py-3 text-[12px] text-wk-ink-300">Connecting…</span>}
         {status === 'on' && (
           <>
-            <BarBtn label={voice.muted ? 'Unmute' : 'Mute'} text={voice.muted ? 'Unmute' : prefs.pushToTalk ? (voice.pttHeld ? 'Talking' : 'Hold Space') : 'Mute'}
+            <BarBtn compact={phone} label={voice.muted ? 'Unmute' : 'Mute'} text={voice.muted ? 'Unmute' : prefs.pushToTalk ? (voice.pttHeld ? 'Talking' : 'Hold Space') : 'Mute'}
               active={voice.micLive} disabled={voice.deafened} onClick={voice.toggleMute}>
               <VIcon d={MIC} off={!voice.micLive} cls="w-5 h-5" />
             </BarBtn>
-            <BarBtn label="Push to talk: hold Space to speak" text="Push to talk" active={prefs.pushToTalk} onClick={() => voice.updatePrefs({ pushToTalk: !prefs.pushToTalk })}>
+            <BarBtn compact={phone} label="Push to talk: hold Space to speak" text="Push to talk" active={prefs.pushToTalk} onClick={() => voice.updatePrefs({ pushToTalk: !prefs.pushToTalk })}>
               <VIcon d={HAND} cls="w-5 h-5" />
             </BarBtn>
-            <BarBtn label="Quiet mode: hear nobody" text="Quiet" active={prefs.quiet} onClick={() => voice.setQuiet(!prefs.quiet)}><VIcon d={MOON} cls="w-5 h-5" /></BarBtn>
-            <BarBtn label={voice.deafened ? 'Hear everyone again' : 'Deafen: hear nobody and mute'} text={voice.deafened ? 'Undeafen' : 'Deafen'} active={voice.deafened} onClick={voice.toggleDeafen}>
+            <BarBtn compact={phone} label="Quiet mode: hear nobody" text="Quiet" active={prefs.quiet} onClick={() => voice.setQuiet(!prefs.quiet)}><VIcon d={MOON} cls="w-5 h-5" /></BarBtn>
+            <BarBtn compact={phone} label={voice.deafened ? 'Hear everyone again' : 'Deafen: hear nobody and mute'} text={voice.deafened ? 'Undeafen' : 'Deafen'} active={voice.deafened} onClick={voice.toggleDeafen}>
               <VIcon d={HEADPHONES} off={voice.deafened} cls="w-5 h-5" />
             </BarBtn>
           </>
         )}
-        <BarBtn label="Ask someone to talk" text="Ask to talk" active={panel === 'ask'} onClick={() => setPanel(p => p === 'ask' ? null : 'ask')}><VIcon d={BELL} cls="w-5 h-5" /></BarBtn>
-        <BarBtn label="Voice settings" text="Settings" active={panel === 'settings'} onClick={() => setPanel(p => p === 'settings' ? null : 'settings')}><VIcon d={GEAR} cls="w-5 h-5" /></BarBtn>
-        {status === 'on' && <BarBtn label="Leave voice" text="Leave" danger onClick={() => void voice.leave()}><VIcon d={LEAVE} cls="w-5 h-5" /></BarBtn>}
+        <BarBtn compact={phone} label="Ask someone to talk" text="Ask to talk" active={panel === 'ask'} onClick={() => setPanel(p => p === 'ask' ? null : 'ask')}><VIcon d={BELL} cls="w-5 h-5" /></BarBtn>
+        <BarBtn compact={phone} label="Voice settings" text="Settings" active={panel === 'settings'} onClick={() => setPanel(p => p === 'settings' ? null : 'settings')}><VIcon d={GEAR} cls="w-5 h-5" /></BarBtn>
+        {status === 'on' && <BarBtn compact={phone} label="Leave voice" text="Leave" danger onClick={() => void voice.leave()}><VIcon d={LEAVE} cls="w-5 h-5" /></BarBtn>}
+        <BarBtn compact={phone} label="Hide voice controls" text="Hide" onClick={() => setHidden(true)}><VIcon d={CHEVRON_DOWN} cls="w-5 h-5" /></BarBtn>
       </div>
     </div>
   )
