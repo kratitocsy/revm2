@@ -162,6 +162,7 @@ const state = {
   revWindow: '30d', revTable: false,
   payStatus: 'pending',
   bansAll: false,
+  actSort: 'active', actRange: '7d',
   notifyDraft: { title:'', body:'', link:'' },
   modQuery: '', modPeople: null, modContent: null, modError: null,
 };
@@ -170,6 +171,7 @@ const cache = { people: new Map(), content: new Map(), communities: new Map(), p
 /* ── Views ─────────────────────────────────────────────── */
 const VIEWS = [
   { id:'overview',    label:'Overview',         group:'CONTROL', icon:'grid',   render: renderOverview },
+  { id:'activity',    label:'Activity',         group:'CONTROL', icon:'chart',  render: renderActivity },
   { id:'access',      label:'App access',       group:'CONTROL', icon:'lock',   render: renderAccess },
   { id:'notify',      label:'Send notification', group:'CONTROL', icon:'bell',  render: renderNotify },
   { id:'wynkoheads',  label:'WynkoHeads',       group:'PROGRAM', icon:'badge',  render: renderWynkoheads, badge:'wh' },
@@ -995,6 +997,46 @@ function openRetractNotification(id, label){
 }
 
 /* ── Banned accounts ───────────────────────────────────── */
+/* ── Activity: who was active recently / who studied the most ─────── */
+async function renderActivity(el){
+  const rows = await rpc('owner_user_activity', { p_sort: state.actSort, p_range: state.actRange, p_limit: 100 });
+  if(current !== 'activity') return;
+  const byStudy = state.actSort === 'studied';
+  const RANGES = [['1d','24 hours'],['7d','7 days'],['30d','30 days'],['all','All time']];
+  const handle = r => r.username ? '@' + r.username : (r.full_name || 'No username');
+  el.innerHTML = `
+    <div class="ow-card">
+      <div class="ow-card-head">
+        <div class="ow-card-icon teal">${icon('chart')}</div>
+        <div><div class="ow-card-title">${byStudy ? 'Most studied' : 'Recently active'}</div>
+          <div class="ow-card-sub">${byStudy ? 'Accounts ranked by study time in the selected window' : 'Accounts ordered by when they were last seen in Wynko'}</div></div>
+      </div>
+      <div class="ow-toolbar">
+        <div class="ow-pills">
+          <button class="ow-pill ${!byStudy?'active':''}" type="button" data-act="act-sort" data-v="active">Recently active</button>
+          <button class="ow-pill ${byStudy?'active':''}" type="button" data-act="act-sort" data-v="studied">Most studied</button>
+        </div>
+        <div class="ow-pills">
+          ${RANGES.map(([v,l]) => `<button class="ow-pill ${state.actRange===v?'active':''}" type="button" data-act="act-range" data-v="${v}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="ow-list">
+        ${rows.length ? rows.map((r, i) => `
+          <div class="ow-row">
+            <div class="ow-who">${avatar(r)}<div style="min-width:0;">
+              <div class="ow-who-name">${byStudy ? `<span class="ow-tag">#${i + 1}</span> ` : ''}${esc(handle(r))} ${r.studying_now ? '<span class="ow-tag teal">Studying now</span>' : ''}</div>
+              <div class="ow-who-sub">${r.full_name && r.username ? esc(r.full_name) : ''}</div>
+            </div></div>
+            <div class="ow-facts">
+              <div class="ow-fact"><div class="ow-fact-k">Last active</div><div class="ow-fact-v">${ago(r.last_active_at)}</div></div>
+              <div class="ow-fact"><div class="ow-fact-k">Studied</div><div class="ow-fact-v">${hours(r.studied_seconds)}</div></div>
+              <div class="ow-fact"><div class="ow-fact-k">Sessions</div><div class="ow-fact-v">${num(r.session_count)}</div></div>
+            </div>
+          </div>`).join('') : `<div class="ow-empty">${byStudy ? 'Nobody studied in this window.' : 'Nobody was active in this window.'}</div>`}
+      </div>
+    </div>`;
+}
+
 async function renderBans(el){
   const rows = await rpc('owner_list_bans');
   if(current !== 'bans') return;
@@ -1273,7 +1315,7 @@ function openRejectPayout(id){
 // After any change: redraw the current view and the nav counts.
 function afterAction(){
   if(current === 'moderation'){ refreshBadges(); runSearch(); }
-  else if(current === 'overview' || current === 'revenue' || current === 'access') show(current);
+  else if(current === 'overview' || current === 'revenue' || current === 'access' || current === 'activity') show(current);
   else { refreshBadges(); show(current); }
 }
 
@@ -1298,6 +1340,8 @@ document.getElementById('owView').addEventListener('click', e => {
   else if(act === 'pay-reject') openRejectPayout(id);
   else if(act === 'rev-window') { state.revWindow = b.dataset.v; show('revenue'); }
   else if(act === 'rev-table') { state.revTable = !state.revTable; show('revenue'); }
+  else if(act === 'act-sort') { state.actSort = b.dataset.v; show('activity'); }
+  else if(act === 'act-range') { state.actRange = b.dataset.v; show('activity'); }
   else if(act === 'bans-filter') { state.bansAll = b.dataset.v === 'all'; show('bans'); }
   else if(act === 'access-set') openAccessChange(b.dataset.v === 'closed');
   else if(act === 'notify-retract') openRetractNotification(id, label);
