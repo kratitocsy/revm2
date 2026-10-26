@@ -276,3 +276,7 @@ a{color:inherit;}
 .ow-alert-when{font-size:0.66rem;margin-top:5px;color:#FECACA;}
 .ow-alert .ow-alert-dismiss{flex:0 0 auto;background:rgba(255,255,255,0.14);border-color:rgba(255,255,255,0.35);color:#fff;}
 @media (max-width:860px){.ow-alerts{padding:12px 16px 0;}}
+
+.ow-countdown{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,138,61,.45);background:rgba(255,138,61,.1);font-size:.9rem;font-weight:600}
+.ow-countdown[hidden]{display:none}
+.ow-cd-time{font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:800;color:#ff8a3d}
