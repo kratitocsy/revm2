@@ -1,0 +1,101 @@
+-- Security fixes applied live to project dhzjtjekbvxxsauzhadl on 2026-09-06
+-- Add this file to supabase/migrations/ (or supabase_migrations/) and commit.
+
+-- 1. increment_wallet: owner-only, revoke anon
+create or replace function public.increment_wallet(uid uuid, delta_coins integer, delta_earned integer default 0)
+returns void language sql security definer set search_path to 'public' as $$
+  insert into public.user_wallets (user_id, coins, total_earned, updated_at)
+  select uid, greatest(0, delta_coins), greatest(0, delta_earned), now()
+  where auth.uid() = uid or auth.role() = 'service_role'
+  on conflict (user_id) do update
+    set coins = greatest(0, user_wallets.coins + excluded.coins),
+        total_earned = user_wallets.total_earned + excluded.total_earned,
+        updated_at = now();
+$$;
+revoke execute on function public.increment_wallet(uuid, integer, integer) from anon;
+
+-- 2. spend_coins: owner-only, revoke anon
+create or replace function public.spend_coins(uid uuid, amount integer)
+returns boolean language plpgsql security definer set search_path to 'public' as $$
+begin
+  if auth.uid() <> uid and auth.role() <> 'service_role' then
+    raise exception 'not authorized';
+  end if;
+  update public.user_wallets set coins = coins - amount, updated_at = now()
+    where user_id = uid and coins >= amount;
+  return found;
+end;
+$$;
+revoke execute on function public.spend_coins(uuid, integer) from anon;
+
+-- 3. log_group_time: owner-only, revoke anon
+create or replace function public.log_group_time(p_user_id uuid, p_group_id uuid, p_seconds integer)
+returns void language plpgsql security definer set search_path to 'public' as $$
+begin
+  if auth.uid() <> p_user_id and auth.role() <> 'service_role' then
+    raise exception 'not authorized';
+  end if;
+  insert into public.group_user_daily_seconds (user_id, group_id, usage_date, seconds_used)
+  values (p_user_id, p_group_id, (now() at time zone 'utc')::date, p_seconds)
+  on conflict (user_id, group_id, usage_date)
+  do update set seconds_used = public.group_user_daily_seconds.seconds_used + p_seconds;
+end;
+$$;
+revoke execute on function public.log_group_time(uuid, uuid, integer) from anon;
+
+-- 4. user_profiles: remove public read, scope to owner/admin/moderator/owner-role
+drop policy if exists "profiles: public read" on public.user_profiles;
+drop policy if exists "own profile select" on public.user_profiles;
+
+drop policy if exists "profiles_select_own_or_admin" on public.user_profiles;
+create policy "profiles_select_own_or_admin" on public.user_profiles
+  for select
+  using (auth.uid() = id or public.is_admin() or public.is_admin_or_moderator());
+
+-- 5. rpc_create_battle_challenge: reject negative bounty
+create or replace function public.rpc_create_battle_challenge(p_group_id uuid, p_title text, p_target_user_ids uuid[], p_bounty integer)
+returns uuid language plpgsql security definer set search_path to 'public' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_challenge_id uuid;
+  v_creator_name text;
+  v_target uuid;
+begin
+  if v_uid is null then raise exception 'Not signed in'; end if;
+  if p_bounty < 0 then raise exception 'Bounty cannot be negative'; end if;
+  if not exists(select 1 from group_members where group_id=p_group_id and user_id=v_uid) then
+    raise exception 'You must be a member of the hosting group';
+  end if;
+  if p_target_user_ids is null or array_length(p_target_user_ids,1) is null then
+    raise exception 'Pick at least one opponent';
+  end if;
+
+  if p_bounty > 0 then
+    update user_wallets set coins = coins - p_bounty, updated_at = now()
+      where user_id = v_uid and coins >= p_bounty;
+    if not found then raise exception 'Not enough M² coins'; end if;
+  end if;
+
+  insert into group_challenges(group_id, created_by, title, challenge_date, bounty_pool)
+    values (p_group_id, v_uid, coalesce(nullif(trim(p_title),''),'Study Challenge'), (now() at time zone 'Asia/Kolkata')::date, p_bounty)
+    returning id into v_challenge_id;
+
+  insert into challenge_participants(challenge_id, user_id, coins_pledged)
+    values (v_challenge_id, v_uid, p_bounty);
+
+  select coalesce(username,'Someone') into v_creator_name from user_profiles where id=v_uid;
+
+  foreach v_target in array p_target_user_ids loop
+    if v_target <> v_uid then
+      insert into challenge_participants(challenge_id, user_id, coins_pledged)
+        values (v_challenge_id, v_target, 0)
+        on conflict do nothing;
+      insert into notifications(user_id, type, title, body, ref_id)
+        values (v_target, 'challenge_invite', '@'||v_creator_name||' challenged you to a battle!',
+                coalesce(nullif(trim(p_title),''),'Study Challenge'), v_challenge_id);
+    end if;
+  end loop;
+
+  return v_challenge_id;
+end;
+$$;
