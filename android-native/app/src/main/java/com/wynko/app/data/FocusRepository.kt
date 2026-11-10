@@ -7,7 +7,7 @@ import java.time.Instant
 
 object FocusRepository {
     private val sb get() = Supabase.client
-    private val userId get() = sb.auth.currentUserOrNull()?.id ?: error("Not signed in")
+    private val userId get() = Supabase.userIdOrNull() ?: error("Not signed in")
 
     suspend fun presets(): List<FocusPreset> =
         sb.from("focus_lock_presets").select {

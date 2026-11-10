@@ -24,6 +24,12 @@ android {
         buildConfigField("boolean", "PAYMENTS_ENABLED", "${project.findProperty("paymentsEnabled") ?: "false"}")
         // The dashboard (same web app as desktop, phone layout) that the app hosts. -PwebUi=false brings back the old native screens.
         buildConfigField("boolean", "WEB_UI", "${project.findProperty("webUi") ?: "true"}")
+        // Which dashboard pages still come from the web view. Battleground and Settings are native on live data; the rest
+        // move over as their native screens get wired (Schedules stays on the web until Wynky, the schedule-building
+        // chat, is ported: the native Schedules screen can show, pause and remove schedules but not create them).
+        // Names: schedules, rooms, communities, battleground, settings, wynkoins, earn.
+        // Example, everything on the web again: -PwebScreens=schedules,rooms,communities,battleground,settings,wynkoins,earn
+        buildConfigField("String", "WEB_SCREENS", "\"${project.findProperty("webScreens") ?: "schedules,rooms,communities,wynkoins,earn"}\"")
         buildConfigField("String", "WEB_BASE_URL", "\"${project.findProperty("webBaseUrl") ?: "https://wynko.in"}\"")
         buildConfigField("String", "SUPABASE_URL",
             "\"${project.findProperty("supabaseUrl") ?: "https://dhzjtjekbvxxsauzhadl.supabase.co"}\"")
