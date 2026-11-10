@@ -82,6 +82,12 @@ fun AppShell(vm: AppViewModel = viewModel()) {
         when { vm.sheet != null -> vm.sheet = null; vm.drawerOpen -> vm.drawerOpen = false; else -> vm.back() }
     }
 
+    // While these screens are up the web pane keeps the login fresh; the background sync must not refresh it too.
+    DisposableEffect(Unit) {
+        com.wynko.app.sync.RemoteSync.uiActive = true
+        onDispose { com.wynko.app.sync.RemoteSync.uiActive = false }
+    }
+
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // A live Focus Lock session also turns on real on-device blocking (accessibility overlay + VPN DNS).
     LaunchedEffect(vm.running) {

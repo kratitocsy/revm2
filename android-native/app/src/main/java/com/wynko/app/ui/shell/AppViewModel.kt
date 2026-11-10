@@ -17,6 +17,7 @@ import com.wynko.app.data.ScheduleRepository
 import com.wynko.app.data.SettingsProfile
 import com.wynko.app.data.SettingsRepository
 import com.wynko.app.data.errorText
+import com.wynko.app.sync.RemoteSync
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -100,11 +101,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshSchedules() {
         viewModelScope.launch {
-            try {
-                schedules = ScheduleRepository.refresh(ctx); schedulesError = null
-                recomputeGate()
-                ScheduleEnforcer.evaluate(ctx); ScheduleAlarms.rearm(ctx)
-            } catch (e: Exception) { schedulesError = "Couldn't refresh schedules; using the saved copy." }
+            // Schedules made anywhere (PC, web, Wynky) plus a block started on another device, mirrored onto this phone.
+            val ok = RemoteSync.run(ctx, fromBackground = false)
+            schedules = ScheduleStore.load(ctx)
+            schedulesError = if (ok) null else "Couldn't refresh schedules; using the saved copy."
+            recomputeGate()
         }
     }
 
@@ -130,7 +131,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (qtRunning) qtTick()
                 endFreePauseIfDue()
                 if (n % 30 == 0) recomputeGate()
-                if (n % 300 == 0) refreshSchedules() // every 5 minutes, like the desktop app
+                if (n % 60 == 0) refreshSchedules() // every minute while open; a background job covers the rest
             }
         }
     }

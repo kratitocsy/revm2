@@ -74,6 +74,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- Every ~15 minutes with a network: pulls schedules and any block started on another device (PC, web) -->
+        <service
+            android:name=".sync.SyncJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
+
         <!-- Fires at schedule slot boundaries to start/end the scheduled block -->
         <receiver android:name=".locking.ScheduleReceiver" android:exported="false" />
 

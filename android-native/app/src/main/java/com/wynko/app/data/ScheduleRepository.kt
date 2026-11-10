@@ -36,7 +36,7 @@ private data class SlotRow(
 /** Reads the same tables the desktop app and `schedule-tick` use; writes only what the web/desktop edit gates allow. */
 object ScheduleRepository {
     private val sb get() = Supabase.client
-    private val userId get() = sb.auth.currentUserOrNull()?.id ?: error("Not signed in")
+    private val userId get() = Supabase.userIdOrNull() ?: error("Not signed in")
 
     /** Downloads every schedule (active or not) with its slots and the preset each slot enforces, and caches it for offline use. */
     suspend fun refresh(ctx: Context): List<StoredSchedule> {
