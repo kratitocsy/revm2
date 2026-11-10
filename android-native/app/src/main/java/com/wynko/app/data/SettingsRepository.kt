@@ -48,8 +48,8 @@ data class SettingsProfile(
     val allowBattleInvites: Boolean,
     /** Index into the six avatar colours, as the web app stores it (`preferences.avatar_preset`). */
     val avatarPreset: Int,
-    /** Sign-in providers on this account ("email", "google", ...). */
-    val providers: List<String>,
+    /** Sign-in providers on this account ("email", "google", ...); null when the server could not be asked. */
+    val providers: List<String>?,
     /** The preferences object exactly as stored, so saving a toggle never drops keys this app does not know. */
     val rawPreferences: JsonObject,
 )
@@ -76,7 +76,10 @@ object SettingsRepository {
         sb.auth.currentUserOrNull() ?: sb.auth.retrieveUserForCurrentSession(updateSession = true)
 
     suspend fun load(): SettingsProfile {
-        val u = user()
+        var u = user()
+        // A user record seeded by the web pane carries no identities; ask the server so a Google-only account
+        // is not mistaken for one that has a password.
+        if (u.identities == null) u = runCatching { sb.auth.retrieveUserForCurrentSession(updateSession = false) }.getOrDefault(u)
         val data = sb.from("user_profiles").select { filter { eq("id", u.id) } }.data
         val row = json.decodeFromString<List<ProfileRow>>(data).firstOrNull() ?: ProfileRow()
         val prefs = row.preferences ?: JsonObject(emptyMap())
@@ -94,7 +97,7 @@ object SettingsRepository {
             remindersEnabled = row.remindersEnabled ?: true,
             allowBattleInvites = row.allowBattleInvites ?: true,
             avatarPreset = (prefs["avatar_preset"] as? JsonPrimitive)?.intOrNull?.takeIf { it in 0..5 } ?: 0,
-            providers = u.identities.orEmpty().map { it.provider },
+            providers = u.identities?.map { it.provider },
             rawPreferences = prefs,
         )
     }

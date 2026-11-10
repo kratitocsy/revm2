@@ -128,8 +128,9 @@ private fun ProfileTab(vm: AppViewModel, p: SettingsProfile) {
 
 @Composable
 private fun AccountTab(vm: AppViewModel, p: SettingsProfile) {
-    // No identity list means we couldn't read it; assume a password exists so the current one is still asked for.
-    val hasPassword = p.providers.isEmpty() || "email" in p.providers
+    // Unknown (the identity list couldn't be read): assume a password exists so the current one is still asked for.
+    val providers = p.providers
+    val hasPassword = providers == null || "email" in providers
     Section("EMAIL ADDRESS") {
         var e by remember { mutableStateOf("") }
         val valid = e.trim().let { it.contains('@') && it.substringAfter('@').contains('.') && !it.equals(p.email, ignoreCase = true) }
@@ -153,7 +154,7 @@ private fun AccountTab(vm: AppViewModel, p: SettingsProfile) {
     }
     Section("SIGN-IN METHODS") {
         listOf("email" to "Email & password", "google" to "Google").forEach { (id, label) ->
-            ListRow { WkText(label, 13, FontWeight.SemiBold, Wk.Ink100, Modifier.weight(1f)); if (id in p.providers) Pill("Connected", Wk.Green) else Pill("Not connected", Wk.Ink400) }
+            ListRow { WkText(label, 13, FontWeight.SemiBold, Wk.Ink100, Modifier.weight(1f)); when { providers == null -> Pill("Unknown", Wk.Ink400); id in providers -> Pill("Connected", Wk.Green); else -> Pill("Not connected", Wk.Ink400) } }
         }
         WkText("Connect or disconnect sign-in methods from Settings on the Wynko website.", 11, color = Wk.Ink500)
     }

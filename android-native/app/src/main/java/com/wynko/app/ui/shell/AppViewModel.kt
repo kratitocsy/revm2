@@ -208,7 +208,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addTask(subject: String, topic: String, minutes: Int = 45) {
         tasks.add(StudyTask("t${System.nanoTime()}", subject, topic.ifBlank { "General" }, minutes)); sheet = null
     }
-    fun removeTask(id: String) { tasks.removeAll { it.id == id }; if (activeId == id) { activeId = null; running = false } }
+    fun removeTask(id: String) {
+        tasks.removeAll { it.id == id }
+        // Removing the task being timed stops the timer, which counts as pausing: mid-battle that is a forfeit.
+        if (activeId == id) { activeId = null; if (running) { running = false; forfeitBattle() } }
+    }
     fun toggleDone(id: String) { val i = tasks.indexOfFirst { it.id == id }; if (i >= 0) tasks[i] = tasks[i].copy(done = !tasks[i].done) }
 
     // ── quick timer ──
