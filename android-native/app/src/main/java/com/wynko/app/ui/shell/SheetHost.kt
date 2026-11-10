@@ -220,11 +220,11 @@ private fun DeleteSheet(vm: AppViewModel) {
     var txt by remember { mutableStateOf("") }
     WkSheet({ vm.sheet = null }) {
         WkText("⚠️ Delete your account?", 18, FontWeight.Bold, Wk.Ink100)
-        WkText("This permanently removes your profile, study history, plan, coins and battles. Type DELETE to confirm.", 12, color = Wk.Ink400, lineHeight = 1.5f)
+        WkText("This permanently removes your profile, study history, plan, coins and battles, and it can't be undone. If you own a community or study room, hand it over first. Type DELETE to confirm.", 12, color = Wk.Ink400, lineHeight = 1.5f)
         WkField(txt, { txt = it }, "DELETE")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostButton("Cancel", { vm.sheet = null }, Modifier.weight(1f), height = 46)
-            PrimaryButton("Delete Account", { vm.sheet = null; vm.flash("Demo only — nothing was deleted") }, Modifier.weight(1f), enabled = txt == "DELETE", color = Wk.Red)
+            PrimaryButton("Delete Account", { vm.deleteAccount() }, Modifier.weight(1f), enabled = txt == "DELETE", color = Wk.Red)
         }
     }
 }
@@ -268,13 +268,29 @@ private fun RoutineSheet(vm: AppViewModel) {
 @Composable
 private fun ChallengeSheet(vm: AppViewModel) {
     var q by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<com.wynko.app.data.BattleOpponent>>(emptyList()) }
+    var status by remember { mutableStateOf("Searching…") }
+    // Server-side search over players who accept battle invites; waits for a pause in typing.
+    LaunchedEffect(q) {
+        kotlinx.coroutines.delay(300)
+        try {
+            results = com.wynko.app.data.BattleRepository.searchOpponents(q.trim())
+            status = if (results.isEmpty()) "No players match." else ""
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            status = com.wynko.app.data.errorText(e, "Couldn't search for opponents")
+        }
+    }
     WkSheet({ vm.sheet = null }) {
         Eyebrow("CHALLENGE SOMEONE", Wk.Orange300); WkText("Search by username.", 12, color = Wk.Ink400)
         WkField(q, { q = it }, "username")
-        Battlers.filter { q.isBlank() || it.name.contains(q.trim(), true) }.forEach { b ->
-            ListRow(onClick = { vm.sheet = null; vm.battle = "waiting"; vm.flash("Challenge sent to ${b.name}") }) {
-                Avatar(b.name.take(2).uppercase(), Wk.Orange300, 36)
-                Column(Modifier.weight(1f)) { WkText(b.name, 13, FontWeight.SemiBold, Wk.Ink100); WkText("${b.title} · ${b.xp} XP", 11, color = Wk.Ink500) }
+        if (status.isNotEmpty()) WkText(status, 12, color = Wk.Ink500)
+        results.take(8).forEach { b ->
+            val name = b.username ?: "player"
+            ListRow(onClick = { vm.sheet = null; vm.challenge(b) }) {
+                Avatar(name.take(2).uppercase(), Wk.Orange300, 36)
+                Column(Modifier.weight(1f)) { WkText(name, 13, FontWeight.SemiBold, Wk.Ink100, maxLines = 1); WkText("${b.title} · ${"%,d".format(b.battleXp)} XP", 11, color = Wk.Ink500) }
                 WkText("Challenge", 12, FontWeight.SemiBold, Wk.Orange300)
             }
         }
