@@ -15,6 +15,8 @@ enum class Disclosure(val title: String, val body: String) {
             "so it can cover apps you chose to block and send you back to your home screen. It does not read your messages, passwords " +
             "or anything you type, and nothing it sees leaves your phone. If you also turn on Reels & Shorts blocking, it looks at the " +
             "layout of Instagram and YouTube screens, only while one of them is open, to recognise the Reels and Shorts screens. " +
+            "If a block allows or blocks particular YouTube channels, it reads your browser's address bar during that block, only on " +
+            "YouTube pages, to check the channel; for a video, its ID is sent to YouTube to look up which channel it belongs to. " +
             "You can switch it off any time in Settings.",
     ),
     ShortForm(

@@ -46,7 +46,8 @@ object ScheduleEnforcer {
             LockingController.startSession(ctx, PREFIX + key,
                 apps = LockingController.resolvePackages(ctx, p.apps), domains = p.sites,
                 appsMode = if (p.appsMode == "whitelist") "whitelist" else "blacklist",
-                noEarlyUnlock = strict, endsAtMs = endsAt, lockSettings = strict, domainsAllowOnly = p.mode == "whitelist")
+                noEarlyUnlock = strict, endsAtMs = endsAt, lockSettings = strict, domainsAllowOnly = p.mode == "whitelist",
+                youtubeRules = p.youtubeRules)
         }
         ScheduleStore.markRun(ctx, key)
     }

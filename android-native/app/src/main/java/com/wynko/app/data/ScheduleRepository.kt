@@ -55,7 +55,7 @@ object ScheduleRepository {
                     StoredSlot(
                         id = s.id, start = s.start.take(5), end = s.end.take(5), subject = s.subject?.takeIf { it.isNotBlank() },
                         isSleep = s.isSleep, breakAfterMinutes = s.breakAfter,
-                        preset = p?.let { StoredPreset(it.name, it.sites, it.mode, it.apps, it.appsMode, it.noEarlyUnlock) },
+                        preset = p?.let { StoredPreset(it.name, it.sites, it.mode, it.apps, it.appsMode, it.noEarlyUnlock, youtubeRules = it.youtubeRules?.toString()) },
                     )
                 },
             )

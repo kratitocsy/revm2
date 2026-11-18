@@ -28,6 +28,7 @@ object BlockStore {
     private const val KEY_ENDS_AT = "ends_at_ms"  // 0 = no time limit
     private const val KEY_LOCK_SETTINGS = "lock_settings"
     private const val KEY_DOMAINS_ALLOW_ONLY = "domains_allow_only"
+    private const val KEY_YOUTUBE_RULES = "youtube_rules" // JSON, see YoutubeChannels; null = no channel rules
     private const val KEY_TAMPERED = "tampered"
     private const val KEY_TAMPER_REASON = "tamper_reason"
 
@@ -140,8 +141,10 @@ object BlockStore {
         endsAtMs: Long = 0L,
         lockSettings: Boolean = noEarlyUnlock,
         domainsAllowOnly: Boolean = false,
+        youtubeRules: String? = null,
     ) {
         prefs(ctx).edit()
+            .putString(KEY_YOUTUBE_RULES, youtubeRules)
             .putBoolean(KEY_SESSION_ACTIVE, true)
             .putString(KEY_SESSION_ID, sessionId)
             .putBoolean(KEY_NO_EARLY_UNLOCK, noEarlyUnlock)
@@ -164,8 +167,13 @@ object BlockStore {
             .putBoolean(KEY_SESSION_ACTIVE, false)
             .putString(KEY_SESSION_ID, null)
             .putLong(KEY_ENDS_AT, 0L)
+            .putString(KEY_YOUTUBE_RULES, null)
             .apply()
     }
+
+    /** The running session's YouTube channel rules, or null (no session, or none set). */
+    fun youtubeRules(ctx: Context): YoutubeChannels.Rules? =
+        if (!current(ctx).active) null else YoutubeChannels.parse(prefs(ctx).getString(KEY_YOUTUBE_RULES, null))
 
     /** Records that something undermined enforcement mid-session (service switched off, VPN revoked...). */
     fun markTampered(ctx: Context, reason: String) {

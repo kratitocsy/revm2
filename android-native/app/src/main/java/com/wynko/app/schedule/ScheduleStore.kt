@@ -14,6 +14,8 @@ data class StoredPreset(
     val apps: List<String> = emptyList(),
     val appsMode: String = "blacklist",
     val noEarlyUnlock: Boolean = false,
+    /** youtube_rules as JSON text (see locking/YoutubeChannels), or null. */
+    val youtubeRules: String? = null,
 )
 
 @Serializable

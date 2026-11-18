@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Reads which app is in the foreground (window-state events); no keystrokes.
      Content access is used only to spot the Reels / Shorts screens inside Instagram and YouTube, and only
-     while Reels & Shorts blocking is switched on. Not an accessibility tool for disabled users, so it must say so (Android 14+/Play declaration). -->
+     while Reels & Shorts blocking is switched on, and to read browsers' address bars during a block with YouTube channel rules. Not an accessibility tool for disabled users, so it must say so (Android 14+/Play declaration). -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"

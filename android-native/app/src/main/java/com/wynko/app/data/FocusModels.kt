@@ -15,6 +15,8 @@ data class FocusPreset(
     @SerialName("no_early_unlock") val noEarlyUnlock: Boolean = false,
     @SerialName("duration_minutes") val durationMinutes: Int? = null,
     @SerialName("edit_count") val editCount: Int = 0,
+    /** YouTube channel rules ({ mode, channels }), enforced in browsers by YoutubeChannels. */
+    @SerialName("youtube_rules") val youtubeRules: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable

@@ -138,6 +138,9 @@ class WynkoBridge(
                 appsMode = if (whitelist) "whitelist" else "blacklist",
                 noEarlyUnlock = strict,
                 endsAtMs = a["endsAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+                // "whitelist" = the site list is allow-only (everything else is blocked), as on desktop.
+                domainsAllowOnly = a["sitesMode"]?.jsonPrimitive?.content == "whitelist" && list("domains").isNotEmpty(),
+                youtubeRules = a["youtubeRules"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.toString(),
             )
             JsonObject(emptyMap())
         }

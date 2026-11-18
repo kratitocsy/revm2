@@ -138,7 +138,7 @@ export function useFocusSession(groupId: string | null = null) {
   const pollEnforcement = useCallback(async (uid: string) => {
     const { data } = await sb
       .from('focus_lock_sessions')
-      .select('id, sites, apps, apps_mode, ends_at, no_early_unlock')
+      .select('id, sites, apps, apps_mode, ends_at, no_early_unlock, mode, youtube_rules')
       .eq('user_id', uid)
       .eq('active', true)
       .maybeSingle();
@@ -176,6 +176,9 @@ export function useFocusSession(groupId: string | null = null) {
                 .map(d => String(d).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0])
                 .filter(Boolean),
               endsAt: data.ends_at ? Date.parse(data.ends_at) : 0,
+              // Allow-only site lists and YouTube channel rules (checked in the phone's browsers).
+              sitesMode: data.mode === 'whitelist' ? 'whitelist' : 'blacklist',
+              youtubeRules: data.youtube_rules ?? null,
             });
           } else {
             await plugin.endSession({});

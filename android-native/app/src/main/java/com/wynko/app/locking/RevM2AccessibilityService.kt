@@ -21,8 +21,9 @@ import android.widget.TextView
  * desktop), so we detect the foreground app via window-state events, send the user Home, and keep a full-screen
  * overlay over it for the moment it takes. Same ceiling Opal/AppBlock document.
  *
- * Only the *package of the foreground window* is read (canRetrieveWindowContent = false): no screen text, no
- * keystrokes. That is what the Play accessibility disclosure promises.
+ * Normally only the *package of the foreground window* is read: no screen text, no keystrokes. Two narrow
+ * exceptions, both described in the Play accessibility disclosure: Reels/Shorts screen ids (ShortFormHints), and,
+ * while a block with YouTube channel rules runs, the address bar of known browsers (YoutubeChannels).
  */
 class RevM2AccessibilityService : AccessibilityService() {
 
@@ -52,11 +53,66 @@ class RevM2AccessibilityService : AccessibilityService() {
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 // A new foreground window means the previous block is stale; re-evaluate every time.
-                if (BlockStore.isAppBlocked(this, pkg)) showOverlay() else { removeOverlay(); updateContentWatch(pkg) }
-                if (watchingContent) checkShortForm(pkg)
+                if (BlockStore.isAppBlocked(this, pkg)) showOverlay()
+                else if (pkg == YoutubeChannels.YOUTUBE_APP && BlockStore.youtubeRules(this)?.allowOnly == true) {
+                    // The app can't show reliably which channel is playing, so with "only these channels" it pauses
+                    // and offers the browser, where every page's channel is checked.
+                    showOverlay(
+                        "Only your chosen YouTube channels are allowed right now",
+                        "The YouTube app is paused during this block. Watch your channels in the browser.",
+                        openYoutubeInBrowser = true,
+                    )
+                }
+                else { removeOverlay(); updateContentWatch(pkg) }
+                if (watchingContent) { checkShortForm(pkg); checkBrowserYoutube(pkg) }
             }
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> if (watchingContent) checkShortForm(pkg)
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> if (watchingContent) { checkShortForm(pkg); checkBrowserYoutube(pkg) }
         }
+    }
+
+    // ── YouTube channel rules in browsers (see YoutubeChannels) ──
+    private var lastYtCheck = 0L
+    private var lastYtUrl: String? = null
+    private val ytHits = ArrayDeque<Long>()
+    private val ytLookups = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /**
+     * Reads only the address bar of a known browser, only while the running block has YouTube channel rules, and
+     * only acts on youtube.com pages: a channel page is matched directly; a video's channel is looked up via oEmbed.
+     */
+    private fun checkBrowserYoutube(pkg: String) {
+        val ids = YoutubeChannels.BROWSER_URL_BARS[pkg] ?: return
+        val rules = BlockStore.youtubeRules(this) ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastYtCheck < 400) return
+        lastYtCheck = now
+        val root = rootInActiveWindow ?: return
+        val bar = ids.asSequence().flatMap { root.findAccessibilityNodeInfosByViewId("$pkg:id/$it").orEmpty().asSequence() }
+            .firstOrNull { it.isVisibleToUser } ?: return
+        if (bar.isFocused) return // the person is typing an address: wait until they open it
+        val url = bar.text?.toString() ?: return
+        if (url == lastYtUrl) return
+        lastYtUrl = url
+        when (val target = YoutubeChannels.targetOf(url)) {
+            null -> return
+            is YoutubeChannels.Target.ChannelPage -> if (!YoutubeChannels.allowed(rules, target.ref, null)) leaveYoutubePage()
+            is YoutubeChannels.Target.Video -> ytLookups.execute {
+                val owner = YoutubeChannels.lookupVideo(target.videoId)
+                handler.post {
+                    if (owner == null) { if (lastYtUrl == url) lastYtUrl = null; return@post } // offline: retry on the next change
+                    if (lastYtUrl == url && !YoutubeChannels.allowed(rules, owner.first, owner.second)) leaveYoutubePage()
+                }
+            }
+        }
+    }
+
+    private fun leaveYoutubePage() {
+        val now = System.currentTimeMillis()
+        ytHits.addLast(now)
+        while (ytHits.isNotEmpty() && now - ytHits.first() > 6000) ytHits.removeFirst()
+        lastYtUrl = null // re-check whatever page Back lands on
+        performGlobalAction(if (ytHits.size >= 3) GLOBAL_ACTION_HOME else GLOBAL_ACTION_BACK)
+        android.widget.Toast.makeText(this, "That YouTube channel isn't allowed during this block", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -65,7 +121,8 @@ class RevM2AccessibilityService : AccessibilityService() {
      */
     private fun updateContentWatch(pkg: String) {
         val target = ShortFormHints.targetFor(pkg)
-        val want = target != null && BlockStore.shortFormActive(this, target.platform)
+        val want = (target != null && BlockStore.shortFormActive(this, target.platform))
+            || (pkg in YoutubeChannels.BROWSER_URL_BARS && BlockStore.youtubeRules(this) != null)
         if (want == watchingContent) return
         watchingContent = want
         serviceInfo = serviceInfo?.apply {
@@ -103,13 +160,14 @@ class RevM2AccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        ytLookups.shutdownNow()
         handler.removeCallbacks(goHome)
         removeOverlay()
         super.onDestroy()
     }
 
-    private fun showOverlay() {
-        if (overlayView != null) { rearm(); return }
+    private fun showOverlay(title: String? = null, detail: String? = null, openYoutubeInBrowser: Boolean = false) {
+        if (overlayView != null) { rearm(if (openYoutubeInBrowser) 5000 else 1500); return }
         val session = BlockStore.current(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -118,7 +176,7 @@ class RevM2AccessibilityService : AccessibilityService() {
             setPadding(64, 64, 64, 64)
         }
         root.addView(TextView(this).apply {
-            text = "Blocked during your focus session"
+            text = title ?: "Blocked during your focus session"
             setTextColor(Color.parseColor("#FFA94D"))
             textSize = 22f
             gravity = Gravity.CENTER
@@ -126,6 +184,7 @@ class RevM2AccessibilityService : AccessibilityService() {
         val left = session.remainingSeconds()
         root.addView(TextView(this).apply {
             text = when {
+                detail != null -> detail
                 left != null -> "${left / 60} min left. Stay with it."
                 session.noEarlyUnlock -> "This session is locked until it ends."
                 else -> "Open Wynko if you need to end the session."
@@ -134,6 +193,20 @@ class RevM2AccessibilityService : AccessibilityService() {
             textSize = 14f
             gravity = Gravity.CENTER
             setPadding(0, 24, 0, 32)
+        })
+        if (openYoutubeInBrowser) root.addView(Button(this).apply {
+            text = "Open YouTube in browser"
+            setOnClickListener {
+                removeOverlay()
+                val i = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://m.youtube.com"))
+                    .addCategory(android.content.Intent.CATEGORY_BROWSABLE).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Keep it out of the YouTube app, which would claim the link and land back here.
+                val browser = YoutubeChannels.BROWSER_URL_BARS.keys.firstOrNull { p ->
+                    runCatching { packageManager.getPackageInfo(p, 0) }.isSuccess
+                }
+                if (browser != null) i.setPackage(browser)
+                runCatching { startActivity(i) }.onFailure { performGlobalAction(GLOBAL_ACTION_HOME) }
+            }
         })
         root.addView(Button(this).apply {
             text = "Go home"
@@ -156,7 +229,7 @@ class RevM2AccessibilityService : AccessibilityService() {
         try {
             windowManager?.addView(root, params)
             overlayView = root
-            rearm()
+            rearm(if (openYoutubeInBrowser) 5000 else 1500)
         } catch (e: Exception) {
             // Overlay permission missing: still send the user home so the block holds.
             performGlobalAction(GLOBAL_ACTION_HOME)
@@ -164,7 +237,7 @@ class RevM2AccessibilityService : AccessibilityService() {
     }
 
     /** Overlay shows briefly, then the user is sent to the launcher so the blocked app isn't left running on top. */
-    private fun rearm() { handler.removeCallbacks(goHome); handler.postDelayed(goHome, 1500) }
+    private fun rearm(delayMs: Long = 1500) { handler.removeCallbacks(goHome); handler.postDelayed(goHome, delayMs) }
 
     private fun removeOverlay() {
         handler.removeCallbacks(goHome)
