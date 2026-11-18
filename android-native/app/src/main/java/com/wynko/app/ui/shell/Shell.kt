@@ -41,6 +41,7 @@ private val DrawerItems = listOf(
     NavItem(Dest.Schedules, "Schedules & Wynky", Icons.Filled.CalendarMonth), NavItem(Dest.Quick, "Quick Timer", Icons.Filled.Timer), NavItem(Dest.Rooms, "Study Rooms", Icons.Filled.Videocam),
     NavItem(Dest.Comms, "Communities", Icons.Filled.Groups), NavItem(Dest.Battle, "Battleground", Icons.Filled.Bolt),
     NavItem(Dest.Coins, "WYNKOINS", Icons.Filled.MonetizationOn), NavItem(Dest.Earn, "Earn with Wynko", Icons.Filled.LocalFireDepartment),
+    NavItem(Dest.BlockLists, "Phone blocking setup", Icons.Filled.Shield),
     NavItem(Dest.Settings, "Settings", Icons.Filled.Settings),
 ).filter { BuildConfig.PAYMENTS_ENABLED || (it.dest != Dest.Coins && it.dest != Dest.Earn) }
 
@@ -82,7 +83,7 @@ private fun barTitle(d: Dest) = when (d) {
     Dest.Quick -> "Quick Timer"
     Dest.Schedules -> "Schedules"; Dest.Earn -> "Earn with Wynko"; Dest.Focus -> "Focus Lock"; Dest.Rooms -> "Study Rooms"
     Dest.Comms -> "Communities"; Dest.Battle -> "Battleground"; Dest.Coins -> "WYNKOINS"; Dest.Settings -> "Settings"
-    Dest.More -> "Profile"; Dest.BlockLists -> "Block lists"; else -> "Wynko"
+    Dest.More -> "Profile"; Dest.BlockLists -> "Phone blocking setup"; else -> "Wynko"
 }
 
 @Composable

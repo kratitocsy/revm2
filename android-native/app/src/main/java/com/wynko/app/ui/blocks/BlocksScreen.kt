@@ -48,12 +48,26 @@ fun BlocksScreen(vm: BlocksViewModel = viewModel()) {
             item { ActiveCard(a.blockName, state.remainingSeconds, a.noEarlyUnlock) { vm.stop(ctx) } }
         }
 
-        if (!perms.allGranted) {
-            item { Text("Permissions", style = MaterialTheme.typography.titleMedium) }
-            item { PermRow("Accessibility (detect blocked apps)", perms.accessibility) { LockingController.requestAccessibility(ctx) } }
-            item { PermRow("Overlay (block screen)", perms.overlay) { LockingController.requestOverlay(ctx) } }
-            item { PermRow("VPN (block websites)", perms.vpn) { LockingController.vpnConsentIntent(ctx)?.let { vpnLauncher.launch(it) } } }
-            item { PermRow("Device admin (uninstall friction)", perms.deviceAdmin) { LockingController.requestDeviceAdmin(ctx) } }
+        item { Text("Phone blocking setup", style = MaterialTheme.typography.titleMedium) }
+        item { PermRow("Usage access (spot blocked apps; works with UPI & bank apps)", perms.usageAccess) { LockingController.requestUsageAccess(ctx) } }
+        item { PermRow("Display over other apps (block screen)", perms.overlay) { LockingController.requestOverlay(ctx) } }
+        item { PermRow("VPN (block websites)", perms.vpn) { LockingController.vpnConsentIntent(ctx)?.let { vpnLauncher.launch(it) } } }
+        item { PermRow("Device admin (uninstall friction)", perms.deviceAdmin) { LockingController.requestDeviceAdmin(ctx) } }
+        item {
+            // Optional: UPI and bank apps (GPay, PhonePe, Paytm, bank apps) refuse to open while any app has Accessibility on.
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Accessibility (optional)", Modifier.weight(1f))
+                    OutlinedButton(onClick = { LockingController.requestAccessibility(ctx) }) { Text(if (perms.accessibility) "Turn off" else "Turn on") }
+                }
+                Text(
+                    if (perms.accessibility) "On: faster blocking, plus Reels/Shorts and YouTube channel checks. Payment and bank apps " +
+                        "may refuse to open while it's on. If they do, turn it off; Usage access keeps blocking apps."
+                    else "Off: apps are still blocked through Usage access, and payment apps work. Turn it on only if you want " +
+                        "Reels/Shorts blocking and YouTube channel checks (some payment and bank apps then refuse to open).",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         item {
@@ -67,7 +81,7 @@ fun BlocksScreen(vm: BlocksViewModel = viewModel()) {
         }
         items(state.presets, key = { it.id }) { p ->
             PresetCard(
-                p, canStart = state.active == null && perms.accessibility && perms.overlay,
+                p, canStart = state.active == null && perms.appDetection && perms.overlay,
                 onStart = { vm.start(ctx, p) }, onDelete = { vm.deletePreset(ctx, p.id) },
             )
         }

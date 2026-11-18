@@ -42,7 +42,9 @@ enum class Disclosure(val title: String, val body: String) {
     ),
     UsageAccess(
         "Show your screen time?",
-        "Usage access lets Wynko read how long each app was open today so it can show your biggest distractions. The numbers stay on your phone.",
+        "Usage access lets Wynko read how long each app was open today so it can show your biggest distractions, and, during a " +
+            "block, which app just opened so it can cover the ones you blocked (used instead of Accessibility, which some payment " +
+            "and bank apps object to). The numbers stay on your phone.",
     ),
 }
 

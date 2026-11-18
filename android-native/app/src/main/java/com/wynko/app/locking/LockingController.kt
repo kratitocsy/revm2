@@ -19,8 +19,10 @@ data class LockPermissions(
     val batteryUnrestricted: Boolean = false,
     val postNotifications: Boolean = true,
 ) {
-    /** The four permissions blocking itself needs. */
-    val allGranted get() = accessibility && overlay && vpn && deviceAdmin
+    /** Spotting a blocked app: Usage Access (works alongside UPI/bank apps) or the accessibility service. */
+    val appDetection get() = accessibility || usageAccess
+    /** The permissions blocking itself needs. Accessibility is optional: UPI and bank apps refuse to open while it is on. */
+    val allGranted get() = appDetection && overlay && vpn && deviceAdmin
     /** Extras that make enforcement harder to bypass or kill. */
     val allHardening get() = notificationAccess && batteryUnrestricted && postNotifications
 }

@@ -20,6 +20,15 @@ import android.os.Looper
  */
 class GuardService : Service() {
     private val handler = Handler(Looper.getMainLooper())
+    // App blocking when Accessibility is off (it upsets UPI/bank apps): Usage Access, checked every second.
+    private val usageGuard by lazy { UsageGuard(this) }
+    private val usageTick = object : Runnable {
+        override fun run() {
+            if (!usageGuard.wanted()) { handler.postDelayed(this, 5_000); return }
+            runCatching { usageGuard.check() }
+            handler.postDelayed(this, 1_000)
+        }
+    }
     private val tick = object : Runnable {
         override fun run() {
             val s = BlockStore.current(this@GuardService)
@@ -44,11 +53,14 @@ class GuardService : Service() {
             startService(Intent(this, RevM2VpnService::class.java).setAction(RevM2VpnService.ACTION_START))
         }
         handler.removeCallbacks(tick); handler.post(tick)
+        handler.removeCallbacks(usageTick); handler.post(usageTick)
         return START_STICKY
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(tick)
+        handler.removeCallbacks(usageTick)
+        runCatching { usageGuard.stop() }
         // Session over (or ended): stop the DNS tunnel with it.
         stopService(Intent(this, RevM2VpnService::class.java))
         super.onDestroy()
