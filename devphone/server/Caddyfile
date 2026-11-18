@@ -1,0 +1,6 @@
+{$DEVPHONE_DOMAIN} {
+	# flush_interval -1 streams frames straight through instead of buffering them.
+	reverse_proxy gateway:8700 {
+		flush_interval -1
+	}
+}

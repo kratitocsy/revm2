@@ -1,0 +1,5 @@
+{
+  "name": "devphone-gateway",
+  "private": true,
+  "type": "module"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "devphone",
+  "version": "0.1.0",
+  "description": "A cloud Android phone that AI agents and people can see and drive together: HTTP API, live viewer, MCP server.",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "devphone-mcp": "mcp/server.js", "devphone-relay": "relay/relay.js" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "gateway": "node gateway/server.js",
+    "relay": "node relay/relay.js",
+    "mcp": "node mcp/server.js"
+  },
+  "engines": { "node": ">=20" }
+}

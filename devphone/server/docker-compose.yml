@@ -1,0 +1,40 @@
+# One cloud Android phone (redroid) + the devphone gateway + HTTPS (Caddy).
+# Start with: docker compose --env-file .env up -d   (see ../README.md)
+services:
+  redroid:
+    image: redroid/redroid:${REDROID_TAG:-13.0.0-latest}
+    privileged: true
+    restart: unless-stopped
+    command:
+      - androidboot.redroid_width=${PHONE_WIDTH:-720}
+      - androidboot.redroid_height=${PHONE_HEIGHT:-1560}
+      - androidboot.redroid_dpi=${PHONE_DPI:-320}
+      - androidboot.redroid_gpu_mode=${GPU_MODE:-guest}
+    volumes:
+      - phone-data:/data
+    # adb is reachable only inside this compose network, never from the internet.
+
+  gateway:
+    build: ../gateway
+    restart: unless-stopped
+    depends_on: [redroid]
+    environment:
+      ADB_SERIAL: redroid:5555
+      DEVPHONE_TOKEN: ${DEVPHONE_TOKEN:?set DEVPHONE_TOKEN in .env}
+      DEVPHONE_VIEW_TOKEN: ${DEVPHONE_VIEW_TOKEN:-}
+      DEVPHONE_FRAME_MS: ${DEVPHONE_FRAME_MS:-250}
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [gateway]
+    ports: ["80:80", "443:443"]
+    environment:
+      DEVPHONE_DOMAIN: ${DEVPHONE_DOMAIN:?set DEVPHONE_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  phone-data:
+  caddy-data:

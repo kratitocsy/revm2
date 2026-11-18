@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>devphone</title>
+<style>
+  :root { --bg:#111214; --panel:#1a1b1e; --line:#2c2d31; --ink:#ecebe7; --dim:#8d8c88; --acc:#ff8a3d; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:13px/1.4 system-ui,sans-serif; }
+  body { display:flex; flex-direction:column; align-items:center; gap:10px; padding:12px; }
+  header { display:flex; gap:10px; align-items:center; width:100%; max-width:420px; }
+  header b { flex:1; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#666; display:inline-block; margin-right:6px; }
+  .dot.on { background:#3ecf6a; }
+  .phone { position:relative; border:8px solid #222; border-radius:28px; overflow:hidden; background:#000; max-height:calc(100vh - 130px); }
+  #screen { display:block; max-height:calc(100vh - 146px); max-width:100%; cursor:crosshair; user-select:none; -webkit-user-drag:none; }
+  .keys { display:flex; gap:8px; }
+  button { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 12px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  #msg { color:var(--dim); min-height:18px; max-width:420px; text-align:center; }
+  #lease { color:var(--acc); }
+</style>
+</head>
+<body>
+<header><b><span class="dot" id="dot"></span>devphone <span id="fg" style="color:var(--dim)"></span></b><span id="lease"></span></header>
+<div class="phone"><img id="screen" alt="Live phone screen" draggable="false"></div>
+<div class="keys">
+  <button data-key="back">◀ Back</button><button data-key="home">● Home</button><button data-key="recents">■ Recents</button>
+</div>
+<div id="msg">Click to tap, drag to swipe, type to send text.</div>
+<script>
+const qs = new URLSearchParams(location.search);
+const token = qs.get('token');
+const withTok = p => token ? p + (p.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token) : p;
+const screen = document.getElementById('screen');
+const msg = t => document.getElementById('msg').textContent = t;
+// Reads the multipart stream with fetch and shows each PNG part. Browsers' own multipart <img> support
+// is inconsistent, and this also works through relays and proxies.
+async function streamLoop() {
+  for (;;) {
+    try {
+      const r = await fetch(withTok('api/stream'), { cache: 'no-store' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+      const reader = r.body.getReader();
+      let buf = new Uint8Array(0);
+      const dec = new TextDecoder('latin1');
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const next = new Uint8Array(buf.length + value.length);
+        next.set(buf); next.set(value, buf.length); buf = next;
+        for (;;) {
+          const head = dec.decode(buf.subarray(0, Math.min(buf.length, 512)));
+          const m = /content-length: (\d+)\r\n\r\n/i.exec(head);
+          if (!m) break;
+          const start = m.index + m[0].length, len = Number(m[1]);
+          if (buf.length < start + len) break;
+          const url = URL.createObjectURL(new Blob([buf.slice(start, start + len)], { type: 'image/png' }));
+          const old = screen.src;
+          screen.src = url;
+          if (old.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(old), 1000);
+          buf = buf.slice(start + len);
+        }
+      }
+    } catch (e) { msg('Stream: ' + e.message + ' (reconnecting)'); }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+streamLoop();
+
+async function api(method, path, body) {
+  const r = await fetch(withTok(path), { method, headers: { 'content-type': 'application/json', 'x-devphone-holder': 'viewer' }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const act = (p, b) => api('POST', p, b).catch(e => msg(e.message));
+
+function toDevice(ev) {
+  const r = screen.getBoundingClientRect();
+  return [ (ev.clientX - r.left) * screen.naturalWidth / r.width, (ev.clientY - r.top) * screen.naturalHeight / r.height ];
+}
+let down = null;
+screen.addEventListener('pointerdown', e => { down = { p: toDevice(e), t: Date.now() }; screen.setPointerCapture(e.pointerId); });
+screen.addEventListener('pointerup', e => {
+  if (!down) return;
+  const [x2, y2] = toDevice(e), [x1, y1] = down.p, ms = Math.max(80, Date.now() - down.t);
+  down = null;
+  if (Math.hypot(x2 - x1, y2 - y1) < 12) act('api/tap', { x: x1, y: y1 });
+  else act('api/swipe', { x1, y1, x2, y2, ms: Math.min(ms, 1500) });
+});
+document.querySelectorAll('[data-key]').forEach(b => b.onclick = () => act('api/key', { key: b.dataset.key }));
+
+let buf = '', flush = null;
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey) return;
+  const named = { Enter:'enter', Backspace:'delete', Escape:'back', Tab:'tab', ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right' }[e.key];
+  if (named) { e.preventDefault(); clearTimeout(flush); sendBuf(); act('api/key', { key: named }); return; }
+  if (e.key.length === 1) { e.preventDefault(); buf += e.key; clearTimeout(flush); flush = setTimeout(sendBuf, 250); }
+});
+function sendBuf() { if (buf) { const t = buf; buf = ''; act('api/text', { text: t }); } }
+
+async function poll() {
+  try {
+    const s = await api('GET', 'api/status');
+    document.getElementById('dot').classList.toggle('on', s.online);
+    document.getElementById('fg').textContent = s.foreground || (s.online ? '' : 'offline');
+    document.getElementById('lease').textContent = s.lease ? `driven by ${s.lease.holder}` : '';
+  } catch (e) { msg(e.message); }
+  setTimeout(poll, 3000);
+}
+poll();
+</script>
+</body>
+</html>
