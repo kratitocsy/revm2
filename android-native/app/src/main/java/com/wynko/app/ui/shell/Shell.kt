@@ -96,7 +96,18 @@ fun AppShell(vm: AppViewModel = viewModel()) {
     val scroll = rememberScrollState()
     LaunchedEffect(dest) { scroll.scrollTo(0) }
     // Buttons inside the page (Home's Start opening Focus, say) move the app's tab bar and title too.
-    if (web != null) SideEffect { web.onPageChanged = { page, tab -> destForPage(page, tab)?.let(vm::showFromWeb) } }
+    if (web != null) SideEffect {
+        web.onPageChanged = { page, tab -> destForPage(page, tab)?.let(vm::showFromWeb) }
+        // A plan confirmed in Wynky reaches the on-device blocker right away, not at the next 5-minute refresh.
+        web.onSchedulesChanged = { vm.refreshSchedules() }
+    }
+    // Coming back to the app also re-reads schedules (changed on desktop meanwhile, say) and re-arms the block alarms.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.refreshSchedules() }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // Back: close a sheet or the drawer, then whatever the page has open (Wynky, a room, a dialog),

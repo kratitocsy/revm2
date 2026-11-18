@@ -41,6 +41,8 @@ class WynkoBridge(
     private val pageChanged: (page: String, tab: String) -> Unit = { _, _ -> },
     /** Unread notifications, for the bell badge in the native app bar. */
     private val unreadChanged: (count: Int) -> Unit = {},
+    /** Wynky (or a community schedule) just saved blocking schedules: re-read them so on-device enforcement has them now. */
+    private val schedulesChanged: () -> Unit = {},
 ) {
     @JavascriptInterface
     fun call(id: Int, method: String, argsJson: String) {
@@ -76,6 +78,12 @@ class WynkoBridge(
     fun onPage(page: String, tab: String) {
         if (!isTrusted()) return
         scope.launch { pageChanged(page, tab) }
+    }
+
+    @JavascriptInterface
+    fun schedulesChanged() {
+        if (!isTrusted()) return
+        scope.launch { schedulesChanged.invoke() }
     }
 
     @JavascriptInterface

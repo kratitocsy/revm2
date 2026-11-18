@@ -66,6 +66,8 @@ class WebController internal constructor(val view: WebView) {
     var failed by mutableStateOf(false); internal set
     /** Called when the page itself moves to another page (dashboard id, Study Rooms tab or ""). */
     var onPageChanged: (page: String, tab: String) -> Unit = { _, _ -> }
+    /** Called when the page saved blocking schedules (Wynky, community schedule). */
+    var onSchedulesChanged: () -> Unit = {}
     /** The page the dashboard last said it is showing. */
     internal var shown: Pair<String, String>? = null
 
@@ -126,6 +128,7 @@ fun rememberWebController(): WebController {
                 controller[0]?.let { c -> c.ready = true; c.shown = page to tab; c.onPageChanged(page, tab) }
             },
             unreadChanged = { n -> controller[0]?.unread = n },
+            schedulesChanged = { controller[0]?.onSchedulesChanged?.invoke() },
         )
         val w = WebView(ctx).also { w ->
             holder[0] = w

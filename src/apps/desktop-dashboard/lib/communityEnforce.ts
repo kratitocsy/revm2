@@ -1,4 +1,4 @@
-import { ensurePresets, loadRemembered, rememberAllowlists, writeSchedule, type PlanSlotInput, type SubjectAllowlist, type SupaLike } from '../wynky/wynkyPlanner';
+import { ensurePresets, loadRemembered, notifySchedulesChanged, rememberAllowlists, writeSchedule, type PlanSlotInput, type SubjectAllowlist, type SupaLike } from '../wynky/wynkyPlanner';
 import { isEnforceable } from '../wynky/wynkyChatFlow';
 
 /* ============================================================
@@ -137,6 +137,7 @@ export async function enforceCommunitySchedule(sb: SupaLike, userId: string, com
     }));
     await writeSchedule(sb, userId, { planName: `${COMMUNITY_PLAN_PREFIX}${name} - ${WEEKDAY_NAMES[day]}`, daysOfWeek: [day], slots: planSlots });
   }
+  notifySchedulesChanged() // also covers a week with no slots (own schedules paused, nothing written)
 }
 
 /** Stops enforcing the community schedule and switches the member's own
@@ -152,4 +153,5 @@ export async function releaseCommunitySchedule(sb: SupaLike, userId: string, com
   const paused = readPaused(userId);
   for (const id of paused) await sb.from('focus_lock_schedules').update({ active: true }).eq('id', id);
   writePaused(userId, []);
+  notifySchedulesChanged()
 }

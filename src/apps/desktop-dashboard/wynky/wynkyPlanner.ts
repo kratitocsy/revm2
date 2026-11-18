@@ -369,6 +369,7 @@ export async function writeSchedule(sb: SupaLike, userId: string, args: {
     }));
 
   if (rows.length) await sb.from('focus_lock_schedule_slots').insert(rows);
+  notifySchedulesChanged();
   return { scheduleId };
 }
 
@@ -426,6 +427,7 @@ async function clearWeekdayVariants(sb: SupaLike, userId: string, planName: stri
     await sb.from('focus_lock_schedule_slots').delete().eq('schedule_id', r.id);
     await sb.from('focus_lock_schedules').delete().eq('id', r.id);
   }
+  if (stale.length) notifySchedulesChanged();
 }
 
 /** Day -> subject -> the allow-list to use for that subject on that day
@@ -898,7 +900,24 @@ export function isDesktopApp(): boolean {
 }
 export function isMobileApp(): boolean {
   const w = window as any;
-  return !!(w.RM2Native && w.RM2Native.isNative && w.RM2Native.isNative());
+  // The Android app's bridge (window.Capacitor, see WynkoBridge.kt); RM2Native was the old shell's flag.
+  return !!(w.Capacitor && w.Capacitor.isNativePlatform && w.Capacitor.isNativePlatform())
+    || !!(w.RM2Native && w.RM2Native.isNative && w.RM2Native.isNative());
+}
+
+/** Tells the Android app its blocking schedules changed, so it re-reads them now (not up to 5 minutes later)
+ *  and the phone has the new plan even if the app is closed straight after. Debounced: a varied week writes
+ *  one schedule per weekday. No-op outside the app. */
+let schedulesChangedTimer: ReturnType<typeof setTimeout> | null = null;
+export function notifySchedulesChanged(): void {
+  if (typeof window === 'undefined') return;
+  const native = (window as any).WynkoNative;
+  if (!native || typeof native.schedulesChanged !== 'function') return;
+  if (schedulesChangedTimer) clearTimeout(schedulesChangedTimer);
+  schedulesChangedTimer = setTimeout(() => {
+    schedulesChangedTimer = null;
+    try { native.schedulesChanged(); } catch { /* older app: it still refreshes every 5 minutes */ }
+  }, 800);
 }
 export function appPickerAvailable(): boolean {
   return isDesktopApp() || isMobileApp();
