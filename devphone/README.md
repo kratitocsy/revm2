@@ -66,11 +66,14 @@ type to send text.
 
 ```yaml
 - name: Install on devphone
-  if: ${{ secrets.DEVPHONE_TOKEN != '' }}
+  env:
+    DEVPHONE_TOKEN: ${{ secrets.DEVPHONE_TOKEN }}
+    DEVPHONE_URL: ${{ vars.DEVPHONE_URL }}
+  if: ${{ env.DEVPHONE_TOKEN != '' }}
   run: |
     curl -fsS -X POST --data-binary @app/build/outputs/apk/debug/app-debug.apk \
-      -H "Authorization: Bearer ${{ secrets.DEVPHONE_TOKEN }}" \
-      "${{ vars.DEVPHONE_URL }}/api/install?launch=com.example.app"
+      -H "Authorization: Bearer $DEVPHONE_TOKEN" \
+      "$DEVPHONE_URL/api/install?launch=com.example.app"
 ```
 
 ## HTTP API
