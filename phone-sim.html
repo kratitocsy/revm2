@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Wynko Phone Preview</title>
+<!--
+  Dev-only phone preview of the Android app (android-native/). The Android app is a native shell
+  (top bar, 5-tab bar with the raised Focus button) around a WebView of /home, switching web screens
+  with window.__wkNavigate(page, tab) — the same mapping as webTarget() in ui/shell/Shell.kt.
+  Home and Focus are native Compose screens on the phone, so here they show a placeholder.
+  window.Capacitor is a fake bridge: native calls are logged, not performed.
+-->
+<style>
+  :root { --bg:#16161a; --phone:#0b0b0d; --ink:#f1efe9; --ink5:#8b8a86; --line:#2a2a2f; --orange:#ff8a3d; --orange3:#ffb27a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, sans-serif; }
+  body { display:flex; gap:24px; align-items:center; justify-content:center; padding:16px; flex-wrap:wrap; }
+  .phone { width:390px; height:820px; max-width:100%; border-radius:44px; background:var(--phone); border:10px solid #222; box-shadow:0 20px 60px #0008; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .status { height:28px; display:flex; justify-content:space-between; align-items:center; padding:0 22px; font-size:12px; color:var(--ink); flex:none; }
+  .bar { height:52px; display:flex; align-items:center; gap:10px; padding:0 14px; flex:none; }
+  .bar h1 { font-size:15px; font-weight:600; margin:0; flex:1; }
+  .icon-btn { width:38px; height:38px; border-radius:50%; background:#1b1b1f; border:1px solid var(--line); color:var(--ink5); display:grid; place-items:center; cursor:pointer; }
+  .screen { flex:1; position:relative; background:#080A12; }
+  .screen iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .native { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; padding:24px; color:var(--ink5); }
+  .native b { color:var(--ink); font-size:18px; }
+  .tabs { flex:none; display:flex; align-items:flex-end; background:#0f0f11fa; border-top:1px solid var(--line); padding:0 4px 6px; }
+  .tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding-top:8px; font-size:11px; color:var(--ink5); cursor:pointer; user-select:none; background:none; border:0; font-family:inherit; }
+  .tab svg { width:24px; height:24px; fill:currentColor; }
+  .tab.on { color:var(--orange); font-weight:600; }
+  .focus .fab { width:56px; height:56px; margin-top:-22px; border-radius:50%; background:var(--orange3); border:4px solid #050506; display:grid; place-items:center; color:#050506; }
+  .navpill { height:18px; display:flex; justify-content:center; align-items:center; flex:none; }
+  .navpill i { width:120px; height:4px; border-radius:2px; background:#555; }
+  .side { width:320px; max-width:100%; }
+  .side h2 { font-size:14px; margin:0 0 8px; }
+  .side p { color:var(--ink5); margin:0 0 12px; font-size:13px; }
+  #log { background:#0e0e11; border:1px solid var(--line); border-radius:10px; height:420px; overflow:auto; padding:10px; font:12px/1.5 ui-monospace, monospace; color:#b8f2c4; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status"><span id="clock">9:41</span><span>5G ▮▮▮ 87%</span></div>
+  <div class="bar">
+    <h1 id="title">Wynko</h1>
+    <div class="icon-btn" title="Reload screen" onclick="frame.contentWindow.location.reload()">⟳</div>
+  </div>
+  <div class="screen">
+    <iframe id="frame" src="home.html" title="Wynko web dashboard"></iframe>
+    <div class="native" id="native"><b id="nativeTitle"></b><span>Native Compose screen on the phone. Not available in the web preview.</span></div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="navpill"><i></i></div>
+</div>
+
+<div class="side">
+  <h2>Native bridge log</h2>
+  <p>Calls the web app makes to the phone (blocking, permissions…) land here instead of running.</p>
+  <div id="log"></div>
+</div>
+
+<script>
+const ICON = {
+  home:'<path d="M12 3 2 12h3v9h6v-6h2v6h6v-9h3z"/>',
+  rooms:'<path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"/>',
+  lock:'<path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm3.1-9H8.9V6a3.1 3.1 0 0 1 6.2 0z"/>',
+  bolt:'<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
+  groups:'<path d="M12 12.75c1.63 0 3.07.39 4.24.9A2.99 2.99 0 0 1 18 16.38V18H6v-1.61c0-1.18.68-2.26 1.76-2.73A10.4 10.4 0 0 1 12 12.75zM4 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm1.13 1.1A6.98 6.98 0 0 0 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0 0 18.87 14.1c.4.68.63 1.46.63 2.29V18H24zM12 6a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/>',
+};
+// Same order and web mapping as TabBar() / webTarget() in android-native/.../ui/shell/Shell.kt
+const TABS = [
+  { id:'home',   label:'Home',         icon:'home',   title:'Wynko',        native:true },
+  { id:'rooms',  label:'Rooms',        icon:'rooms',  title:'Study Rooms',  page:'studyrooms', tab:'rooms' },
+  { id:'focus',  label:'Focus',        icon:'lock',   title:'Focus Lock',   native:true, fab:true },
+  { id:'battle', label:'Battleground', icon:'bolt',   title:'Battleground', page:'battleground' },
+  { id:'comms',  label:'Community',    icon:'groups', title:'Communities',  page:'studyrooms', tab:'communities' },
+];
+const frame = document.getElementById('frame');
+const logEl = document.getElementById('log');
+function log(msg) { const t = new Date().toTimeString().slice(0,8); logEl.textContent += `[${t}] ${msg}\n`; logEl.scrollTop = logEl.scrollHeight; }
+
+const tabsEl = document.getElementById('tabs');
+TABS.forEach(t => {
+  const b = document.createElement('button');
+  b.className = 'tab' + (t.fab ? ' focus' : ''); b.dataset.id = t.id;
+  const svg = `<svg viewBox="0 0 24 24">${ICON[t.icon]}</svg>`;
+  b.innerHTML = (t.fab ? `<span class="fab">${svg}</span>` : svg) + `<span>${t.label}</span>`;
+  b.onclick = () => go(t);
+  tabsEl.appendChild(b);
+});
+
+function navigate(page, tab, tries = 0) {
+  const w = frame.contentWindow;
+  try {
+    if (w && w.__wkNavigate) { w.__wkNavigate(page, tab); log(`navigate ${page}${tab ? ' / ' + tab : ''}`); return; }
+  } catch (e) { log('navigate failed: ' + e.message); return; }
+  if (tries < 60) setTimeout(() => navigate(page, tab, tries + 1), 200);
+  else log(`navigate ${page}: dashboard not ready (signed out?)`);
+}
+
+function go(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.toggle('on', el.dataset.id === t.id));
+  document.getElementById('title').textContent = t.title;
+  const nat = document.getElementById('native');
+  nat.style.display = t.native ? 'flex' : 'none';
+  frame.style.visibility = t.native ? 'hidden' : 'visible';
+  document.getElementById('nativeTitle').textContent = t.title;
+  if (!t.native) navigate(t.page, t.tab);
+}
+
+// Fake native bridge: same shape the pages call on the phone (Capacitor.Plugins.RevM2Locking.*).
+function installBridge() {
+  let w; try { w = frame.contentWindow; } catch { return; }
+  if (!w || w.Capacitor) return;
+  const plugin = new Proxy({}, { get: (_, method) => async (args) => {
+    log(`RevM2Locking.${String(method)}(${args ? JSON.stringify(args) : ''})`);
+    return { ok: true, simulated: true };
+  }});
+  w.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: { RevM2Locking: plugin } };
+}
+frame.addEventListener('load', () => {
+  installBridge();
+  let path = '?'; try { path = frame.contentWindow.location.pathname; } catch {}
+  log('loaded ' + path);
+});
+
+setInterval(() => { document.getElementById('clock').textContent = new Date().toTimeString().slice(0,5); }, 10000);
+go(TABS[1]);
+</script>
+</body>
+</html>
