@@ -103,6 +103,16 @@
         <intent>
             <action android:name="android.settings.SETTINGS" />
         </intent>
+        <!-- Payment apps (never blocked or filtered during a focus block) and browsers (an allow-only site list filters only these). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.INTERNET" />

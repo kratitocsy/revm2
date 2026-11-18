@@ -37,9 +37,14 @@ import java.nio.ByteBuffer
 class RevM2VpnService : VpnService() {
 
     private var tunInterface: ParcelFileDescriptor? = null
-    private val job = Job()
+    // The scope lives as long as the service; each tunnel gets its own loop job. (Cancelling the scope's job on
+    // stop used to leave the next tunnel with no DNS loop at all, so every app on the phone lost internet.)
+    private val job = kotlinx.coroutines.SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+    private var loopJob: Job? = null
     private var running = false
+    /** Which apps the current tunnel covers (see [startVpn]); a session needing a different set rebuilds it. */
+    private var tunnelKey: String? = null
     // Guards writes to the TUN fd: NXDOMAIN replies are written inline on
     // the read loop, while upstream-forwarded replies now arrive from
     // their own coroutines (see handleIpPacket) — both can land at once.
@@ -56,7 +61,7 @@ class RevM2VpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> { stopVpn(); return START_NOT_STICKY }
+            ACTION_STOP -> { stopVpn(); stopSelf(); return START_NOT_STICKY }
             else -> startVpn()
         }
         return START_STICKY
@@ -64,6 +69,7 @@ class RevM2VpnService : VpnService() {
 
     override fun onDestroy() {
         stopVpn()
+        job.cancel()
         super.onDestroy()
     }
 
@@ -77,13 +83,25 @@ class RevM2VpnService : VpnService() {
     }
 
     private fun startVpn() {
-        if (running) return
+        // An "only these sites" list is a browsing rule (as on desktop): only browsers go through the filter, so
+        // payment, banking and every other app keep working; the app rules decide those. Otherwise every app goes
+        // through it except payment/UPI and bank apps, which are never filtered.
+        val allowOnly = BlockStore.current(this).domainsAllowOnly
+        val browsers = if (allowOnly) EssentialApps.browsers(this) else emptySet()
+        val key = if (browsers.isNotEmpty()) "browsers:" + browsers.sorted().joinToString(",") else "all-but-payments"
+        if (running && key == tunnelKey) return
+        if (running) stopVpn()
         val builder = Builder()
             .setSession("RevM2 Focus Lock")
             .addAddress(VPN_ADDRESS, 32)
             .addDnsServer(VPN_DNS)
             .addRoute(VPN_DNS, 32) // ONLY route DNS traffic through the tunnel — not all internet traffic
             .setBlocking(false)
+        if (browsers.isNotEmpty()) {
+            browsers.forEach { p -> runCatching { builder.addAllowedApplication(p) } }
+        } else {
+            (EssentialApps.payments(this) - packageName).forEach { p -> runCatching { builder.addDisallowedApplication(p) } }
+        }
 
         tunInterface = try {
             builder.establish()
@@ -94,23 +112,19 @@ class RevM2VpnService : VpnService() {
 
         val iface = tunInterface ?: return
         running = true
-        scope.launch { runDnsLoop(iface) }
+        tunnelKey = key
+        loopJob = scope.launch { runDnsLoop(iface) }
     }
 
     private fun stopVpn() {
         running = false
-        job.cancelChildren_safe()
+        tunnelKey = null
+        loopJob?.cancel()
+        loopJob = null
         tunInterface?.let {
             try { it.close() } catch (e: Exception) { /* already closed */ }
         }
         tunInterface = null
-    }
-
-    // kotlinx Job doesn't expose cancelChildren() directly on this API level import path
-    // used elsewhere in the codebase without the extra kotlinx-coroutines-core artifact,
-    // so keep this local instead of adding another dependency for one call.
-    private fun Job.cancelChildren_safe() {
-        try { this.cancel() } catch (e: Exception) { /* no-op */ }
     }
 
     private suspend fun runDnsLoop(iface: ParcelFileDescriptor) {
@@ -120,7 +134,8 @@ class RevM2VpnService : VpnService() {
 
         while (running) {
             val length = try { input.read(packet) } catch (e: Exception) { break }
-            if (length <= 0) continue
+            // Non-blocking fd: 0 means nothing queued. Wait a moment instead of spinning a CPU core flat out.
+            if (length <= 0) { kotlinx.coroutines.delay(8); continue }
 
             try {
                 handleIpPacket(packet, length, output)

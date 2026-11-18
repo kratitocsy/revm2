@@ -192,7 +192,7 @@ object BlockStore {
 
     fun isAppBlocked(ctx: Context, packageName: String): Boolean {
         val s = current(ctx)
-        return isAppBlockedForSession(s, packageName, ctx.packageName, launcherPackages(ctx), tamperPackages(ctx))
+        return isAppBlockedForSession(s, packageName, ctx.packageName, launcherPackages(ctx), tamperPackages(ctx), EssentialApps.payments(ctx))
     }
 
     fun isDomainBlocked(ctx: Context, domain: String): Boolean =
@@ -211,6 +211,8 @@ object BlockStore {
         selfPackageName: String,
         additionalExcluded: Set<String> = emptySet(),
         tamperPackages: Set<String> = emptySet(),
+        /** Payment/UPI/bank apps: never caught by "allow only these apps" or Sleep; a block list naming one still blocks it. */
+        essentialPackages: Set<String> = emptySet(),
     ): Boolean {
         if (!s.active) return false
         if (packageName == selfPackageName) return false
@@ -218,7 +220,7 @@ object BlockStore {
         if (s.lockSettings && packageName in tamperPackages) return true
         // Settings stays reachable in a normal session (Wi-Fi, volume, emergencies) - only the locked mode closes it.
         return when (s.appsMode) {
-            "whitelist" -> packageName !in s.appList && packageName !in tamperPackages
+            "whitelist" -> packageName !in s.appList && packageName !in tamperPackages && packageName !in essentialPackages
             else -> packageName in s.appList
         }
     }

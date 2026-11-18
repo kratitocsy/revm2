@@ -18,6 +18,18 @@ class BlockLogicTest {
 
     private fun blocked(s: BlockStore.Session, pkg: String) = BlockStore.isAppBlockedForSession(s, pkg, self, exempt, tamper)
 
+    private val pay = setOf("com.phonepe.app")
+    private fun blockedPay(s: BlockStore.Session, pkg: String) = BlockStore.isAppBlockedForSession(s, pkg, self, exempt, tamper, pay)
+
+    @Test fun paymentAppsStayOpenInAllowOnlyAndSleep() {
+        assertFalse(blockedPay(session(mode = "whitelist", apps = setOf("com.notes")), "com.phonepe.app"))
+        assertFalse(blockedPay(session(mode = "whitelist", apps = emptySet(), lockSettings = true), "com.phonepe.app")) // Sleep
+        assertTrue(blockedPay(session(mode = "whitelist", apps = setOf("com.notes")), "com.insta"))
+    }
+
+    @Test fun paymentAppNamedInABlockListIsStillBlocked() =
+        assertTrue(blockedPay(session(apps = setOf("com.phonepe.app")), "com.phonepe.app"))
+
     @Test fun inactiveSessionBlocksNothing() = assertFalse(blocked(session(active = false), "com.insta"))
 
     @Test fun blacklistBlocksListedAppsOnly() {
