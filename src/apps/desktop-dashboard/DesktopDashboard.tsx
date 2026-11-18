@@ -18,6 +18,7 @@ import { useHomeData, type TodayFocus, type ProfileInfo, type WeeklyStudyDay } f
 import { fetchAnnouncementAttachments, groupByAnnouncement, type VaultItem } from './lib/communityVault'
 import { AttachmentChips, AttachmentPicker, CommunityVaultTab, uploadPending, type PendingAttachment } from './CommunityVault'
 import WynkyChat from './wynky/WynkyChat'
+import { useBackHandler } from './lib/backStack'
 import WynkyMemorySettings from './wynky/WynkyMemorySettings'
 import { sb } from '../_shared/supabaseClient'
 import { communitySubjects, enforceCommunitySchedule, releaseCommunitySchedule, savedAllowlists } from './lib/communityEnforce'
@@ -541,6 +542,79 @@ function Header({ profile }: { profile?: { displayName: string | null; avatarUrl
 // The panel is portaled to <body> with fixed positioning: several headers
 // (backdrop-blur) form their own stacking context, which would otherwise
 // leave the panel underneath the page content.
+// The list inside the bell's panel, shared with the Android app's notification sheet.
+function NotificationItems({ items, loading, error, onOpen }: {
+  items: AppNotification[]
+  loading: boolean
+  error: string | null
+  onOpen: (n: AppNotification) => void
+}) {
+  return (
+    <>
+      {loading ? (
+        <div className="px-4 py-8 text-center text-xs text-wk-ink-500">Loading…</div>
+      ) : error ? (
+        <div className="px-4 py-6 text-center text-xs text-[#F87171]">{error}</div>
+      ) : items.length === 0 ? (
+        <div className="px-4 py-10 text-center">
+          <div className="text-2xl mb-2">🔔</div>
+          <div className="text-sm text-wk-ink-300 font-medium">You're all caught up</div>
+          <div className="text-xs text-wk-ink-500 mt-1">New notifications will show up here.</div>
+        </div>
+      ) : items.map(n => (
+        <button key={n.id} type="button" onClick={() => onOpen(n)}
+          className={`w-full text-left flex gap-3 px-4 py-3 border-b border-[rgba(38,38,42,0.55)] last:border-b-0 transition-colors hover:bg-white/[0.04] ${n.read ? '' : 'bg-[rgba(255,138,61,0.07)]'}`}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
+            style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.22), rgba(156,150,140,0.14))', border: '1px solid rgba(255,138,61,0.3)' }}>
+            {notificationIcon(n.type)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className={`text-[13px] leading-snug ${n.read ? 'text-wk-ink-300' : 'text-white font-semibold'}`}>{n.title}</div>
+            {n.body && <div className="text-[12px] text-wk-ink-400 mt-0.5 leading-snug whitespace-pre-line" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>}
+            <div className="text-[10px] text-wk-ink-500 mt-1">{timeAgo(n.created_at)}{notificationHref(n) ? ' · Open →' : ''}</div>
+          </div>
+          {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-[#FFA94D]" style={{ boxShadow: 'none' }} />}
+        </button>
+      ))}
+    </>
+  )
+}
+
+// The Android app hides the web header and shows its own bell; tapping it calls
+// window.__wkOpenNotifications(), which opens these same real notifications as a
+// bottom sheet. The unread count goes back to the app for its badge.
+function EmbeddedNotifications() {
+  const { items, unread, loading, error, markRead } = useNotifications()
+  const [open, setOpen] = useState(false)
+  useBackHandler(open, () => setOpen(false))
+  useEffect(() => {
+    ;(window as any).__wkOpenNotifications = () => setOpen(true)
+    return () => { delete (window as any).__wkOpenNotifications }
+  }, [])
+  useEffect(() => { try { (window as any).WynkoNative?.onUnread?.(unread) } catch { /* older app: no badge */ } }, [unread])
+  if (!open) return null
+  const openItem = (n: AppNotification) => {
+    if (!n.read) void markRead([n.id])
+    const href = notificationHref(n)
+    if (href) window.location.href = href
+  }
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex flex-col justify-end bg-[rgba(0,0,0,0.6)]" onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}>
+      <div role="dialog" aria-label="Notifications" className="rounded-t-3xl border-t bg-[#161618] border-[#26262A] max-h-[80vh] flex flex-col wk-sheet-up">
+        <div className="w-10 h-1 rounded-full bg-[#3A3A3A] mx-auto mt-2.5" />
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#26262A]">
+          <div className="text-base font-semibold text-wk-ink-100">Notifications{unread > 0 && <span className="ml-2 text-[12px] font-medium text-[#FFA94D]">{unread} new</span>}</div>
+          {unread > 0 && <button type="button" onClick={() => void markRead()} className="text-[12px] font-medium text-[#FFA94D]">Mark all read</button>}
+        </div>
+        <div className="overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+          <NotificationItems items={items} loading={loading} error={error} onOpen={openItem} />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 function NotificationBell({ extraCount = 0 }: { extraCount?: number }) {
   const { items, unread, loading, error, markRead } = useNotifications()
   const [open, setOpen] = useState(false)
@@ -598,31 +672,7 @@ function NotificationBell({ extraCount = 0 }: { extraCount?: number }) {
             )}
           </div>
           <div className="max-h-[420px] overflow-y-auto">
-            {loading ? (
-              <div className="px-4 py-8 text-center text-xs text-wk-ink-500">Loading…</div>
-            ) : error ? (
-              <div className="px-4 py-6 text-center text-xs text-[#F87171]">{error}</div>
-            ) : items.length === 0 ? (
-              <div className="px-4 py-10 text-center">
-                <div className="text-2xl mb-2">🔔</div>
-                <div className="text-sm text-wk-ink-300 font-medium">You're all caught up</div>
-                <div className="text-xs text-wk-ink-500 mt-1">New notifications will show up here.</div>
-              </div>
-            ) : items.map(n => (
-              <button key={n.id} type="button" onClick={() => openItem(n)}
-                className={`w-full text-left flex gap-3 px-4 py-3 border-b border-[rgba(38,38,42,0.55)] last:border-b-0 transition-colors hover:bg-white/[0.04] ${n.read ? '' : 'bg-[rgba(255,138,61,0.07)]'}`}>
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
-                  style={{ background: 'linear-gradient(135deg, rgba(255,138,61,0.22), rgba(156,150,140,0.14))', border: '1px solid rgba(255,138,61,0.3)' }}>
-                  {notificationIcon(n.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-[13px] leading-snug ${n.read ? 'text-wk-ink-300' : 'text-white font-semibold'}`}>{n.title}</div>
-                  {n.body && <div className="text-[12px] text-wk-ink-400 mt-0.5 leading-snug whitespace-pre-line" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>}
-                  <div className="text-[10px] text-wk-ink-500 mt-1">{timeAgo(n.created_at)}{notificationHref(n) ? ' · Open →' : ''}</div>
-                </div>
-                {!n.read && <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-[#FFA94D]" style={{ boxShadow: 'none' }} />}
-              </button>
-            ))}
+            <NotificationItems items={items} loading={loading} error={error} onOpen={openItem} />
           </div>
         </div>,
         document.body,
@@ -1069,11 +1119,64 @@ function buildTodayPlanRows(scheduleToday: ScheduleItem[], planTasks: StudyTask[
   return rows
 }
 
-function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
+// Home's "how to use Wynko" checklist for new members. Each step ticks itself off
+// from real data; the card hides once everything is done or it is dismissed.
+function GettingStartedCard({ hasSchedule, hasStudied, hasCommunity, onPlan, onFocus, onRooms, onDismiss }: {
+  hasSchedule: boolean
+  hasStudied: boolean
+  hasCommunity: boolean
+  onPlan: () => void
+  onFocus: () => void
+  onRooms: () => void
+  onDismiss: () => void
+}) {
+  const steps = [
+    { done: hasSchedule, title: 'Plan your week with Wynky', body: 'Answer a few questions and Wynky fills your schedule. Every block shows up here and in Focus Lock.', cta: 'Open Wynky', go: onPlan },
+    { done: hasStudied, title: 'Start a Focus Lock session', body: 'Press Start on a task. Distracting apps and sites stay blocked until the timer ends.', cta: 'Go to Focus', go: onFocus },
+    { done: hasCommunity, title: 'Study with others', body: 'Join a community or a live study room to stay accountable.', cta: 'Find rooms', go: onRooms },
+  ]
+  const doneCount = steps.filter(x => x.done).length
+  return (
+    <div className="p-5 rounded-2xl border relative" style={{ background: '#161618', borderColor: 'rgba(255,138,61,0.35)' }}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="text-[10px] text-wk-orange-300 font-mono tracking-[0.15em] mb-0.5">GETTING STARTED · {doneCount}/{steps.length}</div>
+          <div className="text-base font-bold text-white">How to use Wynko</div>
+        </div>
+        <button onClick={onDismiss} aria-label="Hide getting started" className="text-wk-ink-500 hover:text-wk-ink-200 p-1 -m-1"><Ico n="close" cls="w-4 h-4" /></button>
+      </div>
+      <div className="h-1 rounded-full mb-4 overflow-hidden" style={{ background: '#26262A' }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${(doneCount / steps.length) * 100}%`, background: '#FF8A3D' }} />
+      </div>
+      <ol className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+        {steps.map((st, i) => (
+          <li key={st.title} className="rounded-xl border p-3 flex flex-col gap-2" style={{ background: '#0F0F11', borderColor: '#26262A' }}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold"
+                style={st.done ? { background: 'rgba(52,211,153,0.18)', color: '#34D399' } : { background: '#FF8A3D', color: '#0B0B0D' }}>
+                {st.done ? '✓' : i + 1}
+              </span>
+              <div className={`text-[13px] font-semibold leading-snug ${st.done ? 'text-wk-ink-500 line-through' : 'text-white'}`}>{st.title}</div>
+            </div>
+            <div className="text-[12px] text-wk-ink-400 leading-relaxed flex-1">{st.body}</div>
+            {!st.done && (
+              <button onClick={st.go} className="self-start px-3 py-1.5 rounded-lg text-[12px] font-semibold text-wk-black-950 hover:opacity-90" style={{ background: '#FF8A3D' }}>
+                {st.cta} →
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask, onPlanWithWynky }: {
   rows: TodayPlanRow[]
   onStartTask: (subject: string, topic: string) => void
   onRemoveTask: (subject: string, topic: string) => void
   onAddTask: () => void
+  onPlanWithWynky?: () => void
 }) {
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   return (
@@ -1098,11 +1201,21 @@ function TodayStudyPlanCard({ rows, onStartTask, onRemoveTask, onAddTask }: {
         <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
           <div className="text-3xl mb-2">📭</div>
           <div className="text-sm font-semibold text-wk-ink-300 mb-1">No tasks scheduled for today</div>
-          <div className="text-[12px] text-wk-ink-500 max-w-[220px] mb-4">Add a task to build today's study plan.</div>
-          <button onClick={onAddTask} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-wk-black-950 transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
-            + Add Task
-          </button>
+          <div className="text-[12px] text-wk-ink-500 max-w-[240px] mb-4">Let Wynky build your week in a minute, or add a single task.</div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {onPlanWithWynky && (
+              <button onClick={onPlanWithWynky} className="px-4 py-2 rounded-xl text-[12px] font-semibold text-wk-black-950 transition-all hover:opacity-90"
+                style={{ background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
+                ✦ Plan with Wynky
+              </button>
+            )}
+            <button onClick={onAddTask} className={onPlanWithWynky
+              ? 'px-4 py-2 rounded-xl text-[12px] font-semibold border text-wk-ink-200 border-[#3A3A3A] transition-all hover:border-wk-orange-300'
+              : 'px-4 py-2 rounded-xl text-[12px] font-semibold text-wk-black-950 transition-all hover:opacity-90'}
+              style={onPlanWithWynky ? undefined : { background: 'linear-gradient(90deg, #FF8A3D 0%, #FFB057 100%)', boxShadow: 'none' }}>
+              + Add Task
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-2 flex-1 overflow-y-auto">
@@ -7275,8 +7388,18 @@ const WEBSITE_SUGGESTIONS = [
 
 const SUBJECT_COLORS = ['#3B82F6', '#A855F7', '#CFC8BB', '#34D399', '#F59E0B', '#F87171', '#EC4899']
 
-function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile, embedded = false, title: scheduleTitle = 'Your Schedule', subtitle: scheduleSubtitle = 'Stay consistent. Track your progress.' }: {
+// Shown under the Wynky banner on Schedules (and summarised on Home's getting-started card).
+const WYNKY_HOW_STEPS = [
+  { title: 'Tap “Generate with AI”', body: 'Wynky asks a few quick questions: exam, subjects, hours a day and when you are busy (school, coaching, sleep).' },
+  { title: 'Answer or type freely', body: 'Pick the chips or just type, like “4-7 pm coaching” or “more Physics”. Ask for changes until the plan looks right.' },
+  { title: 'Confirm the plan', body: 'Your week fills in here. Each block becomes a task on Home and in Focus Lock on its day.' },
+  { title: 'Study when it starts', body: 'Tap Start on a block. Focus Lock blocks the apps and sites you chose until the block ends.' },
+]
+
+function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setSharedUnits, profile, embedded = false, title: scheduleTitle = 'Your Schedule', subtitle: scheduleSubtitle = 'Stay consistent. Track your progress.', openWynkyRequest = 0 }: {
   onNavigate: (id: string) => void
+  // Bumped by other pages ("Plan with Wynky" on Home, the Android app) to open Wynky straight away.
+  openWynkyRequest?: number
   schedule: ScheduleItem[][]
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleItem[][]>>
   sharedUnits: StudyUnit[]
@@ -7301,6 +7424,14 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
   const [editMode, setEditMode] = useState(false)
   const [showAddSession, setShowAddSession] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  useEffect(() => { if (openWynkyRequest > 0 && !embedded) setShowAI(true) }, [openWynkyRequest, embedded])
+  const [showWynkyHow, setShowWynkyHow] = useState(() => {
+    try { return localStorage.getItem('wynko.wynkyHowSeen') !== '1' } catch { return true }
+  })
+  function hideWynkyHow() {
+    setShowWynkyHow(false)
+    try { localStorage.setItem('wynko.wynkyHowSeen', '1') } catch { /* storage blocked: it just shows again next time */ }
+  }
   const [aiStep, setAiStep] = useState<'form' | 'generating' | 'done'>('form')
   const [blockedApps, setBlockedApps] = useState<Set<string>>(new Set(['Instagram', 'YouTube', 'WhatsApp', 'X', 'Discord']))
   const [blockedWebsites, setBlockedWebsites] = useState<string[]>([])
@@ -7502,6 +7633,27 @@ function SchedulesPage({ onNavigate, schedule, setSchedule, sharedUnits, setShar
                 ✦ Generate with AI
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
+            </div>
+            {/* How to use Wynky: open until dismissed, then a one-line toggle. */}
+            <div className="relative mt-4 pt-3.5 border-t" style={{ borderColor: '#26262A' }}>
+              <button onClick={() => showWynkyHow ? hideWynkyHow() : setShowWynkyHow(true)}
+                className="flex items-center gap-1.5 text-[12px] font-semibold text-wk-orange-300" aria-expanded={showWynkyHow}>
+                How Wynky works
+                <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 transition-transform ${showWynkyHow ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+              {showWynkyHow && (
+                <ol className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2.5">
+                  {WYNKY_HOW_STEPS.map((st, i) => (
+                    <li key={st.title} className="rounded-xl border p-3 flex gap-2.5" style={{ background: '#161618', borderColor: '#26262A' }}>
+                      <span className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-wk-black-950" style={{ background: '#FF8A3D' }}>{i + 1}</span>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold text-white leading-snug">{st.title}</div>
+                        <div className="text-[12px] text-wk-ink-400 leading-relaxed mt-0.5">{st.body}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           </div>
           )}
@@ -11068,6 +11220,31 @@ export default function DesktopDashboard() {
   navRef.current = (id, tab) => {
     handleNav(id)
     if (id === 'studyrooms' && (tab === 'rooms' || tab === 'communities')) setStudyRoomsTab(tab)
+    if (id === 'schedules' && tab === 'wynky') setWynkyRequest(n => n + 1)
+  }
+  // Tell the Android app which page is showing, so its tab bar and title follow
+  // navigation that starts inside the page (Home's Start button opening Focus, say).
+  useEffect(() => {
+    if (!isEmbedded()) return
+    try { (window as any).WynkoNative?.onPage?.(activeNav, activeNav === 'studyrooms' ? studyRoomsTab : '') } catch { /* older app */ }
+  }, [activeNav, studyRoomsTab])
+  // "Plan with Wynky" from anywhere: go to Schedules and open the chat there.
+  const [wynkyRequest, setWynkyRequest] = useState(0)
+  function openWynky() {
+    handleNav('schedules')
+    setWynkyRequest(n => n + 1)
+  }
+  // Android Back steps out of a room / community page before leaving Study Rooms.
+  useBackHandler(activeNav === 'studyrooms' && !!activeRoom, () => setActiveRoom(null))
+  useBackHandler(activeNav === 'studyrooms' && !activeRoom && !!activeCommunity, () => setActiveCommunity(null))
+  useBackHandler(activeNav === 'studyrooms' && !activeRoom && !activeCommunity && !!managingCommunityId,
+    () => { setManagingCommunityId(null); setStudyRoomsTab('communities') })
+  const [gettingStartedHidden, setGettingStartedHidden] = useState(() => {
+    try { return localStorage.getItem('wynko.gettingStartedHidden') === '1' } catch { return false }
+  })
+  function hideGettingStarted() {
+    setGettingStartedHidden(true)
+    try { localStorage.setItem('wynko.gettingStartedHidden', '1') } catch { /* storage blocked: hidden for this visit */ }
   }
   useEffect(() => {
     ;(window as any).__wkNavigate = (id: string, tab?: string) => navRef.current(id, tab)
@@ -11357,7 +11534,7 @@ export default function DesktopDashboard() {
       return <QuickTimerPage onNavigate={handleNav} />
     }
     if (activeNav === 'schedules') {
-      return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} />
+      return <SchedulesPage onNavigate={handleNav} schedule={schedule} setSchedule={setSchedule} sharedUnits={sharedUnits} setSharedUnits={setSharedUnits} profile={profile} openWynkyRequest={wynkyRequest} />
     }
     if (activeNav === 'battleground') {
       return <BattlegroundPage onNavigate={handleNav} profile={profile} />
@@ -11460,6 +11637,14 @@ export default function DesktopDashboard() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header profile={profile} />
           <main className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
+            {(() => {
+              const hasSchedule = schedule.some(day => day.length > 0)
+              const hasStudied = totalWeekMinutes > 0 || todayFocus.streakDays > 0
+              const hasCommunity = communities.length > 0
+              if (gettingStartedHidden || (hasSchedule && hasStudied && hasCommunity)) return null
+              return <GettingStartedCard hasSchedule={hasSchedule} hasStudied={hasStudied} hasCommunity={hasCommunity}
+                onPlan={openWynky} onFocus={() => goFocus()} onRooms={viewAllRooms} onDismiss={hideGettingStarted} />
+            })()}
             <StudyProgress weeklyStudy={weeklyStudy} totalMinutes={totalWeekMinutes} avgMinutes={avgWeekMinutes} streakDays={todayFocus.streakDays} />
             {/* Today's Study Plan | Focus Timer (primary) | Quick Timer (secondary, ~half the width of Focus Timer) */}
             <div className="grid grid-cols-1 lg:grid-cols-[6fr_6fr_3fr] gap-3.5 items-stretch">
@@ -11468,6 +11653,7 @@ export default function DesktopDashboard() {
                 onStartTask={(subject, topic) => goFocus({ subject, topic })}
                 onRemoveTask={handleHomeRemoveTask}
                 onAddTask={() => setShowHomeAddTask(true)}
+                onPlanWithWynky={openWynky}
               />
               <HomeFocusTimerCard
                 pomo={homePomo}
@@ -11489,7 +11675,9 @@ export default function DesktopDashboard() {
 
   return (
     <UserAvatarCtx.Provider value={{ avatar: userAvatar, setAvatar: setUserAvatarTouched }}>
-      {renderPage()}
+      {/* Re-keyed per page so each page change gets the app-style fade (embedded only, see .wk-embedded in the CSS). */}
+      <div key={activeNav} className="wk-page">{renderPage()}</div>
+      {isEmbedded() && authState === 'ready' && <EmbeddedNotifications />}
       {needsHomeChoice && (
         <RequiredHomeCommunityPicker communities={communities} currentId={homeQ.data?.group_id ?? null} onPicked={refreshCommunities} />
       )}

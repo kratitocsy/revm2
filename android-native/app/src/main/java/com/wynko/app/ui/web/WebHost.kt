@@ -16,11 +16,29 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.wynko.app.R
+import com.wynko.app.ui.components.WkText
+import com.wynko.app.ui.theme.Wk
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,14 +58,38 @@ private val Bg = Color(0xFF0B0B0D)
  * `window.__wkNavigate(id, tab)` instead of reloading, which keeps tab changes instant.
  */
 class WebController internal constructor(val view: WebView) {
+    /** False until the dashboard has drawn its first page; the app shows its own loading screen meanwhile. */
+    var ready by mutableStateOf(false); internal set
+    /** Unread notifications reported by the page, for the app bar badge. */
+    var unread by mutableIntStateOf(0); internal set
+    /** Set when loading failed (offline, say); [reload] retries. */
+    var failed by mutableStateOf(false); internal set
+    /** Called when the page itself moves to another page (dashboard id, Study Rooms tab or ""). */
+    var onPageChanged: (page: String, tab: String) -> Unit = { _, _ -> }
+    /** The page the dashboard last said it is showing. */
+    internal var shown: Pair<String, String>? = null
+
     /** Shows the dashboard page [page] ("schedules", "studyrooms", "battleground", "settings"...). */
     fun navigate(page: String, tab: String? = null) {
+        // Already there (the page moved itself and the app bar followed): don't reset it.
+        shown?.let { (p, t0) -> if (p == page && (tab == null || tab == t0)) return }
         val t = if (tab == null) "undefined" else "'$tab'"
         view.evaluateJavascript(
             "(function go(n){if(window.__wkNavigate){window.__wkNavigate('$page',$t)}else if(n<60){setTimeout(function(){go(n+1)},200)}})(0)",
             null,
         )
     }
+
+    /** Lets the page close its open panel (Wynky, a room, a sheet). [handled] gets false when nothing was open. */
+    fun back(handled: (Boolean) -> Unit) {
+        if (!ready) { handled(false); return }
+        view.evaluateJavascript("(function(){try{return !!(window.__wkBack&&window.__wkBack())}catch(e){return false}})()") { handled(it == "true") }
+    }
+
+    /** Opens the dashboard's real notifications as a bottom sheet. */
+    fun openNotifications() { view.evaluateJavascript("window.__wkOpenNotifications&&window.__wkOpenNotifications()", null) }
+
+    fun reload() { failed = false; view.reload() }
 
     fun destroy() { view.removeJavascriptInterface("WynkoNative"); view.destroy() }
 }
@@ -61,6 +103,7 @@ fun rememberWebController(): WebController {
     val trusted = remember { booleanArrayOf(false) }
     val holder = remember { arrayOfNulls<WebView>(1) }
     val fileCallback = remember { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
+    val controller = remember { arrayOfNulls<WebController>(1) }
 
     val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     val pendingMic = remember { arrayOfNulls<PermissionRequest>(1) }
@@ -79,6 +122,10 @@ fun rememberWebController(): WebController {
             isTrusted = { trusted[0] },
             requestVpn = { VpnService.prepare(ctx)?.let { vpnLauncher.launch(it) } },
             signOutNative = { scope.launch { runCatching { AuthRepository.signOut() } } },
+            pageChanged = { page, tab ->
+                controller[0]?.let { c -> c.ready = true; c.shown = page to tab; c.onPageChanged(page, tab) }
+            },
+            unreadChanged = { n -> controller[0]?.unread = n },
         )
         val w = WebView(ctx).also { w ->
             holder[0] = w
@@ -111,7 +158,15 @@ fun rememberWebController(): WebController {
                 }
                 override fun onPageStarted(v: WebView, url: String?, f: android.graphics.Bitmap?) {
                     trusted[0] = inApp(Uri.parse(url ?: ""))
+                    controller[0]?.shown = null  // a fresh load forgets which page it was on
                     if (!docStart && trusted[0]) v.evaluateJavascript(boot, null)
+                }
+                // Older pages (or the sign-in page) never report a page; drop the loading screen once loaded anyway.
+                override fun onPageFinished(v: WebView, url: String?) {
+                    v.postDelayed({ controller[0]?.ready = true }, 1500)
+                }
+                override fun onReceivedError(v: WebView, r: WebResourceRequest, e: android.webkit.WebResourceError) {
+                    if (r.isForMainFrame) controller[0]?.failed = true
                 }
             }
             w.webChromeClient = object : WebChromeClient() {
@@ -136,7 +191,7 @@ fun rememberWebController(): WebController {
             }
             w.loadUrl("${BuildConfig.WEB_BASE_URL}/home")
         }
-        WebController(w)
+        WebController(w).also { controller[0] = it }
     }
 }
 
@@ -153,5 +208,24 @@ fun WebPane(controller: WebController, page: String, tab: String? = null) {
                 controller.view
             },
         )
+        // App-style loading / offline screen instead of a blank or browser error page.
+        AnimatedVisibility(visible = !controller.ready || controller.failed, enter = fadeIn(), exit = fadeOut()) {
+            Column(Modifier.fillMaxSize().background(Bg), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Image(painterResource(R.drawable.wynko_logo), "Wynko", Modifier.size(64.dp))
+                Spacer(Modifier.height(18.dp))
+                if (controller.failed) {
+                    WkText("You're offline", 15, FontWeight.SemiBold, Wk.Ink100)
+                    Spacer(Modifier.height(4.dp))
+                    WkText("Check your connection and try again.", 12, color = Wk.Ink500)
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(12.dp)).background(Wk.Orange300).clickable { controller.reload() }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                    ) { WkText("Try again", 13, FontWeight.Bold, Wk.Black950) }
+                } else {
+                    CircularProgressIndicator(color = Wk.Orange300, strokeWidth = 2.5.dp, modifier = Modifier.size(26.dp))
+                }
+            }
+        }
     }
 }

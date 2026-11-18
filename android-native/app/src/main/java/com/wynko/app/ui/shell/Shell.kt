@@ -38,14 +38,22 @@ private data class NavItem(val dest: Dest, val label: String, val icon: ImageVec
 
 private val DrawerItems = listOf(
     NavItem(Dest.Home, "Home", Icons.Filled.Home), NavItem(Dest.Focus, "Focus Lock", Icons.Filled.Lock),
-    NavItem(Dest.Schedules, "Schedules", Icons.Filled.Schedule), NavItem(Dest.Rooms, "Study Rooms", Icons.Filled.Videocam),
+    NavItem(Dest.Schedules, "Schedules & Wynky", Icons.Filled.CalendarMonth), NavItem(Dest.Quick, "Quick Timer", Icons.Filled.Timer), NavItem(Dest.Rooms, "Study Rooms", Icons.Filled.Videocam),
     NavItem(Dest.Comms, "Communities", Icons.Filled.Groups), NavItem(Dest.Battle, "Battleground", Icons.Filled.Bolt),
     NavItem(Dest.Coins, "WYNKOINS", Icons.Filled.MonetizationOn), NavItem(Dest.Earn, "Earn with Wynko", Icons.Filled.LocalFireDepartment),
     NavItem(Dest.Settings, "Settings", Icons.Filled.Settings),
 ).filter { BuildConfig.PAYMENTS_ENABLED || (it.dest != Dest.Coins && it.dest != Dest.Earn) }
 
-/** Screens that come from the web dashboard (same app as desktop) instead of native Compose: dashboard page id plus optional tab. */
+/**
+ * Every screen is the web dashboard (the same app and data as desktop: Wynky, schedules, Focus Lock,
+ * rooms, communities...) inside the native app bar and tab bar: dashboard page id plus optional tab.
+ * Only the on-device block lists stay native. -PwebUi=false brings back the old native screens.
+ */
 private fun webTarget(d: Dest): Pair<String, String?>? = if (!BuildConfig.WEB_UI) null else when (d) {
+    Dest.Home -> "home" to null
+    Dest.Focus -> "focus" to null
+    Dest.Quick -> "quicktimer" to null
+    Dest.More -> "settings" to null
     Dest.Schedules -> "schedules" to null
     Dest.Rooms, Dest.Room -> "studyrooms" to "rooms"
     Dest.Comms, Dest.CommStudent, Dest.CommManage -> "studyrooms" to "communities"
@@ -56,7 +64,22 @@ private fun webTarget(d: Dest): Pair<String, String?>? = if (!BuildConfig.WEB_UI
     else -> null
 }
 
+/** The app screen for a dashboard page the page moved to by itself. */
+private fun destForPage(page: String, tab: String): Dest? = when (page) {
+    "home" -> Dest.Home
+    "focus" -> Dest.Focus
+    "quicktimer" -> Dest.Quick
+    "schedules" -> Dest.Schedules
+    "studyrooms" -> if (tab == "communities") Dest.Comms else Dest.Rooms
+    "battleground" -> Dest.Battle
+    "wynkoins" -> Dest.Coins
+    "earn" -> Dest.Earn
+    "settings" -> Dest.Settings
+    else -> null
+}
+
 private fun barTitle(d: Dest) = when (d) {
+    Dest.Quick -> "Quick Timer"
     Dest.Schedules -> "Schedules"; Dest.Earn -> "Earn with Wynko"; Dest.Focus -> "Focus Lock"; Dest.Rooms -> "Study Rooms"
     Dest.Comms -> "Communities"; Dest.Battle -> "Battleground"; Dest.Coins -> "WYNKOINS"; Dest.Settings -> "Settings"
     Dest.More -> "Profile"; Dest.BlockLists -> "Block lists"; else -> "Wynko"
@@ -66,18 +89,31 @@ private fun barTitle(d: Dest) = when (d) {
 fun AppShell(vm: AppViewModel = viewModel()) {
     val dest = vm.dest
     val web = if (BuildConfig.WEB_UI) rememberWebController() else null
-    val focusLive = dest == Dest.Focus && (vm.running || vm.focusFull)
-    val showBar = !focusLive && dest !in setOf(Dest.Room, Dest.CommStudent, Dest.CommManage, Dest.Quick)
+    val onWeb = web != null && webTarget(dest) != null
+    val focusLive = !onWeb && dest == Dest.Focus && (vm.running || vm.focusFull)
+    val showBar = !focusLive && (onWeb || dest !in setOf(Dest.Room, Dest.CommStudent, Dest.CommManage, Dest.Quick))
     val showTabs = !focusLive && dest != Dest.Room
     val scroll = rememberScrollState()
     LaunchedEffect(dest) { scroll.scrollTo(0) }
-    BackHandler(enabled = vm.drawerOpen || vm.sheet != null || vm.dest != Dest.Home) {
-        when { vm.sheet != null -> vm.sheet = null; vm.drawerOpen -> vm.drawerOpen = false; else -> vm.back() }
-    }
+    // Buttons inside the page (Home's Start opening Focus, say) move the app's tab bar and title too.
+    if (web != null) SideEffect { web.onPageChanged = { page, tab -> destForPage(page, tab)?.let(vm::showFromWeb) } }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Back: close a sheet or the drawer, then whatever the page has open (Wynky, a room, a dialog),
+    // then go to the previous screen, and from Home put the app in the background like any app.
+    BackHandler(enabled = vm.drawerOpen || vm.sheet != null || vm.dest != Dest.Home || onWeb) {
+        when {
+            vm.sheet != null -> vm.sheet = null
+            vm.drawerOpen -> vm.drawerOpen = false
+            onWeb -> web!!.back { handled ->
+                if (!handled && !vm.back()) (ctx as? android.app.Activity)?.moveTaskToBack(true)
+            }
+            else -> vm.back()
+        }
+    }
     // A live Focus Lock session also turns on real on-device blocking (accessibility overlay + VPN DNS).
-    LaunchedEffect(vm.running) {
+    // (Native screens only: with the web UI, the dashboard's Focus Lock drives blocking through WynkoBridge.)
+    if (!BuildConfig.WEB_UI) LaunchedEffect(vm.running) {
         val perms = com.wynko.app.locking.LockingController.permissions(ctx)
         if (vm.running && perms.accessibility && perms.overlay && vm.prefs["focus_block_distractions"] != false) {
             val pkgs = com.wynko.app.locking.LockingController.listInstalledApps(ctx)
@@ -90,9 +126,9 @@ fun AppShell(vm: AppViewModel = viewModel()) {
 
     Box(Modifier.fillMaxSize().background(Wk.Black950)) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
-            if (showBar) AppBar(vm)
+            if (showBar) AppBar(vm, web.takeIf { onWeb })
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (dest == Dest.BlockLists || (web != null && webTarget(dest) != null)) Box(Modifier.fillMaxSize()) { ScreenHost(vm, web) }  // scrolls itself
+                if (dest == Dest.BlockLists || onWeb) Box(Modifier.fillMaxSize()) { ScreenHost(vm, web) }  // scrolls itself
                 else Column(Modifier.fillMaxSize().verticalScroll(scroll)) { ScreenHost(vm, web) }
                 if (vm.running && dest != Dest.Focus) MiniPlayer(vm, Modifier.align(Alignment.BottomCenter))
             }
@@ -132,7 +168,7 @@ private fun ScreenHost(vm: AppViewModel, web: WebController?) {
 }
 
 @Composable
-private fun AppBar(vm: AppViewModel) {
+private fun AppBar(vm: AppViewModel, web: WebController?) {
     Row(
         Modifier.fillMaxWidth().background(Color(0xF70B0B0D)).padding(start = 10.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -152,11 +188,11 @@ private fun AppBar(vm: AppViewModel) {
         }
         Box(
             Modifier.size(40.dp).clip(CircleShape).background(Wk.Black800).border(1.dp, Wk.Black600, CircleShape)
-                .clickable { vm.sheet = SheetKind.Notifications; vm.unreadNotifs = false },
+                .clickable { if (web != null) web.openNotifications() else { vm.sheet = SheetKind.Notifications; vm.unreadNotifs = false } },
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.Notifications, "Notifications", tint = Wk.Ink400, modifier = Modifier.size(20.dp))
-            if (vm.unreadNotifs) Box(Modifier.align(Alignment.TopEnd).padding(top = 9.dp, end = 10.dp).size(7.dp).clip(CircleShape).background(Wk.Red))
+            if (if (web != null) web.unread > 0 else vm.unreadNotifs) Box(Modifier.align(Alignment.TopEnd).padding(top = 9.dp, end = 10.dp).size(7.dp).clip(CircleShape).background(Wk.Red))
         }
         Box(
             Modifier.size(36.dp).clip(CircleShape).background(Wk.Black700).border(1.dp, Wk.Orange600.copy(alpha = 0.6f), CircleShape)
@@ -172,7 +208,7 @@ private fun TabBar(vm: AppViewModel) {
     val active = when (d) {
         Dest.Room -> if (vm.roomFrom == Dest.Rooms) Dest.Rooms else Dest.Comms
         Dest.CommStudent, Dest.CommManage -> Dest.Comms
-        Dest.Quick -> Dest.Home
+        Dest.Quick -> if (BuildConfig.WEB_UI) Dest.Quick else Dest.Home
         else -> d
     }
     @Composable
@@ -189,7 +225,7 @@ private fun TabBar(vm: AppViewModel) {
     Box(Modifier.fillMaxWidth().background(Color(0xFA0F0F11)).border(1.dp, Wk.Black600.copy(alpha = 0.55f))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.Bottom) {
             Tab(Dest.Home, "Home", Icons.Filled.Home, Modifier.weight(1f))
-            Tab(Dest.Rooms, "Rooms", Icons.Filled.Videocam, Modifier.weight(1f))
+            Tab(Dest.Schedules, "Plan", Icons.Filled.CalendarMonth, Modifier.weight(1f))
             Column(
                 Modifier.weight(1f).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { vm.go(Dest.Focus) },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -200,7 +236,7 @@ private fun TabBar(vm: AppViewModel) {
                 ) { Icon(Icons.Filled.Lock, "Focus", tint = Wk.Black950, modifier = Modifier.size(24.dp)) }
                 WkText("Focus", 11, FontWeight.SemiBold, if (active == Dest.Focus) Wk.Orange500 else Wk.Ink500, modifier = Modifier.offset(y = (-12).dp))
             }
-            Tab(Dest.Battle, "Battleground", Icons.Filled.Bolt, Modifier.weight(1f))
+            Tab(Dest.Rooms, "Rooms", Icons.Filled.Videocam, Modifier.weight(1f))
             Tab(Dest.Comms, "Community", Icons.Filled.Groups, Modifier.weight(1f))
         }
     }

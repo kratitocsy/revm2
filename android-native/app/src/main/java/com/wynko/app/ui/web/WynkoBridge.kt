@@ -37,6 +37,10 @@ class WynkoBridge(
     private val isTrusted: () -> Boolean,
     private val requestVpn: () -> Unit,
     private val signOutNative: () -> Unit,
+    /** The page now showing (dashboard nav id, plus the Study Rooms tab or ""), so the native tab bar follows it. */
+    private val pageChanged: (page: String, tab: String) -> Unit = { _, _ -> },
+    /** Unread notifications, for the bell badge in the native app bar. */
+    private val unreadChanged: (count: Int) -> Unit = {},
 ) {
     @JavascriptInterface
     fun call(id: Int, method: String, argsJson: String) {
@@ -66,6 +70,18 @@ class WynkoBridge(
                 auth.importAuthToken(access, refresh, retrieveUser = false, autoRefresh = false)
             }
         }
+    }
+
+    @JavascriptInterface
+    fun onPage(page: String, tab: String) {
+        if (!isTrusted()) return
+        scope.launch { pageChanged(page, tab) }
+    }
+
+    @JavascriptInterface
+    fun onUnread(count: Int) {
+        if (!isTrusted()) return
+        scope.launch { unreadChanged(count) }
     }
 
     /** The page removed its session (it signed out, or its tokens were revoked). */

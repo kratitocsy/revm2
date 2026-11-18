@@ -40,6 +40,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dest = d; drawerOpen = false
     }
 
+    /** The hosted dashboard moved to [d] by itself (a button inside the page): follow it without navigating it again. */
+    fun showFromWeb(d: Dest) {
+        if (d == dest) return
+        if (d in TopLevel) stack.clear() else stack.addLast(dest)
+        dest = d; drawerOpen = false
+    }
+
     /** Back inside a flow; returns false when already at the top level. */
     fun back(): Boolean {
         if (stack.isEmpty()) return if (dest != Dest.Home) { dest = Dest.Home; true } else false
@@ -226,7 +233,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     companion object {
-        val TopLevel = setOf(Dest.Home, Dest.Focus, Dest.Rooms, Dest.Battle, Dest.Comms, Dest.Schedules, Dest.Coins, Dest.Earn, Dest.Settings, Dest.More)
+        val TopLevel = setOf(Dest.Home, Dest.Focus, Dest.Quick, Dest.Rooms, Dest.Battle, Dest.Comms, Dest.Schedules, Dest.Coins, Dest.Earn, Dest.Settings, Dest.More)
         fun fmt(totalSeconds: Int, hours: Boolean = false): String {
             val h = totalSeconds / 3600; val m = (totalSeconds % 3600) / 60; val s = totalSeconds % 60
             return if (hours || h > 0) "%02d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)

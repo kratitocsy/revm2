@@ -24,6 +24,7 @@ import {
   type WynkyEvent, type PeerStats, type Candidate, type Prior,
 } from './wynkyRecommender'
 import PlanMessage from './PlanMessage'
+import { useBackHandler } from '../lib/backStack'
 import ScheduleTables from './ScheduleTables'
 import type { Day as TimelineDay, TimelineSettings } from './scheduleTimeline'
 import { draftSlots, standingRequests, checkRefined, checkRefinedWeek, toResult, recentChat, planForChat, chatPlan, memoryLines, droppedRules, type ChatSettings, type ChatDay } from './wynkyRefine'
@@ -335,6 +336,7 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
   onClose: () => void
   onPlanConfirmed: (plan: { days_of_week: number[]; slots: AiSlot[] } | { week: Record<number, AiSlot[]> }) => void
 }) {
+  useBackHandler(true, onClose) // Android Back closes Wynky instead of leaving the page
   const [messages, setMessages] = useState<Msg[]>([])
   // The chat as last shown, for AI calls made after an await.
   const messagesRef = useRef<Msg[]>([])
@@ -1939,10 +1941,11 @@ export default function WynkyChat({ onClose, onPlanConfirmed }: {
     : 'Or tell me what to change, like "5 hours" or "pw.live for Physics"…'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] p-4 max-md:p-0"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      {/* Phones: full screen (100dvh follows the on-screen keyboard), so the chat isn't squeezed into a floating box. */}
       <div role="dialog" aria-modal="true" aria-label="Wynky assistant"
-        className="rounded-2xl border w-[520px] max-w-full h-[640px] max-h-[90vh] flex flex-col overflow-hidden"
+        className="rounded-2xl border w-[520px] max-w-full h-[640px] max-h-[90vh] flex flex-col overflow-hidden max-md:w-full max-md:h-[100dvh] max-md:max-h-none max-md:rounded-none max-md:border-0"
         style={{ background: '#161618', borderColor: '#3A3A3A', boxShadow: 'none' }}>
 
         {/* Header */}

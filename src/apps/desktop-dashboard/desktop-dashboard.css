@@ -54,3 +54,22 @@ html, body, #root {
     text-overflow: ellipsis;
   }
 }
+
+/* Page wrapper (one per page, re-keyed on navigation). Takes #root's full height so pages sized with h-full still fit. */
+.wk-page { height: 100%; }
+
+/* ── Android app (html.wk-embedded, set in main.tsx when the app hosts this page) ──
+   Make the web pages feel native: no grey tap flash, no text selection on
+   controls, no rubber-band/pull glow, a short fade between pages and sheets
+   that slide up from the bottom. */
+html.wk-embedded { -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+html.wk-embedded body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+html.wk-embedded input, html.wk-embedded textarea, html.wk-embedded [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
+html.wk-embedded button:active, html.wk-embedded a:active { opacity: 0.85; }
+html.wk-embedded .wk-page { animation: wk-page-in 160ms ease-out; }
+@keyframes wk-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.wk-sheet-up { animation: wk-sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes wk-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html.wk-embedded .wk-page, .wk-sheet-up { animation: none; }
+}
