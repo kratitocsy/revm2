@@ -87,6 +87,10 @@ export function classifyPage(p: PageText): PageKind {
   if (/fill\s+your\s+answers?/i.test(t) && !/answer\s*key/i.test(t)) return 'blankKey'
   if (/answer\s*key/i.test(t)) return 'key'
   if (labels > 25) return 'blankKey'
+  // An untitled page that is mostly "n. answer" lines is a key.
+  const ls = lines(p.items)
+  const pairs = Object.keys(parseKeyLines(ls)).length
+  if (pairs >= 10 && pairs >= ls.length * 0.6) return 'key'
   return labels > 0 ? 'question' : 'other'
 }
 
@@ -353,9 +357,6 @@ function colRange(L: PageLayout, p: PageText, col: number): [number, number] {
   return col === 0 ? [2, L.split - 2] : [L.split, p.w - 2]
 }
 
-/** How far above its "Solution Link" text the QR code reaches, in PDF points. */
-const QR_HEIGHT = 50
-
 export function planImport(pages: PageText[]): ImportPlan {
   const warnings: string[] = []
   const kinds = pages.map(classifyPage)
@@ -365,9 +366,15 @@ export function planImport(pages: PageText[]): ImportPlan {
   // Answer key: every page that says "answer key" and reads as pairs.
   const key: Record<number, string> = {}
   kinds.forEach((k, i) => {
-    if (k !== 'key') return
+    if (k !== 'key' && k !== 'blankKey') return
     const pairs = parseKeyLines(lines(pages[i].items))
     if (Object.keys(pairs).length < 5) return
+    // A page of numbered answers with no "Answer key" title is still a key, as long
+    // as most of its numbers carry an answer (a blank "fill your answers" sheet doesn't).
+    if (k === 'blankKey') {
+      const labels = pages[i].items.filter(it => labelNumber(it.s) !== null).length
+      if (/fill\s+your\s+answers?/i.test(pageText(pages[i])) || Object.keys(pairs).length < labels * 0.6) return
+    }
     for (const [n, a] of Object.entries(pairs)) if (!(Number(n) in key)) key[Number(n)] = a
     // Sentences in a cell win over the bare number the line parser may have caught first.
     const streamText = pages[i].items.map(it => it.s).join(' ').replace(/\s+/g, ' ')
@@ -450,10 +457,8 @@ export function planImport(pages: PageText[]): ImportPlan {
     for (const col of cols) {
       const [cx0, cx1] = colRange(L, p, col)
       const colLabels = mine.filter(a => colOf(L, a.item.x) === col).sort((a, b) => a.item.y - b.item.y)
-      // A "Solution Link - CLICK" line at the foot of the page has a QR code drawn
-      // above it, which is not text. Nothing below that point belongs to a question.
-      const link = L.obstacles.find(o => /^(solution|click)/i.test(o.s.trim()) && o.y > p.h * 0.8 && o.x < cx1 && o.x + o.w > cx0)
-      const colBottom = link ? Math.min(L.bodyBottom, link.y - QR_HEIGHT) : L.bodyBottom
+      // The QR code beside a "Solution Link" is found later, in the picture itself.
+      const colBottom = L.bodyBottom
       const cuts = [...L.headings, ...L.obstacles]
         .filter(o => o.x < cx1 && o.x + o.w > cx0 && o.y + o.h > L.bodyTop && o.y < colBottom)
         .map(o => ({ top: o.y - 2, bottom: o.y + o.h + 2 }))
