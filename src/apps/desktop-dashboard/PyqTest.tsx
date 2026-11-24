@@ -201,7 +201,7 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
 
 const L = {
   paper: '#FFFFFF', panel: '#EAF4FB', line: '#D5DDE5', ink: '#1F2933', dim: '#5F6B7A',
-  bar: '#2B2E3B', yellow: '#F6C945', blue: '#1F6FD1', blueDark: '#1859A8',
+  bar: '#2B2E3B', yellow: '#F6C945', blue: '#1779B5', blueDark: '#126092',
   green: '#1A7F37', red: '#D12B2B', grey: '#6B7280', violet: '#6F4FC4', orange: '#E8892B',
   sec1: '#2B6CD4', sec2: '#C2410C', // categorical slots, validated on light
 }
@@ -217,7 +217,7 @@ function PaletteShape({ status, label, size = 30, current = false }: { status: P
   let style: React.CSSProperties
   switch (status) {
     case 'notVisited':
-      style = { background: '#fff', border: '1px solid #9AA5B1', color: L.ink, borderRadius: 4 }; break
+      style = { background: '#E4E7EB', border: '1px solid #AEB6BF', color: '#3A4350', borderRadius: 4 }; break
     case 'notAnswered':
       style = { background: L.red, color: '#fff', clipPath: 'polygon(0 0,100% 0,100% 72%,50% 100%,0 72%)' }; break
     case 'answered':
@@ -247,8 +247,32 @@ function Overlay({ children }: { children: React.ReactNode }) {
 }
 
 function Avatar({ name, size = 56 }: { name: string; size?: number }) {
-  const initial = (name.trim()[0] ?? 'S').toUpperCase()
-  return <span className="inline-flex items-center justify-center rounded-md font-bold flex-shrink-0" style={{ width: size, height: size, background: '#C9D6E2', color: '#3C4B5C', fontSize: size * 0.45 }}>{initial}</span>
+  // Grey suit-and-tie portrait in a white frame, like the candidate photo slot on the real exam screen.
+  return (
+    <svg role="img" aria-label={name ? `Candidate ${name}` : 'Candidate'} width={size} height={size} viewBox="0 0 80 80" className="flex-shrink-0" style={{ background: '#fff', padding: 2, border: '1px solid #B7C0C9', boxShadow: '0 1px 2px rgba(0,0,0,.25)' }}>
+      <defs>
+        <linearGradient id="av-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#EEF0F2" /><stop offset="1" stopColor="#CDD2D8" /></linearGradient>
+        <linearGradient id="av-skin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#B9BDC2" /><stop offset=".5" stopColor="#E3E5E8" /><stop offset="1" stopColor="#A9ADB3" /></linearGradient>
+        <linearGradient id="av-suit" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#7B8087" /><stop offset="1" stopColor="#4B4F55" /></linearGradient>
+      </defs>
+      <rect width="80" height="80" fill="url(#av-bg)" />
+      <path d="M0 80c0-17 11-24 24-27l16 10 16-10c13 3 24 10 24 27z" fill="url(#av-suit)" />
+      <path d="M31 52l9 12 9-12-3-9H34z" fill="#F2F3F4" />
+      <path d="M34 50l6 5-3 4 3 18-9-24z M46 50l-6 5 3 4-3 18 9-24z" fill="#5A5E65" />
+      <path d="M37 54h6l2 6-5 20-5-20z" fill="#2E3238" />
+      <path d="M37 53h6l1.5 5h-9z" fill="#3D4148" />
+      <path d="M33 42h14v8l-7 5-7-5z" fill="#C4C7CC" />
+      <ellipse cx="40" cy="30" rx="13" ry="16" fill="url(#av-skin)" />
+      <ellipse cx="27" cy="31" rx="2" ry="4" fill="#B2B6BB" />
+      <ellipse cx="53" cy="31" rx="2" ry="4" fill="#A3A7AD" />
+      <path d="M26.5 29c-2-13 5-21 13.500-21s16 8 13.500 21c-1-6-3-10-7-12-5 3-11 3-16 0-2 2-3.500 6-4 12z" fill="#2A2D32" />
+      <path d="M31 28.500q3-2 6 0M43 28.500q3-2 6 0" stroke="#3A3D42" strokeWidth="1.600" fill="none" strokeLinecap="round" />
+      <ellipse cx="34" cy="31.500" rx="2" ry="1.200" fill="#4A4D52" />
+      <ellipse cx="46" cy="31.500" rx="2" ry="1.200" fill="#4A4D52" />
+      <path d="M40 33v6" stroke="#A8ACB1" strokeWidth="1.200" fill="none" />
+      <path d="M35 42.500q5 2.500 10 0" stroke="#8A8E94" strokeWidth="1.400" fill="none" strokeLinecap="round" />
+    </svg>
+  )
 }
 
 function BlueButton({ children, onClick, disabled, outline }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; outline?: boolean }) {
@@ -383,32 +407,33 @@ function TestRunner({ set, initial, candidateName, onFinish }: { set: PyqSet; in
 
   const palette = (
     <div className="flex flex-col h-full" style={{ background: L.panel }}>
-      <div className="flex items-center gap-3 p-3">
-        <Avatar name={candidateName} size={48} />
-        <div className="text-sm font-semibold min-w-0 truncate">{candidateName}</div>
+      <div className="flex items-center gap-3 px-3 pt-4 pb-3">
+        <Avatar name={candidateName} size={72} />
+        <div className="text-sm min-w-0 break-words leading-snug" style={{ color: L.ink }}>{candidateName}</div>
       </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2 px-3 pb-3 text-[11px]">
-        {([['answered', 'Answered'], ['notAnswered', 'Not Answered'], ['notVisited', 'Not Visited'], ['marked', 'Marked for Review'], ['answeredMarked', 'Answered & Marked for Review']] as [PaletteStatus, string][]).map(([s, t]) => (
+      <div className="mx-3 mb-3 pt-4 grid grid-cols-2 gap-x-2 gap-y-4 text-[11px]" style={{ borderTop: `1px solid ${L.line}`, color: L.ink }}>
+        {([['answered', 'Answered'], ['notAnswered', 'Not Answered'], ['notVisited', 'Not Visited'], ['marked', 'Marked for review']] as [PaletteStatus, string][]).map(([s, t]) => (
           <div key={s} className="flex items-center gap-2"><PaletteShape status={s} label={counts[s]} size={26} /> <span className="leading-tight">{t}</span></div>
         ))}
+        <div className="col-span-2 flex items-center gap-2"><PaletteShape status="answeredMarked" label={counts.answeredMarked} size={26} /> <span className="leading-tight">Answered and Marked for Review (will also be evaluated)</span></div>
       </div>
-      <div className="px-3 py-1.5 text-xs font-bold text-white" style={{ background: L.blue }}>{SECTION_LABEL[q.kind]}</div>
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="text-xs font-semibold mb-2">Choose a Question</div>
-        <div className="grid grid-cols-5 gap-2">
+      <div className="px-3 py-2 text-[13px] text-white" style={{ background: L.blue }}>{SECTION_LABEL[q.kind]}</div>
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="text-xs mb-3" style={{ color: L.ink }}>Choose a Question</div>
+        <div className="grid grid-cols-4 gap-x-3 gap-y-3">
           {attempt.qNums.map((qn, i) => {
             const qq = questionOf(set, qn)
             if (qq.kind !== q.kind) return null
             return (
               <button key={qn} onClick={() => go(i)} aria-label={`Question ${i + 1}`} aria-current={i === idx} className="justify-self-center">
-                <PaletteShape status={paletteStatus(qq, attempt.state[qn])} label={i + 1} current={i === idx} />
+                <PaletteShape status={paletteStatus(qq, attempt.state[qn])} label={i + 1} size={36} current={i === idx} />
               </button>
             )
           })}
         </div>
       </div>
-      <div className="p-3" style={{ borderTop: `1px solid ${L.line}` }}>
-        <button onClick={() => setConfirming(true)} className="w-full py-2.5 rounded text-sm font-semibold text-white" style={{ background: L.blue }}>Submit</button>
+      <div className="p-3 flex justify-center" style={{ borderTop: `1px solid ${L.line}` }}>
+        <button onClick={() => setConfirming(true)} className="px-10 py-3 rounded text-sm text-white" style={{ background: L.blue }}>Submit</button>
       </div>
     </div>
   )
@@ -500,7 +525,7 @@ function TestRunner({ set, initial, candidateName, onFinish }: { set: PyqSet; in
             <button onClick={() => saveNext(false)} className="ml-auto px-5 sm:px-6 py-2 rounded text-sm font-semibold text-white" style={{ background: L.blue }}>Save &amp; Next</button>
           </div>
         </div>
-        <aside className="hidden md:flex w-72 flex-shrink-0 flex-col" style={{ borderLeft: `1px solid ${L.line}` }}>{palette}</aside>
+        <aside className="hidden md:flex w-[230px] flex-shrink-0 flex-col" style={{ borderLeft: `1px solid ${L.line}` }}>{palette}</aside>
       </div>
 
       {paletteOpen && (
