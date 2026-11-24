@@ -118,7 +118,7 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
             {[
               [String(effective), 'Questions'],
               [`${Math.round(durationFor(effective) / 60)} min`, 'Time'],
-              [String(effective * MARKING.correct), 'Total marks'],
+              [`+${MARKING.correct} / ${MARKING.wrong}`, 'Right / wrong'],
             ].map(([v, l]) => (
               <div key={l} className="rounded-xl px-3 py-3" style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}` }}>
                 <div className="text-lg sm:text-xl font-black text-white">{v}</div>
@@ -170,7 +170,7 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
               <button key={a.id} onClick={() => onView(a)} className="w-full text-left rounded-xl border p-3 flex items-center gap-3 hover:border-[#55524D]"
                 style={{ background: SURFACE, borderColor: LINE }}>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white">{r.overall.score}<span style={{ color: INK_DIM }}> / {r.overall.max}</span></div>
+                  <div className="text-sm font-semibold text-white">{r.overall.correct} right · {r.overall.wrong} wrong · {r.overall.score} marks</div>
                   <div className="text-xs truncate" style={{ color: INK_DIM }}>
                     {new Date(a.startedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })} · {r.overall.count} questions · {r.overall.accuracy === null ? 'no answers' : `${r.overall.accuracy}% accuracy`}
                   </div>
@@ -690,9 +690,9 @@ function Overview({ r }: { r: Analysis }) {
             <div className="text-xs font-medium" style={{ color: L.dim }}>Your score</div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-5xl sm:text-6xl font-black" style={{ color: o.score < 0 ? L.red : L.blueDark }}>{o.score}</span>
-              <span className="text-xl font-semibold" style={{ color: L.dim }}>/ {o.max}</span>
+              <span className="text-lg font-semibold" style={{ color: L.dim }}>marks</span>
             </div>
-            <div className="text-xs mt-1" style={{ color: L.dim }}>{o.count} questions · +{MARKING.correct} right, {MARKING.wrong} wrong</div>
+            <div className="text-xs mt-1" style={{ color: L.dim }}>{o.correct} right × {MARKING.correct} = +{o.correct * MARKING.correct} · {o.wrong} wrong × {MARKING.wrong} = {o.wrong * MARKING.wrong}</div>
           </div>
           <Ring pct={o.accuracy} label="accuracy" />
         </div>
@@ -701,8 +701,8 @@ function Overview({ r }: { r: Analysis }) {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Tile label="Attempted" value={String(attempted)} sub={`of ${o.count}`} accent={L.blue} />
         <Tile label="Correct" value={String(o.correct)} sub={attempted ? `${o.correct}/${attempted} attempted` : undefined} accent={L.green} />
-        <Tile label="Wrong" value={String(o.wrong)} sub={`−${r.lost} marks`} accent={L.red} />
-        <Tile label="Positive score" value={String(r.positive)} sub={`of ${o.max}`} accent={L.green} />
+        <Tile label="Wrong" value={String(o.wrong)} sub={`${o.wrong * MARKING.wrong} marks`} accent={L.red} />
+        <Tile label="Marks from right answers" value={`+${r.positive}`} accent={L.green} />
         <Tile label="Time taken" value={formatDuration(r.takenSec)} accent={L.orange} />
         <Tile label="Avg per question" value={o.count ? `${Math.round(o.timeSec / Math.max(1, o.count))}s` : 'n/a'} accent={L.orange} />
       </div>
@@ -711,7 +711,7 @@ function Overview({ r }: { r: Analysis }) {
           {r.bySection.map(sec => (
             <Card key={sec.kind} title={sec.label}>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black">{sec.tally.score}</span><span className="text-sm" style={{ color: L.dim }}>/ {sec.tally.max}</span>
+                <span className="text-2xl font-black">{sec.tally.score}</span><span className="text-sm" style={{ color: L.dim }}>marks</span>
                 <span className="ml-auto text-xs" style={{ color: L.dim }}>{sec.tally.accuracy === null ? 'no answers' : `${sec.tally.accuracy}% accuracy`}</span>
               </div>
               <div className="mt-3"><OutcomeBar correct={sec.tally.correct} wrong={sec.tally.wrong} unattempted={sec.tally.unattempted} /></div>
@@ -732,8 +732,8 @@ function Overview({ r }: { r: Analysis }) {
 
 function Performance({ r }: { r: Analysis }) {
   const cols = columnsOf(r)
-  const metrics: { label: string; icon?: string; color: string; get: (t: Analysis['overall']) => number; of: (t: Analysis['overall']) => number }[] = [
-    { label: 'Total Score', color: L.blue, get: t => t.score, of: t => t.max },
+  const metrics: { label: string; icon?: string; color: string; get: (t: Analysis['overall']) => number; of: (t: Analysis['overall']) => number; plain?: boolean }[] = [
+    { label: 'Marks', color: L.blue, get: t => t.score, of: t => t.max, plain: true },
     { label: 'Attempted Correct', icon: '✓', color: L.green, get: t => t.correct, of: t => t.count },
     { label: 'Attempted Wrong', icon: '✕', color: L.red, get: t => t.wrong, of: t => t.count },
     { label: 'Not Attempted', icon: '–', color: L.grey, get: t => t.unattempted, of: t => t.count },
@@ -757,8 +757,8 @@ function Performance({ r }: { r: Analysis }) {
                   const v = m.get(c.t), of = m.of(c.t)
                   return (
                     <td key={c.name} className="py-2.5 pr-3 min-w-[110px]">
-                      <div className="font-bold">{v}<span className="font-normal" style={{ color: L.dim }}> / {of}</span></div>
-                      <div className="mt-1"><Bar pct={of ? (Math.max(0, v) / of) * 100 : 0} color={m.color} label={`${m.label}: ${v} of ${of}`} /></div>
+                      <div className="font-bold">{v}{!m.plain && <span className="font-normal" style={{ color: L.dim }}> / {of}</span>}</div>
+                      {!m.plain && <div className="mt-1"><Bar pct={of ? (Math.max(0, v) / of) * 100 : 0} color={m.color} label={`${m.label}: ${v} of ${of}`} /></div>}
                     </td>
                   )
                 })}
@@ -871,7 +871,7 @@ function AttemptTab({ r }: { r: Analysis }) {
               {rows.map(c => (
                 <tr key={c.chapter} style={{ borderTop: `1px solid ${L.line}` }}>
                   <td className="py-2.5 pr-3 font-semibold">{c.chapter}</td>
-                  <td className="py-2.5 pr-3">{c.tally.score}<span style={{ color: L.dim }}> / {c.tally.max}</span></td>
+                  <td className="py-2.5 pr-3">{c.tally.score}</td>
                   <td className="py-2.5 pr-3">{c.tally.correct}</td><td className="py-2.5 pr-3">{c.tally.wrong}</td><td className="py-2.5 pr-3">{c.tally.unattempted}</td>
                   <td className="py-2.5">{c.tally.accuracy === null ? 'n/a' : `${c.tally.accuracy}%`}</td>
                 </tr>
