@@ -93,7 +93,7 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
     const chapters = chaptersOf(set)
     return [
       { id: 'full', title: 'Full Mock Test', subtitle: `Every question of ${set.title}`, chapters: [], count: set.questions.length },
-      ...chapters.map(c => ({ id: c, title: c, subtitle: 'Chapter test', chapters: [c], count: questionPool(set, [c]).length })),
+      ...(chapters.length < 2 ? [] : chapters).map(c => ({ id: c, title: c, subtitle: 'Chapter test', chapters: [c], count: questionPool(set, [c]).length })),
     ]
   }, [set])
 
