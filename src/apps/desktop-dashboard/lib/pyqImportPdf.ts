@@ -99,12 +99,26 @@ async function cutQuestions(doc: any, pages: PageText[], plan: ImportPlan, onPro
     await page.render({ canvasContext: ctx, viewport: vp }).promise
     ctx.fillStyle = '#fff'
     for (const r of plan.whiteouts[pi] ?? []) ctx.fillRect(r.x0 * SCALE, r.y0 * SCALE, (r.x1 - r.x0) * SCALE, (r.y1 - r.y0) * SCALE)
+    // A "solution" QR code printed at the foot of the page is a picture, so the plan
+    // cannot see it. Find it by its dense square of print and paint it out.
+    if (pages[pi].items.some(it => /click|solution/i.test(it.s) && it.y > pages[pi].h * 0.75)) {
+      const qr = findQrCode(ctx.getImageData(0, 0, canvas.width, canvas.height), pages[pi].h)
+      if (qr) ctx.fillRect(qr.x0, qr.y0, qr.x1 - qr.x0, qr.y1 - qr.y0)
+    }
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
     const gutter = findGutter(img, plan.splits[pi] ?? null, pages[pi])
-    for (const { n, strip } of byPage.get(pi)!) {
+    const strips = byPage.get(pi)!
+    for (const { n, strip } of strips) {
       const x0 = strip.col === 1 ? gutter! : 2
       const x1 = strip.col === 0 ? gutter! : pages[pi].w - 2
-      const box = trim(img, { x0: x0 * SCALE, y0: strip.y0 * SCALE, x1: x1 * SCALE, y1: strip.y1 * SCALE })
+      // Where one question ends at the next one's number, move the cut to the blank
+      // line just above that number so a picture reaching close to it isn't clipped.
+      const sameCol = (o: Strip) => o !== strip && o.col === strip.col
+      const nextStarts = strips.some(o => sameCol(o.strip) && !o.strip.continuation && Math.abs(o.strip.y0 - strip.y1) < 0.5)
+      const prevEnds = !strip.continuation && strips.some(o => sameCol(o.strip) && Math.abs(o.strip.y1 - strip.y0) < 0.5)
+      const y0 = prevEnds ? blankAbove(img, x0, x1, strip.y0) : strip.y0
+      const y1 = nextStarts ? blankAbove(img, x0, x1, strip.y1) : strip.y1
+      const box = trim(img, { x0: x0 * SCALE, y0: y0 * SCALE, x1: x1 * SCALE, y1: y1 * SCALE })
       if (!box) continue
       // A run-on piece has to hold real print, not a stray rule or box edge.
       if (box.y1 - box.y0 < 10 * SCALE && (strip.continuation || box.x1 - box.x0 < 40 * SCALE)) continue
@@ -118,6 +132,61 @@ async function cutQuestions(doc: any, pages: PageText[], plan: ImportPlan, onPro
     onProgress?.('cutting', ++done, order.length)
   }
   return pieces
+}
+
+/**
+ * A label cut sits 6 pt above a question number. Returns the y (in points) of the
+ * blank row closest above the number's line, looking from the number up to 12 pt.
+ */
+function blankAbove(img: ImageData, x0: number, x1: number, cut: number): number {
+  const labelTop = cut + 6
+  const px0 = Math.max(0, Math.round(x0 * SCALE)), px1 = Math.min(img.width, Math.round(x1 * SCALE))
+  for (let y = Math.round((labelTop - 1) * SCALE); y >= Math.round((labelTop - 12) * SCALE) && y > 0; y--) {
+    let ink = 0
+    for (let x = px0; x < px1; x++) if (isInk(img.data, (y * img.width + x) * 4) && ++ink > 1) break
+    if (ink <= 1) return y / SCALE
+  }
+  return cut
+}
+
+/** The densest square block of print in the bottom fifth of the page (a QR code), in pixels; null if none. */
+export function findQrCode(img: ImageData, pageH: number): Rect | null {
+  const cell = Math.round(4 * SCALE)
+  const top = Math.floor((pageH * 0.75 * SCALE) / cell)
+  const rows = Math.floor(img.height / cell), cols = Math.floor(img.width / cell)
+  const dense: boolean[][] = []
+  for (let r = top; r < rows; r++) {
+    const row: boolean[] = []
+    for (let c = 0; c < cols; c++) {
+      let ink = 0
+      for (let y = r * cell; y < (r + 1) * cell; y += 2) for (let x = c * cell; x < (c + 1) * cell; x += 2) if (isInk(img.data, (y * img.width + x) * 4)) ink++
+      row.push(ink / ((cell / 2) * (cell / 2)) > 0.3)
+    }
+    dense.push(row)
+  }
+  // Grow clusters of dense cells (8-neighbours, allowing one-cell holes) and keep a square one at least 30 pt wide.
+  const seen = dense.map(r => r.map(() => false))
+  let best: Rect | null = null
+  for (let r = 0; r < dense.length; r++) for (let c = 0; c < cols; c++) {
+    if (!dense[r][c] || seen[r][c]) continue
+    let r0 = r, r1 = r, c0 = c, c1 = c, count = 0
+    const stack = [[r, c]]; seen[r][c] = true
+    while (stack.length) {
+      const [y, x] = stack.pop()!; count++
+      r0 = Math.min(r0, y); r1 = Math.max(r1, y); c0 = Math.min(c0, x); c1 = Math.max(c1, x)
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const ny = y + dy, nx = x + dx
+        if (ny >= 0 && ny < dense.length && nx >= 0 && nx < cols && dense[ny][nx] && !seen[ny][nx]) { seen[ny][nx] = true; stack.push([ny, nx]) }
+      }
+    }
+    const w = (c1 - c0 + 1) * 4, h = (r1 - r0 + 1) * 4
+    const fill = count / ((c1 - c0 + 1) * (r1 - r0 + 1))
+    if (w >= 30 && h >= 30 && w <= 120 && h <= 120 && Math.abs(w - h) <= Math.max(w, h) * 0.35 && fill > 0.5) {
+      const box = { x0: c0 * cell - cell, y0: (r0 + top) * cell - cell, x1: (c1 + 2) * cell, y1: (r1 + top + 2) * cell }
+      if (!best || (box.x1 - box.x0) * (box.y1 - box.y0) > (best.x1 - best.x0) * (best.y1 - best.y0)) best = box
+    }
+  }
+  return best
 }
 
 function isInk(d: Uint8ClampedArray, i: number): boolean {
