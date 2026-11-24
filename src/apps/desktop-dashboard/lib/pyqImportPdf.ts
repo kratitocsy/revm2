@@ -7,7 +7,7 @@
    happens on the student's device; nothing is uploaded.
    ============================================================ */
 
-import { planImport, readKeyAnswer, type ImportPlan, type PageText, type Rect, type Strip } from './pyqImportCore'
+import { applyKeyStyle, keyStyle, planImport, readKeyAnswer, type ImportPlan, type PageText, type Rect, type Strip } from './pyqImportCore'
 
 export interface ImportedQuestion {
   n: number
@@ -191,11 +191,12 @@ async function assemble(plan: ImportPlan, pictures: Map<number, Piece[]>, pageCo
   const warnings = plan.warnings.slice()
   const questions: ImportedQuestion[] = []
   const missingKey: number[] = []
+  const style = keyStyle(plan.key)
   for (const q of plan.questions) {
     const pieces = pictures.get(q.n)
     if (!pieces || pieces.length === 0) { warnings.push(`Question ${q.n} came out blank and was left out.`); continue }
     const corrected = plan.corrections[q.n]
-    const read = readKeyAnswer(corrected ?? plan.key[q.n])
+    const read = applyKeyStyle(readKeyAnswer(corrected ?? plan.key[q.n]), style)
     if (!read) missingKey.push(q.n)
     questions.push({
       n: q.n, chapter: q.chapter,
