@@ -65,6 +65,7 @@ import {
 import { useVoiceRoom } from './lib/voiceRoom'
 import VoiceTile from './VoiceTile'
 import VoiceBar from './VoiceBar'
+import { EdunitiPyqsContent } from './EdunitiPyqs'
 import {
   fetchBattlegroundState, searchBattleOpponents, fetchTopBattlers, fetchBattleHistory,
   sendBattleChallenge, cancelBattleChallenge, respondBattleChallenge, readyBattle, cancelPendingBattle, pauseBattle,
@@ -391,6 +392,7 @@ const NAV = [
   { id: 'schedules', label: 'Schedules', icon: 'clock' as const, group: 'STUDY' },
   { id: 'studyrooms', label: 'Community', icon: 'rooms' as const, group: 'STUDY' },
   { id: 'battleground', label: 'Battleground', icon: 'zap' as const, group: 'STUDY' },
+  { id: 'eduniti', label: 'Eduniti Top PYQs', icon: 'doc' as const, group: 'STUDY' },
   // 3D Library is hidden for now (page still exists at the '3dlibrary' id).
   { id: 'wynkoins', label: 'WYNKOINS', icon: 'coin' as const, group: 'OTHER' },
   { id: 'earn', label: 'Earn with Wynko', icon: 'fire' as const, group: 'OTHER' },
@@ -10566,6 +10568,18 @@ function LibraryPage({ onNavigate, profile }: { onNavigate: (id: string) => void
   )
 }
 
+// ─── Eduniti Top PYQs ───────────────────────────────────────────────────────────
+function EdunitiPyqsPage({ onNavigate, profile }: { onNavigate: (id: string) => void; profile?: ProfileInfo }) {
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar active="eduniti" setActive={onNavigate} profile={profile} />
+      <div className="flex-1 overflow-y-auto px-6 py-5 max-md:px-4 max-md:pb-24">
+        <EdunitiPyqsContent candidateName={profile?.displayName ?? null} />
+      </div>
+    </div>
+  )
+}
+
 // ─── Quick Timer ────────────────────────────────────────────────────────────
 // A completely standalone countdown, separate from Focus Lock's task/session
 // system on purpose - no subject, no topic, no backend session, nothing to set
@@ -11361,6 +11375,9 @@ export default function DesktopDashboard() {
     }
     if (activeNav === 'battleground') {
       return <BattlegroundPage onNavigate={handleNav} profile={profile} />
+    }
+    if (activeNav === 'eduniti') {
+      return <EdunitiPyqsPage onNavigate={handleNav} profile={profile} />
     }
     if (activeNav === '3dlibrary') {
       return <LibraryPage onNavigate={handleNav} profile={profile} />
