@@ -36,6 +36,14 @@ export interface Attempt {
   durationSec: number
   submittedAt: number | null
   endedBy: 'submit' | 'timeout' | null
+  /** Which test in the list this is: 'full', or a chapter name. Older attempts have none. */
+  testId?: string
+}
+
+/** The list entry an attempt belongs to; old attempts that cover the whole set count as the full mock. */
+export function testIdOf(a: Attempt, setSize: number): string | null {
+  if (a.testId) return a.testId
+  return a.qNums.length === setSize ? 'full' : null
 }
 
 /* ---------- building a test ---------- */

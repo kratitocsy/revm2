@@ -41,46 +41,79 @@ export function EdunitiPyqsContent({ candidateName }: { candidateName?: string |
     setSet(PYQ_SETS[0])
   }
 
+  const navItem = (active: boolean) => ({
+    background: active ? 'rgba(255,138,61,0.14)' : 'transparent',
+    borderColor: active ? 'rgba(255,138,61,0.6)' : 'transparent',
+    color: active ? '#FFF7E6' : '#CFC8BB',
+  })
+  const builtIn = allSets.filter(s => !s.uploaded)
+  const mine = allSets.filter(s => s.uploaded)
+
+  const setButton = (s: PyqSet) => {
+    const on = s.id === set.id && !uploading
+    return (
+      <button key={s.id} onClick={() => { setSet(s); setUploading(false) }} aria-current={on}
+        className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold text-left max-md:w-auto max-md:flex-shrink-0 max-md:py-2"
+        style={navItem(on)}>
+        <span className="flex-1 truncate">{s.title}</span>
+        <span className="max-md:hidden" style={{ color: '#7A756D' }}>›</span>
+      </button>
+    )
+  }
+  const heading = (t: string) => (
+    <div className="flex items-center gap-3 px-2 mt-5 mb-2 max-md:hidden">
+      <span className="text-[11px] font-mono tracking-widest whitespace-nowrap" style={{ color: '#9C968C' }}>{t}</span>
+      <span className="flex-1 border-t border-dashed" style={{ borderColor: '#3A3A3A' }} />
+    </div>
+  )
+
   return (
-    <div className="max-w-3xl mx-auto w-full">
-      <div className="text-[11px] font-mono tracking-[0.3em] text-wk-orange-300 mb-2">ELITE PRACTICE</div>
-      <h1 className="text-2xl md:text-3xl font-black text-white">Eduniti Top PYQs</h1>
-      <p className="text-sm text-wk-ink-400 mt-1">Full mock tests on the best previous-year questions, with a full analysis after.</p>
-
-      <div className="flex gap-2 mt-4 flex-wrap">
-        {allSets.map(s => (
-          <button key={s.id} onClick={() => { setSet(s); setUploading(false) }}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold border max-w-[260px] truncate"
-            style={{ background: s.id === set.id && !uploading ? 'rgba(255,138,61,0.15)' : 'transparent', borderColor: s.id === set.id && !uploading ? '#FF8A3D' : '#3A3A3A', color: s.id === set.id && !uploading ? '#FFA94D' : '#9C968C' }}>
-            {s.uploaded ? '📄 ' : ''}{s.title}
+    <div className="max-w-6xl mx-auto w-full flex gap-8 max-md:flex-col max-md:gap-4">
+      <aside className="w-64 flex-shrink-0 max-md:w-full">
+        <h1 className="text-xl font-black text-white">Eduniti Top PYQs</h1>
+        <p className="text-xs mt-1 text-wk-ink-400 max-md:hidden">Mock tests on Mohit Goenka sir's challenge papers.</p>
+        {heading('EDUNITI CHALLENGES')}
+        <div className="space-y-1 max-md:flex max-md:space-y-0 max-md:gap-2 max-md:overflow-x-auto max-md:pb-1 max-md:mt-3">
+          {builtIn.map(setButton)}
+          {mine.length > 0 && <div className="max-md:hidden">{heading('MY UPLOADS')}</div>}
+          {mine.map(setButton)}
+          <button onClick={() => setUploading(true)}
+            className="w-full mt-2 px-4 py-3 rounded-xl border border-dashed text-sm font-bold text-left max-md:w-auto max-md:flex-shrink-0 max-md:mt-0 max-md:py-2"
+            style={{ borderColor: uploading ? '#FF8A3D' : '#55524D', color: '#FFA94D', background: uploading ? 'rgba(255,138,61,0.1)' : 'transparent' }}>
+            + Upload Eduniti PDF
           </button>
-        ))}
-        <button onClick={() => setUploading(true)}
-          className="px-3 py-1.5 rounded-full text-xs font-bold border border-dashed"
-          style={{ borderColor: uploading ? '#FF8A3D' : '#55524D', color: '#FFA94D' }}>
-          + Upload Eduniti PDF
-        </button>
-      </div>
+        </div>
+      </aside>
 
-      {uploading ? (
-        <PyqUpload onCancel={() => setUploading(false)}
-          onSaved={st => { const loaded = toPyqSet(st); setUploaded(u => [loaded, ...u]); setSet(loaded); setUploading(false) }} />
-      ) : (<>
-        <div className="mt-4 rounded-2xl border p-4" style={{ background: '#161618', borderColor: '#26262A' }}>
-          <div className="text-base font-bold text-white">{set.title}</div>
-          <p className="text-sm text-wk-ink-300 mt-1">{set.subtitle}</p>
-          <p className="text-xs text-wk-ink-400 mt-3 leading-relaxed">
+      <main className="flex-1 min-w-0">
+        {uploading ? (
+          <>
+            <h2 className="text-2xl md:text-3xl font-black text-white">Upload an Eduniti PDF</h2>
+            <PyqUpload onCancel={() => setUploading(false)}
+              onSaved={st => { const loaded = toPyqSet(st); setUploaded(u => [loaded, ...u]); setSet(loaded); setUploading(false) }} />
+          </>
+        ) : (<>
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className="flex-1 min-w-[240px]">
+              <h2 className="text-2xl md:text-3xl font-black text-white">{set.title}</h2>
+              <p className="text-sm text-wk-ink-400 mt-1">{set.subtitle}</p>
+            </div>
+            <div className="flex gap-2">
+              {set.solutionUrl && <a href={set.solutionUrl} target="_blank" rel="noopener noreferrer"
+                className="px-4 py-2 rounded-full text-sm font-semibold border whitespace-nowrap" style={{ borderColor: '#3A3A3A', color: '#FFA94D' }}>View Solutions ↗</a>}
+              {set.uploaded && <button onClick={() => void removeUploaded(set as LoadedSet)}
+                className="px-4 py-2 rounded-full text-sm font-semibold border whitespace-nowrap hover:text-red-400" style={{ borderColor: '#3A3A3A', color: '#9C968C' }}>Delete set</button>}
+            </div>
+          </div>
+
+          <MockTestPanel key={set.id} set={set} candidateName={candidateName ?? null} />
+
+          <p className="text-xs text-wk-ink-500 mt-6 leading-relaxed">
             All credit goes to Mohit Goenka sir and Eduniti for making these questions and their video solutions. No copyright infringement intended.
           </p>
-          <p className="text-xs mt-2">
-            {set.solutionUrl && <a href={set.solutionUrl} target="_blank" rel="noopener noreferrer" className="text-wk-orange-300 underline">Watch the video solutions</a>}
-            {set.uploaded && <button onClick={() => void removeUploaded(set as LoadedSet)} className="ml-3 underline text-wk-ink-500 hover:text-red-400">Delete this set</button>}
-          </p>
-        </div>
-
-        <MockTestPanel key={set.id} set={set} candidateName={candidateName ?? null} />
-      </>)}
-      <div className="h-6" />
+        </>)}
+        <div className="h-6" />
+      </main>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { chaptersOf, questionImageUrl, type PyqSet } from './lib/edunitiPyqs'
 import {
   MARKING, MINUTES_PER_QUESTION, SECTION_LABEL, analysisCsv, analyze, clearActive, durationFor, formatDuration, formatMinSec,
   isAnswered, loadActive, loadHistory, newAttempt, paletteStatus, questionOf, questionPool, sanitizeNumeric,
-  saveActive, saveToHistory, statusCounts, timeLeftSec,
+  saveActive, saveToHistory, statusCounts, testIdOf, timeLeftSec,
   type Analysis, type Attempt, type Outcome, type PaletteStatus,
 } from './lib/pyqTest'
 
@@ -73,6 +73,12 @@ export function MockTestPanel({ set, candidateName }: { set: PyqSet; candidateNa
 
 /* ------------------------------------------------------------------ setup */
 
+type TestEntry = { id: string; title: string; subtitle: string; chapters: string[]; count: number }
+type ListFilter = 'all' | 'todo' | 'done' | 'resume'
+
+const ORANGE_BTN = 'px-4 py-2 rounded-full text-sm font-bold text-wk-black-950 whitespace-nowrap'
+const OUTLINE_BTN = 'px-4 py-2 rounded-full text-sm font-semibold border whitespace-nowrap'
+
 function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView }: {
   set: PyqSet
   history: Attempt[]
@@ -82,104 +88,108 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
   onDiscard: () => void
   onView: (a: Attempt) => void
 }) {
-  const chapters = useMemo(() => chaptersOf(set), [set])
-  const [picked, setPicked] = useState<string[]>([])
-  const [custom, setCustom] = useState(false)
-  const allCount = set.questions.length
-  const pool = questionPool(set, picked).length
-  const effective = pool
+  const [filter, setFilter] = useState<ListFilter>('all')
+  const tests = useMemo<TestEntry[]>(() => {
+    const chapters = chaptersOf(set)
+    return [
+      { id: 'full', title: 'Full Mock Test', subtitle: `Every question of ${set.title}`, chapters: [], count: set.questions.length },
+      ...chapters.map(c => ({ id: c, title: c, subtitle: 'Chapter test', chapters: [c], count: questionPool(set, [c]).length })),
+    ]
+  }, [set])
 
-  function toggle(c: string) { setPicked(p => (p.includes(c) ? p.filter(x => x !== c) : [...p, c])) }
+  const size = set.questions.length
+  const lastOf = (id: string) => history.find(h => testIdOf(h, size) === id) ?? null
+  const attemptsOf = (id: string) => history.filter(h => testIdOf(h, size) === id).length
+  const activeId = active ? testIdOf(active, size) : null
+  const stateOf = (t: TestEntry): ListFilter => (activeId === t.id ? 'resume' : lastOf(t.id) ? 'done' : 'todo')
+  const counts = { all: tests.length, todo: 0, done: 0, resume: 0 }
+  for (const t of tests) counts[stateOf(t)]++
+  const shown = tests.filter(t => filter === 'all' || stateOf(t) === filter)
+
+  const start = (t: TestEntry) => {
+    if (active && !window.confirm('You have another test in progress. Starting this one discards it. Continue?')) return
+    if (active) onDiscard()
+    onStart({ ...newAttempt(set, { chapters: t.chapters, count: t.count, seed: Math.floor(Math.random() * 2 ** 31) }, Date.now()), testId: t.id })
+  }
 
   return (
-    <div className="mt-4">
-      {active && (
-        <div className="rounded-2xl border p-4 mb-4" style={{ background: 'rgba(255,138,61,0.08)', borderColor: 'rgba(255,138,61,0.4)' }}>
-          <div className="text-sm font-bold text-white">You have a test in progress</div>
-          <div className="text-xs mt-1" style={{ color: INK_DIM }}>
-            {active.qNums.length} questions, {formatDuration(timeLeftSec(active, Date.now()))} left on the clock. The clock keeps running while you are away.
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={onResume} className="px-4 py-2 rounded-xl text-sm font-bold text-wk-black-950" style={{ background: '#FF8A3D' }}>Resume test</button>
-            <button onClick={() => { if (window.confirm('Discard this test? Your answers will be lost.')) onDiscard() }}
-              className="px-4 py-2 rounded-xl text-sm border" style={{ borderColor: '#3A3A3A', color: INK_DIM }}>Discard</button>
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-2xl border overflow-hidden" style={{ background: 'linear-gradient(135deg, #1D1A16 0%, #161618 60%)', borderColor: 'rgba(255,138,61,0.35)' }}>
-        <div className="p-5 sm:p-6">
-          <div className="text-[11px] font-mono tracking-widest" style={{ color: '#FFA94D' }}>FULL MOCK TEST</div>
-          <div className="text-xl sm:text-2xl font-black text-white mt-1">{allCount} questions, one paper</div>
-          <p className="text-sm mt-1" style={{ color: INK_DIM }}>
-            Every question of {set.title} in one timed paper, single-correct first and then numerical, in the exam screen you know.
-          </p>
-          <div className="grid grid-cols-3 gap-3 mt-5">
-            {[
-              [String(effective), 'Questions'],
-              [`${Math.round(durationFor(effective) / 60)} min`, 'Time'],
-              [`+${MARKING.correct} / ${MARKING.wrong}`, 'Right / wrong'],
-            ].map(([v, l]) => (
-              <div key={l} className="rounded-xl px-3 py-3" style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}` }}>
-                <div className="text-lg sm:text-xl font-black text-white">{v}</div>
-                <div className="text-[11px]" style={{ color: INK_DIM }}>{l}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 text-xs" style={{ color: INK_DIM }}>
-            +{MARKING.correct} for a right answer, {MARKING.wrong} for a wrong one, 0 if you skip.
-            {picked.length > 0 && <> Only {picked.length} chapter{picked.length === 1 ? '' : 's'} selected.</>}
-          </div>
-          <button disabled={pool === 0}
-            onClick={() => onStart(newAttempt(set, { chapters: picked, count: pool, seed: Math.floor(Math.random() * 2 ** 31) }, Date.now()))}
-            className="mt-5 w-full sm:w-auto sm:px-10 py-3 rounded-xl text-sm font-bold text-wk-black-950 disabled:opacity-40" style={{ background: '#FF8A3D' }}>
-            Start full mock
-          </button>
-        </div>
-        <div style={{ borderTop: `1px solid ${LINE}` }}>
-          <button onClick={() => setCustom(o => !o)} aria-expanded={custom} className="w-full flex items-center gap-2 px-5 sm:px-6 py-3 text-xs font-semibold text-left" style={{ color: INK_DIM }}>
-            <span>Only some chapters?</span><span className="ml-auto">{custom ? 'Hide' : 'Choose chapters'}</span>
-          </button>
-          {custom && (
-            <div className="px-5 sm:px-6 pb-4">
-              <div className="flex flex-wrap gap-2">
-                {chapters.map(c => {
-                  const on = picked.includes(c)
-                  return (
-                    <button key={c} onClick={() => toggle(c)} aria-pressed={on}
-                      className="px-3 py-1.5 rounded-full text-xs font-semibold border"
-                      style={{ background: on ? 'rgba(255,138,61,0.15)' : 'transparent', borderColor: on ? '#FF8A3D' : '#3A3A3A', color: on ? '#FFA94D' : INK_DIM }}>
-                      {c}
-                    </button>
-                  )
-                })}
-              </div>
-              {picked.length > 0 && <button onClick={() => setPicked([])} className="mt-2 text-xs underline" style={{ color: INK_DIM }}>Back to the full paper</button>}
-            </div>
-          )}
-        </div>
+    <div className="mt-5">
+      <div className="flex gap-2 flex-wrap" role="tablist" aria-label="Filter tests">
+        {([['all', 'All'], ['todo', 'Not Attempted'], ['done', 'Attempted'], ['resume', 'Resume']] as [ListFilter, string][]).map(([id, label]) => {
+          const on = filter === id
+          return (
+            <button key={id} role="tab" aria-selected={on} onClick={() => setFilter(id)}
+              className="px-4 py-2 rounded-full text-sm font-semibold border flex items-center gap-2"
+              style={{ background: on ? 'rgba(255,138,61,0.15)' : 'transparent', borderColor: on ? '#FF8A3D' : '#3A3A3A', color: on ? '#FFA94D' : '#E8E2D6' }}>
+              {label}{on && <span aria-hidden>✓</span>}
+              {id !== 'all' && counts[id] > 0 && <span className="text-[11px] font-mono" style={{ color: INK_DIM }}>{counts[id]}</span>}
+            </button>
+          )
+        })}
       </div>
 
-      <div className="mt-6">
-        <div className="text-[11px] font-mono tracking-widest" style={{ color: INK_DIM }}>PAST TESTS</div>
-        {history.length === 0 && <div className="text-sm mt-2" style={{ color: INK_DIM }}>No tests yet. Your results will show up here.</div>}
-        <div className="mt-2 space-y-2">
-          {history.map(a => {
-            const r = analyze(set, a)
-            return (
-              <button key={a.id} onClick={() => onView(a)} className="w-full text-left rounded-xl border p-3 flex items-center gap-3 hover:border-[#55524D]"
-                style={{ background: SURFACE, borderColor: LINE }}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white">{r.overall.correct} right · {r.overall.wrong} wrong · {r.overall.score} marks</div>
-                  <div className="text-xs truncate" style={{ color: INK_DIM }}>
-                    {new Date(a.startedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })} · {r.overall.count} questions · {r.overall.accuracy === null ? 'no answers' : `${r.overall.accuracy}% accuracy`}
-                  </div>
+      <div className="mt-5 space-y-4">
+        {shown.map((t, i) => {
+          const st = stateOf(t)
+          const last = lastOf(t.id)
+          const r = last ? analyze(set, last) : null
+          const n = attemptsOf(t.id)
+          return (
+            <div key={t.id} className="rounded-2xl border overflow-hidden" style={{ background: SURFACE, borderColor: st === 'resume' ? 'rgba(255,229,154,0.45)' : LINE }}>
+              <div className="flex items-center gap-4 px-5 py-4 flex-wrap">
+                <div className="w-7 flex-shrink-0 flex justify-center">
+                  {st === 'done'
+                    ? <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black" style={{ background: '#4ADE80', color: '#0B0B0D' }} aria-label="Attempted">✓</span>
+                    : <span className="text-base font-bold" style={{ color: INK_DIM }}>{tests.indexOf(t) + 1}</span>}
                 </div>
-                <span className="text-xs font-semibold" style={{ color: '#FFA94D' }}>View analysis</span>
-              </button>
-            )
-          })}
-        </div>
+                <div className="flex-1 min-w-[180px]">
+                  <div className="text-base font-bold text-white">{t.title}</div>
+                  <div className="text-sm mt-0.5" style={{ color: INK_DIM }}>{t.subtitle}</div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {st === 'resume' && (
+                    <>
+                      <button onClick={() => { if (window.confirm('Discard this test? Your answers will be lost.')) onDiscard() }}
+                        className={OUTLINE_BTN} style={{ borderColor: '#3A3A3A', color: INK_DIM }}>Discard</button>
+                      <button onClick={onResume} className={ORANGE_BTN} style={{ background: '#FFE59A' }}>Resume Test</button>
+                    </>
+                  )}
+                  {st === 'done' && last && (
+                    <>
+                      <button onClick={() => onView(last)} className={OUTLINE_BTN} style={{ borderColor: '#3A3A3A', color: '#FFF7E6' }}>View Analysis</button>
+                      <button onClick={() => start(t)} className={ORANGE_BTN} style={{ background: '#FF8A3D' }}>Reattempt</button>
+                    </>
+                  )}
+                  {st === 'todo' && (
+                    <button onClick={() => start(t)} className={ORANGE_BTN} style={{ background: '#FF8A3D' }}>Attempt Test</button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-5 px-5 py-2.5 text-sm flex-wrap" style={{ background: '#1C1C1F', borderTop: `1px solid ${LINE}`, color: '#CFC8BB' }}>
+                {st === 'resume' && active && (
+                  <span>◷ Time Remaining: <b className="text-white">{formatDuration(timeLeftSec(active, Date.now()))}</b></span>
+                )}
+                {st === 'done' && r && (
+                  <>
+                    <span>✓ Score: <b className="text-white">{r.overall.score}</b></span>
+                    <span>Correct: <b className="text-white">{r.overall.correct}</b></span>
+                    <span>Wrong: <b className="text-white">{r.overall.wrong}</b></span>
+                    <span>Accuracy: <b className="text-white">{r.overall.accuracy === null ? 'n/a' : `${r.overall.accuracy}%`}</b></span>
+                    {n > 1 && <span style={{ color: INK_DIM }}>{n} attempts</span>}
+                  </>
+                )}
+                {st === 'todo' && (
+                  <>
+                    <span>? <b className="text-white">{t.count} Qs</b></span>
+                    <span>◷ <b className="text-white">{Math.round(durationFor(t.count) / 60)} Min</b></span>
+                    <span>Marking: <b className="text-white">+{MARKING.correct} / {MARKING.wrong}</b></span>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        {shown.length === 0 && <div className="text-sm text-center py-10" style={{ color: INK_DIM }}>No tests here yet.</div>}
       </div>
     </div>
   )
