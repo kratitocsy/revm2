@@ -128,6 +128,35 @@ export function parseKeyLines(textLines: string[]): Record<number, string> {
   return key
 }
 
+/**
+ * Key cells that carry a sentence instead of a bare answer, read from the page's
+ * text in drawing order (a wrapped cell stays in one piece there, even when the
+ * table's columns interleave on screen):
+ *   "20. Dropped (Correct Answer is 32)"          -> 32
+ *   "31 2 (NTA assumed friction on the 2m path)"  -> 2
+ *   "198. NTA gave 5 (It should be 15)"           -> 15
+ * Anything it cannot read with confidence is left out, so the student sets it.
+ */
+const NUM = String.raw`-?\d+(?:\.\d+)?`
+const SENTENCE_KEY = new RegExp(
+  String.raw`(?:^|\s)(\d{1,3})\.?\s+(?:` +
+  String.raw`Dropped\s*\(\s*Correct\s*Answer\s*is\s*(${NUM})\s*\)` +
+  String.raw`|NTA\s*gave\s*${NUM}\s*\(\s*It\s*should\s*be\s*(${NUM})\s*\)` +
+  String.raw`|${NUM}\s*\(\s*Exact\s*answer\s*should\s*be\s*(${NUM})\s*\)` +
+  String.raw`|(${NUM})\s*\(\s*NTA\s*assumed[^)]*\)` +
+  String.raw`)`, 'gi')
+
+export function parseSentenceKey(text: string): Record<number, string> {
+  const out: Record<number, string> = {}
+  SENTENCE_KEY.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = SENTENCE_KEY.exec(text))) {
+    const a = m[2] ?? m[3] ?? m[4] ?? m[5]
+    if (a !== undefined && !(Number(m[1]) in out)) out[Number(m[1])] = a
+  }
+  return out
+}
+
 /** "Q26 : NTA gave 245 as answer but it should be -245" -> {26: "-245"} */
 export function parseCorrections(text: string): Record<number, string> {
   const out: Record<number, string> = {}
@@ -256,6 +285,9 @@ function colRange(L: PageLayout, p: PageText, col: number): [number, number] {
   return col === 0 ? [2, L.split - 2] : [L.split, p.w - 2]
 }
 
+/** How far above its "Solution Link" text the QR code reaches, in PDF points. */
+const QR_HEIGHT = 50
+
 export function planImport(pages: PageText[]): ImportPlan {
   const warnings: string[] = []
   const kinds = pages.map(classifyPage)
@@ -269,6 +301,9 @@ export function planImport(pages: PageText[]): ImportPlan {
     const pairs = parseKeyLines(lines(pages[i].items))
     if (Object.keys(pairs).length < 5) return
     for (const [n, a] of Object.entries(pairs)) if (!(Number(n) in key)) key[Number(n)] = a
+    // Sentences in a cell win over the bare number the line parser may have caught first.
+    const streamText = pages[i].items.map(it => it.s).join(' ').replace(/\s+/g, ' ')
+    for (const [n, a] of Object.entries(parseSentenceKey(streamText))) key[Number(n)] = a
   })
   const allText = pages.map(pageText).join('\n')
   const corrections = parseCorrections(allText)
@@ -346,8 +381,12 @@ export function planImport(pages: PageText[]): ImportPlan {
     for (const col of cols) {
       const [cx0, cx1] = colRange(L, p, col)
       const colLabels = mine.filter(a => colOf(L, a.item.x) === col).sort((a, b) => a.item.y - b.item.y)
+      // A "Solution Link - CLICK" line at the foot of the page has a QR code drawn
+      // above it, which is not text. Nothing below that point belongs to a question.
+      const link = L.obstacles.find(o => /^(solution|click)/i.test(o.s.trim()) && o.y > p.h * 0.8 && o.x < cx1 && o.x + o.w > cx0)
+      const colBottom = link ? Math.min(L.bodyBottom, link.y - QR_HEIGHT) : L.bodyBottom
       const cuts = [...L.headings, ...L.obstacles]
-        .filter(o => o.x < cx1 && o.x + o.w > cx0 && o.y + o.h > L.bodyTop)
+        .filter(o => o.x < cx1 && o.x + o.w > cx0 && o.y + o.h > L.bodyTop && o.y < colBottom)
         .map(o => ({ top: o.y - 2, bottom: o.y + o.h + 2 }))
       type Ev = { y: number; kind: 'label'; n: number } | { y: number; kind: 'cut'; bottom: number }
       const events: Ev[] = [
@@ -374,7 +413,7 @@ export function planImport(pages: PageText[]): ImportPlan {
         if (e.kind === 'label') { y = Math.max(y, e.y); owner = e.n }
         else { y = Math.max(y, e.bottom); owner = null }
       }
-      close(L.bodyBottom)
+      close(colBottom)
     }
   }
   for (let n = 1; n <= found; n++) get(n)
