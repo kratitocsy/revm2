@@ -143,7 +143,9 @@ const SENTENCE_KEY = new RegExp(
   String.raw`Dropped\s*\(\s*Correct\s*Answer\s*is\s*(${NUM})\s*\)` +
   String.raw`|NTA\s*gave\s*${NUM}\s*\(\s*It\s*should\s*be\s*(${NUM})\s*\)` +
   String.raw`|${NUM}\s*\(\s*Exact\s*answer\s*should\s*be\s*(${NUM})\s*\)` +
-  String.raw`|(${NUM})\s*\(\s*NTA\s*assumed[^)]*\)` +
+  // "2 (NTA assumed ...)", "1 (Although 1/4 is answer NTA gave option 1)": the printed answer
+  // stands, unless the note gives another number or doubts the final answer.
+  String.raw`|(${NUM})\s*\((?![^)]*\b(?:but|final|exact)\b)(?![^)]*should\s*be\s*-?\d)[^)]*\)` +
   String.raw`)`, 'gi')
 
 export function parseSentenceKey(text: string): Record<number, string> {
@@ -192,6 +194,31 @@ export function readKeyAnswer(raw: string | undefined): KeyAnswer | null {
   return { kind: 'num', answer: v, unsure: false }
 }
 
+/**
+ * How a paper writes option answers decides what a bare 1-4 means:
+ * - every answer is 1-4 (or a letter): the paper has options only, so 1-4 are options;
+ * - many answers are letters (A-D): options are letters, so 1-4 are numerical;
+ * - otherwise a 1-4 could be either and needs a check.
+ */
+export type KeyStyle = 'optionsOnly' | 'letterOptions' | 'mixed'
+
+export function keyStyle(key: Record<number, string>): KeyStyle {
+  const values = Object.values(key).map(v => v.trim().replace(/^\((.*)\)$/, '$1'))
+  if (values.length === 0) return 'mixed'
+  const letters = values.filter(v => /^[a-dA-D]$/.test(v)).length
+  const big = values.filter(v => /^-?\d+(\.\d+)?$/.test(v) && !/^[1-4]$/.test(v)).length
+  if (big === 0) return 'optionsOnly'
+  if (letters >= values.length * 0.3) return 'letterOptions'
+  return 'mixed'
+}
+
+export function applyKeyStyle(read: KeyAnswer | null, style: KeyStyle): KeyAnswer | null {
+  if (!read || !read.unsure) return read
+  if (style === 'optionsOnly') return { ...read, unsure: false }
+  if (style === 'letterOptions') return { kind: 'num', answer: read.answer, unsure: false }
+  return read
+}
+
 /* ---------- layout ---------- */
 
 function isLetters(s: string): boolean { return /[A-Za-z]/.test(s) }
@@ -207,7 +234,7 @@ interface PageLayout {
   bodyBottom: number
   headings: TItem[]
   obstacles: TItem[]
-  labels: { n: number; item: TItem }[]
+  labels: { n: number; item: TItem; weak?: boolean }[]
   split: number | null // x where the right column starts, null for one column
 }
 
@@ -229,14 +256,55 @@ function sigOf(it: TItem): string {
   return `${it.s.trim().replace(/\d+/g, '#').toLowerCase()}@${Math.round(it.y / 6)}`
 }
 
-function layoutPage(p: PageText, index: number, chrome: Set<string>, docSplit: number | null): PageLayout {
-  const labels: { n: number; item: TItem }[] = []
+/**
+ * Some papers print a question number without its dot ("8"), or split a two-digit
+ * number into two text pieces ("4" + "7"). Those only count where the number is
+ * missing everywhere else, and where they sit in the same column as the real labels.
+ */
+function weakLabels(p: PageText, strongNums: Set<number>): { n: number; item: TItem; skip: TItem[] }[] {
+  const strongXs = p.items.filter(i => labelNumber(i.s) !== null).map(i => i.x)
+  if (strongXs.length === 0) return []
+  const nearLabelColumn = (x: number) => strongXs.some(sx => Math.abs(sx - x) <= 14)
+  const digits = p.items.filter(i => /^\d{1,3}$/.test(i.s.trim()) && i.y > p.h * 0.05 && i.y < p.h * 0.92 && nearLabelColumn(i.x))
+  const out: { n: number; item: TItem; skip: TItem[] }[] = []
+  const used = new Set<TItem>()
+  for (const a of digits) {
+    if (used.has(a)) continue
+    const b = digits.find(o => o !== a && !used.has(o) && Math.abs(o.y - a.y) < 2 && o.x > a.x && o.x - (a.x + a.w) < 6)
+    if (b && (a.s.trim() + b.s.trim()).length > 3) continue
+    if (b) {
+      const n = Number(a.s.trim() + b.s.trim())
+      if (n >= 10 && n <= 250 && !strongNums.has(n)) {
+        used.add(a); used.add(b)
+        out.push({ n, item: { s: `${n}`, x: a.x, y: a.y, w: b.x + b.w - a.x, h: Math.max(a.h, b.h) }, skip: [a, b] })
+      }
+    }
+  }
+  for (const a of digits) {
+    if (used.has(a)) continue
+    const n = Number(a.s.trim())
+    if (n >= 1 && n <= 250 && !strongNums.has(n)) out.push({ n, item: a, skip: [a] })
+  }
+  // A dot drawn as its own piece right after the number is part of the label.
+  for (const w of out) {
+    const end = w.item.x + w.item.w
+    const dot = p.items.find(o => o.s.trim() === '.' && Math.abs(o.y - w.item.y) < 3 && o.x >= end - 1 && o.x - end < 5)
+    if (dot) { w.skip.push(dot); w.item = { ...w.item, w: dot.x + dot.w - w.item.x } }
+  }
+  return out
+}
+
+function layoutPage(p: PageText, index: number, chrome: Set<string>, docSplit: number | null, strongNums: Set<number>): PageLayout {
+  const labels: { n: number; item: TItem; weak?: boolean }[] = []
+  const weak = weakLabels(p, strongNums)
+  const weakSkip = new Set(weak.flatMap(w => w.skip))
+  for (const w of weak) labels.push({ n: w.n, item: w.item, weak: true })
   const headings: TItem[] = []
   const obstacles: TItem[] = []
   let topChromeBottom = 0
   const rest: TItem[] = []
   for (const it of p.items) {
-    if (it.s.trim() === '') continue
+    if (it.s.trim() === '' || weakSkip.has(it)) continue
     const n = labelNumber(it.s)
     if (n !== null) { labels.push({ n, item: it }); continue }
     const isPageNumber = /^\d+$/.test(it.s.trim()) && (it.y < p.h * 0.08 || it.y > p.h * 0.92)
@@ -312,7 +380,8 @@ export function planImport(pages: PageText[]): ImportPlan {
 
   const rightXs = qPages.flatMap(pi => pages[pi].items.filter(i => labelNumber(i.s) !== null && i.x > pages[pi].w * 0.4).map(i => i.x)).sort((a, b) => a - b)
   const docSplit = rightXs.length > 0 ? rightXs[Math.floor(rightXs.length / 2)] - 6 : null
-  const layouts = qPages.map(pi => layoutPage(pages[pi], pi, chrome, docSplit))
+  const strongNums = new Set(qPages.flatMap(pi => pages[pi].items.map(i => labelNumber(i.s)).filter((n): n is number => n !== null)))
+  const layouts = qPages.map(pi => layoutPage(pages[pi], pi, chrome, docSplit, strongNums))
 
   // The numbers themselves give the reading order: keep the run 1, 2, 3, ...
   // (allowing a small gap where a number didn't come through), page by page.
@@ -320,9 +389,9 @@ export function planImport(pages: PageText[]): ImportPlan {
   const acceptedOn = new Map<number, { n: number; page: number; item: TItem }[]>()
   let expect = 1
   for (const L of layouts) {
-    const ls = L.labels.slice().sort((a, b) => a.n - b.n || a.item.y - b.item.y)
+    const ls = L.labels.slice().sort((a, b) => a.n - b.n || Number(!!a.weak) - Number(!!b.weak) || a.item.y - b.item.y)
     for (const l of ls) {
-      if (l.n === expect || (l.n > expect && l.n <= expect + 3 && expect > 1)) {
+      if (l.n === expect || (!l.weak && l.n > expect && l.n <= expect + 3 && expect > 1)) {
         if (l.n !== expect) warnings.push(l.n - expect > 1 ? `Questions ${expect}-${l.n - 1} were not found in the PDF.` : `Question ${expect} was not found in the PDF.`)
         const a = { n: l.n, page: L.index, item: l.item }
         accepted.set(`${L.index}:${l.n}`, a)

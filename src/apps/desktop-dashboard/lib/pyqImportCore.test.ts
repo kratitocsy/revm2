@@ -44,3 +44,50 @@ describe('parseCorrections and parseRemoved', () => {
     expect(parseRemoved('nothing here')).toEqual([])
   })
 })
+
+describe('more sentence answers', () => {
+  it('keeps the printed answer when the note does not give another number', () => {
+    expect(parseSentenceKey('185. 2 186. 1 ( Although ¼ is answer NTA gave option 1 ) 187. 4')).toEqual({ 186: '1' })
+    expect(parseSentenceKey('3. 2 ( LIST II Matrix IV should be A/m ) 4 . 2')).toEqual({ 3: '2' })
+  })
+})
+
+describe('keyStyle', () => {
+  it('treats 1-4 as options when the paper has no other answers', async () => {
+    const { keyStyle, applyKeyStyle, readKeyAnswer } = await import('./pyqImportCore')
+    expect(keyStyle({ 1: '3', 2: 'b', 3: '1' })).toBe('optionsOnly')
+    expect(applyKeyStyle(readKeyAnswer('3'), 'optionsOnly')).toEqual({ kind: 'mcq', answer: 3, unsure: false })
+  })
+  it('treats 1-4 as numerical when options are written as letters', async () => {
+    const { keyStyle, applyKeyStyle, readKeyAnswer } = await import('./pyqImportCore')
+    expect(keyStyle({ 1: 'A', 2: 'C', 3: '266', 4: '2', 5: 'D' })).toBe('letterOptions')
+    expect(applyKeyStyle(readKeyAnswer('2'), 'letterOptions')).toEqual({ kind: 'num', answer: 2, unsure: false })
+  })
+  it('leaves 1-4 to be checked when options are digits and numericals exist', async () => {
+    const { keyStyle } = await import('./pyqImportCore')
+    expect(keyStyle({ 1: '3', 2: '673', 3: '2', 4: '1', 5: '4' })).toBe('mixed')
+  })
+})
+
+describe('question numbers printed without a dot', () => {
+  it('finds a bare or split number only where the real label is missing', async () => {
+    const { planImport } = await import('./pyqImportCore')
+    const item = (s: string, x: number, y: number) => ({ s, x, y, w: s.length * 5.5, h: 11 })
+    const filler = (y: number, x: number) => item('some question text here', x + 15, y + 15)
+    const page = {
+      w: 540, h: 780, links: [],
+      items: [
+        item('1.', 10, 60), filler(60, 10), item('2.', 10, 200), filler(200, 10),
+        item('3', 10, 340), item('.', 15.6, 340), filler(340, 10), // dot drawn as its own piece
+        item('1', 280, 60), item('4', 285.6, 60), filler(60, 280), // "14" split in two
+        item('4.', 280, 200), filler(200, 280),
+      ],
+    }
+    // Numbers 5..13 on a second page keep the run going.
+    const page2 = { w: 540, h: 780, links: [], items: [5, 6, 7, 8, 9, 10, 11, 12, 13].flatMap((n, i) => [item(`${n}.`, 10, 60 + i * 70), filler(60 + i * 70, 10)]) }
+    const plan = planImport([page as any, page2 as any])
+    const ns = plan.questions.map(q => q.n)
+    expect(ns.slice(0, 4)).toEqual([1, 2, 3, 4])
+    expect(plan.warnings.filter(w => /not found/.test(w))).toEqual([])
+  })
+})
