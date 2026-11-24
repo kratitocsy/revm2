@@ -13,6 +13,10 @@
    assets/eduniti/<set-folder>/qNNN.webp, then add a PyqSet below.
    ============================================================ */
 
+import {
+  EDUNITI_C3, EDUNITI_C4, EDUNITI_C5, EDUNITI_C6, EDUNITI_C7, EDUNITI_C8, EDUNITI_C9, EDUNITI_C14, EDUNITI_C15,
+} from './edunitiPapers'
+
 export type PyqKind = 'mcq' | 'num'
 
 export interface PyqQuestion {
@@ -285,7 +289,10 @@ export const JEE_MAIN_2023_TOP_200: PyqSet = {
   ],
 }
 
-export const PYQ_SETS: PyqSet[] = [JEE_MAIN_2023_TOP_200]
+export const PYQ_SETS: PyqSet[] = [
+  EDUNITI_C8, EDUNITI_C5, EDUNITI_C3, JEE_MAIN_2023_TOP_200, EDUNITI_C4, EDUNITI_C6, EDUNITI_C7,
+  EDUNITI_C9, EDUNITI_C14, EDUNITI_C15,
+]
 
 export function questionImageUrl(set: PyqSet, n: number): string {
   if (set.images) return set.images[n] ?? ''

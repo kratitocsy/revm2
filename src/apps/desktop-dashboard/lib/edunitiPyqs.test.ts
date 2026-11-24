@@ -53,6 +53,22 @@ describe('JEE Main 2023 Top 200 data', () => {
   })
 })
 
+describe('every built-in Eduniti set', () => {
+  it('has pictures on disk, valid answers and unique question numbers', () => {
+    expect(PYQ_SETS.length).toBeGreaterThanOrEqual(10)
+    for (const s of PYQ_SETS) {
+      expect(new Set(s.questions.map(q => q.n)).size, s.id).toBe(s.questions.length)
+      for (const q of s.questions) {
+        expect(Number.isFinite(q.answer), `${s.id} q${q.n}`).toBe(true)
+        if (q.kind === 'mcq') expect([1, 2, 3, 4], `${s.id} q${q.n}`).toContain(q.answer)
+        expect(q.chapter, `${s.id} q${q.n}`).toBeTruthy()
+        const file = resolve(__dirname, '../../../..', questionImageUrl(s, q.n).replace(/^\//, ''))
+        expect(existsSync(file), file).toBe(true)
+      }
+    }
+  })
+})
+
 describe('questionImageUrl', () => {
   it('zero-pads the question number', () => {
     expect(questionImageUrl(set, 7)).toBe('/assets/eduniti/jee-main-2023/q007.webp')

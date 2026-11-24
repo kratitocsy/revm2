@@ -55,7 +55,7 @@ export function EdunitiPyqsContent({ candidateName }: { candidateName?: string |
       <button key={s.id} onClick={() => { setSet(s); setUploading(false) }} aria-current={on}
         className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold text-left max-md:w-auto max-md:flex-shrink-0 max-md:py-2"
         style={navItem(on)}>
-        <span className="flex-1 truncate">{s.title}</span>
+        <span className="flex-1 truncate" title={s.title}>{s.title.replace(' Physics', '').replace('Theoretical', 'Theory').replace('Experiments & Instruments', 'Experiments')}</span>
         <span className="max-md:hidden" style={{ color: '#7A756D' }}>›</span>
       </button>
     )
