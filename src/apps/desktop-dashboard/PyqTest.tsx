@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { chaptersOf, questionImageUrl, type PyqSet } from './lib/edunitiPyqs'
 import {
-  COUNT_CHOICES, MARKING, MINUTES_PER_QUESTION, SECTION_LABEL, analysisCsv, analyze, clearActive, durationFor, formatDuration, formatMinSec,
+  MARKING, MINUTES_PER_QUESTION, SECTION_LABEL, analysisCsv, analyze, clearActive, durationFor, formatDuration, formatMinSec,
   isAnswered, loadActive, loadHistory, newAttempt, paletteStatus, questionOf, questionPool, sanitizeNumeric,
   saveActive, saveToHistory, statusCounts, timeLeftSec,
   type Analysis, type Attempt, type Outcome, type PaletteStatus,
@@ -84,9 +84,10 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
 }) {
   const chapters = useMemo(() => chaptersOf(set), [set])
   const [picked, setPicked] = useState<string[]>([])
-  const [count, setCount] = useState<number>(25)
+  const [custom, setCustom] = useState(false)
+  const allCount = set.questions.length
   const pool = questionPool(set, picked).length
-  const effective = Math.min(count, pool)
+  const effective = pool
 
   function toggle(c: string) { setPicked(p => (p.includes(c) ? p.filter(x => x !== c) : [...p, c])) }
 
@@ -106,51 +107,57 @@ function TestSetup({ set, history, active, onStart, onResume, onDiscard, onView 
         </div>
       )}
 
-      <div className="rounded-2xl border p-4" style={{ background: SURFACE, borderColor: LINE }}>
-        <div className="text-base font-bold text-white">Build a mock test</div>
-        <p className="text-xs mt-1" style={{ color: INK_DIM }}>
-          Questions come from {set.title}. A timed paper in the JEE Main format: single-correct first, then numerical.
-        </p>
-
-        <div className="mt-4 text-[11px] font-mono tracking-widest" style={{ color: INK_DIM }}>CHAPTERS {picked.length === 0 && '(ALL)'}</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {chapters.map(c => {
-            const on = picked.includes(c)
-            return (
-              <button key={c} onClick={() => toggle(c)} aria-pressed={on}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold border"
-                style={{ background: on ? 'rgba(255,138,61,0.15)' : 'transparent', borderColor: on ? '#FF8A3D' : '#3A3A3A', color: on ? '#FFA94D' : INK_DIM }}>
-                {c}
-              </button>
-            )
-          })}
+      <div className="rounded-2xl border overflow-hidden" style={{ background: 'linear-gradient(135deg, #1D1A16 0%, #161618 60%)', borderColor: 'rgba(255,138,61,0.35)' }}>
+        <div className="p-5 sm:p-6">
+          <div className="text-[11px] font-mono tracking-widest" style={{ color: '#FFA94D' }}>FULL MOCK TEST</div>
+          <div className="text-xl sm:text-2xl font-black text-white mt-1">{allCount} questions, one paper</div>
+          <p className="text-sm mt-1" style={{ color: INK_DIM }}>
+            Every question of {set.title} in one timed paper, single-correct first and then numerical, in the exam screen you know.
+          </p>
+          <div className="grid grid-cols-3 gap-3 mt-5">
+            {[
+              [String(effective), 'Questions'],
+              [`${Math.round(durationFor(effective) / 60)} min`, 'Time'],
+              [String(effective * MARKING.correct), 'Total marks'],
+            ].map(([v, l]) => (
+              <div key={l} className="rounded-xl px-3 py-3" style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}` }}>
+                <div className="text-lg sm:text-xl font-black text-white">{v}</div>
+                <div className="text-[11px]" style={{ color: INK_DIM }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-xs" style={{ color: INK_DIM }}>
+            +{MARKING.correct} for a right answer, {MARKING.wrong} for a wrong one, 0 if you skip.
+            {picked.length > 0 && <> Only {picked.length} chapter{picked.length === 1 ? '' : 's'} selected.</>}
+          </div>
+          <button disabled={pool === 0}
+            onClick={() => onStart(newAttempt(set, { chapters: picked, count: pool, seed: Math.floor(Math.random() * 2 ** 31) }, Date.now()))}
+            className="mt-5 w-full sm:w-auto sm:px-10 py-3 rounded-xl text-sm font-bold text-wk-black-950 disabled:opacity-40" style={{ background: '#FF8A3D' }}>
+            Start full mock
+          </button>
         </div>
-        {picked.length > 0 && <button onClick={() => setPicked([])} className="mt-2 text-xs underline" style={{ color: INK_DIM }}>Use all chapters</button>}
-
-        <div className="mt-4 text-[11px] font-mono tracking-widest" style={{ color: INK_DIM }}>NUMBER OF QUESTIONS</div>
-        <div className="mt-2 flex gap-2 flex-wrap">
-          {COUNT_CHOICES.map(c => (
-            <button key={c} onClick={() => setCount(c)} aria-pressed={count === c}
-              className="px-4 py-2 rounded-xl text-sm font-bold border"
-              style={{ background: count === c ? '#26262A' : 'transparent', borderColor: count === c ? '#FF8A3D' : '#3A3A3A', color: count === c ? '#FFF7E6' : INK_DIM }}>
-              {c}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 text-sm text-wk-ink-300">
-          {pool === 0 ? 'No questions in this selection.' : (
-            <>
-              <span className="font-bold text-white">{effective} questions</span> · {Math.round(durationFor(effective) / 60)} min · +{MARKING.correct} for right, {MARKING.wrong} for wrong
-              {effective < count && <span style={{ color: INK_DIM }}> (these chapters only have {pool})</span>}
-            </>
+        <div style={{ borderTop: `1px solid ${LINE}` }}>
+          <button onClick={() => setCustom(o => !o)} aria-expanded={custom} className="w-full flex items-center gap-2 px-5 sm:px-6 py-3 text-xs font-semibold text-left" style={{ color: INK_DIM }}>
+            <span>Only some chapters?</span><span className="ml-auto">{custom ? 'Hide' : 'Choose chapters'}</span>
+          </button>
+          {custom && (
+            <div className="px-5 sm:px-6 pb-4">
+              <div className="flex flex-wrap gap-2">
+                {chapters.map(c => {
+                  const on = picked.includes(c)
+                  return (
+                    <button key={c} onClick={() => toggle(c)} aria-pressed={on}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold border"
+                      style={{ background: on ? 'rgba(255,138,61,0.15)' : 'transparent', borderColor: on ? '#FF8A3D' : '#3A3A3A', color: on ? '#FFA94D' : INK_DIM }}>
+                      {c}
+                    </button>
+                  )
+                })}
+              </div>
+              {picked.length > 0 && <button onClick={() => setPicked([])} className="mt-2 text-xs underline" style={{ color: INK_DIM }}>Back to the full paper</button>}
+            </div>
           )}
         </div>
-        <button disabled={pool === 0}
-          onClick={() => onStart(newAttempt(set, { chapters: picked, count, seed: Math.floor(Math.random() * 2 ** 31) }, Date.now()))}
-          className="mt-4 w-full py-3 rounded-xl text-sm font-bold text-wk-black-950 disabled:opacity-40" style={{ background: '#FF8A3D' }}>
-          Start test
-        </button>
       </div>
 
       <div className="mt-6">
@@ -605,18 +612,36 @@ function TestAnalysis({ set, attempt, onClose }: { set: PyqSet; attempt: Attempt
 
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border p-4 bg-white" style={{ borderColor: L.line, color: L.ink }}>
+    <div className="rounded-xl border p-4 sm:p-5" style={{ background: '#fff', borderColor: L.line, color: L.ink, boxShadow: '0 1px 2px rgba(16,24,40,0.05)' }}>
       {title && <div className="text-sm font-bold mb-3">{title}</div>}
       {children}
     </div>
   )
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Tile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="rounded-lg border p-3 bg-white" style={{ borderColor: L.line }}>
-      <div className="text-xs" style={{ color: L.dim }}>{label}</div>
-      <div className="text-2xl font-black mt-1">{value}{sub && <span className="text-sm font-semibold" style={{ color: L.dim }}> {sub}</span>}</div>
+    <div className="rounded-xl border p-3.5 relative overflow-hidden" style={{ background: '#fff', borderColor: L.line, boxShadow: '0 1px 2px rgba(16,24,40,0.05)' }}>
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: accent ?? L.blue }} />
+      <div className="text-xs font-medium" style={{ color: L.dim }}>{label}</div>
+      <div className="text-2xl font-black mt-1" style={{ color: L.ink }}>{value}{sub && <span className="text-xs font-semibold" style={{ color: L.dim }}> {sub}</span>}</div>
+    </div>
+  )
+}
+
+/** Accuracy as a ring; the number is always printed in the middle. */
+function Ring({ pct, label }: { pct: number | null; label: string }) {
+  const r = 44, c = 2 * Math.PI * r, v = pct ?? 0
+  return (
+    <div className="relative w-28 h-28 flex-shrink-0" role="img" aria-label={`${label}: ${pct === null ? 'n/a' : pct + '%'}`}>
+      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="#E6EDF3" strokeWidth="9" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke={L.green} strokeWidth="9" strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-xl font-black">{pct === null ? 'n/a' : `${pct}%`}</div>
+        <div className="text-[10px]" style={{ color: L.dim }}>{label}</div>
+      </div>
     </div>
   )
 }
@@ -656,21 +681,51 @@ function columnsOf(r: Analysis): Col[] {
 function Overview({ r }: { r: Analysis }) {
   const o = r.overall
   const attempted = o.correct + o.wrong
+  const weak = [...r.byChapter].filter(c => c.tally.wrong > 0).sort((x, y) => (x.tally.score - y.tally.score)).slice(0, 4)
   return (
     <div className="space-y-4">
       <Card>
-        <div className="text-xs" style={{ color: L.dim }}>Your score</div>
-        <div className="mt-1"><span className="text-5xl font-black" style={{ color: L.blueDark }}>{o.score}</span><span className="text-xl" style={{ color: L.dim }}> / {o.max}</span></div>
-        <div className="mt-4"><OutcomeBar correct={o.correct} wrong={o.wrong} unattempted={o.unattempted} /></div>
+        <div className="flex items-center gap-5 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-xs font-medium" style={{ color: L.dim }}>Your score</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-5xl sm:text-6xl font-black" style={{ color: o.score < 0 ? L.red : L.blueDark }}>{o.score}</span>
+              <span className="text-xl font-semibold" style={{ color: L.dim }}>/ {o.max}</span>
+            </div>
+            <div className="text-xs mt-1" style={{ color: L.dim }}>{o.count} questions · +{MARKING.correct} right, {MARKING.wrong} wrong</div>
+          </div>
+          <Ring pct={o.accuracy} label="accuracy" />
+        </div>
+        <div className="mt-5"><OutcomeBar correct={o.correct} wrong={o.wrong} unattempted={o.unattempted} /></div>
       </Card>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Tile label="Accuracy" value={o.accuracy === null ? 'n/a' : `${o.accuracy}%`} sub={attempted ? `${o.correct}/${attempted} right` : undefined} />
-        <Tile label="Attempted" value={String(attempted)} sub={`/ ${o.count}`} />
-        <Tile label="Positive score" value={String(r.positive)} sub={`/ ${o.max}`} />
-        <Tile label="Marks lost" value={String(r.lost)} sub="to wrong answers" />
-        <Tile label="Time taken" value={formatDuration(r.takenSec)} />
-        <Tile label="Avg per question" value={o.count ? `${Math.round(o.timeSec / Math.max(1, o.count))}s` : 'n/a'} />
+        <Tile label="Attempted" value={String(attempted)} sub={`of ${o.count}`} accent={L.blue} />
+        <Tile label="Correct" value={String(o.correct)} sub={attempted ? `${o.correct}/${attempted} attempted` : undefined} accent={L.green} />
+        <Tile label="Wrong" value={String(o.wrong)} sub={`−${r.lost} marks`} accent={L.red} />
+        <Tile label="Positive score" value={String(r.positive)} sub={`of ${o.max}`} accent={L.green} />
+        <Tile label="Time taken" value={formatDuration(r.takenSec)} accent={L.orange} />
+        <Tile label="Avg per question" value={o.count ? `${Math.round(o.timeSec / Math.max(1, o.count))}s` : 'n/a'} accent={L.orange} />
       </div>
+      {r.bySection.length > 0 && (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {r.bySection.map(sec => (
+            <Card key={sec.kind} title={sec.label}>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black">{sec.tally.score}</span><span className="text-sm" style={{ color: L.dim }}>/ {sec.tally.max}</span>
+                <span className="ml-auto text-xs" style={{ color: L.dim }}>{sec.tally.accuracy === null ? 'no answers' : `${sec.tally.accuracy}% accuracy`}</span>
+              </div>
+              <div className="mt-3"><OutcomeBar correct={sec.tally.correct} wrong={sec.tally.wrong} unattempted={sec.tally.unattempted} /></div>
+            </Card>
+          ))}
+        </div>
+      )}
+      {weak.length > 0 && (
+        <Card title="Lost the most marks in">
+          <div className="flex flex-wrap gap-2">
+            {weak.map(c => <span key={c.chapter} className="px-3 py-1 rounded-full text-xs border" style={{ borderColor: L.line, background: '#F5F8FB' }}><span style={{ color: L.red }}>✕ {c.tally.wrong}</span> {c.chapter}</span>)}
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
