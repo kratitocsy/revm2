@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense, Component, type ReactNode } from "react";
 import { useWynkoTopics } from "./lib/useWynkoTopics";
 import type { Priority, TopicStatus, Topic } from "../_shared/wynkoTracker";
 import { calcPriority, NEXT_REVIEW_LABELS } from "../_shared/wynkoTracker";
-import { EdunitiPyqsContent } from "../desktop-dashboard/EdunitiPyqs";
 // Priority/TopicStatus/Topic/calcPriority/NEXT_REVIEW_LABELS now live
 // in the shared lib (src/apps/_shared/wynkoTracker.ts) since
 // desktop-dashboard needs the same retention data — re-exported here
@@ -1234,14 +1233,43 @@ function MobileRoomsScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-// Eduniti Top PYQs: the same mock-test page the desktop dashboard has.
-// EdunitiPyqsContent is already responsive (stacks under md).
+// Eduniti Top PYQs: the same mock-test page the desktop dashboard has
+// (EdunitiPyqsContent is already responsive). It is loaded on demand so the
+// home page stays light, and wrapped so a failure here can never blank the app.
+const EdunitiPyqsContent = lazy(() =>
+  import("../desktop-dashboard/EdunitiPyqs").then((m) => ({ default: m.EdunitiPyqsContent })),
+);
+
+class PyqsBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="text-center py-16 px-6 text-[13px] text-[#8892b0]">
+        Couldn't load the mock tests.{" "}
+        <button className="underline text-[#FFA94D]" onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    );
+  }
+}
+
+function PyqsBody() {
+  return (
+    <PyqsBoundary>
+      <Suspense fallback={<div className="text-center py-16 text-[13px] text-[#8892b0]">Loading mock tests…</div>}>
+        <EdunitiPyqsContent />
+      </Suspense>
+    </PyqsBoundary>
+  );
+}
+
 function MobilePyqsScreen({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex-1 overflow-y-auto scrollbar-hide">
       <SecondaryHeader title="Eduniti PYQs" onBack={onBack} />
       <div className="px-4 pb-6">
-        <EdunitiPyqsContent />
+        <PyqsBody />
       </div>
     </div>
   );
@@ -1733,7 +1761,7 @@ export default function MobileHome() {
           {screen === "focus"   && <DesktopFocusContent  onNav={goTo} />}
           {screen === "rooms"   && <DesktopRoomsContent  />}
           {screen === "library" && <DesktopLibraryContent />}
-          {screen === "pyqs"    && <div className="h-full overflow-y-auto p-8"><EdunitiPyqsContent /></div>}
+          {screen === "pyqs"    && <div className="h-full overflow-y-auto p-8"><PyqsBody /></div>}
           {screen === "recall"  && <DesktopRecallContent onNav={goTo} topics={topics} onRemove={removeTopic} onMarkReviewed={markAsReviewed} />}
           {screen === "more"    && (
             <div className="p-6 grid grid-cols-3 gap-4">
