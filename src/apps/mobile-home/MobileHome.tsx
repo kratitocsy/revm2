@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useWynkoTopics } from "./lib/useWynkoTopics";
 import type { Priority, TopicStatus, Topic } from "../_shared/wynkoTracker";
 import { calcPriority, NEXT_REVIEW_LABELS } from "../_shared/wynkoTracker";
+import { EdunitiPyqsContent } from "../desktop-dashboard/EdunitiPyqs";
 // Priority/TopicStatus/Topic/calcPriority/NEXT_REVIEW_LABELS now live
 // in the shared lib (src/apps/_shared/wynkoTracker.ts) since
 // desktop-dashboard needs the same retention data — re-exported here
@@ -12,7 +13,7 @@ export { calcPriority, NEXT_REVIEW_LABELS };
 // ─── Types ────────────────────────────────────────────────
 // Screen is this app's own UI navigation state, not tracker data,
 // so it's defined here rather than in the shared lib.
-export type Screen = "home" | "focus" | "rooms" | "library" | "recall" | "more";
+export type Screen = "home" | "focus" | "rooms" | "library" | "recall" | "pyqs" | "more";
 
 // ─── Subject / Badge Config ───────────────────────────────
 const SUBJECTS = [
@@ -874,11 +875,12 @@ function ContinueStudyingCard({ onNav }: { onNav: (s: Screen) => void }) {
   );
 }
 
-function QuickActionsGrid({ onNav, cols = 3 }: { onNav: (s: Screen) => void; cols?: number }) {
+function QuickActionsGrid({ onNav, cols = 4 }: { onNav: (s: Screen) => void; cols?: number }) {
   const actions = [
     { icon: <Ic.timer s={22} />, label: "Focus",      screen: "focus"   as Screen, color: "#a78bfa", bg: "rgba(124,58,237,0.14)" },
     { icon: <Ic.users s={22} />, label: "Study Room", screen: "rooms"   as Screen, color: "#22d3ee", bg: "rgba(6,182,212,0.14)"   },
     { icon: <Ic.book  s={22} />, label: "Library",    screen: "library" as Screen, color: "#34d399", bg: "rgba(16,185,129,0.14)"  },
+    { icon: <Ic.brain s={22} />, label: "PYQs",       screen: "pyqs"    as Screen, color: "#FFA94D", bg: "rgba(255,138,61,0.14)"  },
   ];
   return (
     <div>
@@ -1232,6 +1234,19 @@ function MobileRoomsScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
+// Eduniti Top PYQs: the same mock-test page the desktop dashboard has.
+// EdunitiPyqsContent is already responsive (stacks under md).
+function MobilePyqsScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex-1 overflow-y-auto scrollbar-hide">
+      <SecondaryHeader title="Eduniti PYQs" onBack={onBack} />
+      <div className="px-4 pb-6">
+        <EdunitiPyqsContent />
+      </div>
+    </div>
+  );
+}
+
 function MobileLibraryScreen({ onBack }: { onBack: () => void }) {
   const grid = [[false, true, false, false, true], [false, false, true, false, false], [true, false, false, true, false], [false, false, false, false, true]];
   const free = grid.flat().filter((s) => !s).length;
@@ -1332,6 +1347,7 @@ const SIDEBAR_NAV = [
   { id: "rooms"   as Screen, label: "Study Rooms", Icon: Ic.users },
   { id: "recall"  as Screen, label: "Recall",      Icon: Ic.brain },
   { id: "library" as Screen, label: "Library",     Icon: Ic.book  },
+  { id: "pyqs"    as Screen, label: "Eduniti PYQs", Icon: Ic.brain },
   { id: "more"    as Screen, label: "More",        Icon: Ic.more  },
 ];
 
@@ -1717,6 +1733,7 @@ export default function MobileHome() {
           {screen === "focus"   && <DesktopFocusContent  onNav={goTo} />}
           {screen === "rooms"   && <DesktopRoomsContent  />}
           {screen === "library" && <DesktopLibraryContent />}
+          {screen === "pyqs"    && <div className="h-full overflow-y-auto p-8"><EdunitiPyqsContent /></div>}
           {screen === "recall"  && <DesktopRecallContent onNav={goTo} topics={topics} onRemove={removeTopic} onMarkReviewed={markAsReviewed} />}
           {screen === "more"    && (
             <div className="p-6 grid grid-cols-3 gap-4">
@@ -1734,6 +1751,7 @@ export default function MobileHome() {
         {screen === "focus"   && <MobileFocusScreen   onBack={goHome} />}
         {screen === "rooms"   && <MobileRoomsScreen   onBack={goHome} />}
         {screen === "library" && <MobileLibraryScreen onBack={goHome} />}
+        {screen === "pyqs"    && <MobilePyqsScreen    onBack={goHome} />}
         {screen === "recall"  && <MobileRecallScreen  onBack={goHome} topics={topics} onRemove={removeTopic} onMarkReviewed={markAsReviewed} />}
         {screen === "more"    && (
           <div className="flex-1 overflow-y-auto scrollbar-hide">
