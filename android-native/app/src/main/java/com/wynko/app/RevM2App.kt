@@ -7,5 +7,6 @@ class RevM2App : Application() {
     override fun onCreate() {
         super.onCreate()
         Supabase.init()
+        com.wynko.app.sync.SyncJobService.schedule(this)
     }
 }

@@ -25,10 +25,13 @@ import com.wynko.app.ui.theme.Wk
 @Composable
 fun MoreScreen(vm: AppViewModel) = ScreenColumn {
     Row(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Avatar("JS", Wk.Orange300, 56)
+        val p = vm.profile
+        val name = p?.let { it.displayName.ifBlank { it.username }.ifBlank { it.email.substringBefore('@') } }?.ifBlank { null } ?: "Your profile"
+        Avatar(name.filter { it.isLetterOrDigit() }.take(2).uppercase().ifEmpty { "W" }, AvatarColors[p?.avatarPreset ?: 0], 56)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            WkText("Jatin Sinsinwar", 17, FontWeight.Bold, Wk.Ink100); WkText("@jatin · JEE 2026", 12, color = Wk.Ink500)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { Pill("Rising Scholar", Wk.Violet); Pill("🔥 6 days", Wk.Orange300) }
+            WkText(name, 17, FontWeight.Bold, Wk.Ink100, maxLines = 1)
+            WkText(listOfNotNull(p?.username?.takeIf { it.isNotBlank() }?.let { "@$it" }, p?.exam?.takeIf { it.isNotBlank() }).joinToString(" · ").ifEmpty { p?.email ?: "" }, 12, color = Wk.Ink500, maxLines = 1)
+            vm.bg?.let { Pill("${it.me.title} · ${"%,d".format(it.me.xp)} XP", Wk.Violet) }
         }
     }
     if (com.wynko.app.BuildConfig.PAYMENTS_ENABLED) Row(Modifier.fillMaxWidth().wkCard(borderColor = Wk.Orange600.copy(alpha = 0.4f)).tap { vm.go(Dest.Coins) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -42,77 +45,6 @@ fun MoreScreen(vm: AppViewModel) = ScreenColumn {
         Icon(Icons.Filled.ChevronRight, null, tint = Wk.Ink500)
     }
     WkText("FOCUS · STUDY · TOGETHER", 10, color = Wk.Ink600, letterSpacingEm = 0.3f, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), align = TextAlign.Center)
-}
-
-// ───────────────────────── Battleground ─────────────────────────
-@Composable
-fun BattlegroundScreen(vm: AppViewModel) = ScreenColumn {
-    val ri = BattleTiers.indexOfLast { vm.xp >= it.second }
-    val next = BattleTiers.getOrNull(ri + 1)
-    val title = BattleTiers[ri].first
-    var profile by remember { mutableStateOf(false) }
-    Column { Eyebrow("BATTLEGROUND"); WkText("1v1 focus duels", 17, FontWeight.Bold, Wk.Ink100) }
-    if (profile) {
-        Row(Modifier.tap { profile = false }, verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.ChevronLeft, null, tint = Wk.Ink300); WkText("Battleground", 13, color = Wk.Ink300) }
-        Column(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { Avatar("JS", Wk.Orange300, 48); Column { WkText("You", 15, FontWeight.Bold, Wk.Ink100); Pill(title, Wk.Violet) } }
-            WkText("%,d Battle XP".format(vm.xp), 20, FontWeight.ExtraBold, Wk.Cream50)
-            WkText(if (next != null) "%,d XP to ${next.first}".format(next.second - vm.xp) else "Top title reached", 12, color = Wk.Ink400)
-        }
-        WkText("Battle titles", 14, FontWeight.Bold, Wk.Ink100)
-        BattleTiers.forEachIndexed { i, (n, min) ->
-            ListRow {
-                Box(Modifier.size(22.dp).clip(CircleShape).background(if (i < ri) Color(0xFF4ADE80) else if (i == ri) Wk.Orange500 else Wk.Black600), contentAlignment = Alignment.Center) { if (i < ri) WkText("✓", 11, FontWeight.Bold, Wk.Black950) }
-                WkText(n, 13, FontWeight.SemiBold, if (i == ri) Wk.Cream50 else Wk.Ink400, Modifier.weight(1f)); WkText("%,d XP".format(min), 11, color = Wk.Ink500)
-            }
-        }
-        WkText("Win a battle +20-60 XP · Lose a battle +0-20 XP", 11, color = Wk.Ink500)
-        WkText("Battle history", 14, FontWeight.Bold, Wk.Ink100)
-        BattleHistory.forEach { (r, opp, whenText) ->
-            ListRow { Box(Modifier.size(28.dp).clip(CircleShape).background(if (r == "W") Wk.Green else Wk.Red), contentAlignment = Alignment.Center) { WkText(r, 12, FontWeight.Bold, Wk.Black950) }
-                Column(Modifier.weight(1f)) { WkText("vs $opp", 13, FontWeight.SemiBold, Wk.Ink100); WkText(whenText, 11, color = Wk.Ink500) } }
-        }
-        return@ScreenColumn
-    }
-    when (vm.battle) {
-        "waiting" -> Column(Modifier.fillMaxWidth().wkCard().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            WkText("VS", 22, FontWeight.ExtraBold, Wk.Orange500); WkText("Waiting for opponent to accept", 14, FontWeight.SemiBold, Wk.Ink100)
-            WkText("Once they accept, you'll both ready up and the battle begins.", 12, color = Wk.Ink400, align = TextAlign.Center)
-            GhostButton("Cancel challenge", { vm.battle = "home" })
-            WkText("demo: tap to simulate accept", 11, color = Wk.Orange300, modifier = Modifier.tap { vm.battle = "arena" })
-        }
-        "arena" -> Column(Modifier.fillMaxWidth().wkCard().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Avatar("JS", Wk.Orange300, 52); WkText("You", 12, color = Wk.Ink300) }; Column(horizontalAlignment = Alignment.CenterHorizontally) { Avatar("AK", Wk.Pink, 52); WkText("aarav_k", 12, color = Wk.Ink300) } }
-            WkText(AppViewModel.fmt(vm.battleSecs), 40, FontWeight.ExtraBold, Wk.Cream50)
-            WkText("Hold focus. Don't pause.", 12, color = Wk.Ink400)
-            PrimaryButton(if (vm.running) "Pause (forfeits)" else "Start focus", { if (vm.running) { vm.running = false; vm.battle = "home"; vm.flash("You forfeited") } else { vm.startFocus() } }, Modifier.fillMaxWidth())
-            WkText("Finish battle", 12, FontWeight.SemiBold, Wk.Orange300, Modifier.tap { vm.xp += 40; vm.battle = "home"; vm.flash("You won! +40 XP") })
-        }
-        else -> {
-            Column(Modifier.fillMaxWidth().wkCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                WkText("⚔️ Battleground", 17, FontWeight.Bold, Wk.Ink100); WkText("Challenge someone. Stay focused. Don't pause.", 12, color = Wk.Ink400)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Pill(title, Wk.Violet); WkText("%,d XP".format(vm.xp), 13, FontWeight.Bold, Wk.Orange300) }
-                WkText("Ready for a challenge? Challenge someone and see who can stay focused longer.", 12, color = Wk.Ink500)
-                PrimaryButton("⚔️ Challenge someone", { vm.sheet = SheetKind.Challenge }, Modifier.fillMaxWidth())
-            }
-            if (vm.battle == "invite") Column(Modifier.fillMaxWidth().wkSurface(Wk.Black800, Wk.Orange600.copy(alpha = 0.5f), 16.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                WkText("aarav_k challenged you", 14, FontWeight.Bold, Wk.Ink100); WkText("Focus Titan · expires in 4 min", 11, color = Wk.Ink500)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { GhostButton("Decline", { vm.battle = "home" }, Modifier.weight(1f), height = 42); PrimaryButton("Accept", { vm.battle = "arena" }, Modifier.weight(1f), height = 42) }
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { WkText("Your battle stats", 14, FontWeight.Bold, Wk.Ink100, Modifier.weight(1f)); WkText("View profile", 12, color = Wk.Orange300, modifier = Modifier.tap { profile = true }) }
-            listOf(listOf("24" to "Battles", "16" to "Won", "8" to "Lost", "3" to "Streak"), listOf("5" to "Best", "31h" to "Focused", "%,d".format(vm.xp) to "XP")).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { row.forEach { (v, l) -> Column(Modifier.weight(1f).wkCard().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) { WkText(v, 17, FontWeight.Bold, Wk.Cream50); WkText(l, 10, color = Wk.Ink500) } }; repeat(4 - row.size) { Spacer(Modifier.weight(1f)) } }
-            }
-            Column { WkText("🏆 Leaderboard", 14, FontWeight.Bold, Wk.Ink100); WkText("Ranked by Battle XP", 11, color = Wk.Ink500) }
-            Battlers.forEachIndexed { i, b ->
-                ListRow {
-                    WkText(b.medal ?: "#${i + 1}", 16, modifier = Modifier.width(30.dp), align = TextAlign.Center)
-                    Column(Modifier.weight(1f)) { WkText(b.name, 13, FontWeight.SemiBold, Wk.Ink100); WkText("${b.title} · ${b.xp} XP", 11, color = Wk.Ink500) }
-                    GhostButton("Challenge", { vm.battle = "waiting"; vm.flash("Challenge sent to ${b.name}") }, height = 34, textColor = Wk.Orange200, border = Wk.Orange600)
-                }
-            }
-        }
-    }
 }
 
 // ───────────────────────── WYNKOINS ─────────────────────────

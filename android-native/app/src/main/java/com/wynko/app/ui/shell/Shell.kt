@@ -44,16 +44,23 @@ private val DrawerItems = listOf(
     NavItem(Dest.Settings, "Settings", Icons.Filled.Settings),
 ).filter { BuildConfig.PAYMENTS_ENABLED || (it.dest != Dest.Coins && it.dest != Dest.Earn) }
 
+/** Dashboard pages still shown through the web view (build.gradle.kts `webScreens`); everything else is native Compose. */
+private val WebScreens = BuildConfig.WEB_SCREENS.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
+
 /** Screens that come from the web dashboard (same app as desktop) instead of native Compose: dashboard page id plus optional tab. */
-private fun webTarget(d: Dest): Pair<String, String?>? = if (!BuildConfig.WEB_UI) null else when (d) {
-    Dest.Schedules -> "schedules" to null
-    Dest.Rooms, Dest.Room -> "studyrooms" to "rooms"
-    Dest.Comms, Dest.CommStudent, Dest.CommManage -> "studyrooms" to "communities"
-    Dest.Battle -> "battleground" to null
-    Dest.Settings -> "settings" to null
-    Dest.Coins -> "wynkoins" to null
-    Dest.Earn -> "earn" to null
-    else -> null
+private fun webTarget(d: Dest): Pair<String, String?>? {
+    if (!BuildConfig.WEB_UI) return null
+    val (key, target) = when (d) {
+        Dest.Schedules -> "schedules" to ("schedules" to null)
+        Dest.Rooms, Dest.Room -> "rooms" to ("studyrooms" to "rooms")
+        Dest.Comms, Dest.CommStudent, Dest.CommManage -> "communities" to ("studyrooms" to "communities")
+        Dest.Battle -> "battleground" to ("battleground" to null)
+        Dest.Settings -> "settings" to ("settings" to null)
+        Dest.Coins -> "wynkoins" to ("wynkoins" to null)
+        Dest.Earn -> "earn" to ("earn" to null)
+        else -> return null
+    }
+    return if (key in WebScreens) target else null
 }
 
 private fun barTitle(d: Dest) = when (d) {
@@ -73,6 +80,12 @@ fun AppShell(vm: AppViewModel = viewModel()) {
     LaunchedEffect(dest) { scroll.scrollTo(0) }
     BackHandler(enabled = vm.drawerOpen || vm.sheet != null || vm.dest != Dest.Home) {
         when { vm.sheet != null -> vm.sheet = null; vm.drawerOpen -> vm.drawerOpen = false; else -> vm.back() }
+    }
+
+    // While these screens are up the web pane keeps the login fresh; the background sync must not refresh it too.
+    DisposableEffect(Unit) {
+        com.wynko.app.sync.RemoteSync.uiActive = true
+        onDispose { com.wynko.app.sync.RemoteSync.uiActive = false }
     }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -239,7 +252,10 @@ private fun Drawer(vm: AppViewModel) {
                 val on = vm.dest == n.dest
                 val badge = when (n.dest) {
                     Dest.Focus -> if (vm.running) "LIVE" else null
-                    Dest.Battle -> if (vm.battle == "invite") "1 INVITE" else null
+                    Dest.Battle -> when {
+                        vm.bg?.active != null -> "LIVE"
+                        else -> vm.bg?.incomingInvites?.size?.takeIf { it > 0 }?.let { "$it INVITE${if (it == 1) "" else "S"}" }
+                    }
                     Dest.Coins -> "%,d".format(vm.coins)
                     else -> null
                 }

@@ -24,8 +24,8 @@ object AuthRepository {
 
     val status: Flow<SessionStatus> get() = auth.sessionStatus
 
-    val currentUserId: String? get() = auth.currentUserOrNull()?.id
-    val currentEmail: String? get() = auth.currentUserOrNull()?.email
+    val currentUserId: String? get() = Supabase.userIdOrNull()
+    val currentEmail: String? get() = Supabase.emailOrNull()
 
     suspend fun signIn(email: String, password: String) {
         auth.signInWith(Email) {
